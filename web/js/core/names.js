@@ -15,18 +15,34 @@ export const FRANCHISES = [
   { city:"서울", nick:"타이탄스",  mascot:"고릴라",   color:"#c1121f", code:"SE" },
   { city:"부산", nick:"돌핀스",    mascot:"돌고래",   color:"#1668b8", code:"BS" },
   { city:"인천", nick:"썬더스",    mascot:"들소",     color:"#2a4bab", code:"IC" },
-  { city:"대구", nick:"불스",      mascot:"황소",     color:"#7c1d32", code:"DG" },
+  { city:"대구", nick:"레이더스",  mascot:"매",       color:"#7c1d32", code:"DG" },
   { city:"대전", nick:"드래곤스",  mascot:"용",       color:"#0b5138", code:"DJ" },
   { city:"광주", nick:"피닉스",    mascot:"불사조",   color:"#d1600f", code:"GJ" },
   { city:"울산", nick:"샤크스",    mascot:"상어",     color:"#123f6d", code:"US" },
   { city:"고양", nick:"헌터스",    mascot:"매",       color:"#a37012", code:"GY" },
-  { city:"창원", nick:"코브라스",  mascot:"코브라",   color:"#14663c", code:"CW" },
+  { city:"창원", nick:"유니콘스",  mascot:"유니콘",   color:"#14663c", code:"CW" },
   { city:"청주", nick:"스타즈",    mascot:"수리부엉이", color:"#b03410", code:"CJ" },
-  { city:"천안", nick:"팬서스",    mascot:"표범",     color:"#202a3a", code:"CA" },
-  { city:"전주", nick:"재규어스",  mascot:"재규어",   color:"#0d2b52", code:"JJ" },
+  { city:"천안", nick:"팬서스",    mascot:"표범",     color:"#4b5563", code:"CA" },
+  { city:"전주", nick:"재규어스",  mascot:"재규어",   color:"#3f7a2a", code:"JJ" },
   { city:"강릉", nick:"울브스",    mascot:"늑대",     color:"#4a5568", code:"GN" },
-  { city:"제주", nick:"레이븐스",  mascot:"큰까마귀", color:"#1a2233", code:"JU" },
+  { city:"제주", nick:"레이븐스",  mascot:"큰까마귀", color:"#2c3446", code:"JU" },
 ];
+// 실제 위경도. 연고지 지도에 쓴다.
+export const GEO = {
+  서울:[37.57,126.98], 부산:[35.18,129.08], 인천:[37.46,126.71], 대구:[35.87,128.60],
+  대전:[36.35,127.38], 광주:[35.16,126.85], 울산:[35.54,129.31], 고양:[37.66,126.83],
+  창원:[35.23,128.68], 청주:[36.64,127.49], 천안:[36.82,127.15], 전주:[35.82,127.15],
+  강릉:[37.75,128.90], 제주:[33.50,126.53],
+};
+// 남한 해안선을 단순화한 경유점 (서→남→동→휴전선)
+export const COAST = [
+  [37.70,126.38],[37.20,126.55],[36.70,126.30],[36.30,126.50],[35.98,126.70],
+  [35.40,126.45],[34.79,126.39],[34.57,126.60],[34.76,127.66],[34.85,128.43],
+  [35.10,129.10],[35.54,129.36],[36.05,129.42],[36.80,129.42],[37.80,128.95],
+  [38.40,128.48],[38.30,127.30],[38.00,126.95],[37.90,126.70],
+];
+export const JEJU = [[33.55,126.15],[33.56,126.95],[33.20,126.90],[33.22,126.20]];
+
 const BY_NAME = new Map(FRANCHISES.map(f => [`${f.city} ${f.nick}`, f]));
 export const franchiseOf = (fullName) => BY_NAME.get(fullName) || FRANCHISES[0];
 

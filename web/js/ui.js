@@ -33,9 +33,8 @@ function axis(cur, pot, size = '', inline = false) {
     const L = Math.min(pos(r.lo), 100 - W);
     return `<${tag} style="left:${L}%;width:${W}%"></${tag}>`;
   };
-  const bar = `<span class="ax ${size}">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}`
-    + (inline ? `<em class="axin">${Math.round(cur.lo)}–${Math.round(cur.hi)}</em>` : '') + '</span>';
-  return inline ? bar
+  const bar = `<span class="ax ${size}">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}</span>`;
+  return size === 'big' ? bar : inline ? bar
     : `<span class="axrow">${bar}<span class="axnum">${Math.round(cur.lo)}–${Math.round(cur.hi)}</span></span>`;
 }
 
@@ -47,9 +46,55 @@ function toast(label, text, kind = '') {
 }
 
 /* ── 구단 정체성: 야구 모자 로고 ── */
-import { franchiseOf } from './core/names.js';
+import { franchiseOf, FRANCHISES, GEO, COAST, JEJU } from './core/names.js';
+
+/** 연고지 지도. 실제 위경도를 등장방형으로 투영한다. */
+function drawMap(teams, selName) {
+  const W = 300, H = 380, PAD = 14;
+  const lats = [38.5, 33.1], lons = [125.9, 129.7];
+  const px = (lat, lon) => [
+    PAD + (lon - lons[0]) / (lons[1] - lons[0]) * (W - PAD * 2),
+    PAD + (lats[0] - lat) / (lats[0] - lats[1]) * (H - PAD * 2)];
+  const path = (pts) => pts.map(([a, b], i) =>
+    (i ? 'L' : 'M') + px(a, b).map(v => v.toFixed(1)).join(' ')).join(' ') + ' Z';
+  const dots = teams.map(name => {
+    const f = franchiseOf(name), g = GEO[f.city];
+    if (!g) return '';
+    const [x, y] = px(g[0], g[1]);
+    const on = name === selName;
+    return `<g class="mdot ${on ? 'on' : ''}">
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${on ? 7 : 4.5}"
+        fill="${f.color}" stroke="#0b121a" stroke-width="1.5"/>
+      ${on ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="none"
+        stroke="${f.color}" stroke-width="1.5" opacity=".55"/>
+        <text x="${x.toFixed(1)}" y="${(y - 15).toFixed(1)}" text-anchor="middle"
+          class="mlabel">${esc(f.city)}</text>` : ''}</g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" class="kmap" aria-label="연고지 지도">
+    <path d="${path(COAST)}" class="mland"/>
+    <path d="${path(JEJU)}" class="mland"/>
+    ${dots}</svg>`;
+}
+
 const SCALE = ['20','30','40','50','60','70','80'];
+// '팜' 은 MLB 용어다. 한국 야구는 2군·육성·유망주라고 쓴다.
 const capOf = (name) => { const f = franchiseOf(name); return { code: f.code, color: f.color }; };
+/** 선수 아바타. 사진은 없지만 사람이라는 감각은 있어야 한다. */
+function avatar(name, pid, teamColor, size = 34) {
+  const h = (pid * 2654435761) >>> 0;
+  const skin = ['#d3ab88', '#c19a76', '#ae8360', '#e0bd9c'][h % 4];
+  const shirt = ['#e8eef5', '#c9d4e0'][(h >> 5) % 2];
+  return `<span class="av" style="width:${size}px;height:${size}px">
+    <svg viewBox="0 0 40 40" width="${size}" height="${size}" aria-hidden="true">
+      <rect width="40" height="40" rx="20" fill="#0d1620"/>
+      <path d="M20 24.5c-7.6 0-12.4 4.6-12.4 11.5V40h24.8v-4c0-6.9-4.8-11.5-12.4-11.5z" fill="${shirt}"/>
+      <path d="M20 24.5c-2.6 0-4.8.5-6.6 1.5L20 33l6.6-7c-1.8-1-4-1.5-6.6-1.5z" fill="${teamColor}"/>
+      <circle cx="20" cy="17.5" r="7.6" fill="${skin}"/>
+      <path d="M12.6 15.6a7.5 7.5 0 0 1 14.8 0z" fill="${teamColor}"/>
+      <path d="M27 14.4h7.4a1.6 1.6 0 0 1 0 3.2H27z" fill="${teamColor}"/>
+    </svg></span>`;
+}
+
 const cap = (name, size = 44) => {
   const c = capOf(name);
   return `<span class="cap" style="background:${c.color};width:${size}px;height:${size}px;
@@ -59,9 +104,19 @@ const cap = (name, size = 44) => {
 /* ── 시작 화면 ── */
 let bootGame = null, bootSel = 1;
 
-function boot() {
-  const seed = Math.floor(Math.random() * 1e9);
-  bootGame = new Game({ userTeamId: 1, nTeams: 10, games: 144, seed }).prologue();
+async function boot() {
+  // 고정 리그. 한 번 구운 세계를 그대로 불러온다. 매번 시즌을 다시 돌리지 않는다.
+  try {
+    const res = await fetch('data/league.json', { cache: 'force-cache' });
+    bootGame = save.load(await res.json());
+  } catch {
+    bootGame = new Game({ userTeamId: 1, nTeams: 10, games: 144,
+                          startYear: 2026, seed: 94 }).prologue();
+  }
+  const year = bootGame.state().year;
+  $('#bootYear').textContent = year;
+  $('#listLabel').textContent = `${year - 1} 최종 순위`;
+  drawBracket();
   // 작년 순위대로 세운다. 순위표를 보는 것과 같은 순서여야 읽힌다.
   const list = bootGame.teamList()
     .map(t => ({ t, d: bootGame.teamDossier(t.id) }))
@@ -77,8 +132,7 @@ function boot() {
     b.innerHTML = `<span class="tpos">${d.last.rank}</span>
       ${cap(d.name, 40)}
       <span><span class="tname">${esc(d.name)}</span>
-        <span class="tarch">${esc(d.archetype)}
-          <i class="trec">${d.last.w}–${d.last.l}</i></span></span>
+        <span class="tarch">${esc(d.archetype)}</span></span>
       <span class="tdl d${d.difficulty}">${esc(d.difficultyLabel)}</span>`;
     b.onclick = () => {
       bootSel = t.id;
@@ -91,6 +145,21 @@ function boot() {
   drawDossier();
 }
 
+function drawBracket() {
+  const ps = bootGame.lastPostseason();
+  if (!ps.rounds.length) return;
+  const el2 = $('#bracket');
+  el2.innerHTML = `<div class="lab">${ps.year} 포스트시즌</div>` +
+    ps.rounds.map((r, i) => {
+      const last = i === ps.rounds.length - 1;
+      return `<div class="br ${last ? 'ks' : ''}">
+        <span class="brl">${esc(r.round)}</span>
+        <span class="brw">${cap(r.winner, 22)}${esc(r.winner)}${last ? ' <i>우승</i>' : ''}</span>
+        <span class="brs m">${r.w}–${r.l}</span>
+        <span class="brx">${esc(short(r.loser))}</span></div>`;
+    }).join('');
+}
+
 function drawDossier() {
   const d = bootGame.teamDossier(bootSel);
   const col = capOf(d.name).color;
@@ -100,9 +169,12 @@ function drawDossier() {
   const fr = franchiseOf(d.name);
 
   const scoutRow = (p) => `<div class="sp-row">
-      <span class="sp-top">
+      ${avatar(p.name, p.pid, col, 38)}
+      <span class="sp-main">
         <span class="sp-name">${esc(p.name)}<span>${p.age}세 · ${p.slot}</span></span>
-      </span>${axis(p.ovr, p.pot, 'big', true)}</div>`;
+        <span class="sp-bar">${axis(p.ovr, p.pot, 'big')}
+          <b class="sp-num">${p.ovr.lo}–${p.ovr.hi}</b></span>
+      </span></div>`;
 
   const pay = d.payrollRatio;
   const payCls = pay > 100 ? 'over' : pay > 90 ? 'tight' : '';
@@ -113,15 +185,18 @@ function drawDossier() {
         <h2>${esc(d.name)}<small>${esc(fr.mascot)}${H ? ` · 창단 ${H.founded}` : ''}</small></h2>
         <span class="chip d${d.difficulty}">${esc(d.difficultyLabel)}</span></div>
       <p class="headline">${esc(d.headline)}</p>
+      <p class="dlast">${bootGame.state().year - 1} 시즌 <b>${d.last.rank}위</b>
+        <span>${d.last.w}승 ${d.last.l}패${d.last.d ? ` ${d.last.d}무` : ''}</span>
+        ${d.lastRank ? `<em>득점 ${d.lastRank.rs}위 · 실점 ${d.lastRank.ra}위</em>` : ''}</p>
     </div>
 
     <div class="dbody">
       <div class="dsec">
         <div class="contrast">
           <div class="cbox s"><div class="ctitle">강점</div>
-            ${c.strong.length ? c.strong.map(x =>
-              `<div class="citem"><span>${x.k}</span><b>${x.r}위</b></div>`).join('')
-              : '<div class="cnone">평균 이상이 없다</div>'}</div>
+            ${c.strong.map(x =>
+              `<div class="citem ${x.soft ? 'soft' : ''}"><span>${x.k}</span>
+                <b>${x.r}위</b></div>`).join('')}</div>
           <div class="cbox w"><div class="ctitle">리스크</div>
             ${d.risk.rows.map(x =>
               `<div class="citem"><span>${x.k}</span><b class="s${x.s}">${x.v}</b></div>`).join('')}
@@ -134,9 +209,10 @@ function drawDossier() {
       <div class="dsec">
         <div class="lab">스카우트 리포트</div>
         <div class="scout">
-          <div class="axlegend"><span><b class="cur"></b>지금 이만큼으로 본다</span>
-            <span><b class="pot"></b>여기까지 갈 수도 있다</span></div>
-          <div class="scoutkey">${SCALE.map(x => `<span>${x}</span>`).join('')}</div>
+          <div class="axlegend"><span><b class="cur"></b>현재</span>
+            <span><b class="pot"></b>잠재력</span></div>
+          <div class="scoutkey"><span class="axscale">${
+            SCALE.map(x => `<i>${x}</i>`).join('')}</span><span></span></div>
           <div class="sp-group">주축</div>
           ${d.key.map(scoutRow).join('')}
           ${d.prospect.length ? '<div class="sp-group">유망주</div>'
@@ -145,37 +221,35 @@ function drawDossier() {
       </div>
 
       <div class="dsec">
-        <div class="lab">재정</div>
-        <div class="payline"><span>연봉 소진율</span><b>${pay}%</b></div>
-        <div class="paybar ${payCls}"><i style="width:${Math.min(100, pay)}%"></i></div>
-        <div class="paysub"><span>연봉 ${d.payroll}억 / 예산 ${d.budget}억</span>
-          <span>시장 규모 ${d.market}</span></div>
-      </div>
-
-      <div class="dsec">
         <div class="lab">구단주</div>
         <div class="owner ${d.ownerLine.urgent ? 'urgent' : ''}">
           <span class="odemand">${esc(d.ownerLine.demand)}</span>
-          <span class="otemper">${esc(d.ownerLine.temper)}</span>
+          <span class="otemper">인내심 ${esc(d.ownerLine.temper.replace('인내심 ', ''))}</span>
           <span class="oask">“${esc(d.ownerLine.ask)}”</span></div>
       </div>
 
-      ${H ? `<div class="dsec">
-        <div class="lab">연혁</div>
-        <p class="dhist">통산 ${esc(H.record)} · 승률 ${H.pct} · 우승 ${H.titles}회${
-          H.lastTitle ? ` (최근 ${H.lastTitle})` : ''}</p>
-        ${H.legend ? `<div class="legend" style="margin-top:8px">
+      <div class="dsec">
+        <div class="lab">운영 예산</div>
+        <div class="payline"><span>연봉으로 ${d.payroll}억 / ${d.budget}억</span><b>${pay}%</b></div>
+        <div class="paybar ${payCls}"><i style="width:${Math.min(100, pay)}%"></i></div>
+      </div>
+
+      ${H && H.legend ? `<div class="dsec">
+        <div class="lab">구단 역사</div>
+        <p class="dhist">우승 ${H.titles}회${H.lastTitle ? ` · 최근 ${H.lastTitle}년` : ''}</p>
+        <div class="legend">
           <span class="lnum">${H.legend.number}</span>
           <span><b>${esc(H.legend.name)}</b>
             <span class="sub">${H.legend.from}–${H.legend.to} · ${esc(H.legend.line)}</span></span>
-        </div>` : ''}</div>` : ''}
+        </div></div>` : ''}
 
-      <div class="dstart">
-        <button id="btnNew" class="primary">${esc(josa(d.name, '으로'))} 시작</button>
-        ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
-        <p>자동 저장 · 되돌리기 없음</p>
-      </div>
+    </div>
+    <div class="dstart">
+      <button id="btnNew" class="primary">${esc(josa(d.name, '으로'))} 시작</button>
+      ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
     </div>`;
+  const mapBox = $('#kmap');
+  if (mapBox) mapBox.innerHTML = drawMap(bootGame.teamList().map(t => t.name), d.name);
   $('#dossier').style.setProperty('--tc', col);
   document.querySelector('.boot-main').style.setProperty('--tc', col);
   $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };

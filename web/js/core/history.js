@@ -67,21 +67,39 @@ function makeLegend(rng, h, upToYear) {
   };
 }
 
-function tagline(h, upToYear) {
+export function tagline(h, upToYear, lastRank = null) {
   const n = h.titles.length;
   if (h.founded >= upToYear - 8) return `${h.founded}년 창단, 아직 역사를 쓰는 중`;
   if (n === 0) return `창단 ${h.seasons}년, 아직 우승이 없다`;
   if (h.drought === 0) return n === 1
     ? `${h.lastTitle}년 창단 첫 우승, 디펜딩 챔피언`
     : `통산 ${n}번째 우승을 막 차지한 디펜딩 챔피언`;
+  // 지난 시즌 하위권이면 '전성기' 같은 말을 쓸 수 없다
+  const slumping = lastRank !== null && lastRank >= 7;
   if (n >= 9 && h.drought >= 15) return `우승 ${n}회의 명가, 그러나 ${h.drought}년째 무관`;
   if (n >= 9) return `우승 ${n}회, 리그를 대표하는 명문`;
-  if (n >= 5 && h.drought <= 2) return `우승 ${n}회, 지금이 전성기다`;
+  if (n >= 5 && h.drought <= 2 && !slumping) return `우승 ${n}회, 지금이 전성기다`;
+  if (n >= 5 && h.drought <= 2) return `우승 ${n}회, 그런데 지난 시즌 ${lastRank}위`;
   if (n >= 5 && h.drought >= 15) return `${h.lastTitle}년을 마지막으로 ${h.drought}년째 무관`;
   if (n >= 5) return `우승 ${n}회, 마지막은 ${h.lastTitle}년`;
   if (n === 1) return `${h.lastTitle}년 단 한 번의 우승, 그로부터 ${h.drought}년`;
   if (h.drought >= 18) return `우승 ${n}회, ${h.drought}년째 우승이 없다`;
   return `우승 ${n}회, ${h.lastTitle}년 이후 ${h.drought}년`;
+}
+
+/** 프롤로그로 실제 치른 시즌을 연혁에 반영한다.
+ *  이걸 빼먹으면 8위 팀이 '디펜딩 챔피언' 이 된다. */
+export function syncHistory(teams, year, championName, standings) {
+  const rank = new Map(standings.map((r, i) => [r.team_id, i + 1]));
+  for (const t of teams) {
+    const h = t.history;
+    if (!h) continue;
+    if (t.name === championName && !h.titles.includes(year)) h.titles.push(year);
+    h.seasons = year - h.founded + 1;
+    h.lastTitle = h.titles.length ? h.titles[h.titles.length - 1] : null;
+    h.drought = h.lastTitle ? year - h.lastTitle : h.seasons;
+    h.tagline = tagline(h, year, rank.get(t.team_id) ?? null);
+  }
 }
 
 /** 무관이 길수록 구단주는 조급해진다. 역사가 기계와 연결되는 지점. */

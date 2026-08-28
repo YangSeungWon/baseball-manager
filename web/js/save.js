@@ -134,6 +134,7 @@ export function dump(game) {
     faOffers: Object.fromEntries(game.faOffers),
     champion: game.champion,
     lastTable: game.lastTable || null,
+    lastPlayoffs: game.lastPlayoffs || null,
     draft: game.draftSession ? {
       order: game.draftSession.order.map(t=>t.team_id),
       pool: game.draftSession.pool.map(p=>p.pid),
@@ -220,6 +221,7 @@ export function load(data) {
   g.L = L; g.userId = data.user; g.phase = data.phase;
   g.champion = data.champion ?? null; g.playoffLog = []; g.notices = [];
   g.lastTable = data.lastTable || null;
+  g.lastPlayoffs = data.lastPlayoffs || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
   g._prev = { rank: 0, run: 0 };
   g.draftSession = null;

@@ -7,7 +7,8 @@ import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
 import * as draft from './draft.js';
 import { Season, postseason } from './season.js';
-import { buildHistory, droughtPressure } from './history.js';
+import { buildHistory, droughtPressure, syncHistory } from './history.js';
+export { syncHistory };
 
 export class Career {
   constructor(p, kind) {

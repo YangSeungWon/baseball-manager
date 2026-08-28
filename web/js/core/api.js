@@ -1,6 +1,6 @@
 // JSON API 레이어. UI 가 소비하는 유일한 경계면.
 // 규칙: 엔진 객체를 밖으로 내보내지 않는다 / 모든 선수 데이터는 내 팀 스카우트를 통과한다.
-import { League, Season, postseason } from './league.js';
+import { League, Season, postseason, syncHistory } from './league.js';
 import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
@@ -79,6 +79,11 @@ export class Game {
       unread: this.L.mail ? this.L.mail.unread : 0,
       new_important: this.newImportant || 0 };
   }
+  /** 지난 시즌 포스트시즌 대진 */
+  lastPostseason() {
+    return { year: this.L.year - 1, rounds: this.lastPlayoffs || [] };
+  }
+
   /** 지난 시즌 최종 순위. 시즌 전 화면을 채운다. */
   lastStandings() {
     return { year: this.L.year - 1, rows: (this.lastTable || []).map(r =>
@@ -466,12 +471,15 @@ export class Game {
     const S = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
     S.run();
     this.season = S; this.L.season = S;
-    const [champ] = postseason(S, this.L.rng);
+    const [champ, plog] = postseason(S, this.L.rng);
+    this.lastPlayoffs = plog.map(([round, w, l, sc]) => ({
+      round, winner: w.name, loser: l.name, w: sc[0], l: sc[1] }));
     this.lastTable = S.standings().map((r, i) => ({
       team_id: r.team.team_id, team: r.team.name, rank: i + 1, w: r.w, l: r.l, d: r.d,
       pct: r.pct.toFixed(3), rs: r.rs, ra: r.ra, playoff: i < 5,
       champion: r.team.team_id === champ.team_id }));
     this.absorbSeason(champ);
+    syncHistory(this.L.teams, this.L.year, champ.name, this.lastTable);
     this.L.offRollover();
     this.L.offFA();                    // 아직 사용자가 없으므로 전 구단 AI
     this.L.offTrades();
@@ -530,6 +538,13 @@ export class Game {
       strength: r0(strength), batting: r0(bat), pitching: r0(pit), farm: r0(farm),
       rank: { strength: strRank, batting: batRank, pitching: pitRank,
               farm: farmRank, budget: budRank, of: n },
+      lastRank: (() => {
+        const T = this.lastTable || [];
+        if (!T.length) return null;
+        const rs = [...T].sort((x, y) => y.rs - x.rs).findIndex(x => x.team_id === teamId) + 1;
+        const ra = [...T].sort((x, y) => x.ra - y.ra).findIndex(x => x.team_id === teamId) + 1;
+        return { rs, ra, of: T.length };
+      })(),
       difficulty: diff,
       difficultyLabel: ['', '쉬움', '무난', '보통', '어려움', '극한'][diff],
       contrast: con,
@@ -566,7 +581,7 @@ export class Game {
     if (R.str >= lo && f.patience >= 60) return '장기 리빌딩';
     if (R.str >= lo && f.patience < 40) return '벼랑 끝';
     if (R.bud <= hi && R.str >= lo) return '자금은 있다';
-    if (R.farm <= 2) return '팜이 무기';
+    if (R.farm <= 2) return '유망주가 무기';
     if (nW >= 3 && !nS) return '전면 재건';
     if (nW >= 2 && !nS) return '구멍 난 로스터';
     if (nS >= 3 && !nW) return '빈틈없는 전력';
@@ -581,12 +596,16 @@ export class Game {
     const h = t.history;
     if (h && h.drought === 0 && strong(R.str))
       return '왕좌를 지킬 것인가. 여기서부터는 내려갈 일만 남았다.';
+    if (h && h.drought === 0 && weak(R.str))
+      return '우승 직후 전력이 무너졌다. 반지를 지킬 방법을 찾아야 한다.';
+    if (h && h.drought === 0)
+      return '작년의 반지는 이미 과거다. 두 번 연속은 훨씬 어렵다.';
     if (strong(R.pit) && weak(R.bat))
       return '마운드는 이미 우승권. 방망이 하나만 구하면 된다.';
     if (strong(R.bat) && weak(R.pit))
       return '점수는 낸다. 문제는 지켜낼 투수가 없다는 것.';
     if (weak(R.str) && strong(R.farm))
-      return '리그 최고의 팜. 문제는 기다릴 시간이 있느냐다.';
+      return '리그 최고의 유망주진. 문제는 기다릴 시간이 있느냐다.';
     if (weak(R.str) && strong(R.bud))
       return '금고는 가득 찼고 로스터는 비었다. 사올 수 있는 만큼 사와야 한다.';
     if (strong(R.str) && weak(R.bud))
@@ -596,11 +615,11 @@ export class Game {
     if (weak(R.str) && weak(R.farm) && f.patience >= 55)
       return '바닥에서 시작한다. 대신 아무도 재촉하지 않는다.';
     if (weak(R.str) && weak(R.farm))
-      return '전력도 팜도 없다. 그런데 시간까지 없다.';
+      return '전력도 유망주도 없다. 그런데 시간까지 없다.';
     if (h && h.titles.length >= 6 && h.drought >= 15)
       return `${h.titles.length}번 우승한 구단이 ${h.drought}년째 조용하다. 끝낼 사람이 필요하다.`;
     if (strong(R.farm) && !strong(R.str) && !weak(R.str))
-      return '리그 최고의 팜. 몇 년만 버티면 판이 뒤집힌다.';
+      return '리그 최고의 유망주진. 몇 년만 버티면 판이 뒤집힌다.';
     if (Math.abs(gap) >= Math.ceil(n * 0.5))
       return gap > 0 ? '마운드가 혼자 팀을 끌고 간다. 타선을 채워라.'
                      : '타선이 혼자 팀을 끌고 간다. 마운드를 채워라.';
@@ -640,8 +659,8 @@ export class Game {
     else if (faSoon >= 2) out.push({ k:'FA 임박', v:`2년 내 ${faSoon}명`, s:1 });
     if (pay >= 100) out.push({ k:'예산 초과', v:`소진율 ${Math.round(pay)}%`, s:2 });
     else if (pay >= 95) out.push({ k:'연봉 포화', v:`소진율 ${Math.round(pay)}%`, s:1 });
-    if (R.farm >= lo) out.push({ k:'팜 고갈', v:`유망주 ${R.farm}위`, s:2 });
-    else if (R.farm > Math.ceil(R.of / 2)) out.push({ k:'얇은 팜', v:`유망주 ${R.farm}위`, s:1 });
+    if (R.farm >= lo) out.push({ k:'유망주 고갈', v:`${R.farm}위`, s:2 });
+    else if (R.farm > Math.ceil(R.of / 2)) out.push({ k:'얇은 육성', v:`유망주 ${R.farm}위`, s:1 });
     if (f.patience < 35) out.push({ k:'해고 압박', v:`${f.demand} · 인내심 ${Math.round(f.patience)}`, s:2 });
     else if (f.demand === '우승' || f.demand === '포스트시즌')
       out.push({ k:'성적 압박', v:`${f.demand} 요구`, s:1 });
@@ -655,11 +674,17 @@ export class Game {
   /** 강점과 약점을 갈라서 내보낸다. 표로 늘어놓으면 대비가 죽는다. */
   _contrast(R) {
     const items = [['전력', R.str], ['타선', R.bat], ['마운드', R.pit],
-                   ['팜', R.farm], ['재정', R.bud]];
+                   ['유망주', R.farm], ['재정', R.bud]];
     const hi = Math.ceil(R.of * 0.3), lo = Math.floor(R.of * 0.7) + 1;
+    const strong = items.filter(([, r]) => r <= hi).sort((a, b) => a[1] - b[1])
+      .map(([k, r]) => ({ k, r }));
+    // 상위 30% 가 하나도 없으면 그중 가장 나은 둘을 '상대적 강점' 으로 보여준다.
+    // 칸이 비면 화면이 죽고, 어떤 팀이든 기댈 곳은 있다.
+    if (!strong.length)
+      items.slice().sort((a, b) => a[1] - b[1]).slice(0, 2)
+        .forEach(([k, r]) => strong.push({ k, r, soft: true }));
     return {
-      strong: items.filter(([, r]) => r <= hi).sort((a, b) => a[1] - b[1])
-        .map(([k, r]) => ({ k, r })),
+      strong,
       weak: items.filter(([, r]) => r >= lo).sort((a, b) => b[1] - a[1])
         .map(([k, r]) => ({ k, r })),
       mid: items.filter(([, r]) => r > hi && r < lo).map(([k, r]) => ({ k, r })),

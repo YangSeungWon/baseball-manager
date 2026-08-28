@@ -13,8 +13,8 @@
 
 :root{
   --bg:#080d13;                    /* 가장 깊은 바닥 */
-  --s1:#131c26; --s2:#1b2735; --s3:#253445;   /* 층위를 확실히 벌린다 */
-  --sel:#243447; --hover:#1f2c3b;
+  --s1:#1b2634; --s2:#202d3d; --s3:#2a3a4d;   /* 배경 대비 3:1 을 목표로 */
+  --sel:#2d3f54; --hover:#243244;
   --fg:#f4f8fb; --fg2:#a7b5c3; --fg3:#77879a;  /* 회색 대비를 올렸다 */
   --line:#2b3a4b; --line2:#212e3d;
   --team:#4c8ed9;                  /* 선택된 팀 색이 흘러든다 */
@@ -52,21 +52,27 @@ input{font-family:var(--mono);font-size:16px;background:var(--s1);color:var(--fg
 input:focus{outline:0;border-color:var(--accent)}
 
 /* ── 시작 화면 ── */
-.boot{min-height:100vh;padding:clamp(12px,1.8vw,20px);display:flex;flex-direction:column;
-  background:var(--bg)}
+.boot{height:100vh;padding:clamp(12px,1.8vw,20px);display:flex;flex-direction:column;
+  background:var(--bg);overflow:hidden}
 .boot-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
-.boot-head h1{margin:0;font-family:var(--mono);font-size:14px;font-weight:600;
-  letter-spacing:.22em;color:var(--fg3)}
+.boot-head h1{margin:0;font-family:var(--mono);font-size:15px;font-weight:600;
+  letter-spacing:.18em;color:var(--fg2)}
+.boot-head h1 em{font-style:normal;color:var(--accent);margin-left:6px;letter-spacing:.04em}
 .boot-head .goal{font-size:22px;font-weight:700;margin:0}
 .boot-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(400px,1fr);
-  gap:clamp(12px,1.6vw,20px);flex:1;align-items:start}
-@media(max-width:1020px){.boot-main{grid-template-columns:1fr}}
+  gap:clamp(12px,1.6vw,20px);flex:1;min-height:0}
+@media(max-width:1020px){
+  .boot{height:auto;min-height:100vh;overflow:visible}
+  .boot-main{grid-template-columns:1fr}
+  .bootleft{overflow:visible}
+}
 
 /* 구단 목록 — 선 대신 면으로 나눈다 */
 .teamlist{display:flex;flex-direction:column;gap:4px}
 .trow{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:12px;
   align-items:center;width:100%;padding:11px 14px 11px 11px;border:0;border-radius:5px;
   background:var(--s1);border-left:4px solid transparent;text-align:left;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.045);
   font-family:var(--kr);font-size:16px;color:var(--fg);cursor:pointer}
 .trow:hover{background:var(--hover)}
 .trow[aria-pressed=true]{background:var(--s3);border-left-color:var(--tc,var(--accent))}
@@ -81,14 +87,45 @@ input:focus{outline:0;border-color:var(--accent)}
 .tdl.d4{color:#e0a03c} .tdl.d5{color:var(--neg);background:rgba(216,94,94,.12)}
 .tdl.d1{color:var(--pos)}
 
+/* 좌측: 순위 · 대진표 · 지도 */
+.bootleft{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;
+  padding-right:4px}
+.bootleft>.lab{font-size:14px;color:var(--fg2);flex-shrink:0}
+.teamlist{flex-shrink:0}
+.bracket{background:var(--s1);border-radius:6px;padding:12px 14px;flex-shrink:0}
+.bracket .lab{margin-bottom:8px;font-size:13px}
+.br{display:grid;grid-template-columns:74px 1fr auto 84px;gap:10px;align-items:center;
+  padding:6px 0;border-bottom:1px solid var(--line2);font-size:14px}
+.br:last-child{border-bottom:0}
+.brl{font-size:12px;color:var(--fg3)}
+.brw{display:flex;align-items:center;gap:7px;font-weight:600;min-width:0}
+.brw i{font-style:normal;font-size:11px;color:var(--pos);font-weight:700}
+.brs{font-family:var(--mono);font-size:14px;color:var(--fg2)}
+.brx{color:var(--fg3);font-size:13px;text-align:right}
+.br.ks{padding-top:9px;margin-top:2px;border-top:1px solid var(--line)}
+.br.ks .brw{font-size:16px}
+.mapbox{background:var(--s1);border-radius:6px;padding:8px;flex-shrink:0;
+  display:grid;place-items:center}
+.kmap{width:100%;max-width:280px;height:auto}
+.mland{fill:rgba(76,142,217,.07);stroke:var(--line);stroke-width:1.2}
+.mlabel{fill:var(--fg);font-size:12px;font-weight:700;font-family:var(--kr)}
+
 /* 구단 서류 — 판타지가 먼저, 숫자가 나중 */
-.dossier{background:var(--s2);border-radius:6px;overflow:hidden;position:sticky;top:12px}
+.dossier{background:var(--s2);border-radius:6px;display:flex;flex-direction:column;
+  min-height:0;max-height:100%}
+.dbody{overflow-y:auto;flex:1;min-height:0}
+@media(max-width:1020px){.dossier{max-height:none}.dbody{overflow:visible}}
 .dtop{padding:14px 20px 16px;background:var(--s3);
   border-top:3px solid var(--tc,var(--accent))}
 .dhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .dhead h2{margin:0;font-size:23px;font-weight:800;line-height:1.1;flex:1}
 .dhead h2 small{display:block;font-size:12px;font-weight:400;color:var(--fg2);margin-top:2px}
-.headline{font-size:19px;line-height:1.4;font-weight:700;margin:0;letter-spacing:-.01em}
+.headline{font-size:19px;line-height:1.4;font-weight:700;margin:0 0 10px;letter-spacing:-.01em}
+.dlast{margin:0;font-size:14px;color:var(--fg2)}
+.dlast b{font-family:var(--mono);font-size:16px;color:var(--fg);margin:0 4px}
+.dlast span{font-family:var(--mono);font-size:13px;color:var(--fg3);margin-left:6px}
+.dlast em{font-style:normal;display:block;margin-top:5px;font-size:13px;color:var(--fg2);
+  font-family:var(--mono)}
 .chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;
   background:rgba(255,255,255,.07);color:var(--fg2);white-space:nowrap}
 .chip.d1{color:var(--pos)} .chip.d4{color:#e0a03c}
@@ -100,13 +137,14 @@ input:focus{outline:0;border-color:var(--accent)}
 .dsec>.lab{font-size:12px;color:var(--fg3);margin-bottom:8px;font-weight:600}
 
 /* 강점 / 약점 대비 */
-.contrast{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.contrast{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 .cbox .ctitle{font-size:12px;font-weight:700;margin-bottom:6px}
 .cbox.s .ctitle{color:var(--pos)} .cbox.w .ctitle{color:var(--neg)}
 .citem{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:5px 0;font-size:15px}
 .citem b{font-family:var(--mono);font-size:17px;font-weight:700}
 .cbox.s .citem b{color:var(--pos)}
+.cbox.s .citem.soft b{color:var(--fg2)}
 .citem b.s2{color:var(--neg)} .citem b.s1{color:#e0a03c} .citem b.s0{color:var(--fg3)}
 .cbox.w .citem{align-items:baseline}
 .cbox.w .citem span{flex:1}
@@ -117,8 +155,8 @@ input:focus{outline:0;border-color:var(--accent)}
 
 /* 재정 — 소진율 막대 */
 .payline{display:flex;align-items:baseline;justify-content:space-between;font-size:14px;
-  color:var(--fg2);margin-bottom:6px}
-.payline b{font-family:var(--mono);font-size:18px;color:var(--fg)}
+  color:var(--fg2);margin-bottom:7px}
+.payline b{font-family:var(--mono);font-size:20px;color:var(--fg)}
 .paybar{height:9px;background:var(--s1);border-radius:5px;overflow:hidden;position:relative}
 .paybar i{position:absolute;left:0;top:0;bottom:0;background:var(--pos);border-radius:5px}
 .paybar.tight i{background:#e0a03c} .paybar.over i{background:var(--neg)}
@@ -128,29 +166,39 @@ input:focus{outline:0;border-color:var(--accent)}
 /* 구단주 — 조용하게 */
 .owner{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-size:15px}
 .owner .odemand{font-weight:700}
-.owner .otemper{font-size:12px;color:var(--fg2)}
+.owner .otemper{font-size:13px;color:var(--fg2);background:rgba(255,255,255,.06);
+  padding:2px 9px;border-radius:99px}
 .owner.urgent .odemand{color:var(--neg)}
-.owner .oask{display:block;width:100%;margin-top:4px;color:var(--fg2);font-size:14px}
+.owner .oask{display:block;width:100%;margin-top:6px;color:var(--fg2);font-size:15px;
+  line-height:1.5}
 
 /* 핵심 선수 — 이 게임의 시그니처 */
 .scout{background:var(--s1);border-radius:5px;padding:13px 14px}
 .scoutkey{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
   color:var(--fg3);margin-bottom:6px;padding:0 1px}
-.sp-group{font-size:11px;font-weight:700;color:var(--fg3);letter-spacing:.06em;
-  margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--line2)}
-.sp-group:first-of-type{border-top:0;padding-top:0;margin-top:2px}
-.axin{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;
-  font-family:var(--mono);font-size:12px;font-weight:600;color:var(--fg);
-  text-shadow:0 1px 3px rgba(0,0,0,.7);z-index:3}
-.sp-row{padding:9px 0;border-bottom:1px solid var(--line2)}
+.sp-group{font-size:14px;font-weight:700;color:var(--fg);
+  margin:12px 0 4px;padding-top:10px;border-top:1px solid var(--line)}
+.sp-group:first-of-type{border-top:0;padding-top:0;margin-top:4px}
+
+.sp-row{display:grid;grid-template-columns:38px 1fr;gap:11px;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--line2)}
 .sp-row:last-child{border-bottom:0}
-.sp-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-  margin-bottom:5px}
+.sp-main{min-width:0}
+.sp-top{margin-bottom:5px}
 .sp-name{font-size:16px;font-weight:700}
 .sp-name span{font-weight:400;font-size:13px;color:var(--fg2);margin-left:7px}
-.sp-num{font-family:var(--mono);font-size:15px;color:var(--fg2)}
-.sp-num b{color:var(--accent);font-size:17px}
-.axlegend{display:flex;gap:16px;font-size:13px;color:var(--fg2);margin-bottom:10px;flex-wrap:wrap}
+.av{border-radius:50%;overflow:hidden;display:grid;place-items:center;flex-shrink:0;
+  box-shadow:0 0 0 1px rgba(255,255,255,.1)}
+.av svg{display:block}
+.axlegend{display:flex;gap:14px;font-size:13px;color:var(--fg2);margin-bottom:4px;
+  align-items:center;flex-wrap:wrap}
+.scoutkey{display:grid;grid-template-columns:1fr 58px;gap:10px;margin:2px 0 4px;
+  padding-left:49px}
+.axscale{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:11px;color:var(--fg3)}
+.axscale i{font-style:normal}
+.sp-bar{display:grid;grid-template-columns:1fr 58px;gap:10px;align-items:center}
+.sp-num{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--fg);text-align:right}
 .axlegend b{display:inline-block;width:20px;height:9px;vertical-align:middle;
   margin-right:6px;border-radius:2px}
 .axlegend b.cur{background:var(--accent)}
@@ -161,9 +209,10 @@ input:focus{outline:0;border-color:var(--accent)}
 .legend .lnum{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--fg2);
   min-width:34px;text-align:center}
 .legend b{display:block;font-size:15px}
-.legend .sub{display:block;font-size:12px;color:var(--fg2)}
-.dhist{margin:0;font-family:var(--mono);font-size:12px;color:var(--fg3);line-height:1.6}
-.dstart{margin-top:20px;display:grid;gap:8px}
+.legend .sub{display:block;font-size:13px;color:var(--fg2)}
+.dhist{margin:0 0 8px;font-size:14px;color:var(--fg2)}
+.dstart{display:grid;gap:8px;padding:14px 20px 16px;background:var(--s3);
+  box-shadow:0 -8px 20px rgba(0,0,0,.35)}
 .dstart button{width:100%;padding:15px;font-size:17px;font-weight:700;
   background:var(--tc,var(--accent));border-color:transparent;color:#08121b}
 .dstart button:hover{filter:brightness(1.12)}
@@ -261,7 +310,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   background:var(--line);color:var(--fg2)}
 .res.w{background:var(--pos);color:#0b1119} .res.l{background:var(--neg);color:#0b1119}
 .cap{border-radius:50%;display:grid;place-items:center;font-family:var(--mono);
-  font-weight:600;color:#f2f6fa;flex-shrink:0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+  font-weight:600;color:#f2f6fa;flex-shrink:0;
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.22), 0 0 0 1px rgba(0,0,0,.4)}
 
 .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   padding:7px 0;border-bottom:1px solid var(--line2)}
