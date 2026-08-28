@@ -2,6 +2,7 @@
 import { playGame } from './game.js';
 import * as injury from './injury.js';
 import { setActive } from './roster.js';
+import { attendRate } from './contract.js';
 
 export function makeSchedule(nTeams, gamesPerTeam, rng) {
   const rounds = nTeams - 1;
@@ -97,6 +98,7 @@ export class Season {
     this.bat = new Map(); this.pit = new Map();
     this.results = []; this.injuries = [];
     this.availDay = new Map(); this.lastUsed = new Map(); this.consec = new Map();
+    this.att = new Map(teams.map(t => [t.team_id, { games: 0, total: 0 }]));
   }
   get totalDays() { return this.byDay.size ? Math.max(...this.byDay.keys()) + 1 : 0; }
   get finished() { return this.curDay >= this.totalDays; }
@@ -163,6 +165,14 @@ export class Season {
       this._logUsage(H, day); this._logUsage(A, day);
       this._injuryRolls(H, day); this._injuryRolls(A, day);
       this.results.push([day, hi, ai, H.runs, A.runs]);
+      // 홈 구단 관중. 성적이 팬을 부르고, 팬이 다음 시즌 예산이 된다.
+      const home = this.teams[hi], rec = this.rec.get(home.team_id);
+      const wp = rec.g ? rec.w / Math.max(1, rec.w + rec.l) : 0.5;
+      const cap = home.park.capacity || 18000;
+      const a = this.att.get(home.team_id);
+      a.games++;
+      a.total += Math.round(cap * attendRate(home.finance, wp,
+        home.lastPlayoff || false, home.lastTitle || false, this.rng));
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
       out.push({ hi, ai, hr: H.runs, ar: A.runs, box: keep ? { H, A, plays } : null });

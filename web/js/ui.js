@@ -79,19 +79,53 @@ function drawMap(teams, selName) {
 const SCALE = ['20','30','40','50','60','70','80'];
 // '팜' 은 MLB 용어다. 한국 야구는 2군·육성·유망주라고 쓴다.
 const capOf = (name) => { const f = franchiseOf(name); return { code: f.code, color: f.color }; };
-/** 선수 아바타. 사진은 없지만 사람이라는 감각은 있어야 한다. */
-function avatar(name, pid, teamColor, size = 34) {
-  const h = (pid * 2654435761) >>> 0;
-  const skin = ['#d3ab88', '#c19a76', '#ae8360', '#e0bd9c'][h % 4];
-  const shirt = ['#e8eef5', '#c9d4e0'][(h >> 5) % 2];
+/** 선수 아바타. 체격·머리·수염·피부를 조합한다.
+ *  키와 몸무게가 어깨 너비와 얼굴 폭에 반영되므로 거포는 다부지고 대도는 날렵하다. */
+const SKIN = ['#e3c0a0', '#d3a985', '#bd8f68', '#9d6f4c'];
+const HAIRC = ['#17120e', '#2b1c12', '#4a3320'];
+function avatar(p, teamColor, size = 38) {
+  const h = ((p.pid || 0) * 2654435761) >>> 0;
+  const skin = SKIN[h % 4];
+  const hair = (h >> 3) % 5;      // 0 짧음 1 옆머리 2 덥수룩 3 삭발 4 장발
+  const beard = (h >> 7) % 4;     // 0,1 없음 2 콧수염 3 턱수염
+  const hc = HAIRC[(h >> 11) % 3];
+  const ht = p.height || 182, wt = p.weight || 88;
+  const build = Math.max(0, Math.min(1, (wt / ((ht / 100) ** 2) - 22) / 8));
+  const sw = 10.5 + build * 5.2;                 // 어깨 반너비
+  const fw = 6.4 + build * 1.1, fh = 7.4;        // 얼굴 반너비/반높이
+  const cy = 17.2;                                // 얼굴 중심
+  const eye = cy + 1.0;
+  const crownY = cy - fh * 0.62;                  // 모자 크라운 아랫선 (눈보다 위)
+  const S = (n) => n.toFixed(1);
+  const sideHair = hair === 1 || hair === 2 || hair === 4;
   return `<span class="av" style="width:${size}px;height:${size}px">
     <svg viewBox="0 0 40 40" width="${size}" height="${size}" aria-hidden="true">
-      <rect width="40" height="40" rx="20" fill="#0d1620"/>
-      <path d="M20 24.5c-7.6 0-12.4 4.6-12.4 11.5V40h24.8v-4c0-6.9-4.8-11.5-12.4-11.5z" fill="${shirt}"/>
-      <path d="M20 24.5c-2.6 0-4.8.5-6.6 1.5L20 33l6.6-7c-1.8-1-4-1.5-6.6-1.5z" fill="${teamColor}"/>
-      <circle cx="20" cy="17.5" r="7.6" fill="${skin}"/>
-      <path d="M12.6 15.6a7.5 7.5 0 0 1 14.8 0z" fill="${teamColor}"/>
-      <path d="M27 14.4h7.4a1.6 1.6 0 0 1 0 3.2H27z" fill="${teamColor}"/>
+      <rect width="40" height="40" rx="20" fill="#0c151f"/>
+      <path d="M20 25.8c-1.6 0-2.9-.5-2.9-.5v2.4h5.8v-2.4s-1.3.5-2.9.5z" fill="${skin}"/>
+      <path d="M${S(20 - sw)} 40c0-7.4 ${S(sw * 0.34)} -11.6 ${S(sw)} -13.2
+        ${S(sw * 0.66)} 1.6 ${S(sw)} 5.8 ${S(sw)} 13.2z" fill="#e6ecf3"/>
+      <path d="M${S(20 - 4.6)} 27.3c1.2 2.9 2.6 5.1 4.6 7.1 2-2 3.4-4.2 4.6-7.1
+        -1.4-.8-3-1.3-4.6-1.3s-3.2.5-4.6 1.3z" fill="${teamColor}"/>
+      <ellipse cx="20" cy="${S(cy)}" rx="${S(fw)}" ry="${S(fh)}" fill="${skin}"/>
+      ${sideHair ? `<path d="M${S(20 - fw - .5)} ${S(cy - 1)}q-.2 ${S(fh * .7)} 1.2 ${S(fh * .9)}
+        l.6-${S(fh * .9)}z M${S(20 + fw + .5)} ${S(cy - 1)}q.2 ${S(fh * .7)} -1.2 ${S(fh * .9)}
+        l-.6-${S(fh * .9)}z" fill="${hc}"/>` : ''}
+      ${hair === 4 ? `<path d="M${S(20 - fw - 1)} ${S(cy + 1)}q0 ${S(fh)} 2 ${S(fh * 1.1)}
+        l1-${S(fh * 1.1)}z M${S(20 + fw + 1)} ${S(cy + 1)}q0 ${S(fh)} -2 ${S(fh * 1.1)}
+        l-1-${S(fh * 1.1)}z" fill="${hc}"/>` : ''}
+      ${hair !== 3 ? `<path d="M${S(20 - fw)} ${S(crownY + 1.4)}a${S(fw)} ${S(fh * .62)} 0 0 1
+        ${S(fw * 2)} 0z" fill="${hc}"/>` : ''}
+      <path d="M${S(20 - fw - .5)} ${S(crownY)}a${S(fw + .5)} ${S(fh * .78)} 0 0 1
+        ${S((fw + .5) * 2)} 0z" fill="${teamColor}"/>
+      <path d="M${S(20 + fw)} ${S(crownY - 1.5)}h${S(7.6 - build)}a1.5 1.5 0 0 1 0 3
+        h-${S(7.6 - build)}z" fill="${teamColor}"/>
+      <ellipse cx="${S(20 - fw * .42)}" cy="${S(eye)}" rx=".8" ry="1" fill="#241d18"/>
+      <ellipse cx="${S(20 + fw * .42)}" cy="${S(eye)}" rx=".8" ry="1" fill="#241d18"/>
+      ${beard === 2 ? `<rect x="${S(20 - 2.1)}" y="${S(cy + 3.4)}" width="4.2" height="1.3"
+        rx=".5" fill="${hc}" opacity=".9"/>` : ''}
+      ${beard === 3 ? `<path d="M${S(20 - fw + .6)} ${S(cy + 2.2)}c0 3.6 ${S(fw - .6)} 5.4
+        ${S(fw - .6)} 5.4s${S(fw - .6)}-1.8 ${S(fw - .6)}-5.4c-.8 1.6-${S(fw - .6)} 2.2
+        -${S(fw - .6)} 2.2s-${S(fw - 1.4)}-.6 -${S(fw - .6)}-2.2z" fill="${hc}" opacity=".92"/>` : ''}
     </svg></span>`;
 }
 
@@ -169,7 +203,7 @@ function drawDossier() {
   const fr = franchiseOf(d.name);
 
   const scoutRow = (p) => `<div class="sp-row">
-      ${avatar(p.name, p.pid, col, 38)}
+      ${avatar(p, col, 38)}
       <span class="sp-main">
         <span class="sp-name">${esc(p.name)}<span>${p.age}세 · ${p.slot}</span></span>
         <span class="sp-bar">${axis(p.ovr, p.pot, 'big')}
@@ -227,6 +261,17 @@ function drawDossier() {
           <span class="otemper">인내심 ${esc(d.ownerLine.temper.replace('인내심 ', ''))}</span>
           <span class="oask">“${esc(d.ownerLine.ask)}”</span></div>
       </div>
+
+      ${d.park && d.park.name ? `<div class="dsec">
+        <div class="lab">홈 구장</div>
+        <div class="parkrow">
+          <span class="pkname">${esc(d.park.name)}
+            <span>${d.park.opened} 개장 · ${d.park.capacity.toLocaleString()}석</span></span>
+          ${d.park.avg ? `<span class="pkatt"><b>${d.park.avg.toLocaleString()}</b>
+            <span>평균 관중 · 수용 ${d.park.rate}%</span></span>` : ''}
+        </div>
+        ${d.park.rate ? `<div class="paybar"><i style="width:${Math.min(100, d.park.rate)}%"></i></div>` : ''}
+      </div>` : ''}
 
       <div class="dsec">
         <div class="lab">운영 예산</div>
@@ -639,12 +684,24 @@ function viewFront(v) {
     (row) => openPlayer(row.pid))));
   const al = G.contractAlerts().rows;
   const right = el('div', 'grid');
+  const inc = f.income, tot = Math.max(1, inc.ticket + inc.concession + inc.media);
+  const bar = (v, cls) => `<i class="${cls}" style="width:${v / tot * 100}%"></i>`;
   right.appendChild(sect('재정', '', `
-    <div class="kv"><span>시장</span><b class="m">${f.market_size}</b></div>
-    <div class="kv"><span>수입</span><b class="m">${f.revenue}억</b></div>
     <div class="kv"><span>예산</span><b class="m">${f.budget}억</b></div>
     <div class="kv"><span>연봉</span><b class="m">${f.payroll}억</b></div>
-    <div class="kv"><span>여력</span><b class="m ${f.room < 0 ? 'mark' : ''}">${f.room}억</b></div>`));
+    <div class="kv"><span>여력</span><b class="m ${f.room < 0 ? 'mark' : ''}">${f.room}억</b></div>
+    <div class="incbar">${bar(inc.ticket,'i1')}${bar(inc.concession,'i2')}${bar(inc.media,'i3')}</div>
+    <div class="inclegend">
+      <span><i class="i1"></i>입장 ${inc.ticket}억</span>
+      <span><i class="i2"></i>식음료·굿즈 ${inc.concession}억</span>
+      <span><i class="i3"></i>중계·스폰서 ${inc.media}억</span></div>`));
+  if (f.park && f.park.name) right.appendChild(sect('홈 구장', '', `
+    <div class="kv"><span>${esc(f.park.name)}</span>
+      <b class="m">${f.park.capacity.toLocaleString()}석</b></div>
+    ${f.park.avg ? `<div class="kv"><span>평균 관중</span>
+      <b class="m">${f.park.avg.toLocaleString()}명 <i class="off">${f.park.rate}%</i></b></div>
+      <div class="kv"><span>시즌 총관중</span>
+      <b class="m">${Math.round(f.park.total / 10000 * 10) / 10}만명</b></div>` : ''}`));
   if (al.length) right.appendChild(sect('계약 만료·FA 임박', `${al.length}`, al.map(p =>
     `<div class="row click" data-pid="${p.pid}"><span>${esc(p.name)}
       <span class="sub">${p.age} ${p.slot}</span></span>

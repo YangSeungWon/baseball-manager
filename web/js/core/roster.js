@@ -1,7 +1,7 @@
 // 선수 / 팀 생성. 베테랑은 18세 유망주를 성장 엔진으로 늙혀서 만든다.
 import { newBatter, newPitcher } from './pa.js';
 import * as dev from './development.js';
-import { personName, teamNames } from './names.js';
+import { personName, teamNames, franchiseOf } from './names.js';
 
 const RHO = 0.55;
 // 노화를 거친 뒤 리그 평균이 50(타석 엔진 기준선)에 오도록 하는 보정
@@ -26,6 +26,13 @@ const attr = (talent, rng, rho = RHO, shift = 0) => {
   return Math.max(20, Math.min(80, 50 + 10 * (rho*talent + Math.sqrt(1-rho*rho)*n + shift)));
 };
 
+/** 키는 창단 시 한 번 정한다 (20세까지만 조금 더 자란다). 몸무게는 성장에 따라 변한다. */
+function physique(p, rng) {
+  const hAdj = dev.bodyAdj(p)[0];
+  p.height = Math.round(Math.max(168, Math.min(199, 179 + hAdj + rng.gauss(0, 5.2))));
+  dev.updateWeight(p);
+}
+
 function finish(p, pot, rng, year) {
   p.pot = {}; for (const a in pot) p.pot[a] = Math.min(80, pot[a] + CALIB[a]);
   p.hidden = dev.makeHidden(rng);
@@ -34,6 +41,7 @@ function finish(p, pot, rng, year) {
   p.contract = null; p.service = 0;
   const gap = rng.uniform(7, 19);
   for (const a of dev.attrsOf(p)) p[a] = Math.max(20, p.pot[a] - gap * YOUTH_GAP[a] * rng.uniform(0.7, 1.3));
+  physique(p, rng);
   return p;
 }
 
@@ -177,7 +185,8 @@ export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
     batters: lineup.concat(bench), pitchers: rotation.concat(bullpen), farm: [],
     rot_index: 0, talent: teamTalent, unavailable: new Set(),
     park: { hrFactor: Math.max(-0.21, Math.min(0.21, rng.gauss(0, 0.095))),
-            hitFactor: rng.gauss(0, 0.045) },
+            hitFactor: rng.gauss(0, 0.045),
+            name: null, capacity: 18000, opened: null },
     defense: { infield:50, outfield:50, catcherFraming:50 },
     nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
                     this.rot_index++; return p; },
@@ -197,5 +206,10 @@ export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
 export function makeLeague(nTeams, rng, year = 2030) {
   _pid = 1;
   const names = teamNames(nTeams, rng);
-  return names.map((n, i) => makeTeam(rng, i+1, n, year, rng.gauss(0, 0.22)));
+  return names.map((n, i) => {
+    const t = makeTeam(rng, i + 1, n, year, rng.gauss(0, 0.22));
+    const f = franchiseOf(n);
+    t.park.name = f.park; t.park.capacity = f.cap; t.park.opened = f.opened;
+    return t;
+  });
 }

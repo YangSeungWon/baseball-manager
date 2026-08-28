@@ -14,7 +14,7 @@ export const VERSION = 2;
 const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','gb_tendency'];
 const PF = ['stuff','command','movement','stamina','gb_tendency'];
 const META = ['pid','name','age','service','injury_days','career_injuries',
-  'career_injury_days','debut_year','draft_year','unsigned_years'];
+  'career_injury_days','debut_year','draft_year','unsigned_years','height','weight'];
 const f3 = (v) => Math.round(v*1000)/1000;
 
 function dumpPlayer(p) {
@@ -114,8 +114,10 @@ export function dump(game) {
     rng: L.rng.state, nteams: L.teams.length,
     teams: L.teams.map(t => ({ id:t.team_id, name:t.name,
       b:t.batters.map(p=>p.pid), p:t.pitchers.map(p=>p.pid), f:t.farm.map(p=>p.pid),
-      rot:t.rot_index, park:[f3(t.park.hrFactor), f3(t.park.hitFactor)],
-      fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue), f3(t.finance.budget), f3(t.finance.patience)],
+      rot:t.rot_index, park:[f3(t.park.hrFactor), f3(t.park.hitFactor), t.park.name, t.park.capacity, t.park.opened],
+      fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue),
+           f3(t.finance.budget), f3(t.finance.patience), t.finance.attendance || 0,
+           t.finance.homeGames || 0, t.finance.income || null],
       up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null })),
     players: live, ghosts,
     careers: [...L.careers.values()].filter(c => c.seasons.length || live[c.p.pid]).map(c => ({
@@ -174,7 +176,9 @@ export function load(data) {
       batters: td.b.map(i=>players.get(i)).filter(Boolean),
       pitchers: td.p.map(i=>players.get(i)).filter(Boolean),
       farm: td.f.map(i=>players.get(i)).filter(Boolean),
-      rot_index: td.rot, park:{ hrFactor:td.park[0], hitFactor:td.park[1] },
+      rot_index: td.rot,
+      park:{ hrFactor:td.park[0], hitFactor:td.park[1], name:td.park[2],
+             capacity:td.park[3] || 18000, opened:td.park[4] },
       upside_weight: td.up, talent: td.talent, history: td.hist || null,
       unavailable:new Set(),
       lineup:[], bench:[], rotation:[], bullpen:[],
@@ -182,8 +186,10 @@ export function load(data) {
       nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
                       this.rot_index++; return p; } };
     const f = Object.create(C.Finance.prototype);
-    [f.market_size, f.owner_spending, f.revenue, f.budget, f.patience] = td.fin;
+    [f.market_size, f.owner_spending, f.revenue, f.budget, f.patience,
+     f.attendance, f.homeGames, f.income] = td.fin;
     if (f.patience === undefined) f.patience = 50;
+    f.attendance = f.attendance || 0; f.homeGames = f.homeGames || 0;
     t.finance = f;
     return t;
   });

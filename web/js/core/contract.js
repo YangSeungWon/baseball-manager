@@ -51,6 +51,21 @@ export function isFreeAgent(p, year) {
   return !p.contract || p.contract.end_year <= year;
 }
 
+// 관중 · 수입 단가 (억 원)
+export const TICKET = 0.00006;   // 1인당 입장 수입 ≈ 6,000원
+export const CONCESSION = 0.00003; // 1인당 식음료·굿즈 ≈ 3,000원
+
+/** 한 경기 관중 동원율. 성적과 시장 규모가 팬을 부른다. */
+export function attendRate(f, winPct, playoffLast, titleLast, rng) {
+  let r = 0.55
+    + 0.22 * (f.market_size - 1)
+    + 0.22 * (winPct - 0.5)
+    + (playoffLast ? 0.10 : 0)
+    + (titleLast ? 0.08 : 0)
+    + (rng ? rng.gauss(0, 0.07) : 0);
+  return Math.max(0.15, Math.min(1.0, r));
+}
+
 export class Finance {
   constructor(rng) {
     this.market_size = Math.max(0.55, Math.min(1.5, rng.gauss(1.0, 0.24)));
@@ -60,6 +75,9 @@ export class Finance {
       rng.gauss(52 - (this.market_size - 1) * 26, 13)));
     this.revenue = 100 * this.market_size;
     this.budget = 100 * this.market_size;
+    this.attendance = 0;      // 지난 시즌 홈 총관중
+    this.homeGames = 0;
+    this.income = null;       // 수입 구성
   }
 
   /** 구단주가 이번 시즌에 요구하는 것. 시장 규모와 인내심이 정한다. */
@@ -70,14 +88,36 @@ export class Finance {
     if (p >= 0.35) return '5할 승률';
     return '재건 허용';
   }
-  update(winPct, playoffs, title) {
-    let base = 62 + 58*this.market_size;
-    base *= 0.80 + 0.62*(winPct/0.5)*0.5;
-    if (playoffs) base += 9*this.market_size;
-    if (title) base += 7*this.market_size;
-    this.revenue = base;
-    this.budget = base * 0.86 * this.owner_spending;
+  /** 관중이 수입을 만들고, 수입이 다음 시즌 예산이 된다. */
+  update(winPct, playoffs, title, attendance = 0, homeGames = 0, capacity = 18000) {
+    if (!attendance) {                      // 기록이 없으면 추정치로 채운다
+      homeGames = homeGames || 72;
+      attendance = capacity * attendRate(this, winPct, playoffs, title) * homeGames;
+    }
+    this.attendance = Math.round(attendance);
+    this.homeGames = homeGames;
+    const ticket = attendance * TICKET;
+    const conc = attendance * CONCESSION;
+    // 중계권은 리그가 균등 배분한다. 이게 없으면 큰 시장이 눈덩이처럼 커진다.
+    const media = 50 + 9 * this.market_size + (playoffs ? 6 : 0) + (title ? 4 : 0);
+    this.income = { ticket: +ticket.toFixed(1), concession: +conc.toFixed(1),
+                    media: +media.toFixed(1) };
+    this.revenue = ticket + conc + media;
+    // 예산은 관성이 있다. 한 시즌 성적으로 갑자기 두 배가 되지 않는다.
+    const target = this.revenue * 0.80 * this.owner_spending;
+    this.budget = this.budget ? this.budget * 0.55 + target * 0.45 : target;
   }
 }
+/** 경쟁균형세 — KBO 에도 있는 제동장치.
+ *  성적→관중→수입→전력의 되먹임에 브레이크가 없으면 한 팀이 리그를 독식한다. */
+export function balanceBudgets(teams) {
+  const mean = teams.reduce((s, t) => s + t.finance.budget, 0) / teams.length;
+  for (const t of teams) {
+    const f = t.finance;
+    if (f.budget > mean * 1.28) f.budget = mean * 1.28 + (f.budget - mean * 1.28) * 0.35;
+    if (f.budget < mean * 0.74) f.budget = mean * 0.74 - (mean * 0.74 - f.budget) * 0.35;
+  }
+}
+
 export const payroll = (t, year) =>
   [...t.batters, ...t.pitchers].reduce((s,p) => s + (p.contract ? p.contract.salaryIn(year) : 0), 0);

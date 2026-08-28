@@ -68,7 +68,8 @@ export class Game {
       hand: p.kind==='P' ? p.throws : p.bats,
       ovr:rep.ovr, pot:rep.pot, confidence:rep.confidence,
       team_id: team ? team.team_id : null, injury_days:p.injury_days,
-      contract:this.contractOf(p), service:p.service ?? 0, origin:p.origin ?? null };
+      contract:this.contractOf(p), service:p.service ?? 0, origin:p.origin ?? null,
+      height:p.height ?? null, weight:p.weight ?? null };
   }
   state() {
     const s = this.season;
@@ -329,10 +330,16 @@ export class Game {
 
   finances() {
     const t = this.me, f = t.finance, y = this.L.year;
+    const inc = f.income || {};
     const contracts = [...t.batters, ...t.pitchers].filter(p => p.contract)
       .sort((a,b) => b.contract.salaryIn(y) - a.contract.salaryIn(y));
     return { market_size:Math.round(f.market_size*100)/100, revenue:r0(f.revenue),
       budget:r0(f.budget), payroll:r1(C.payroll(t,y)), room:r1(f.budget - C.payroll(t,y)),
+      park:{ name:t.park.name, capacity:t.park.capacity, opened:t.park.opened,
+        avg: f.homeGames ? Math.round(f.attendance/f.homeGames) : null,
+        rate: f.homeGames ? Math.round(f.attendance/f.homeGames/t.park.capacity*100) : null,
+        total: f.attendance || 0 },
+      income:{ ticket:inc.ticket ?? 0, concession:inc.concession ?? 0, media:inc.media ?? 0 },
       contracts: contracts.map(p => ({ pid:p.pid, name:p.name, age:p.age,
         salary:r1(p.contract.salaryIn(y)), text:String(p.contract), end_year:p.contract.end_year })) };
   }
@@ -550,6 +557,10 @@ export class Game {
       contrast: con,
       risk: this._risks(t, f, RK),
       payrollRatio: Math.round(C.payroll(t, this.L.year) / f.budget * 100),
+      park: { name: t.park.name, capacity: t.park.capacity, opened: t.park.opened,
+        avg: f.homeGames ? Math.round(f.attendance / f.homeGames) : null,
+        rate: f.homeGames ? Math.round(f.attendance / f.homeGames / t.park.capacity * 100) : null,
+        total: f.attendance || 0 },
       last, key, prospect,
       history: t.history ? {
         founded: t.history.founded, seasons: t.history.seasons,

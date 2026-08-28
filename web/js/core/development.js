@@ -36,6 +36,23 @@ export function makeHidden(rng) {
   };
 }
 
+// 포지션별 체격 경향. 포수는 다부지고, 유격수·중견수는 날렵하고, 1루·지명은 크다.
+const BODY = { C:[-2.0, 3.0], '1B':[3.0, 3.0], '2B':[-2.5, -2.0], '3B':[1.0, 1.0],
+  SS:[-2.0, -2.5], LF:[1.0, 0.5], CF:[-0.5, -2.0], RF:[2.0, 1.0], DH:[3.0, 4.5] };
+
+/** 몸무게는 현재 능력치를 따라간다. 파워가 붙으면 몸이 커지고 발이 빠르면 마른다.
+ *  18세 때 한 번만 계산하면 파워 75로 자란 거포가 소년 체형으로 남는다. */
+export function updateWeight(p) {
+  if (!p.height) return;
+  const ip = p.kind === 'P';
+  const wAdj = ip ? -3.0 : (BODY[p.position] || [0, 0])[1];
+  const power = ip ? 50 : p.hr_power, speed = ip ? 50 : p.speed;
+  p.weight = Math.round(Math.max(65, Math.min(128,
+    (p.height - 100) * 1.07 + 3 + wAdj + (power - 50) * 0.40 - (speed - 50) * 0.26)));
+}
+
+export const bodyAdj = (p) => (p.kind === 'P' ? [3.0, -3.0] : (BODY[p.position] || [0, 0]));
+
 export function develop(p, rng, playingTime = 1.0) {
   const h = p.hidden, prof = PROFILES[h.aging_profile];
   const ethic = 0.65 + 0.7 * (h.work_ethic / 50);
@@ -68,6 +85,9 @@ export function develop(p, rng, playingTime = 1.0) {
     }
     p[a] = clamp(cur);
   }
+  // 20세까지는 키도 조금 더 자란다
+  if (p.age <= 20 && p.height) p.height = Math.min(199, p.height + (rng.random() < 0.55 ? 1 : 0));
+  updateWeight(p);
   p.age += 1;
 }
 

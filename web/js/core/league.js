@@ -122,9 +122,14 @@ export class League {
     const top4 = S.standings().slice(0,5).map(x => x.team.team_id);
     for (const t of this.teams) {
       const r = st.get(t.team_id);
-      t.finance.update(r ? r.pct : 0.5, top4.includes(t.team_id), t.name === champ);
+      const a = S.att ? S.att.get(t.team_id) : null;
+      const inPs = top4.includes(t.team_id), won = t.name === champ;
+      t.finance.update(r ? r.pct : 0.5, inPs, won,
+        a ? a.total : 0, a ? a.games : 0, t.park.capacity || 18000);
+      t.lastPlayoff = inPs; t.lastTitle = won;   // 다음 시즌 관중에 반영
       this.modes.set(t.team_id, market.teamMode(t, r));
     }
+    C.balanceBudgets(this.teams);
     return summary;
   }
 

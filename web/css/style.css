@@ -218,6 +218,22 @@ input:focus{outline:0;border-color:var(--accent)}
 .dstart button:hover{filter:brightness(1.12)}
 .dstart p{margin:0;font-size:12px;color:var(--fg3);text-align:center}
 
+.parkrow{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
+  margin-bottom:8px}
+.pkname{font-size:16px;font-weight:700;line-height:1.25}
+.pkname span{display:block;font-weight:400;font-size:13px;color:var(--fg2);margin-top:2px;
+  font-family:var(--mono)}
+.pkatt{text-align:right;line-height:1.2}
+.pkatt b{font-family:var(--mono);font-size:20px;font-weight:700}
+.pkatt span{display:block;font-size:12px;color:var(--fg2);margin-top:2px}
+.incbar{display:flex;height:10px;border-radius:5px;overflow:hidden;margin:12px 0 8px;
+  background:var(--line2)}
+.incbar i{display:block}
+.i1{background:var(--accent)} .i2{background:var(--pos)} .i3{background:var(--fg3)}
+.inclegend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--fg2)}
+.inclegend i{display:inline-block;width:10px;height:10px;border-radius:2px;
+  margin-right:5px;vertical-align:middle}
+
 /* ── 상단 ── */
 .topbar{background:var(--s2);border-bottom:1px solid var(--line);color:var(--fg);
   display:flex;align-items:baseline;gap:clamp(10px,2.4vw,26px);
