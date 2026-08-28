@@ -1,0 +1,234 @@
+// 타구 파이프라인.
+//
+//   타구 질 → 유형 · 방향 · 깊이 → 수비 범위 경합 → 담당 야수 → 포구 판정 → 실책
+//
+// 방향은 좌우 3분할이 아니라 각도다. 담당 야수는 미리 정해진 표가 아니라
+// 그 각도·깊이에 누가 먼저 닿느냐로 정해진다. 그래서 같은 좌중간 타구라도
+// 발 빠른 중견수가 있으면 잡히고, 없으면 2루타가 된다.
+// 실책은 확률로 안타를 뒤집는 것이 아니라, 닿은 타구를 처리하지 못한 결과다.
+
+import { z, LG, C } from './pa.js';
+
+// 각도: -45 좌익선, 0 중견, +45 우익선. 깊이: 홈플레이트에서 미터.
+const POS_ANGLE = { C: 0, P: 0, '1B': 25, '2B': 12, '3B': -25, SS: -12,
+                    LF: -27, CF: 0, RF: 27 };
+const POS_DEPTH = { C: 3, P: 17, '1B': 31, '2B': 39, '3B': 31, SS: 39,
+                    LF: 79, CF: 87, RF: 79 };
+const INFIELD = ['P', '1B', '2B', '3B', 'SS'];
+const OUTFIELD = ['LF', 'CF', 'RF'];
+
+export const ZONE_KR = [
+  [-45, '좌익선상'], [-33, '좌익수'], [-18, '좌중간'], [-6, '중견수'],
+  [6, '우중간'], [18, '우익수'], [33, '우익선상'], [46, '우익선상'],
+];
+export function zoneName(angle) {
+  for (const [hi, kr] of ZONE_KR) if (angle < hi) return kr;
+  return '우익선상';
+}
+
+export const BC = {
+  // 방향. 거포일수록 당겨치고, 교타자일수록 넓게 뿌린다.
+  pullDeg: 15.0, pullPower: 3.2, pullContact: -2.0, spraySd: 15.5,
+  // 깊이 [평균, 표준편차] — 타구 질과 장타력이 얹힌다.
+  depth: { GB: [30, 9], LD: [72, 16], FB: [88, 27], PU: [34, 12] },
+  depthQuality: { GB: 6, LD: 20, FB: 30, PU: 8 },
+  depthPower: { GB: 1.5, LD: 6.5, FB: 6.5, PU: 1.5 },
+  // 체공 시간 [상수, 깊이계수]. 땅볼은 타구 속도로 따로 계산한다.
+  hang: { GB: [0, 0], LD: [0.72, 1 / 62], FB: [1.60, 1 / 27], PU: [2.90, 1 / 34] },
+  // 땅볼 타구 속도 (m/s)
+  gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
+  // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
+  hangK: { GB: 1.211, LD: 1.215, FB: 1.232, PU: 1.129 },
+  // 야수 이동 속도 (m/s)
+  rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
+  // 여유(초)가 클수록 쉬운 타구
+  tau: 0.62,
+  // 땅볼은 잡아도 던져야 아웃이다
+  gbOutBase: 0.962, gbSpeed: -0.045, gbArm: 0.020, gbDeep: -0.0035,
+  // 타구 질이 유형에 미치는 영향
+  qGb: 1.350, qLd: 0.95, qPu: 1.10,
+  // 담장 (m). 폴대 99, 중앙 125.
+  // 담장 기준 치수 (m). 보정 결과가 실제 KBO 구장 규격과 맞아떨어졌다.
+  fenceLine: 106.74, fenceCenter: 133.72, fenceHeight: 2.8,
+  // 낮은 직선타는 높은 담장에 걸린다. 뜬 공은 넘어간다.
+  heightLd: 2.4, heightFb: 0.7,
+  // 고도 100m당 비거리 (m), 인조잔디 타구 가속
+  altGain: 0.55, turfEv: 0.05,
+  // 실책
+  errField: 0.0732, errFieldDef: -0.34, errThrow: 0.0299, errThrowArm: -0.36,
+};
+
+const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+const num = (x, d) => (Number.isFinite(x) ? x : d);
+const rad = Math.PI / 180;
+
+/** 타구 유형. 약하게 맞으면 굴러가고, 잘 맞으면 뜬다. */
+export function battedType(bat, pit, quality, rng) {
+  const q = quality - 0.5;
+  const gbShift = C.gbBat * z(bat.gb_tendency) + C.gbPit * z(pit.gb_tendency) - BC.qGb * q;
+  const ldShift = C.ldContact * z(bat.contact) + BC.qLd * q;
+  const wGb = LG.gb * Math.exp(gbShift);
+  const wFb = LG.fb * Math.exp(-gbShift * 0.8);
+  const wPu = LG.pu * Math.exp(-gbShift * 0.4 - BC.qPu * q);
+  const wLd = LG.ld * Math.exp(ldShift);
+  let r = rng.random() * (wGb + wFb + wPu + wLd);
+  if (r < wGb) return 'GB';
+  if (r < wGb + wLd) return 'LD';
+  if (r < wGb + wLd + wFb) return 'FB';
+  return 'PU';
+}
+
+/** 구장 규격. 없으면 리그 평균 구장으로 친다. */
+export const stdPark = () => ({ fLine: BC.fenceLine, fCenter: BC.fenceCenter,
+  fHeight: BC.fenceHeight, foul: 1.0, turf: 0, alt: 0 });
+
+/** 담장까지의 거리. 중앙이 멀고 폴대 쪽이 가깝다. */
+export function fence(angle, park) {
+  const p = park && park.fLine ? park : stdPark();
+  return p.fLine + (p.fCenter - p.fLine) * Math.cos(2 * angle * rad);
+}
+
+/** 담장을 넘겼는가. 낮은 직선타일수록 담장 높이의 영향을 크게 받는다. */
+export function overFence(ball, park) {
+  if (ball.bbt !== 'FB' && ball.bbt !== 'LD') return false;
+  const p = park && park.fLine ? park : stdPark();
+  const extra = (p.fHeight - BC.fenceHeight) * (ball.bbt === 'LD' ? BC.heightLd : BC.heightFb);
+  return ball.depth >= fence(ball.angle, p) + extra;
+}
+
+/** 타구의 물리적 서술. 어디로, 얼마나 깊게, 얼마나 오래 떠 있는가. */
+export function battedBall(bbt, bat, quality, rng, park = null) {
+  const hand = bat.bats === 'L' ? -1 : 1;
+  const pull = BC.pullDeg + BC.pullPower * z(bat.hr_power) + BC.pullContact * z(bat.contact);
+  const angle = clamp(rng.gauss(-hand * pull, BC.spraySd), -45, 45);
+
+  const [dm, ds] = BC.depth[bbt];
+  // 뜬 공의 비거리는 장타력이, 굴러가는 타구는 갭파워가 끌고 간다.
+  const zp = bbt === 'FB' || bbt === 'LD'
+    ? z(bat.hr_power) * 0.78 + z(bat.gap_power) * 0.22 : z(bat.gap_power);
+  // 고도가 높으면 공기가 옅어 공이 더 간다.
+  const alt = park ? (park.alt || 0) : 0;
+  const depth = Math.max(6, rng.gauss(
+    dm + BC.depthQuality[bbt] * (quality - 0.5) + BC.depthPower[bbt] * zp, ds)
+    + alt / 100 * BC.altGain);
+
+  if (bbt === 'GB') {
+    // 인조잔디는 타구를 빠르게 만든다. 내야를 그만큼 빨리 지나간다.
+    const ev = Math.max(14, (BC.gbSpeedBase + BC.gbSpeedQuality * (quality - 0.5) * 2
+      + BC.gbSpeedPower * z(bat.hr_power) + rng.gauss(0, 4))
+      * (1 + BC.turfEv * (park ? park.turf || 0 : 0)));
+    return { bbt, angle, depth, ev, hang: 0, zone: zoneName(angle) };
+  }
+  const [h0, h1] = BC.hang[bbt];
+  return { bbt, angle, depth, hang: (h0 + depth * h1) * BC.hangK[bbt], zone: zoneName(angle) };
+}
+
+/** 그 타구에 누가 먼저 닿는가. 표가 아니라 경합으로 정한다. */
+export function assign(ball, byPos) {
+  const ground = ball.bbt === 'GB';
+  const pool = ground ? INFIELD : (ball.depth < 52 ? INFIELD : OUTFIELD);
+  let best = null;
+  for (const pos of pool) {
+    const f = byPos && byPos[pos];
+    // 투수에게는 수비 능력치가 없다. 자리 기본값으로 메운다.
+    const fld = num(f && f.fielding, pos === 'P' ? 45 : 50);
+    const spd = num(f && f.speed, pos === 'P' ? 45 : 50);
+    const v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
+    let dist, avail;
+    if (ground) {
+      // 땅볼은 야수 쪽으로 굴러온다. 옆으로만 움직이면 되고,
+      // 쓸 수 있는 시간은 공이 그 깊이까지 오는 시간이다.
+      dist = Math.abs(ball.angle - POS_ANGLE[pos]) * rad * POS_DEPTH[pos];
+      avail = POS_DEPTH[pos] / ball.ev * BC.hangK.GB;
+    } else {
+      dist = Math.hypot((ball.angle - POS_ANGLE[pos]) * rad * ball.depth,
+                        ball.depth - POS_DEPTH[pos]);
+      avail = ball.hang;
+    }
+    const slack = (avail - BC.react) - dist / v;
+    if (!best || slack > best.slack) best = { pos, fielder: f, slack, dist };
+  }
+  // 여유가 클수록 쉬운 타구. 0 근처면 전력질주해야 닿는다.
+  best.difficulty = clamp(Math.exp(-Math.max(0, best.slack) / BC.tau), 0, 1);
+  return best;
+}
+
+/** 수비 판정. 아웃인가, 안타인가, 실책인가. */
+export function fieldIt(ball, play, bat, rng) {
+  const f = play.fielder;
+  const isP = play.pos === 'P';
+  const zf = z(num(f && f.fielding, isP ? 45 : 50));
+  const za = z(num(f && (f.arm ?? f.fielding), isP ? 48 : 50));
+  const reached = play.slack >= 0;
+
+  if (!reached) return { ...play, result: 'HIT' };       // 못 따라갔다
+
+  if (ball.bbt === 'GB' || ball.depth < 52) {
+    // 내야 타구 — 잡는 것과 던지는 것이 따로다.
+    if (rng.random() < BC.errField * play.difficulty * Math.exp(BC.errFieldDef * zf))
+      return { ...play, result: 'ERR', kind: 'field' };
+    if (ball.bbt === 'GB') {
+      if (rng.random() < BC.errThrow * Math.exp(BC.errThrowArm * za))
+        return { ...play, result: 'ERR', kind: 'throw' };
+      const pOut = clamp(BC.gbOutBase + BC.gbSpeed * z(bat.speed) + BC.gbArm * za
+        + BC.gbDeep * (play.dist - 8) - 0.62 * play.difficulty, 0.05, 0.995);
+      return { ...play, result: rng.random() < pOut ? 'OUT' : 'HIT' };
+    }
+    return { ...play, result: 'OUT' };                    // 내야 뜬공·직선타
+  }
+
+  // 뜬 공 — 닿았으면 대개 잡는다. 어려운 타구일수록 흘린다.
+  if (rng.random() < BC.errField * play.difficulty * 0.55 * Math.exp(BC.errFieldDef * zf))
+    return { ...play, result: 'ERR', kind: 'field' };
+  return { ...play, result: rng.random() < 1 - play.difficulty * 0.42 ? 'OUT' : 'HIT' };
+}
+
+/** 안타의 등급. 선상과 갭으로 빠질수록, 깊을수록 길어진다. */
+export function hitBases(ball, bat, rng) {
+  if (ball.depth < 52) return 1;                          // 내야 안타
+  const gap = Math.min(Math.abs(Math.abs(ball.angle) - 15) < 7 ? 1 : 0,
+                       ball.bbt === 'GB' ? 0 : 1);
+  const line = Math.abs(ball.angle) > 34 ? 1 : 0;
+  let p2 = 0.16 + 0.0075 * (ball.depth - 60) + 0.20 * gap + 0.24 * line
+    + 0.012 * z(bat.gap_power) * 3;
+  let p3 = 0.012 + 0.030 * line + 0.010 * z(bat.speed) + 0.0016 * (ball.depth - 60);
+  p2 = clamp(p2, 0, 0.90); p3 = clamp(p3, 0, 0.14);
+  const r = rng.random();
+  return r < p3 ? 3 : (r < p3 + p2 ? 2 : 1);
+}
+
+/** 저장된 구장 정보에서 실제 치수를 뽑는다. 없으면 홈런 팩터로 환산한다. */
+export function parkDims(park) {
+  if (!park) return stdPark();
+  if (park.fLine) return park;
+  const h = park.hrFactor || 0;
+  return { fLine: BC.fenceLine - h * 12, fCenter: BC.fenceCenter - h * 14,
+           fHeight: BC.fenceHeight, foul: park.foul ?? 1, turf: park.turf ?? 0, alt: park.alt ?? 0 };
+}
+
+export const POS_KR_OF = (p) => POS_KR[p] || '';
+const POS_KR = { P:'투수', C:'포수', '1B':'1루수', '2B':'2루수', '3B':'3루수',
+                 SS:'유격수', LF:'좌익수', CF:'중견수', RF:'우익수' };
+const NEAR = { LF:'좌전', CF:'중전', RF:'우전' };
+
+/** 중계 문구. 시스템이 실제로 아는 것만 말한다. */
+export function describe(ball, play, kind, bases) {
+  const pos = POS_KR[play.pos] || '';
+  if (kind === 'HR') return ball.zone + ' 홈런';
+  if (kind === 'ERR') return pos + (play.kind === 'throw' ? ' 송구 실책' : ' 실책');
+  if (kind === 'OUT') {
+    if (ball.bbt === 'GB') return pos + ' 땅볼';
+    if (ball.bbt === 'LD') return pos + ' 직선타';
+    if (ball.bbt === 'PU') return pos + ' 뜬공';
+    return pos + ' 뜬공';
+  }
+  if (bases === 1) {
+    // 야수가 닿았는데 세이프면 내야 안타. 뚫고 나갔으면 그냥 안타다.
+    if (ball.bbt === 'GB' && play.slack >= 0 && play.difficulty > 0.42) return '내야 안타';
+    const a = ball.angle;
+    if (a < -38) return '좌익선상 안타';
+    if (a > 38) return '우익선상 안타';
+    return (a < -12 ? '좌전' : a > 12 ? '우전' : '중전') + ' 안타';
+  }
+  return ball.zone + (bases === 3 ? ' 3루타' : ' 2루타');
+}

@@ -264,19 +264,19 @@ function drawDossier() {
 
     <div class="dbody">
       <div class="dsec">
-        <div class="contrast">
-          <div class="cbox s"><div class="ctitle">강점</div>
-            ${c.strong.map(x =>
-              `<div class="citem ${x.soft ? 'soft' : ''}"><span>${x.k}</span>
-                <b>${x.r}위</b></div>`).join('')}</div>
-          <div class="cbox w"><div class="ctitle">리스크</div>
-            ${d.risk.rows.map(x =>
-              `<div class="citem"><span>${x.k}</span><b class="s${x.s}">${x.v}</b></div>`).join('')}
-          </div>
-        </div>
-        ${c.mid.length || c.weak.length ? `<div class="cmid">${
-          c.weak.concat(c.mid).map(x => `<span>${x.k}<b>${x.r}위</b></span>`).join('')}</div>` : ''}
-      </div>
+        <div class="rankrow">${(() => {
+          // 다섯 부문의 순위를 먼저 다 보여주고, 최고와 최저만 짚는다.
+          const all = c.strong.concat(c.mid, c.weak).sort((a, b) => a.r - b.r);
+          // 최고·최저라도 실제로 좋고 나쁠 때만 짚는다. 5위를 강점이라 부르지 않는다.
+          const best = all[0].r <= 4 ? all[0] : null;
+          const worst = all[all.length - 1].r >= 7 ? all[all.length - 1] : null;
+          return all.map(x => `<div class="rk ${x === best ? 'good' : x === worst ? 'bad' : ''}">
+            <span>${x.k}</span><b>${x.r}</b>
+            ${x === best ? '<i class="s">강점</i>' : x === worst ? '<i class="w">리스크</i>' : ''}
+          </div>`).join('');
+        })()}</div>
+        ${d.risk.rows.length ? `<div class="riskline">${
+          d.risk.rows.map(x => `<span class="s${x.s}">${x.k}<b>${x.v}</b></span>`).join('')}</div>` : ''}
 
       <div class="dsec">
         <div class="lab">스카우트 리포트</div>

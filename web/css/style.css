@@ -465,3 +465,19 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .pen{font-size:13px;color:var(--fg2);white-space:nowrap}
+
+/* 구단 요약: 부문 순위를 블럭으로 늘어놓고 최고/최저만 짚는다 */
+.rankrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.rk{border-radius:6px;padding:12px 10px 10px;text-align:center;position:relative}
+.rk>span{display:block;font-size:14px;color:var(--fg2);margin-bottom:4px}
+.rk>b{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1;color:var(--fg)}
+.rk>b::after{content:'위';font-size:14px;font-weight:600;color:var(--fg3);margin-left:2px}
+.rk.good>b{color:var(--pos)} .rk.bad>b{color:var(--neg)}
+.rk>i{display:block;font-style:normal;font-size:12px;font-weight:700;margin-top:6px;letter-spacing:.02em}
+.rk>i.s{color:var(--pos)} .rk>i.w{color:var(--neg)}
+.rk.good{background:color-mix(in srgb,var(--pos) 11%,transparent)}
+.rk.bad{background:color-mix(in srgb,var(--neg) 11%,transparent)}
+.riskline{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px}
+.riskline span{font-size:14px;color:var(--fg2)}
+.riskline b{font-weight:600;color:var(--fg);margin-left:7px}
+.riskline .s2 b{color:var(--neg)}

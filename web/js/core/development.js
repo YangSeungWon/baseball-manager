@@ -1,12 +1,12 @@
 // 성장 / 노화 엔진. 능력마다 노화 곡선이 다르다는 것이 핵심.
-export const BAT_ATTRS = ["contact","avoid_k","discipline","gap_power","hr_power","speed","fielding"];
+export const BAT_ATTRS = ["contact","avoid_k","discipline","gap_power","hr_power","speed","fielding","arm"];
 export const PIT_ATTRS = ["stuff","command","movement","stamina"];
 
 // [정점나이, 성장계수, 하락계수]
 export const AGING = {
   contact:[26.0,1.00,1.00], avoid_k:[27.0,0.85,0.80], discipline:[28.5,0.80,0.50],
   gap_power:[27.0,1.00,0.85], hr_power:[28.0,1.05,0.75], speed:[23.0,0.70,1.95],
-  fielding:[25.0,0.75,1.25], stuff:[25.0,1.00,1.30], command:[28.5,0.90,0.55],
+  fielding:[25.0,0.75,1.25], arm:[24.0,0.65,0.85], stuff:[25.0,1.00,1.30], command:[28.5,0.90,0.55],
   movement:[27.0,0.90,0.75], stamina:[26.0,0.80,0.95],
 };
 // [정점보정, 하락보정, 성장보정]

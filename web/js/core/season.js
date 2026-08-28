@@ -25,7 +25,7 @@ export function makeSchedule(nTeams, gamesPerTeam, rng) {
 }
 
 export const BAT_LINE = ['g','pa','ab','h','b2','b3','hr','bb','k','rbi','r','sb','cs','hbp'];
-export const PIT_LINE = ['g','gs','outs','bf','h','hr','bb','k','r','w','l','sv','hld','hbp'];
+export const PIT_LINE = ['g','gs','outs','bf','h','hr','bb','k','r','er','np','w','l','sv','hld','hbp'];
 
 const zeros = (n) => new Array(n).fill(0);
 export class SeasonBat {
@@ -48,12 +48,15 @@ export class SeasonPit {
     this.sp = { H:zeros(7), A:zeros(7) }; }
   add(L, started) {
     this.g++; if (started) this.gs++;
-    for (const f of ['outs','bf','h','hr','bb','k','r','hbp']) this[f] += L[f];
+    for (const f of ['outs','bf','h','hr','bb','k','r','er','np','hbp']) this[f] += L[f] || 0;
     if (L.sp) for (const k of ['H','A']) for (let i=0;i<7;i++) this.sp[k][i] += L.sp[k][i];
     if (L.w) this.w++; if (L.l) this.l++; if (L.sv) this.sv++; if (L.hld) this.hld++;
   }
   get ip() { return this.outs/3; }
-  get era() { return this.outs ? this.r*9/this.ip : 0; }
+  // 평균자책은 자책점으로 낸다. 실책으로 살아나간 주자의 득점은 빠진다.
+  get era() { return this.outs ? this.er*9/this.ip : 0; }
+  get ra9() { return this.outs ? this.r*9/this.ip : 0; }
+  get pitPerIp() { return this.outs ? this.np/this.ip : 0; }
   get whip() { return this.outs ? (this.h+this.bb)/this.ip : 0; }
   get k9() { return this.outs ? this.k*9/this.ip : 0; }
   get ipStr() { return `${Math.floor(this.outs/3)}.${this.outs%3}`; }

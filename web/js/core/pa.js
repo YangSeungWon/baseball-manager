@@ -23,93 +23,62 @@ export const z = (r) => (r - 50) / 10;
 export const logit = (p) => Math.log(p / (1 - p));
 export const invLogit = (x) => 1 / (1 + Math.exp(-x));
 
-export const K = 'K', BB = 'BB', HBP = 'HBP', OUT = 'OUT';
+export const K = 'K', BB = 'BB', HBP = 'HBP', OUT = 'OUT', ERR = 'E';
 export const S1B = '1B', D2B = '2B', T3B = '3B', HR = 'HR';
 
-export const NEUTRAL_DEF = { infield: 50, outfield: 50, catcherFraming: 50 };
+export const POS_KR = { P:'투수', C:'포수', '1B':'1루수', '2B':'2루수', '3B':'3루수',
+                        SS:'유격수', LF:'좌익수', CF:'중견수', RF:'우익수' };
+
+// 타구 방향. 우타자 기준 중립 분포이며, 당겨치는 정도에 따라 좌우로 기운다.
+const DIR = {
+  GB: { P:.09, C:.02, '1B':.15, '2B':.24, '3B':.20, SS:.30 },
+  LD: { P:.02, '1B':.05, '2B':.07, '3B':.06, SS:.07, LF:.25, CF:.23, RF:.25 },
+  FB: { '1B':.01, '2B':.01, '3B':.01, SS:.01, LF:.31, CF:.34, RF:.31 },
+  PU: { P:.05, C:.22, '1B':.20, '2B':.18, '3B':.18, SS:.17 },
+};
+const PULL_SIDE = { '3B':1, SS:1, LF:1, '1B':-1, '2B':-1, RF:-1 };
+
+/** 타구 방향을 뽑는다. 거포일수록 당겨친다. */
+export function batDirection(bbt, bat, rng) {
+  const w = DIR[bbt];
+  const hand = bat.bats === 'L' ? -1 : 1;          // 우타는 좌측, 좌타는 우측으로 당긴다
+  const pull = Math.max(.05, Math.min(.42, .20 + .06 * z(bat.hr_power) - .04 * z(bat.contact)));
+  let tot = 0; const acc = [];
+  for (const pos in w) {
+    const side = (PULL_SIDE[pos] || 0) * hand;
+    tot += w[pos] * (1 + side * pull);
+    acc.push([pos, tot]);
+  }
+  const r = rng.random() * tot;
+  for (const [pos, c] of acc) if (r < c) return pos;
+  return acc[acc.length - 1][0];
+}
+
+// 아웃이 될 타구를 놓치는 비율. 땅볼이 압도적으로 많다.
+const ERR_BASE = { GB: .052, LD: .016, FB: .009, PU: .012 };
+
+/** 투구수와 볼카운트. 결과를 알고 있으므로 그 결과와 모순되지 않는
+ *  카운트만 만든다. 평균 3.9구 (K 5.0 / BB 5.6 / 인플레이 3.4). */
+const trunc = (rng, mean, max) => {
+  let n = 0; const p = 1 / (1 + mean);
+  while (n < max && rng.random() > p) n++;
+  return n;
+};
+export function countFor(res, rng) {
+  if (res === K)  { const b = trunc(rng, 1.3, 3), f = trunc(rng, .75, 6);
+                    return { b, s: 3, np: 3 + b + f, f }; }
+  if (res === BB) { const s = trunc(rng, 1.1, 2), f = trunc(rng, .50, 6);
+                    return { b: 4, s, np: 4 + s + f, f }; }
+  const b = trunc(rng, 1.0, 3), s = trunc(rng, .8, 2), f = trunc(rng, .6, 6);
+  return { b, s, np: 1 + b + s + f, f };
+}
+
+export const NEUTRAL_DEF = { infield: 50, outfield: 50, catcherFraming: 50, byPos: null };
 export const NEUTRAL_PARK = { hrFactor: 0, hitFactor: 0 };
 export const NEUTRAL_CTX = { fatigue: 0, timesThrough: 1 };
 
-/** 한 타석을 시뮬레이션한다. [결과코드, 타구유형] 반환. */
-export function simulatePA(bat, pit, dfn = NEUTRAL_DEF, park = NEUTRAL_PARK,
-                           ctx = NEUTRAL_CTX, rng) {
-  const sameHand = bat.bats === pit.throws;
-  const tto = C.tto * (ctx.timesThrough - 1);
-
-  const zs = z(pit.stuff) + C.fatigueStuff * ctx.fatigue;
-  const zc = z(pit.command) + C.fatigueCommand * ctx.fatigue;
-  const zm = z(pit.movement);
-
-  // 1. 삼진
-  const lk = logit(LG.k) + C.kStuff * zs + C.kCommand * zc
-    + C.kContact * z(bat.contact) + C.kAvoidK * z(bat.avoid_k)
-    + (sameHand ? C.platoonK : -C.platoonK * 0.5) - tto;
-  let pK = invLogit(lk);
-
-  // 2. 볼넷
-  const lbb = logit(LG.bb) + C.bbDiscipline * z(bat.discipline)
-    + C.bbCommand * zc + C.bbPower * z(bat.hr_power)
-    + (sameHand ? C.platoonBb : -C.platoonBb * 0.5) + tto;
-  let pBB = invLogit(lbb);
-  let pHBP = LG.hbp;
-
-  const total = pK + pBB + pHBP;
-  if (total > 0.92) { const s = 0.92 / total; pK *= s; pBB *= s; pHBP *= s; }
-
-  let r = rng.random();
-  if (r < pK) return [K, null];
-  r -= pK;
-  if (r < pBB) return [BB, null];
-  r -= pBB;
-  if (r < pHBP) return [HBP, null];
-
-  // 3. 타구 유형
-  const gbShift = C.gbBat * z(bat.gb_tendency) + C.gbPit * z(pit.gb_tendency);
-  const ldShift = C.ldContact * z(bat.contact);
-  const wGb = LG.gb * Math.exp(gbShift);
-  const wFb = LG.fb * Math.exp(-gbShift);
-  const wPu = LG.pu * Math.exp(-gbShift * 0.5);
-  const wLd = LG.ld * Math.exp(ldShift);
-  const tot = wGb + wFb + wPu + wLd;
-  r = rng.random() * tot;
-  let bbt;
-  if (r < wGb) bbt = 'GB';
-  else if (r < wGb + wLd) bbt = 'LD';
-  else if (r < wGb + wLd + wFb) bbt = 'FB';
-  else bbt = 'PU';
-
-  // 4. 홈런
-  if (bbt === 'FB' || bbt === 'LD') {
-    const base = bbt === 'FB' ? LG.hrPerFb : LG.hrPerFb * 0.35;
-    const lhr = logit(base) + C.hrPower * z(bat.hr_power) + C.hrMovement * zm
-      + park.hrFactor + (sameHand ? C.platoonHr : -C.platoonHr * 0.5) + tto;
-    if (rng.random() < invLogit(lhr)) return [HR, bbt];
-  }
-
-  // 5. BABIP
-  const baseBabip = { GB: LG.babipGb, LD: LG.babipLd, FB: LG.babipFb, PU: LG.babipPu }[bbt];
-  let lb = logit(baseBabip) + park.hitFactor + C.babipPitSoft * zm;
-  if (bbt === 'GB' || bbt === 'PU') {
-    lb += C.babipInfDef * z(dfn.infield);
-    if (bbt === 'GB') lb += C.babipSpeedGb * z(bat.speed);
-  } else {
-    lb += C.babipOfDef * z(dfn.outfield);
-    lb += C.babipPowerLd * z(bat.gap_power);
-  }
-  if (rng.random() >= invLogit(lb)) return [OUT, bbt];
-
-  // 6. 안타 종류
-  const zsp = z(bat.speed), zgp = z(bat.gap_power);
-  let p2, p3;
-  if (bbt === 'GB') { p2 = 0.045 + 0.009 * zgp; p3 = 0.002 + 0.002 * zsp; }
-  else if (bbt === 'LD') { p2 = 0.245 + 0.032 * zgp; p3 = 0.030 + 0.012 * zsp; }
-  else if (bbt === 'FB') { p2 = 0.505 + 0.045 * zgp; p3 = 0.080 + 0.025 * zsp; }
-  else { p2 = 0.010; p3 = 0; }
-  r = rng.random();
-  if (r < p3) return [T3B, bbt];
-  if (r < p3 + p2) return [D2B, bbt];
-  return [S1B, bbt];
-}
+// simulatePA 는 pitch.js + bip.js 파이프라인으로 대체되었다.
+// 남은 것은 계수표(LG, C)와 상수들로, 새 엔진이 그대로 쓴다.
 
 /** 기본값이 채워진 타자/투수. 생성기가 이 위에 값을 얹는다. */
 export const newBatter = (o = {}) => ({
