@@ -5,6 +5,8 @@
   --warn:#e8b13a; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
+/* [hidden] 이 .modal{display:grid} 같은 author 규칙에 밀리지 않도록 못 박는다 */
+[hidden]{display:none !important}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
   font-family:-apple-system,BlinkMacSystemFont,"Pretendard","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
   font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}

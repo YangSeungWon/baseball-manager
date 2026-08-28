@@ -8,7 +8,7 @@ const el = (tag, cls, html) => { const e = document.createElement(tag);
   if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-let G = null, tab = 'home', autosaveTimer = null;
+let G = null, tab = 'home', autosaveTimer = null, lastPhase = null;
 
 /* ---------- 저장 ---------- */
 function persist() {
@@ -67,6 +67,12 @@ const TABS = [['home','홈'],['team','팀'],['league','리그'],['front','프런
 
 function renderTop() {
   const s = G.state();
+  // 단계가 바뀐 첫 렌더에서만 해당 화면으로 데려간다 (그 뒤엔 자유롭게 이동 가능)
+  if (s.phase !== lastPhase) {
+    if (s.phase === 'off_fa' || s.phase === 'off_draft' || s.phase === 'off_trade') tab = 'front';
+    else if (s.phase === 'regular' || s.phase === 'preseason') tab = 'home';
+    lastPhase = s.phase;
+  }
   $('#tbYear').textContent = s.year;
   $('#tbPhase').textContent = s.phase_label;
   $('#tbProgress').textContent = s.phase === 'regular' ? `${s.day} / ${s.total_days}일` : '';
@@ -90,11 +96,10 @@ function renderTop() {
     case 'off_fa':
       btn('FA 시장 마감', () => { if (confirm('오퍼를 확정하고 시장을 마감합니다. 되돌릴 수 없습니다.'))
         act(() => modalSignings(G.resolveFA())); }, 'primary');
-      tab = 'front'; break;
+      break;
     case 'off_trade':
-      btn('트레이드 마감', () => act(() => { G.resolveTrades(); tab = 'front'; }), 'primary'); break;
-    case 'off_draft':
-      btn('드래프트로', () => { tab = 'front'; render(); }, 'primary'); break;
+      btn('트레이드 마감', () => act(() => G.resolveTrades()), 'primary'); break;
+    case 'off_draft': break;
   }
   const tb = $('#tabs'); tb.innerHTML = '';
   TABS.forEach(([k, label]) => {
