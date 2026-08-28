@@ -1,6 +1,7 @@
 // UI. api.js 가 돌려주는 순수 데이터만 그린다.
 // 모든 능력치는 하나의 20~80 눈금축 위에, 어디서나 같은 좌표로 놓인다.
 import { Game } from './core/api.js';
+import { josa } from './core/mail.js';
 import * as save from './save.js';
 
 const KEY = 'dugout.save.v1';
@@ -9,6 +10,9 @@ const el = (t, c, h) => { const e = document.createElement(t);
   if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const short = (s) => String(s).split(' ')[0];
+// 순위 색: 상위 30% 강점(그린), 하위 30% 약점(레드), 나머지 기본
+const rkCls = (r, of) => r <= Math.ceil(of * 0.3) ? 'r1' : (r >= Math.floor(of * 0.7) + 1 ? 'r3' : '');
+const rkNum = (r, of) => `<b class="m ${rkCls(r, of)}">${r}위</b>`;
 
 let G = null, tab = 'home', saveTimer = null, lastPhase = null;
 
@@ -23,13 +27,13 @@ const autosave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist
    실선 = 현재 추정 구간, 해칭 = 잠재력 구간. 20·35·50·65·80 눈금 위에 놓인다. */
 const AXIS_KEY = '20 · 35 · 50 · 65 · 80';
 const pos = (v) => (Math.max(20, Math.min(80, v)) - 20) / 60 * 100;
-function axis(cur, pot) {
+function axis(cur, pot, size = '') {
   const seg = (r, tag) => {
     const W = Math.max(2.5, pos(r.hi) - pos(r.lo));
     const L = Math.min(pos(r.lo), 100 - W);
     return `<${tag} style="left:${L}%;width:${W}%"></${tag}>`;
   };
-  return `<span class="axrow"><span class="ax">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}</span>`
+  return `<span class="axrow"><span class="ax ${size}">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}</span>`
     + `<span class="axnum">${Math.round(cur.lo)}–${Math.round(cur.hi)}</span></span>`;
 }
 
@@ -70,11 +74,11 @@ function boot() {
     const d = bootGame.teamDossier(t.id);
     const b = el('button', 'trow');
     b.setAttribute('aria-pressed', String(t.id === bootSel));
-    b.innerHTML = `${cap(d.name)}
-      <span><span class="tname">${esc(d.nick)}<small>${esc(d.city)}</small></span>
-        <span class="tnote">${esc(d.history ? d.history.tagline : d.note)}</span></span>
+    b.innerHTML = `${cap(d.name, 40)}
+      <span><span class="tname">${esc(d.nick)}<small>${esc(d.city)} · ${esc(d.history ? d.history.tagline : d.note)}</small></span>
+        <span class="tarch">${esc(d.archetype)}</span></span>
       <span class="tlast">지난 시즌<b>${d.last.rank}위 ${d.last.w}–${d.last.l}</b></span>
-      <span class="diff" title="난이도 ${d.difficulty}/5">${
+      <span class="tdiff"><span>난이도</span>${
         [1,2,3,4,5].map(i => `<i class="${i <= d.difficulty ? 'on' : ''}"></i>`).join('')}</span>`;
     b.onclick = () => {
       bootSel = t.id;
@@ -87,9 +91,10 @@ function boot() {
   drawDossier();
 }
 
-function meter(label, rank, of, warn) {
+function meter(label, rank, of) {
   const pct = ((of - rank + 1) / of) * 100;
-  return `<div class="meter ${warn ? 'warn' : ''}">
+  const c = rkCls(rank, of);
+  return `<div class="meter ${c === 'r1' ? 'good' : c === 'r3' ? 'bad' : ''}">
     <span class="top"><span>${label}</span><b>${rank}위</b></span>
     <span class="track"><i style="width:${pct}%"></i></span></div>`;
 }
@@ -98,29 +103,35 @@ function drawDossier() {
   const d = bootGame.teamDossier(bootSel);
   const R = d.rank;
   const saved = localStorage.getItem(KEY);
-  const player = (p) => `<div class="dplayer"><span>${esc(p.name)}
-      <span class="sub">${p.age} ${p.slot}</span></span>${axis(p.ovr, p.pot)}</div>`;
+  const player = (p) => `<div class="dplayer">
+      <span class="who">${esc(p.name)}<span>${p.age}세 · ${p.slot}</span></span>
+      ${axis(p.ovr, p.pot, 'big')}</div>`;
   $('#dossier').innerHTML = `
     <div class="dhead">${cap(d.name, 52)}
       <h2>${esc(d.nick)}<small>${esc(d.city)} · 시장 규모 ${d.market}</small></h2></div>
-    ${d.history ? `<p class="dhist"><b>${esc(d.history.tagline)}</b>
-      <span>창단 ${d.history.founded} · 통산 ${esc(d.history.record)} (${d.history.pct})
-      · 우승 ${d.history.titles}회${d.history.titles ? ` · 최근 ${d.history.lastTitle}` : ''}</span></p>` : ''}
-    <p class="dnote">${esc(d.note)}</p>
-
-    <div class="dgrid">
-      ${meter('전력', R.strength, R.of)}
-      ${meter('자금', R.budget, R.of)}
-      ${meter('타선', R.batting, R.of)}
-      ${meter('마운드', R.pitching, R.of)}
-    </div>
-    ${meter('유망주', R.farm, R.of)}
+    <p class="headline">${esc(d.headline)}</p>
+    ${d.history ? `<p class="dhist">창단 ${d.history.founded} · 통산 ${esc(d.history.record)}
+      (${d.history.pct}) · 우승 ${d.history.titles}회${d.history.titles
+        ? ` · 최근 ${d.history.lastTitle}` : ''} · 지난 시즌 ${d.last.rank}위</p>` : ''}
 
     <div class="dsec">
-      <div class="lab">구단주</div>
-      <div class="demand"><b>${esc(d.demand)}</b>
-        <span class="sub">을(를) 요구한다</span></div>
-      ${meter('인내심', Math.max(1, Math.round((100 - d.patience) / 100 * R.of)), R.of, d.patience < 35)}
+      <div class="lab">리그 내 위치 <i class="off m" style="font-style:normal">${R.of}팀 중</i></div>
+      <div class="dgrid">
+        ${meter('전력', R.strength, R.of)}
+        ${meter('재정', R.budget, R.of)}
+        ${meter('타선', R.batting, R.of)}
+        ${meter('마운드', R.pitching, R.of)}
+      </div>
+      ${meter('팜(유망주)', R.farm, R.of)}
+    </div>
+
+    <div class="dsec">
+      <div class="lab">구단주 기대</div>
+      <div class="owner ${d.ownerLine.urgent ? 'urgent' : ''}">
+        <span class="otop"><span class="odemand">${esc(d.ownerLine.demand)}</span>
+          <span class="otemper">${esc(d.ownerLine.temper)}</span></span>
+        <span class="oask">“${esc(d.ownerLine.ask)}”</span>
+      </div>
     </div>
 
     <div class="dsec">
@@ -132,6 +143,8 @@ function drawDossier() {
 
     <div class="dsec">
       <div class="lab">핵심 선수</div>
+      <div class="axlegend"><span><b class="cur"></b>스카우트 추정</span>
+        <span><b class="pot"></b>잠재력(미확인)</span></div>
       ${d.key.map(player).join('')}
     </div>
     <div class="dsec">
@@ -147,7 +160,7 @@ function drawDossier() {
     </div>` : ''}
 
     <div class="dstart">
-      <button id="btnNew" class="primary">${esc(d.nick)}의 단장이 된다</button>
+      <button id="btnNew" class="primary">${esc(josa(d.city + ' ' + d.nick, '으로'))} 시작</button>
       ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
       <p>선택과 진행은 자동 저장되며 이전 상태로 돌아갈 수 없습니다.</p>
     </div>`;

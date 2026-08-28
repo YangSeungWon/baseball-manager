@@ -6,7 +6,7 @@ import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
 import * as dev2 from './development.js';
-import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail } from './mail.js';
+import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail, josa } from './mail.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FA='off_fa', OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
@@ -538,7 +538,72 @@ export class Game {
         legend: t.history.legend, titleYears: t.history.titles,
       } : null,
       note: this._teamNote(f, strRank, farmRank, budRank, mid),
+      archetype: this._archetype(t, f, { str:strRank, bat:batRank, pit:pitRank,
+        farm:farmRank, bud:budRank, of:n }),
+      headline: this._headline(t, f, { str:strRank, bat:batRank, pit:pitRank,
+        farm:farmRank, bud:budRank, of:n }),
+      ownerLine: this._ownerLine(f),
     };
+  }
+
+  /** 구단 유형 — 이 팀을 고르면 어떤 게임을 하게 되는가. */
+  _archetype(t, f, R) {
+    const h = t.history, n = R.of, hi = Math.ceil(n * 0.3), lo = Math.floor(n * 0.7) + 1;
+    const titles = h ? h.titles.length : 0;
+    if (h && h.drought === 0) return '디펜딩 챔피언';
+    if (R.str <= hi && f.demand === '우승') return '우승 청부';
+    if (R.str <= hi && h && h.drought <= 3) return '전성기의 강팀';
+    if (R.str <= hi && R.bud >= lo) return '가난한 강팀';
+    if (R.str <= hi) return '우승 도전권';
+    if (R.str >= lo && titles >= 6 && h && h.drought >= 15) return '몰락한 명가';
+    if (R.str >= lo && R.farm <= 3 && f.patience >= 55) return '재건 초입';
+    if (R.str >= lo && f.patience >= 60) return '장기 리빌딩';
+    if (R.str >= lo && f.patience < 40) return '벼랑 끝';
+    if (R.bud <= hi && R.str >= lo) return '자금은 있다';
+    if (R.farm <= 2) return '팜이 무기';
+    return '중위권 정체';
+  }
+
+  /** 한 문장 — 아래 숫자들에 의미를 준다. */
+  _headline(t, f, R) {
+    const n = R.of, gap = R.bat - R.pit;
+    const strong = (r) => r <= Math.ceil(n * 0.3), weak = (r) => r >= Math.floor(n * 0.7) + 1;
+    if (strong(R.pit) && weak(R.bat))
+      return '마운드는 리그 최상위, 타선은 최하위권. 방망이만 채우면 우승권이다.';
+    if (strong(R.bat) && weak(R.pit))
+      return '타선은 터지는데 마운드가 버티지 못한다. 투수를 구해야 한다.';
+    if (weak(R.str) && strong(R.farm))
+      return '지금은 약하다. 대신 팜은 리그 최고 수준이라 기다릴 수 있다.';
+    if (weak(R.str) && strong(R.bud))
+      return '돈은 있는데 전력이 없다. 시장에서 사 와야 한다.';
+    if (strong(R.str) && weak(R.bud))
+      return '전력은 우승권인데 지갑이 얇다. 지금 선수단을 지키는 게 관건이다.';
+    if (strong(R.str) && f.patience < 40)
+      return '이길 전력은 있다. 다만 구단주가 기다려 주지 않는다.';
+    if (weak(R.str) && weak(R.farm))
+      return '전력도 팜도 바닥이다. 밑바닥부터 다시 쌓아야 한다.';
+    if (strong(R.farm) && !strong(R.str) && !weak(R.str))
+      return '지금은 중위권이지만 팜이 리그 최상위다. 몇 년 뒤가 다르다.';
+    if (Math.abs(gap) >= Math.ceil(n * 0.5))
+      return gap > 0 ? '투타 불균형이 심하다. 마운드가 팀을 끌고 간다.'
+                     : '투타 불균형이 심하다. 타선이 팀을 끌고 간다.';
+    if (strong(R.str)) return '뚜렷한 약점이 없다. 지금 승부를 걸 만한 전력이다.';
+    return '어느 쪽으로도 갈 수 있는 중위권. 방향은 당신이 정한다.';
+  }
+
+  /** 구단주 기대 — 규칙처럼 읽히게. */
+  _ownerLine(f) {
+    const p = f.patience;
+    const temper = p < 32 ? '인내심 매우 낮음' : p < 45 ? '인내심 낮음'
+      : p < 60 ? '보통' : p < 72 ? '느긋함' : '매우 느긋함';
+    const ask = {
+      '우승': '우승하지 못하면 자리를 보전하기 어렵다.',
+      '포스트시즌': '가을야구 진출이 최소 조건이다.',
+      '5할 승률': '최소한 승률 5할은 지켜야 한다.',
+      '재건 허용': '당장의 성적보다 미래를 보겠다고 한다.',
+    }[f.demand];
+    return { demand: f.demand, temper, ask,
+      urgent: p < 45 && (f.demand === '우승' || f.demand === '포스트시즌') };
   }
 
   /** 한 줄 성격. 데이터에서 뽑는다 (하드코딩 아님). */
