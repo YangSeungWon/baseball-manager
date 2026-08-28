@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project Dugout — 야구단 운영 시뮬레이션</title>
+<meta name="description" content="스카우팅 불확실성 위에서 판단하는 야구단 운영 시뮬레이션.">
+<link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>⚾</text></svg>">
+</head>
+<body>
+<div id="boot" class="boot">
+  <div class="boot-card">
+    <h1>Project Dugout</h1>
+    <p class="tag">야구단 단장 시뮬레이션</p>
+    <p class="lede">선수의 진짜 능력은 아무도 모릅니다.<br>당신은 스카우트의 추정치로 판단해야 합니다.</p>
+    <div id="teamPick" class="teampick"></div>
+    <div class="boot-actions">
+      <button id="btnNew" class="primary">새 게임 시작</button>
+      <button id="btnResume" class="ghost" hidden>이어하기</button>
+    </div>
+    <p class="fine">자동 저장됩니다. 되돌리기는 없습니다.</p>
+  </div>
+</div>
+
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="tb-left">
+      <span id="tbYear" class="year"></span>
+      <span id="tbPhase" class="phase"></span>
+      <span id="tbProgress" class="progress"></span>
+    </div>
+    <div class="tb-mid"><strong id="tbTeam"></strong><span id="tbMode" class="pill"></span></div>
+    <div class="tb-right" id="tbActions"></div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <main id="view"></main>
+  <div id="toasts" class="toasts"></div>
+</div>
+
+<div id="modal" class="modal" hidden><div class="modal-body" id="modalBody"></div></div>
+<script type="module" src="js/ui.js"></script>
+</body>
+</html>

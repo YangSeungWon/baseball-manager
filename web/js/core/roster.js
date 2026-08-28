@@ -1,0 +1,200 @@
+// 선수 / 팀 생성. 베테랑은 18세 유망주를 성장 엔진으로 늙혀서 만든다.
+import { newBatter, newPitcher } from './pa.js';
+import * as dev from './development.js';
+import { personName, teamNames } from './names.js';
+
+const RHO = 0.55;
+// 노화를 거친 뒤 리그 평균이 50(타석 엔진 기준선)에 오도록 하는 보정
+export const CALIB = { contact:1.7, avoid_k:2.7, discipline:2.8, gap_power:3.3,
+  hr_power:0.6, speed:6.8, fielding:3.6, stuff:2.0, command:2.5, movement:3.7, stamina:7.9 };
+const YOUTH_GAP = { contact:1.00, avoid_k:0.90, discipline:1.30, gap_power:1.20,
+  hr_power:1.40, speed:0.35, fielding:0.80, stuff:1.00, command:1.30, movement:1.10, stamina:0.90 };
+// [타격보정, 수비요구, 주력보정]
+export const POS = { C:[-0.35,0.55,-0.60], '1B':[0.45,-0.35,-0.45], '2B':[-0.15,0.35,0.25],
+  '3B':[0.15,0.15,-0.10], SS:[-0.25,0.60,0.30], LF:[0.25,-0.20,0.05],
+  CF:[-0.10,0.45,0.60], RF:[0.20,-0.05,0.10], DH:[0.55,-1.00,-0.35] };
+export const LINEUP_POS = ['C','1B','2B','3B','SS','LF','CF','RF','DH'];
+export const FIELD_POS = ['C','1B','2B','3B','SS','LF','CF','RF'];
+
+let _pid = 1;
+export const newPid = () => ++_pid;
+export const getPidCounter = () => _pid;
+export const setPidCounter = (v) => { _pid = v; };
+
+const attr = (talent, rng, rho = RHO, shift = 0) => {
+  const n = rng.gauss(0, 1);
+  return Math.max(20, Math.min(80, 50 + 10 * (rho*talent + Math.sqrt(1-rho*rho)*n + shift)));
+};
+
+function finish(p, pot, rng, year) {
+  p.pot = {}; for (const a in pot) p.pot[a] = Math.min(80, pot[a] + CALIB[a]);
+  p.hidden = dev.makeHidden(rng);
+  p.age = 18; p.debut_year = null; p.draft_year = year;
+  p.injury_days = 0; p.career_injuries = 0; p.career_injury_days = 0;
+  p.contract = null; p.service = 0;
+  const gap = rng.uniform(7, 19);
+  for (const a of dev.attrsOf(p)) p[a] = Math.max(20, p.pot[a] - gap * YOUTH_GAP[a] * rng.uniform(0.7, 1.3));
+  return p;
+}
+
+export function makeProspectBatter(rng, pos, talent = null, year = 0) {
+  const t = talent === null ? rng.gauss(0,1) : talent;
+  const [hit, fld, spd] = POS[pos];
+  const pot = {
+    contact: attr(t,rng,RHO,hit*0.5), avoid_k: attr(t,rng,0.35,hit*0.3),
+    discipline: attr(t,rng,0.40,hit*0.3), gap_power: attr(t,rng,RHO,hit*0.6),
+    hr_power: attr(t,rng,RHO,hit*0.8), speed: attr(t,rng,0.20,spd),
+    fielding: attr(t,rng,0.15,fld),
+  };
+  const b = newBatter({ gb_tendency: attr(0,rng,0), bats: rng.random()<0.33?'L':'R',
+    position: pos, pid: newPid(), name: personName(rng) });
+  return finish(b, pot, rng, year);
+}
+
+export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0) {
+  let t = talent === null ? rng.gauss(0,1) : talent;
+  let stamShift = 0.60;
+  if (role !== 'SP') { stamShift = -1.10; t += 0.15; }
+  const pot = {
+    stuff: attr(t,rng,RHO, role!=='SP'?0.20:0), command: attr(t,rng,0.45),
+    movement: attr(t,rng,0.45), stamina: attr(t,rng,0.20,stamShift),
+  };
+  const p = newPitcher({ gb_tendency: attr(0,rng,0), throws: rng.random()<0.28?'L':'R',
+    role, pid: newPid(), name: personName(rng) });
+  return finish(p, pot, rng, year);
+}
+
+export function ageTo(p, target, rng, pt = 1.0) {
+  while (p.age < target) dev.develop(p, rng, pt);
+  return p;
+}
+
+function makeAged(rng, kind, targetAge, year, bestOf, opts) {
+  const cands = [];
+  for (let i = 0; i < bestOf; i++) {
+    const p = kind === 'B'
+      ? makeProspectBatter(rng, opts.pos, opts.talent, year)
+      : makeProspectPitcher(rng, opts.role, opts.talent, year);
+    ageTo(p, targetAge, rng);
+    cands.push(p);
+  }
+  const best = cands.reduce((a,b) => dev.overall(b) > dev.overall(a) ? b : a);
+  best.debut_year = year - Math.max(0, targetAge - 21);
+  return best;
+}
+
+const AGE_REG = [24,25,25,26,26,27,27,28,28,29,30,30,31,32,33,34];
+const AGE_SUB = [23,24,25,26,27,28,29,30,31,33];
+
+export function refreshTeam(t) {
+  t.rotation.sort((a,b) => -(a.stuff+a.command*.7+a.movement*.5+a.stamina*.4)
+                         + (b.stuff+b.command*.7+b.movement*.5+b.stamina*.4));
+  t.bullpen.sort((a,b) => -(a.stuff+a.command*.6) + (b.stuff+b.command*.6));
+  t.lineup.sort((a,b) => -(a.discipline*1.2+a.contact+a.hr_power*.6)
+                        + (b.discipline*1.2+b.contact+b.hr_power*.6));
+  if (t.lineup.length > 1) { const x = t.lineup[0]; t.lineup[0] = t.lineup[1]; t.lineup[1] = x; }
+  if (!t.lineup.length) return t;
+  const inf = t.lineup.filter(b => ['C','1B','2B','3B','SS'].includes(b.position)).map(b=>b.fielding);
+  const of = t.lineup.filter(b => ['LF','CF','RF'].includes(b.position)).map(b=>b.fielding);
+  const c = t.lineup.filter(b => b.position === 'C').map(b=>b.fielding);
+  const avg = (a) => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 50;
+  t.defense = { infield: avg(inf), outfield: avg(of), catcherFraming: c.length?c[0]:50 };
+  return t;
+}
+
+export function rebuildRoster(t, healthyOnly = false) {
+  const bats = healthyOnly ? t.batters.filter(b => b.injury_days <= 0) : t.batters;
+  const pits = healthyOnly ? t.pitchers.filter(p => p.injury_days <= 0) : t.pitchers;
+  const pool = [...bats].sort((a,b) => dev.overall(b) - dev.overall(a));
+  const used = new Set(); const lineup = [];
+  for (const pos of FIELD_POS) {
+    let cand = pool.filter(b => b.position === pos && !used.has(b.pid));
+    if (!cand.length) cand = pool.filter(b => !used.has(b.pid));
+    if (!cand.length) break;
+    used.add(cand[0].pid); lineup.push(cand[0]);
+  }
+  let rest = pool.filter(b => !used.has(b.pid));
+  if (rest.length) { lineup.push(rest[0]); rest = rest.slice(1); }
+  t.lineup = lineup; t.bench = rest;
+
+  const sp = pits.filter(p => p.role === 'SP')
+    .sort((a,b) => -(a.stuff+a.command*.7+a.movement*.5+a.stamina*.4)
+                   +(b.stuff+b.command*.7+b.movement*.5+b.stamina*.4));
+  const rp = pits.filter(p => p.role === 'RP')
+    .sort((a,b) => -(a.stuff+a.command*.6)+(b.stuff+b.command*.6));
+  while (sp.length < 5 && rp.length) sp.push(rp.shift());
+  if (sp.length) { t.rotation = sp.slice(0,5); t.bullpen = rp.concat(sp.slice(5)).slice(0,8); }
+  else if (rp.length) { t.rotation = rp.slice(0,5); t.bullpen = rp.slice(5).length ? rp.slice(5) : rp.slice(0,1); }
+  return refreshTeam(t);
+}
+
+export function callUp(t, wantPitcher, rng, year, role = null) {
+  let cand = t.farm.filter(p => (p.kind === 'P') === wantPitcher && p.injury_days <= 0
+                                && (role === null || p.role === role));
+  let best;
+  if (cand.length) {
+    best = cand.reduce((a,b) => dev.overall(b) > dev.overall(a) ? b : a);
+    t.farm.splice(t.farm.indexOf(best), 1);
+  } else if (wantPitcher) {
+    best = makeProspectPitcher(rng, role || 'RP', rng.gauss(-0.9, 0.6), year);
+    ageTo(best, 22, rng, 0.85);
+  } else {
+    best = makeProspectBatter(rng, rng.choice(LINEUP_POS), rng.gauss(-0.9, 0.6), year);
+    ageTo(best, 22, rng, 0.85);
+  }
+  (wantPitcher ? t.pitchers : t.batters).push(best);
+  return best;
+}
+
+export function setActive(t, rng, year) {
+  const ups = [];
+  let guard = 0;
+  while (t.batters.filter(b => b.injury_days <= 0).length < 10 && guard++ < 20)
+    ups.push(callUp(t, false, rng, year));
+  guard = 0;
+  while (t.pitchers.filter(p => p.injury_days <= 0).length < 9 && guard++ < 20)
+    ups.push(callUp(t, true, rng, year));
+  guard = 0;
+  while (t.pitchers.filter(p => p.injury_days <= 0 && p.role === 'SP').length < 4 && guard++ < 20)
+    ups.push(callUp(t, true, rng, year, 'SP'));
+  rebuildRoster(t, true);
+  return ups;
+}
+
+export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
+  const lineup = LINEUP_POS.map(pos =>
+    makeAged(rng, 'B', rng.choice(AGE_REG), year, 3, { pos, talent: rng.gauss(teamTalent, 0.85) }));
+  const bench = Array.from({length:4}, () =>
+    makeAged(rng, 'B', rng.choice(AGE_SUB), year, 2,
+             { pos: rng.choice(LINEUP_POS), talent: rng.gauss(teamTalent-0.8, 0.7) }));
+  const rotation = Array.from({length:5}, () =>
+    makeAged(rng, 'P', rng.choice(AGE_REG), year, 3, { role:'SP', talent: rng.gauss(teamTalent, 0.85) }));
+  const bullpen = Array.from({length:7}, () =>
+    makeAged(rng, 'P', rng.choice(AGE_SUB), year, 2, { role:'RP', talent: rng.gauss(teamTalent-0.15, 0.8) }));
+
+  const t = {
+    team_id: teamId, name, lineup, bench, rotation, bullpen,
+    batters: lineup.concat(bench), pitchers: rotation.concat(bullpen), farm: [],
+    rot_index: 0, talent: teamTalent, unavailable: new Set(),
+    park: { hrFactor: rng.gauss(0, 0.14), hitFactor: rng.gauss(0, 0.05) },
+    defense: { infield:50, outfield:50, catcherFraming:50 },
+    nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
+                    this.rot_index++; return p; },
+  };
+  for (let i = 0; i < 6; i++) {
+    const b = makeProspectBatter(rng, rng.choice(LINEUP_POS), rng.gauss(teamTalent,0.9), year);
+    ageTo(b, rng.choice([18,19,20,21]), rng, 0.8); t.farm.push(b);
+  }
+  for (let i = 0; i < 6; i++) {
+    const p = makeProspectPitcher(rng, rng.choice(['SP','SP','RP']), rng.gauss(teamTalent,0.9), year);
+    ageTo(p, rng.choice([18,19,20,21]), rng, 0.8); t.farm.push(p);
+  }
+  rebuildRoster(t);
+  return t;
+}
+
+export function makeLeague(nTeams, rng, year = 2030) {
+  _pid = 1;
+  const names = teamNames(nTeams, rng);
+  return names.map((n, i) => makeTeam(rng, i+1, n, year, rng.gauss(0, 0.22)));
+}
