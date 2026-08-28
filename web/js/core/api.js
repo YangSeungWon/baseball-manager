@@ -199,6 +199,123 @@ export class Game {
     }
     return { rows: rows.slice(-n) };
   }
+  /** 팀별 시즌 집계 + 최근 폼 + 홈/원정. 시즌 중 화면의 재료. */
+  leagueTeamStats() {
+    const s = this.season;
+    if (!s) return { rows: [] };
+    const acc = new Map(this.L.teams.map(t => [t.team_id, {
+      team: t.name, team_id: t.team_id, pa:0, ab:0, h:0, hr:0, bb:0, k:0, sb:0, rbi:0,
+      outs:0, er:0, pk:0, pbb:0, ph:0, phr:0 }]));
+    for (const b of s.bat.values()) {
+      const x = acc.get(b.team.team_id); if (!x) continue;
+      x.pa += b.pa; x.ab += b.ab; x.h += b.h; x.hr += b.hr;
+      x.bb += b.bb; x.k += b.k; x.sb += b.sb; x.rbi += b.rbi;
+    }
+    for (const p of s.pit.values()) {
+      const x = acc.get(p.team.team_id); if (!x) continue;
+      x.outs += p.outs; x.er += p.r; x.pk += p.k; x.pbb += p.bb; x.ph += p.h; x.phr += p.hr;
+    }
+    const rank = (arr, key, asc) => {
+      const sorted = [...arr].sort((m,n) => asc ? key(m)-key(n) : key(n)-key(m));
+      return new Map(sorted.map((x,i) => [x.team_id, i+1]));
+    };
+    const rows = [...acc.values()].map(x => ({ ...x,
+      avg: x.ab ? x.h/x.ab : 0, ip: x.outs/3,
+      era: x.outs ? x.er*9/(x.outs/3) : 0,
+      whip: x.outs ? (x.ph+x.pbb)/(x.outs/3) : 0 }));
+    const rAvg = rank(rows, r=>r.avg), rHr = rank(rows, r=>r.hr), rSb = rank(rows, r=>r.sb);
+    const rEra = rank(rows, r=>r.era, true), rK = rank(rows, r=>r.pk);
+    return { rows: rows.map(r => ({
+      team_id:r.team_id, team:r.team,
+      avg:r.avg.toFixed(3), hr:r.hr, sb:r.sb, bb:r.bb, k:r.k,
+      era:r.era.toFixed(2), whip:r.whip.toFixed(2), pk:r.pk,
+      rank:{ avg:rAvg.get(r.team_id), hr:rHr.get(r.team_id), sb:rSb.get(r.team_id),
+             era:rEra.get(r.team_id), k:rK.get(r.team_id) },
+      is_user:r.team_id===this.userId })) };
+  }
+
+  /** 최근 n경기 승패 + 홈/원정 성적 */
+  form(teamId = null, n = 10) {
+    const s = this.season;
+    const id = teamId ?? this.userId;
+    if (!s) return { recent: [], home:[0,0], away:[0,0] };
+    const recent = [];
+    let hw=0, hl=0, aw=0, al=0;
+    for (const [d, hi, ai, hr, ar] of s.results) {
+      const H = s.teams[hi], A = s.teams[ai];
+      if (H.team_id !== id && A.team_id !== id) continue;
+      const home = H.team_id === id;
+      const mine = home ? hr : ar, opp = home ? ar : hr;
+      const res = mine > opp ? 'W' : (mine < opp ? 'L' : 'D');
+      if (res !== 'D') { if (home) (res==='W'?hw++:hl++); else (res==='W'?aw++:al++); }
+      recent.push(res);
+    }
+    return { recent: recent.slice(-n), home:[hw,hl], away:[aw,al] };
+  }
+
+  /** 그날 리그 전체 결과 */
+  dayResults(day = null) {
+    const s = this.season;
+    if (!s) return { day:0, rows:[] };
+    const d = day ?? s.curDay - 1;
+    return { day: d + 1, rows: s.results.filter(r => r[0] === d).map(([, hi, ai, hr, ar]) => ({
+      home: s.teams[hi].name, away: s.teams[ai].name, hr, ar,
+      user: s.teams[hi].team_id === this.userId || s.teams[ai].team_id === this.userId })) };
+  }
+
+  /** 구단주 요구 대비 현재 위치 */
+  ownerStatus() {
+    const t = this.me, f = t.finance;
+    const s = this.season;
+    const st = s ? this.standings().rows : [];
+    const me = st.find(r => r.is_user);
+    const need = { '우승':1, '포스트시즌':5, '5할 승률':null, '재건 허용':null }[f.demand];
+    let ok = null, text = '시즌 전';
+    if (me) {
+      const rank = me.rank, pct = parseFloat(me.pct);
+      if (f.demand === '우승') { ok = rank <= 3; text = `현재 ${rank}위`; }
+      else if (f.demand === '포스트시즌') { ok = rank <= 5; text = `현재 ${rank}위 (5위까지 진출)`; }
+      else if (f.demand === '5할 승률') { ok = pct >= 0.5; text = `현재 승률 ${me.pct}`; }
+      else { ok = true; text = `현재 ${rank}위 · 성적 압박 없음`; }
+    }
+    return { demand: f.demand, patience: r0(f.patience), ok, text,
+      remaining: s ? s.totalDays - s.curDay : this.L.games };
+  }
+
+  /** 우리 팀 상위 선수 */
+  teamLeaders(teamId = null, n = 4) {
+    const s = this.season;
+    const id = teamId ?? this.userId;
+    if (!s) return { batting: [], pitching: [] };
+    const [bw, pw] = s.wars();
+    const bats = [...s.bat.values()].filter(b => b.team.team_id === id && b.pa >= 20)
+      .sort((a,b) => bw.get(b.p.pid) - bw.get(a.p.pid)).slice(0, n);
+    const pits = [...s.pit.values()].filter(p => p.team.team_id === id && p.outs >= 30)
+      .sort((a,b) => pw.get(b.p.pid) - pw.get(a.p.pid)).slice(0, n);
+    return {
+      batting: bats.map(b => ({ pid:b.p.pid, name:b.p.name, slot:b.p.position,
+        line:`${b.avg.toFixed(3)} · ${b.hr}HR · ${b.rbi}타점`, war:r1(bw.get(b.p.pid)) })),
+      pitching: pits.map(p => ({ pid:p.p.pid, name:p.p.name, slot:p.p.role,
+        line:`${p.ipStr}이닝 · ${p.era.toFixed(2)} · ${p.k}K`, war:r1(pw.get(p.p.pid)) })),
+    };
+  }
+
+  /** 계약 만료 · FA 자격 임박 */
+  contractAlerts() {
+    const t = this.me, y = this.L.year;
+    const rows = [];
+    for (const p of [...t.batters, ...t.pitchers]) {
+      const sv = p.service ?? 0;
+      const expiring = p.contract && p.contract.end_year <= y;
+      const faSoon = sv >= C.FA_SERVICE - 1;
+      if (!expiring && !faSoon) continue;
+      rows.push({ ...this.brief(p, t),
+        status: expiring && sv >= C.FA_SERVICE ? 'FA'
+              : expiring ? '재계약' : `FA ${C.FA_SERVICE - sv}년 전` });
+    }
+    return { rows: rows.sort((a,b) => b.ovr.mid - a.ovr.mid).slice(0, 12) };
+  }
+
   finances() {
     const t = this.me, f = t.finance, y = this.L.year;
     const contracts = [...t.batters, ...t.pitchers].filter(p => p.contract)
