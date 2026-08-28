@@ -143,8 +143,7 @@ function drawDossier() {
 
     <div class="dsec">
       <div class="lab">핵심 선수</div>
-      <div class="axlegend"><span><b class="cur"></b>스카우트 추정</span>
-        <span><b class="pot"></b>잠재력(미확인)</span></div>
+      <div class="axlegend"><span><b class="cur"></b>추정</span><span><b class="pot"></b>미확인</span></div>
       ${d.key.map(player).join('')}
     </div>
     <div class="dsec">
@@ -162,7 +161,7 @@ function drawDossier() {
     <div class="dstart">
       <button id="btnNew" class="primary">${esc(josa(d.city + ' ' + d.nick, '으로'))} 시작</button>
       ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
-      <p>선택과 진행은 자동 저장되며 이전 상태로 돌아갈 수 없습니다.</p>
+      <p>자동 저장 · 되돌리기 없음</p>
     </div>`;
   $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
   if ($('#btnResume')) $('#btnResume').onclick = () => {
@@ -258,7 +257,7 @@ function viewInbox(v) {
   const m = G.mail(80);
   const g = el('div', 'grid');
   if (!m.rows.length) {
-    v.appendChild(sect('받은 편지함', '', '<div class="empty">아직 온 소식이 없다</div>'));
+    v.appendChild(sect('받은 편지함', '', '<div class="empty">—</div>'));
     return;
   }
   const groups = [];
@@ -372,7 +371,7 @@ function viewHome(v) {
       `<div class="row click" data-pid="${p.pid}"><span>${esc(p.name)}
         <span class="sub">${p.slot}</span></span>
        <b class="m mark">${p.injury_days}일</b></div>`).join('')
-    : '<div class="empty">없음</div>'));
+    : '<div class="empty">—</div>'));
 
   const sch = G.schedule(6).rows;
   if (sch.length) right.appendChild(sect('다음 경기', '', sch.map(r =>
@@ -443,7 +442,7 @@ function viewTeam(v) {
     const ts = G.leagueTeamStats().rows.find(x => x.is_user);
     const f = G.form(null, 10);
     const st = G.standings().rows.find(x => x.is_user);
-    g.appendChild(sect('팀 기록', '괄호 안은 리그 순위', `<div class="statgrid">
+    g.appendChild(sect('팀 기록', '', `<div class="statgrid">
       <div><span>전적</span><b class="m">${st.w}–${st.l}</b></div>
       <div><span>타율</span><b class="m">${ts.avg}<i>${ts.rank.avg}위</i></b></div>
       <div><span>홈런</span><b class="m">${ts.hr}<i>${ts.rank.hr}위</i></b></div>
@@ -455,7 +454,7 @@ function viewTeam(v) {
     </div>`));
   }
 
-  g.appendChild(sect('수비 배치', '숫자는 추정 능력 중앙값', diamond()));
+  g.appendChild(sect('수비 배치', '', diamond()));
 
   const block = (title, list, kind) => {
     if (!list.length) return;
@@ -727,7 +726,7 @@ function viewHistory(v) {
           <span class="name">${esc(a.name)}</span>
           <span class="sub">${esc(short(a.team))}</span></span>
         <span class="m dim">${esc(a.line)}</span></div>`).join('')
-    : '<div class="empty">아직 수상자가 없다</div>'));
+    : '<div class="empty">—</div>'));
   g.appendChild(two);
 
   const rec = G.records(10), sr = G.seasonRecords(5);
@@ -738,8 +737,8 @@ function viewHistory(v) {
         ${sub ? `<span class="sub">${r.year}</span>` : ''}</span>
       <b class="m">${r.value}</b></div>`).join('') : '<div class="empty">—</div>') + '</div>').join('');
   const c1 = el('div', 'grid g2');
-  c1.appendChild(sect('통산 기록 — 타격', '● 현역', `<div class="leadgrid">${board(rec.batting)}</div>`));
-  c1.appendChild(sect('통산 기록 — 투구', '● 현역', `<div class="leadgrid">${board(rec.pitching)}</div>`));
+  c1.appendChild(sect('통산 기록 — 타격', '', `<div class="leadgrid">${board(rec.batting)}</div>`));
+  c1.appendChild(sect('통산 기록 — 투구', '', `<div class="leadgrid">${board(rec.pitching)}</div>`));
   g.appendChild(c1);
   const c2 = el('div', 'grid g2');
   c2.appendChild(sect('단일 시즌 최고 — 타격', '', `<div class="leadgrid">${board(sr.batting, true)}</div>`));
