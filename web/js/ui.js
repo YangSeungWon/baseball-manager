@@ -162,7 +162,7 @@ function drawDossier() {
 function start() { $('#boot').hidden = true; $('#app').hidden = false; persist(); render(); }
 
 /* ── 상단 ── */
-const TABS = [['home','홈'],['team','팀'],['league','리그'],['front','프런트'],['history','역사']];
+const TABS = [['inbox','받은 편지함'],['home','홈'],['team','팀'],['league','리그'],['front','프런트'],['history','역사']];
 function renderTop() {
   const s = G.state();
   if (s.phase !== lastPhase) {
@@ -192,7 +192,8 @@ function renderTop() {
   }
   const tb = $('#tabs'); tb.innerHTML = '';
   TABS.forEach(([k, label]) => {
-    const b = el('button', '', label);
+    const b = el('button', '', label +
+      (k === 'inbox' && s.unread ? ` <em class="badge">${s.unread}</em>` : ''));
     if (k === tab) b.setAttribute('aria-current', 'page');
     b.onclick = () => { tab = k; render(); }; tb.appendChild(b);
   });
@@ -200,14 +201,17 @@ function renderTop() {
 function act(fn) { const r = fn(); autosave(); render(); return r; }
 function report(r) {
   if (r && r.games) for (const g of r.games.slice(-2)) toast(g.result, `${g.score}  ${short(g.opponent)}`);
-  for (const n of G.state().notices) toast(n.kind === 'injury' ? '부상' : '', n.text, n.kind);
+  const s = G.state();
+  for (const n of s.notices) toast(n.kind === 'injury' ? '부상' : '', n.text, n.kind);
+  if (s.new_important > 0) tab = 'inbox';        // 사건이 있으면 편지함으로
 }
 
 /* ── 뼈대 ── */
 function render() {
   renderTop();
   const v = $('#view'); v.innerHTML = '';
-  ({ home:viewHome, team:viewTeam, league:viewLeague, front:viewFront, history:viewHistory }[tab])(v);
+  ({ inbox:viewInbox, home:viewHome, team:viewTeam, league:viewLeague,
+     front:viewFront, history:viewHistory }[tab])(v);
 }
 function sect(title, note, body) {
   const s = el('section', 'sect');
@@ -231,6 +235,46 @@ function table(head, rows, onRow) {
 }
 const nameCell = (p) => `<span class="name">${esc(p.name)}</span>`
   + (p.injury_days ? `<span class="tag inj">✚${p.injury_days}</span>` : '');
+
+/* ── 받은 편지함 ── */
+const MAIL_ICON = { injury:'✚', ret:'↩', milestone:'◆', owner:'§', contract:'✎',
+  game:'●', streak:'▲', standings:'↕', league:'◇', scout:'⌖',
+  transfer:'→', draft:'★' };
+
+function viewInbox(v) {
+  const m = G.mail(80);
+  const g = el('div', 'grid');
+  if (!m.rows.length) {
+    v.appendChild(sect('받은 편지함', '', '<div class="empty">아직 온 소식이 없다</div>'));
+    return;
+  }
+  const groups = [];
+  let cur = null;
+  for (const x of m.rows) {
+    const key = `${x.year}${x.day ? '' : ' 오프시즌'}`;
+    if (!cur || cur.key !== key) { cur = { key, year:x.year, off:!x.day, rows:[] }; groups.push(cur); }
+    cur.rows.push(x);
+  }
+  for (const grp of groups) {
+    g.appendChild(sect(`${grp.year}${grp.off ? ' 오프시즌' : ''}`, `${grp.rows.length}`,
+      grp.rows.map(x => `<div class="mail ${x.read ? '' : 'new'} ${x.pri ? 'pri' : ''}
+          ${x.pid ? 'click' : ''}" ${x.pid ? `data-pid="${x.pid}"` : ''}>
+        <span class="mi" title="${KIND_KO(x.kind)}">${MAIL_ICON[x.kind] || '·'}</span>
+        <span class="mtext">
+          <span class="mtop"><b>${esc(x.title)}</b>
+            <span class="mmeta">${x.day ? x.day + '일' : ''} · ${KIND_KO(x.kind)}</span></span>
+          <span class="mbody">${esc(x.body).replace(/\n/g, '<br>')}</span>
+        </span></div>`).join('')));
+  }
+  v.appendChild(g);
+  v.querySelectorAll('.mail.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
+  G.markMailRead();
+  renderTop();          // 배지를 즉시 반영한다
+  autosave();
+}
+const KIND_KO = (k) => ({ injury:'부상', ret:'복귀', milestone:'기록', owner:'구단주',
+  contract:'계약', game:'경기', streak:'흐름', standings:'순위', league:'리그',
+  scout:'스카우트', transfer:'이적', draft:'드래프트' }[k] || k);
 
 /* ── 홈 ── */
 const formStrip = (arr) => `<span class="form">${arr.map(r =>

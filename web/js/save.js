@@ -8,6 +8,7 @@ import * as C from './core/contract.js';
 import * as dev from './core/development.js';
 import { ScoutingDept } from './core/scouting.js';
 import { DraftSession } from './core/draft.js';
+import { Mailbox } from './core/mail.js';
 
 export const VERSION = 2;
 const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','gb_tendency'];
@@ -127,6 +128,7 @@ export function dump(game) {
     modes: Object.fromEntries(L.modes), recPct: Object.fromEntries(L.recPct),
     history: L.history.slice(-400), champions: L.champions,
     awardLog: (L.awardLog || []).slice(-300),
+    mail: L.mail ? { items:L.mail.items, seq:L.mail.seq, seen:[...L.mail.seen] } : null,
     nextPid: R.getPidCounter(),
     season: dumpSeason(game.season),
     faOffers: Object.fromEntries(game.faOffers),
@@ -162,6 +164,9 @@ export function load(data) {
   L.modes = new Map(Object.entries(data.modes).map(([k,v]) => [+k, v]));
   L.recPct = new Map(Object.entries(data.recPct).map(([k,v]) => [+k, v]));
   L.draftLog = []; L.season = null; L.faLog = []; L.awardLog = data.awardLog || [];
+  L.mail = new Mailbox();
+  if (data.mail) { L.mail.items = data.mail.items || []; L.mail.seq = data.mail.seq || 0;
+    L.mail.seen = new Set(data.mail.seen || []); }
 
   L.teams = data.teams.map(td => {
     const t = { team_id:td.id, name:td.name,
@@ -216,6 +221,7 @@ export function load(data) {
   g.champion = data.champion ?? null; g.playoffLog = []; g.notices = [];
   g.lastTable = data.lastTable || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
+  g._prev = { rank: 0, run: 0 };
   g.draftSession = null;
 
   if (data.season) {

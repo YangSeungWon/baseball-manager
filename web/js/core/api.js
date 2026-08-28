@@ -6,6 +6,7 @@ import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
 import * as dev2 from './development.js';
+import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail } from './mail.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FA='off_fa', OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
@@ -25,6 +26,8 @@ export class Game {
     this.phase = PRESEASON;
     this.season = null; this.champion = null; this.playoffLog = [];
     this.faOffers = new Map(); this.draftSession = null; this.notices = [];
+    this.L.mail = new Mailbox();
+    this._prev = { rank: 0, run: 0 };
   }
   get me() { return this.L.team(this.userId); }
   find(pid) {
@@ -72,7 +75,9 @@ export class Game {
     return { year:this.L.year, phase:this.phase, phase_label:PHASE_LABEL[this.phase],
       day: s ? s.curDay : 0, total_days: s ? s.totalDays : 0,
       user_team:{ id:this.me.team_id, name:this.me.name },
-      mode:this.L.modes.get(this.userId), notices:this.notices, champion:this.champion };
+      mode:this.L.modes.get(this.userId), notices:this.notices, champion:this.champion,
+      unread: this.L.mail ? this.L.mail.unread : 0,
+      new_important: this.newImportant || 0 };
   }
   /** 지난 시즌 최종 순위. 시즌 전 화면을 채운다. */
   lastStandings() {
@@ -329,6 +334,14 @@ export class Game {
   history(n = 40) {
     return { rows: this.L.history.slice(-n), champions: this.L.champions };
   }
+  mail(n = 60) {
+    const mb = this.L.mail;
+    return { unread: mb.unread, rows: mb.recent(n).map(m => ({
+      id:m.id, year:m.year, day:m.day ?? null, kind:m.kind, pri:m.pri,
+      title:m.title, body:m.body, pid:m.pid ?? null, tid:m.tid ?? null, read:m.read })) };
+  }
+  markMailRead() { this.L.mail.markAllRead(); return { ok:true }; }
+
   /** 선수 스플릿 — 홈/원정, 좌투 상대/우투 상대. 야구 팬의 판단 단위. */
   splits(pid) {
     const s = this.season;
@@ -547,16 +560,21 @@ export class Game {
     this.season = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
     this.L.season = this.season;
     this.phase = REGULAR; this.notices = []; this.champion = null;
+    this._prev = { rank: 0, run: 0 };   // 쿨다운이 시즌을 넘어가면 안 된다
     return this.state();
   }
   advance(days = 1) {
     if (this.phase !== REGULAR) return { error:'wrong_phase' };
     this.notices = [];
     const played = [];
+    let important = 0;
     for (let i = 0; i < days; i++) {
       if (this.season.finished) break;
       const nInj = this.season.injuries.length;
+      const mailBefore = this.L.mail.items.length;
+      const boxes = [];
       for (const g of this.season.playDay(this.userId)) {
+        if (g.box) boxes.push(g.box);
         const H = this.season.teams[g.hi], A = this.season.teams[g.ai];
         if (H.team_id === this.userId || A.team_id === this.userId) {
           const mine = H.team_id === this.userId ? g.hr : g.ar;
@@ -566,11 +584,18 @@ export class Game {
             box: g.box ? this.boxscore(g.box) : null });
         }
       }
-      for (const inj of this.season.injuries.slice(nInj))
+      const newInj = this.season.injuries.slice(nInj);
+      for (const inj of newInj)
         if (inj.team.team_id === this.userId)
           this.notice(`${inj.player.name} ${inj.label} — ${inj.days}일 결장`, 'injury');
+      const d = this.season.curDay;
+      scanDay(this, d, newInj, boxes);
+      this._prev = scanState(this, d, this._prev) || this._prev;
+      important += this.L.mail.items.slice(mailBefore).filter(m => m.pri >= 1).length;
     }
-    if (this.season.finished) { this.phase = POSTSEASON; this.notice('정규시즌 종료', 'phase'); }
+    this.newImportant = important;
+    if (this.season.finished) { this.phase = POSTSEASON; this.notice('정규시즌 종료', 'phase');
+      seasonEndMail(this); }
     return { state:this.state(), games:played };
   }
   simToEnd() { return this.advance(this.season.totalDays - this.season.curDay); }
@@ -645,6 +670,7 @@ export class Game {
       breakout: s.breakout.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
       decline: s.decline.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
     };
+    offseasonMail(this, 'retire', out.retired);
     this.phase = OFF_FA; this.faOffers = new Map();
     return out;
   }
@@ -682,10 +708,12 @@ export class Game {
     if (this.phase !== OFF_FA) return { error:'wrong_phase' };
     const log = this.L.offFA(this.faOffers, this.me);
     this.phase = OFF_TRADE;
-    return { signings: log.map(s => ({ name:s.player.name, age:s.player.age,
+    const out = { signings: log.map(s => ({ name:s.player.name, age:s.player.age,
       slot: s.player.kind==='P' ? s.player.role : s.player.position,
       team:s.team.name, text:String(s.contract), mine:s.team.team_id===this.userId,
       moved: s.team !== s.from })).sort((a,b) => (b.mine?1:0)-(a.mine?1:0)) };
+    offseasonMail(this, 'fa', out.signings);
+    return out;
   }
   tradeAssets(teamId) {
     const t = this.L.team(teamId);
@@ -744,7 +772,10 @@ export class Game {
     if (!d || d.onClock !== this.me) return { error:'not_your_turn' };
     const [p] = this.find(pid);
     if (!p) return { error:'not_found' };
-    d.pick(p); d.runUntil(this.me);
+    const rec = d.pick(p);
+    offseasonMail(this, 'draft', [{ mine:true, n:rec.n, name:p.name, age:p.age,
+      origin:p.origin ?? '' }]);
+    d.runUntil(this.me);
     if (d.done) return this.finishOffseason();
     return { picked:p.name, board:this.draftBoard() };
   }
