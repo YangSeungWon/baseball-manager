@@ -5,6 +5,7 @@ import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
+import * as dev2 from './development.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FA='off_fa', OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
@@ -17,7 +18,7 @@ const r1 = (v) => Math.round(v*10)/10;
 
 export class Game {
   constructor(opts = {}) {
-    const { userTeamId = 1, nTeams = 8, games = 84, startYear = 2030, seed = 1 } = opts;
+    const { userTeamId = 1, nTeams = 10, games = 144, startYear = 2030, seed = 1 } = opts;
     if (opts._empty) return;
     this.L = new League(nTeams, startYear, games, seed);
     this.userId = userTeamId;
@@ -73,15 +74,21 @@ export class Game {
       user_team:{ id:this.me.team_id, name:this.me.name },
       mode:this.L.modes.get(this.userId), notices:this.notices, champion:this.champion };
   }
+  /** 지난 시즌 최종 순위. 시즌 전 화면을 채운다. */
+  lastStandings() {
+    return { year: this.L.year - 1, rows: (this.lastTable || []).map(r =>
+      ({ ...r, is_user: r.team_id === this.userId })) };
+  }
+
   standings() {
     const s = this.season;
     if (!s) return { rows: [] };
     const st = s.standings(), top = st[0];
     return { rows: st.map((r,i) => {
       const gb = ((top.w-r.w) + (r.l-top.l))/2;
-      return { rank:i+1, team_id:r.team.team_id, team:r.team.name, w:r.w, l:r.l,
+      return { rank:i+1, team_id:r.team.team_id, team:r.team.name, w:r.w, l:r.l, d:r.d,
         pct:r.pct.toFixed(3), gb: gb===0 ? '-' : gb.toFixed(1), rs:r.rs, ra:r.ra,
-        pyth:r.pyth.toFixed(3), playoff:i<4, is_user:r.team.team_id===this.userId };
+        pyth:r.pyth.toFixed(3), playoff:i<5, is_user:r.team.team_id===this.userId };
     })};
   }
   roster(teamId = null) {
@@ -218,6 +225,99 @@ export class Game {
     return this.L.teams.map(t => ({ id:t.team_id, name:t.name,
       market: Math.round(t.finance.market_size*100)/100,
       mode: this.L.modes.get(t.team_id) }));
+  }
+
+  /** 지난 시즌을 미리 굴려 리그에 과거를 만든다. 팀 선택 화면의 재료가 된다. */
+  prologue() {
+    const S = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
+    S.run();
+    this.season = S; this.L.season = S;
+    const [champ] = postseason(S, this.L.rng);
+    this.lastTable = S.standings().map((r, i) => ({
+      team_id: r.team.team_id, team: r.team.name, rank: i + 1, w: r.w, l: r.l, d: r.d,
+      pct: r.pct.toFixed(3), rs: r.rs, ra: r.ra, playoff: i < 5,
+      champion: r.team.team_id === champ.team_id }));
+    this.absorbSeason(champ);
+    this.L.offRollover();
+    this.L.offFA();                    // 아직 사용자가 없으므로 전 구단 AI
+    this.L.offTrades();
+    this.L.offCleanup();
+    const d = this.L.newDraftSession(); d.runUntil(); this.L.finishDraft(d);
+    this.season = null; this.L.season = null;
+    this.phase = PRESEASON; this.champion = null; this.notices = [];
+    return this;
+  }
+
+  /** 팀 선택 화면의 구단 서류. 능력치는 그 구단 스카우트의 눈으로 본 값이다. */
+  teamDossier(teamId) {
+    const t = this.L.team(teamId);
+    const f = t.finance;
+    const last = (this.lastTable || []).find(r => r.team_id === teamId) || null;
+    const core = [...t.lineup, ...t.rotation];
+    const ovr = (p) => this.ratings(p, t).ovr.mid;
+    const mean = (a) => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 50;
+    const bat = mean(t.lineup.map(ovr));
+    const pit = mean(t.rotation.concat(t.bullpen.slice(0,3)).map(ovr));
+    const farmTop = [...t.farm].map(p => this.ratings(p, t).pot.mid)
+      .sort((a,b) => b-a).slice(0,5);
+    const strength = (bat + pit) / 2;
+    const farm = mean(farmTop);
+    // 리그 내 순위로 환산해야 읽힌다. "전력 49"는 아무 의미가 없다.
+    const rankOf = (fn) => {
+      const vals = this.L.teams.map(x => [x.team_id, fn(x)]).sort((p,q) => q[1]-p[1]);
+      return vals.findIndex(v => v[0] === teamId) + 1;
+    };
+    const teamMean = (x, arr) => mean(arr(x).map(p => this.ratings(p, x).ovr.mid));
+    const batRank = rankOf(x => teamMean(x, y => y.lineup));
+    const pitRank = rankOf(x => teamMean(x, y => y.rotation.concat(y.bullpen.slice(0,3))));
+    const strRank = rankOf(x => (teamMean(x, y => y.lineup)
+      + teamMean(x, y => y.rotation.concat(y.bullpen.slice(0,3)))) / 2);
+    const farmRank = rankOf(x => mean([...x.farm].map(p => this.ratings(p, x).pot.mid)
+      .sort((m,n) => n-m).slice(0,5)));
+    const budRank = rankOf(x => x.finance.budget);
+    const n = this.L.teams.length, mid = (n + 1) / 2;
+
+    const DEMAND_W = { '우승':3, '포스트시즌':2, '5할 승률':1, '재건 허용':0 };
+    let diff = 3 + (strRank - mid) * 0.42 + (budRank - mid) * 0.22
+      + (DEMAND_W[f.demand] - 1.5) * 0.55 - (f.patience - 50) / 20;
+    diff = Math.max(1, Math.min(5, Math.round(diff)));
+    const key = core.slice().sort((a,b) => ovr(b) - ovr(a)).slice(0,3)
+      .map(p => this.brief(p, t));
+    const prospect = [...t.farm].sort((a,b) => this.ratings(b,t).pot.mid - this.ratings(a,t).pot.mid)
+      .slice(0,2).map(p => this.brief(p, t));
+    return {
+      id: t.team_id, name: t.name, city: t.name.split(' ')[0], nick: t.name.split(' ')[1],
+      market: Math.round(f.market_size*100)/100,
+      budget: r0(f.budget), payroll: r1(C.payroll(t, this.L.year)),
+      room: r1(f.budget - C.payroll(t, this.L.year)),
+      patience: r0(f.patience), demand: f.demand,
+      strength: r0(strength), batting: r0(bat), pitching: r0(pit), farm: r0(farm),
+      rank: { strength: strRank, batting: batRank, pitching: pitRank,
+              farm: farmRank, budget: budRank, of: n },
+      difficulty: diff, last, key, prospect,
+      history: t.history ? {
+        founded: t.history.founded, seasons: t.history.seasons,
+        titles: t.history.titles.length, pennants: t.history.pennants.length,
+        lastTitle: t.history.lastTitle, drought: t.history.drought,
+        record: `${t.history.allW}승 ${t.history.allL}패`,
+        pct: t.history.pct.toFixed(3), tagline: t.history.tagline,
+        legend: t.history.legend, titleYears: t.history.titles,
+      } : null,
+      note: this._teamNote(f, strRank, farmRank, budRank, mid),
+    };
+  }
+
+  /** 한 줄 성격. 데이터에서 뽑는다 (하드코딩 아님). */
+  _teamNote(f, strRank, farmRank, budRank, mid) {
+    const bits = [];
+    if (budRank <= mid - 1.5) bits.push('풍부한 자금');
+    else if (budRank >= mid + 1.5) bits.push('빠듯한 살림');
+    if (strRank <= mid - 1.5) bits.push('즉시 전력');
+    else if (strRank >= mid + 1.5) bits.push('얇은 선수층');
+    if (farmRank <= 2) bits.push('유망주 풍년');
+    if (f.patience <= 32) bits.push('성마른 구단주');
+    else if (f.patience >= 65) bits.push('느긋한 구단주');
+    return bits.slice(0, 3).join(' · ') || '평범한 구단';
   }
 
   // ---- 액션 ----------------------------------------------------------

@@ -7,6 +7,7 @@ import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
 import * as draft from './draft.js';
 import { Season, postseason } from './season.js';
+import { buildHistory, droughtPressure } from './history.js';
 
 export class Career {
   constructor(p, kind) {
@@ -34,9 +35,12 @@ export class League {
     this.modes = new Map(this.teams.map(t => [t.team_id, market.NEUTRAL]));
     this.recPct = new Map(this.teams.map(t => [t.team_id, 0.5]));
     this.season = null;
+    buildHistory(this.teams, this.rng, startYear - 1);
     for (const t of this.teams) {
       t.upside_weight = this.rng.uniform(0.55, 0.85);
       t.finance = new C.Finance(this.rng);
+      // 오래 무관인 구단의 구단주는 조급하다
+      t.finance.patience = Math.max(12, t.finance.patience - droughtPressure(t.history));
       for (const p of [...t.batters, ...t.pitchers]) {
         p.service = Math.max(0, Math.min(12, p.age - 21));
         const ovr = dev.overall(p);
@@ -114,7 +118,7 @@ export class League {
 
     const st = new Map(S.standings().map(r => [r.team.team_id, r]));
     const champ = this.champions.length ? this.champions[this.champions.length-1].team : null;
-    const top4 = S.standings().slice(0,4).map(x => x.team.team_id);
+    const top4 = S.standings().slice(0,5).map(x => x.team.team_id);
     for (const t of this.teams) {
       const r = st.get(t.team_id);
       t.finance.update(r ? r.pct : 0.5, top4.includes(t.team_id), t.name === champ);

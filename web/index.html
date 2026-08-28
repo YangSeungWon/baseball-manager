@@ -13,16 +13,17 @@
 </head>
 <body>
 <div id="boot" class="boot">
-  <div class="boot-card">
+  <div class="boot-head">
     <h1>DUGOUT</h1>
     <p class="sub">야구단 단장 시뮬레이션</p>
-    <p class="thesis">선수의 진짜 능력은 <b>아무도 모른다</b>. 스카우트가 준 구간을 보고 판단한다.</p>
-    <div id="teamPick" class="teampick"></div>
-    <div class="boot-actions">
-      <button id="btnNew" class="primary">새 게임</button>
-      <button id="btnResume" class="quiet" hidden>이어하기</button>
+    <p class="thesis">선수의 진짜 능력은 아무도 모른다. 스카우트가 준 구간을 보고 판단한다.</p>
+  </div>
+  <div class="boot-main">
+    <div>
+      <div class="lab" id="pickLabel">맡을 구단을 고르세요</div>
+      <div id="teamPick" class="teamlist"></div>
     </div>
-    <p class="lab" style="margin-top:20px">자동 저장 · 되돌리기 없음</p>
+    <aside id="dossier" class="dossier"></aside>
   </div>
 </div>
 

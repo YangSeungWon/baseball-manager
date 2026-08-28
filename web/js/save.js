@@ -9,7 +9,7 @@ import * as dev from './core/development.js';
 import { ScoutingDept } from './core/scouting.js';
 import { DraftSession } from './core/draft.js';
 
-export const VERSION = 1;
+export const VERSION = 2;
 const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','gb_tendency'];
 const PF = ['stuff','command','movement','stamina','gb_tendency'];
 const META = ['pid','name','age','service','injury_days','career_injuries',
@@ -98,7 +98,7 @@ export function dump(game) {
 
   const dumpSeason = (S) => S ? {
     year:S.year, games:S.games, day:S.curDay, rng:S.rng.state,
-    sched:S.schedule, rec:Object.fromEntries([...S.rec].map(([k,r])=>[k,[r.w,r.l,r.rs,r.ra]])),
+    sched:S.schedule, rec:Object.fromEntries([...S.rec].map(([k,r])=>[k,[r.w,r.l,r.rs,r.ra,r.d]])),
     bat:Object.fromEntries([...S.bat].map(([pid,b])=>[pid,[b.team.team_id, BAT_LINE.map(f=>b[f])]])),
     pit:Object.fromEntries([...S.pit].map(([pid,q])=>[pid,[q.team.team_id, PIT_LINE.map(f=>q[f])]])),
     res:S.results,
@@ -112,8 +112,8 @@ export function dump(game) {
     teams: L.teams.map(t => ({ id:t.team_id, name:t.name,
       b:t.batters.map(p=>p.pid), p:t.pitchers.map(p=>p.pid), f:t.farm.map(p=>p.pid),
       rot:t.rot_index, park:[f3(t.park.hrFactor), f3(t.park.hitFactor)],
-      fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue), f3(t.finance.budget)],
-      up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0) })),
+      fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue), f3(t.finance.budget), f3(t.finance.patience)],
+      up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null })),
     players: live, ghosts,
     careers: [...L.careers.values()].filter(c => c.seasons.length || live[c.p.pid]).map(c => ({
       pid:c.p.pid, k:c.kind,
@@ -128,6 +128,7 @@ export function dump(game) {
     season: dumpSeason(game.season),
     faOffers: Object.fromEntries(game.faOffers),
     champion: game.champion,
+    lastTable: game.lastTable || null,
     draft: game.draftSession ? {
       order: game.draftSession.order.map(t=>t.team_id),
       pool: game.draftSession.pool.map(p=>p.pid),
@@ -165,13 +166,15 @@ export function load(data) {
       pitchers: td.p.map(i=>players.get(i)).filter(Boolean),
       farm: td.f.map(i=>players.get(i)).filter(Boolean),
       rot_index: td.rot, park:{ hrFactor:td.park[0], hitFactor:td.park[1] },
-      upside_weight: td.up, talent: td.talent, unavailable:new Set(),
+      upside_weight: td.up, talent: td.talent, history: td.hist || null,
+      unavailable:new Set(),
       lineup:[], bench:[], rotation:[], bullpen:[],
       defense:{ infield:50, outfield:50, catcherFraming:50 },
       nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
                       this.rot_index++; return p; } };
     const f = Object.create(C.Finance.prototype);
-    [f.market_size, f.owner_spending, f.revenue, f.budget] = td.fin;
+    [f.market_size, f.owner_spending, f.revenue, f.budget, f.patience] = td.fin;
+    if (f.patience === undefined) f.patience = 50;
     t.finance = f;
     return t;
   });
@@ -208,6 +211,7 @@ export function load(data) {
   const g = new Game({ _empty:true });
   g.L = L; g.userId = data.user; g.phase = data.phase;
   g.champion = data.champion ?? null; g.playoffLog = []; g.notices = [];
+  g.lastTable = data.lastTable || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
   g.draftSession = null;
 
@@ -222,8 +226,9 @@ export function load(data) {
     S.curDay = d.day;
     const byId = new Map(L.teams.map(t => [t.team_id, t]));
     S.rec = new Map();
-    for (const tid in d.rec) { const [w,l,rs,ra] = d.rec[tid];
-      const r = new TeamRecord(byId.get(+tid)); r.w=w; r.l=l; r.rs=rs; r.ra=ra; S.rec.set(+tid, r); }
+    for (const tid in d.rec) { const [w,l,rs,ra,dr] = d.rec[tid];
+      const r = new TeamRecord(byId.get(+tid)); r.w=w; r.l=l; r.rs=rs; r.ra=ra; r.d=dr||0;
+      S.rec.set(+tid, r); }
     S.bat = new Map(); S.pit = new Map();
     for (const pid in d.bat) { const [tid, vals] = d.bat[pid];
       if (!players.has(+pid)) continue;

@@ -2,7 +2,7 @@
 import * as R from './roster.js';
 import * as dev from './development.js';
 
-export const CLASS_SIZE = 60, ROUNDS = 4, HS_RATIO = 0.60;
+export const CLASS_SIZE = 78, ROUNDS = 4, HS_RATIO = 0.60;
 const POS_PREMIUM = { C:2.2, SS:1.8, CF:1.0, '2B':0.5, '3B':0.3, RF:-0.4, LF:-0.8, '1B':-1.6, DH:-2.6 };
 
 export function makeClass(rng, year) {

@@ -55,8 +55,20 @@ export class Finance {
   constructor(rng) {
     this.market_size = Math.max(0.55, Math.min(1.5, rng.gauss(1.0, 0.24)));
     this.owner_spending = Math.max(0.6, Math.min(1.4, rng.gauss(1.0, 0.16)));
+    // 구단주 인내심 — 큰 시장일수록 짧다. 성적이 곧 압박이 된다.
+    this.patience = Math.max(15, Math.min(85,
+      rng.gauss(52 - (this.market_size - 1) * 26, 13)));
     this.revenue = 100 * this.market_size;
     this.budget = 100 * this.market_size;
+  }
+
+  /** 구단주가 이번 시즌에 요구하는 것. 시장 규모와 인내심이 정한다. */
+  get demand() {
+    const p = this.market_size * 1.6 - this.patience / 55;
+    if (p >= 1.35) return '우승';
+    if (p >= 0.85) return '포스트시즌';
+    if (p >= 0.35) return '5할 승률';
+    return '재건 허용';
   }
   update(winPct, playoffs, title) {
     let base = 62 + 58*this.market_size;

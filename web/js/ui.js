@@ -40,28 +40,125 @@ function toast(label, text, kind = '') {
   setTimeout(() => t.remove(), 4600);
 }
 
-/* ── 시작 ── */
+/* ── 구단 정체성: 야구 모자 로고 ── */
+const CITY_CODE = { 서울:'SE', 부산:'BS', 인천:'IC', 대구:'DG', 대전:'DJ', 광주:'GJ',
+  울산:'US', 고양:'GY', 창원:'CW', 청주:'CJ', 천안:'CA', 전주:'JJ', 강릉:'GN', 제주:'JU' };
+const NICK_COLOR = { 레이븐스:'#1d2b3d', 타이탄스:'#6d2c2c', 드래곤스:'#1f5c3a',
+  파이러츠:'#26262b', 머스탱스:'#8a5a1e', 코메츠:'#27508c', 울브스:'#474d56',
+  팰컨스:'#7c3c14', 바이슨:'#5a3a22', 스톰:'#3b3f6d', 레인저스:'#7c1f2c',
+  포세이돈:'#136260', 샤크스:'#2a5f74', 아이언스:'#4a4136' };
+const capOf = (name) => {
+  const [city, nick] = name.split(' ');
+  return { code: CITY_CODE[city] || city.slice(0,1), color: NICK_COLOR[nick] || '#3a3a3a' };
+};
+const cap = (name, size = 44) => {
+  const c = capOf(name);
+  return `<span class="cap" style="background:${c.color};width:${size}px;height:${size}px;
+    font-size:${Math.round(size*0.34)}px">${c.code}</span>`;
+};
+
+/* ── 시작 화면 ── */
+let bootGame = null, bootSel = 1;
 function boot() {
-  const wrap = $('#teamPick');
   const seed = Math.floor(Math.random() * 1e9);
-  const preview = new Game({ userTeamId: 1, seed });
-  let sel = 1;
+  bootGame = new Game({ userTeamId: 1, nTeams: 10, games: 144, seed }).prologue();
+  const list = bootGame.teamList();
+  bootSel = list[0].id;
+  const wrap = $('#teamPick');
   wrap.innerHTML = '';
-  preview.teamList().forEach(t => {
-    const b = el('button', 'tcard', `<b>${esc(t.name)}</b><span>시장 ${t.market.toFixed(2)}</span>`);
-    b.setAttribute('aria-pressed', t.id === sel);
-    b.onclick = () => { sel = t.id;
+  list.forEach(t => {
+    const d = bootGame.teamDossier(t.id);
+    const b = el('button', 'trow');
+    b.setAttribute('aria-pressed', String(t.id === bootSel));
+    b.innerHTML = `${cap(d.name)}
+      <span><span class="tname">${esc(d.nick)}<small>${esc(d.city)}</small></span>
+        <span class="tnote">${esc(d.history ? d.history.tagline : d.note)}</span></span>
+      <span class="tlast">지난 시즌<b>${d.last.rank}위 ${d.last.w}–${d.last.l}</b></span>
+      <span class="diff" title="난이도 ${d.difficulty}/5">${
+        [1,2,3,4,5].map(i => `<i class="${i <= d.difficulty ? 'on' : ''}"></i>`).join('')}</span>`;
+    b.onclick = () => {
+      bootSel = t.id;
       [...wrap.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
-      b.setAttribute('aria-pressed', 'true'); };
+      b.setAttribute('aria-pressed', 'true');
+      drawDossier();
+    };
     wrap.appendChild(b);
   });
-  $('#btnNew').onclick = () => { preview.userId = sel; G = preview; start(); };
-  if (localStorage.getItem(KEY)) {
-    const r = $('#btnResume'); r.hidden = false;
-    r.onclick = () => { try { G = save.load(JSON.parse(localStorage.getItem(KEY))); start(); }
-      catch (e) { toast('불러오기 실패', e.message, 'injury'); } };
-  }
+  drawDossier();
 }
+
+function meter(label, rank, of, warn) {
+  const pct = ((of - rank + 1) / of) * 100;
+  return `<div class="meter ${warn ? 'warn' : ''}">
+    <span class="top"><span>${label}</span><b>${rank}위</b></span>
+    <span class="track"><i style="width:${pct}%"></i></span></div>`;
+}
+
+function drawDossier() {
+  const d = bootGame.teamDossier(bootSel);
+  const R = d.rank;
+  const saved = localStorage.getItem(KEY);
+  const player = (p) => `<div class="dplayer"><span>${esc(p.name)}
+      <span class="sub">${p.age} ${p.slot}</span></span>${axis(p.ovr, p.pot)}</div>`;
+  $('#dossier').innerHTML = `
+    <div class="dhead">${cap(d.name, 52)}
+      <h2>${esc(d.nick)}<small>${esc(d.city)} · 시장 규모 ${d.market}</small></h2></div>
+    ${d.history ? `<p class="dhist"><b>${esc(d.history.tagline)}</b>
+      <span>창단 ${d.history.founded} · 통산 ${esc(d.history.record)} (${d.history.pct})
+      · 우승 ${d.history.titles}회${d.history.titles ? ` · 최근 ${d.history.lastTitle}` : ''}</span></p>` : ''}
+    <p class="dnote">${esc(d.note)}</p>
+
+    <div class="dgrid">
+      ${meter('전력', R.strength, R.of)}
+      ${meter('자금', R.budget, R.of)}
+      ${meter('타선', R.batting, R.of)}
+      ${meter('마운드', R.pitching, R.of)}
+    </div>
+    ${meter('유망주', R.farm, R.of)}
+
+    <div class="dsec">
+      <div class="lab">구단주</div>
+      <div class="demand"><b>${esc(d.demand)}</b>
+        <span class="sub">을(를) 요구한다</span></div>
+      ${meter('인내심', Math.max(1, Math.round((100 - d.patience) / 100 * R.of)), R.of, d.patience < 35)}
+    </div>
+
+    <div class="dsec">
+      <div class="lab">재정</div>
+      <div class="kv"><span>운영 예산</span><b class="m">${d.budget}억</b></div>
+      <div class="kv"><span>현재 연봉</span><b class="m">${d.payroll}억</b></div>
+      <div class="kv"><span>여유 자금</span><b class="m ${d.room < 10 ? 'mark' : ''}">${d.room}억</b></div>
+    </div>
+
+    <div class="dsec">
+      <div class="lab">핵심 선수</div>
+      ${d.key.map(player).join('')}
+    </div>
+    <div class="dsec">
+      <div class="lab">최고 유망주</div>
+      ${d.prospect.map(player).join('')}
+    </div>
+    ${d.history && d.history.legend ? `<div class="dsec">
+      <div class="lab">프랜차이즈 레전드</div>
+      <div class="legend"><span class="lnum">${d.history.legend.number}</span>
+        <span><b>${esc(d.history.legend.name)}</b>
+          <span class="sub">${d.history.legend.pos} · ${d.history.legend.from}–${d.history.legend.to}</span>
+          <span class="sub">${esc(d.history.legend.line)}</span></span></div>
+    </div>` : ''}
+
+    <div class="dstart">
+      <button id="btnNew" class="primary">${esc(d.nick)}의 단장이 된다</button>
+      ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
+      <p>선택과 진행은 자동 저장되며 이전 상태로 돌아갈 수 없습니다.</p>
+    </div>`;
+  $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
+  if ($('#btnResume')) $('#btnResume').onclick = () => {
+    try { G = save.load(JSON.parse(saved)); start(); }
+    catch (e) { localStorage.removeItem(KEY); toast('불러오기 실패', '새 게임으로 시작하세요', 'injury');
+      drawDossier(); }
+  };
+}
+
 function start() { $('#boot').hidden = true; $('#app').hidden = false; persist(); render(); }
 
 /* ── 상단 ── */
@@ -152,8 +249,9 @@ function viewHome(v) {
      <span>${r.is_home ? '' : '@'} ${esc(short(r.opponent))}</span></div>`).join('')));
 
   const right = el('div', 'grid');
-  const st = G.standings().rows;
-  if (st.length) right.appendChild(sect('순위', '', table(['팀','W','L','PCT'],
+  let st = G.standings().rows, stTitle = '순위';
+  if (!st.length) { const ls = G.lastStandings(); st = ls.rows; stTitle = `${ls.year} 최종 순위`; }
+  if (st.length) right.appendChild(sect(stTitle, '', table(['팀','W','L','PCT'],
     st.map(r => ({ _cls: r.is_user ? 'me' : '', cells: [
       (r.playoff ? '<span class="mark">★</span> ' : '　') + esc(short(r.team)),
       `<span class="m">${r.w}</span>`, `<span class="m">${r.l}</span>`,
@@ -202,13 +300,16 @@ function viewTeam(v) {
 
 /* ── 리그 ── */
 function viewLeague(v) {
-  const st = G.standings().rows;
+  let st = G.standings().rows;
   const g = el('div', 'grid');
-  if (!st.length) { v.appendChild(sect('순위', '', '<div class="empty">시즌 전</div>')); return; }
-  g.appendChild(sect('순위', '', table(['팀','W','L','PCT','GB','RS','RA','PYTH'],
+  let title = '순위';
+  if (!st.length) { const ls = G.lastStandings(); st = ls.rows; title = `${ls.year} 최종 순위`; }
+  if (!st.length) { v.appendChild(sect('순위', '', '<div class="empty">—</div>')); return; }
+  g.appendChild(sect(title, '', table(['팀','W','L','D','PCT','GB','RS','RA','PYTH'],
     st.map(r => ({ _cls: r.is_user ? 'me' : '', team_id: r.team_id, cells: [
       (r.playoff ? '<span class="mark">★</span> ' : '　') + esc(r.team),
       `<span class="m">${r.w}</span>`, `<span class="m">${r.l}</span>`,
+      `<span class="m dim">${r.d || 0}</span>`,
       `<span class="m">${r.pct}</span>`, `<span class="m dim">${r.gb}</span>`,
       `<span class="m">${r.rs}</span>`, `<span class="m">${r.ra}</span>`,
       `<span class="m dim">${r.pyth}</span>`] })), (row) => openTeam(row.team_id))));
@@ -388,6 +489,17 @@ function viewHistory(v) {
      <b class="m">${r.value}</b></div>`).join('') : '<div class="empty">—</div>');
   right.appendChild(box('통산 홈런', rec.hr));
   right.appendChild(box('통산 WAR', rec.war));
+  const fr = G.teamList().map(t => G.teamDossier(t.id))
+    .filter(d => d.history).sort((a,b) => b.history.titles - a.history.titles);
+  g.appendChild(sect('구단 연혁', '', table(['구단','창단','통산','승률','우승','최근'],
+    fr.map(d => ({ team_id: d.id, cells: [
+      `<span class="name">${esc(d.name)}</span>`,
+      `<span class="m dim">${d.history.founded}</span>`,
+      `<span class="m">${esc(d.history.record)}</span>`,
+      `<span class="m">${d.history.pct}</span>`,
+      `<span class="m">${d.history.titles}</span>`,
+      `<span class="m dim">${d.history.lastTitle ?? '—'}</span>`] })),
+    (row) => openTeam(row.team_id))));
   g.appendChild(right); v.appendChild(g);
 }
 
@@ -462,6 +574,11 @@ function openTeam(tid) {
       <div class="meta">${r.mode} · 연봉 ${r.payroll}억</div></div>
       <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
+      ${(() => { const d = G.teamDossier(tid); return d.history ? `<div class="report">
+        ${esc(d.history.tagline)}<br><span class="sub">창단 ${d.history.founded} ·
+        통산 ${esc(d.history.record)} (${d.history.pct}) · 우승 ${d.history.titles}회</span>
+        ${d.history.legend ? `<br><span class="sub">영구결번 ${d.history.legend.number}
+        ${esc(d.history.legend.name)} — ${esc(d.history.legend.line)}</span>` : ''}</div>` : ''; })()}
       <div><div class="lab" style="margin-bottom:6px">라인업</div>${list(r.lineup)}</div>
       <div><div class="lab" style="margin-bottom:6px">선발</div>${list(r.rotation)}</div>
     </div>`);

@@ -55,9 +55,10 @@ export class SeasonPit {
 }
 
 export class TeamRecord {
-  constructor(team) { this.team = team; this.w = this.l = this.rs = this.ra = 0; }
+  constructor(team) { this.team = team; this.w = this.l = this.d = this.rs = this.ra = 0; }
+  /** KBO 승률은 무승부를 제외한다 */
   get pct() { return (this.w+this.l) ? this.w/(this.w+this.l) : 0; }
-  get g() { return this.w + this.l; }
+  get g() { return this.w + this.l + this.d; }
   get pyth() { if (!this.rs && !this.ra) return 0;
     const e = 1.83; return this.rs**e / (this.rs**e + this.ra**e); }
 }
@@ -102,7 +103,7 @@ export class Season {
   _absorb(S, oppRuns) {
     const r = this.rec.get(S.team.team_id);
     r.rs += S.runs; r.ra += oppRuns;
-    if (S.runs > oppRuns) r.w++; else if (S.runs < oppRuns) r.l++;
+    if (S.runs > oppRuns) r.w++; else if (S.runs < oppRuns) r.l++; else r.d++;
     for (const L of S.bat.values()) if (L.pa) this._bat(L.b, S.team).add(L);
     S.pitchers.forEach((pl, i) => this._pit(pl.p, S.team).add(pl, i === 0));
   }
@@ -224,13 +225,36 @@ export function playSeries(higher, lower, bestOf, rng, homePattern) {
     : [lower, higher, [w[lower.team_id], w[higher.team_id]]];
 }
 
+/** 와일드카드 결정전. 4위는 1승만 하면 올라가고, 5위는 2연승해야 한다. */
+function wildCard(fourth, fifth, rng) {
+  let fifthWins = 0;
+  for (let g = 0; g < 2; g++) {
+    let H, A;
+    do { [H, A] = playGame(fourth, fifth, rng); } while (H.runs === A.runs);  // 4위 홈
+    if (A.runs > H.runs) fifthWins++;
+    else return [fourth, fifth, [1, fifthWins]];        // 4위 1승 → 즉시 진출
+  }
+  return [fifth, fourth, [2, 0]];
+}
+
 export function postseason(season, rng) {
-  const s = season.standings().slice(0,4).map(r => r.team);
+  const st = season.standings();
   const log = [];
+  if (st.length < 5) {                                  // 소규모 리그 대비
+    const s = st.slice(0,4).map(r => r.team);
+    const p1 = [true,true,false,false,true];
+    const [w1,l1,sc1] = playSeries(s[2], s[3], 5, rng, p1); log.push(['준플레이오프', w1, l1, sc1]);
+    const [w2,l2,sc2] = playSeries(s[1], w1, 5, rng, p1); log.push(['플레이오프', w2, l2, sc2]);
+    const [w3,l3,sc3] = playSeries(s[0], w2, 7, rng, [true,true,false,false,false,true,true]);
+    log.push(['한국시리즈', w3, l3, sc3]);
+    return [w3, log];
+  }
+  const s = st.slice(0,5).map(r => r.team);
   const p1 = [true,true,false,false,true];
-  const [w1,l1,sc1] = playSeries(s[2], s[3], 5, rng, p1); log.push(['준플레이오프', w1, l1, sc1]);
+  const [w0,l0,sc0] = wildCard(s[3], s[4], rng);        log.push(['와일드카드', w0, l0, sc0]);
+  const [w1,l1,sc1] = playSeries(s[2], w0, 5, rng, p1); log.push(['준플레이오프', w1, l1, sc1]);
   const [w2,l2,sc2] = playSeries(s[1], w1, 5, rng, p1); log.push(['플레이오프', w2, l2, sc2]);
   const [w3,l3,sc3] = playSeries(s[0], w2, 7, rng, [true,true,false,false,false,true,true]);
-  log.push(['챔피언십 시리즈', w3, l3, sc3]);
+  log.push(['한국시리즈', w3, l3, sc3]);
   return [w3, log];
 }
