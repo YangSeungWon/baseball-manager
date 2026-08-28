@@ -511,6 +511,8 @@ export class Game {
     const budRank = rankOf(x => x.finance.budget);
     const n = this.L.teams.length, mid = (n + 1) / 2;
 
+    const RK = { str:strRank, bat:batRank, pit:pitRank, farm:farmRank, bud:budRank, of:n };
+    const con = this._contrast(RK);
     const DEMAND_W = { '우승':3, '포스트시즌':2, '5할 승률':1, '재건 허용':0 };
     let diff = 3 + (strRank - mid) * 0.42 + (budRank - mid) * 0.22
       + (DEMAND_W[f.demand] - 1.5) * 0.55 - (f.patience - 50) / 20;
@@ -528,7 +530,11 @@ export class Game {
       strength: r0(strength), batting: r0(bat), pitching: r0(pit), farm: r0(farm),
       rank: { strength: strRank, batting: batRank, pitching: pitRank,
               farm: farmRank, budget: budRank, of: n },
-      difficulty: diff, last, key, prospect,
+      difficulty: diff,
+      difficultyLabel: ['', '쉬움', '무난', '보통', '어려움', '극한'][diff],
+      contrast: con,
+      payrollRatio: Math.round(C.payroll(t, this.L.year) / f.budget * 100),
+      last, key, prospect,
       history: t.history ? {
         founded: t.history.founded, seasons: t.history.seasons,
         titles: t.history.titles.length, pennants: t.history.pennants.length,
@@ -538,18 +544,17 @@ export class Game {
         legend: t.history.legend, titleYears: t.history.titles,
       } : null,
       note: this._teamNote(f, strRank, farmRank, budRank, mid),
-      archetype: this._archetype(t, f, { str:strRank, bat:batRank, pit:pitRank,
-        farm:farmRank, bud:budRank, of:n }),
-      headline: this._headline(t, f, { str:strRank, bat:batRank, pit:pitRank,
-        farm:farmRank, bud:budRank, of:n }),
+      archetype: this._archetype(t, f, RK, con),
+      headline: this._headline(t, f, RK, con),
       ownerLine: this._ownerLine(f),
     };
   }
 
   /** 구단 유형 — 이 팀을 고르면 어떤 게임을 하게 되는가. */
-  _archetype(t, f, R) {
+  _archetype(t, f, R, con) {
     const h = t.history, n = R.of, hi = Math.ceil(n * 0.3), lo = Math.floor(n * 0.7) + 1;
     const titles = h ? h.titles.length : 0;
+    const nS = con.strong.length, nW = con.weak.length;
     if (h && h.drought === 0) return '디펜딩 챔피언';
     if (R.str <= hi && f.demand === '우승') return '우승 청부';
     if (R.str <= hi && h && h.drought <= 3) return '전성기의 강팀';
@@ -561,34 +566,65 @@ export class Game {
     if (R.str >= lo && f.patience < 40) return '벼랑 끝';
     if (R.bud <= hi && R.str >= lo) return '자금은 있다';
     if (R.farm <= 2) return '팜이 무기';
+    if (nW >= 3 && !nS) return '전면 재건';
+    if (nW >= 2 && !nS) return '구멍 난 로스터';
+    if (nS >= 3 && !nW) return '빈틈없는 전력';
     return '중위권 정체';
   }
 
-  /** 한 문장 — 아래 숫자들에 의미를 준다. */
-  _headline(t, f, R) {
+  /** 한 문장 — 데이터 요약이 아니라 이 팀으로 할 게임의 판타지. */
+  _headline(t, f, R, con) {
     const n = R.of, gap = R.bat - R.pit;
+    const nStrong = con.strong.length, nWeak = con.weak.length;
     const strong = (r) => r <= Math.ceil(n * 0.3), weak = (r) => r >= Math.floor(n * 0.7) + 1;
+    const h = t.history;
+    if (h && h.drought === 0 && strong(R.str))
+      return '왕좌를 지킬 것인가. 여기서부터는 내려갈 일만 남았다.';
     if (strong(R.pit) && weak(R.bat))
-      return '마운드는 리그 최상위, 타선은 최하위권. 방망이만 채우면 우승권이다.';
+      return '마운드는 이미 우승권. 방망이 하나만 구하면 된다.';
     if (strong(R.bat) && weak(R.pit))
-      return '타선은 터지는데 마운드가 버티지 못한다. 투수를 구해야 한다.';
+      return '점수는 낸다. 문제는 지켜낼 투수가 없다는 것.';
     if (weak(R.str) && strong(R.farm))
-      return '지금은 약하다. 대신 팜은 리그 최고 수준이라 기다릴 수 있다.';
+      return '리그 최고의 팜. 문제는 기다릴 시간이 있느냐다.';
     if (weak(R.str) && strong(R.bud))
-      return '돈은 있는데 전력이 없다. 시장에서 사 와야 한다.';
+      return '금고는 가득 찼고 로스터는 비었다. 사올 수 있는 만큼 사와야 한다.';
     if (strong(R.str) && weak(R.bud))
-      return '전력은 우승권인데 지갑이 얇다. 지금 선수단을 지키는 게 관건이다.';
+      return '우승권 전력, 얇은 지갑. 지키는 것만으로도 싸움이다.';
     if (strong(R.str) && f.patience < 40)
-      return '이길 전력은 있다. 다만 구단주가 기다려 주지 않는다.';
+      return '이길 전력은 갖췄다. 구단주가 기다려 주지 않을 뿐.';
+    if (weak(R.str) && weak(R.farm) && f.patience >= 55)
+      return '바닥에서 시작한다. 대신 아무도 재촉하지 않는다.';
     if (weak(R.str) && weak(R.farm))
-      return '전력도 팜도 바닥이다. 밑바닥부터 다시 쌓아야 한다.';
+      return '전력도 팜도 없다. 그런데 시간까지 없다.';
+    if (h && h.titles.length >= 6 && h.drought >= 15)
+      return `${h.titles.length}번 우승한 구단이 ${h.drought}년째 조용하다. 끝낼 사람이 필요하다.`;
     if (strong(R.farm) && !strong(R.str) && !weak(R.str))
-      return '지금은 중위권이지만 팜이 리그 최상위다. 몇 년 뒤가 다르다.';
+      return '리그 최고의 팜. 몇 년만 버티면 판이 뒤집힌다.';
     if (Math.abs(gap) >= Math.ceil(n * 0.5))
-      return gap > 0 ? '투타 불균형이 심하다. 마운드가 팀을 끌고 간다.'
-                     : '투타 불균형이 심하다. 타선이 팀을 끌고 간다.';
-    if (strong(R.str)) return '뚜렷한 약점이 없다. 지금 승부를 걸 만한 전력이다.';
-    return '어느 쪽으로도 갈 수 있는 중위권. 방향은 당신이 정한다.';
+      return gap > 0 ? '마운드가 혼자 팀을 끌고 간다. 타선을 채워라.'
+                     : '타선이 혼자 팀을 끌고 간다. 마운드를 채워라.';
+    if (strong(R.str)) return '약점이 없다. 지금 걸지 않으면 언제 거는가.';
+    if (nWeak >= 3 && !nStrong) return '성한 곳이 없다. 어디부터 손댈지가 첫 질문이다.';
+    if (nWeak >= 2 && !nStrong) return '구멍이 둘. 하나를 메우면 다른 하나가 드러난다.';
+    if (!nStrong && !nWeak && f.patience < 40)
+      return '평범한 전력에 성마른 구단주. 가장 나쁜 조합이다.';
+    if (nStrong && nWeak)
+      return `${con.strong[0].k}${con.strong[0].r}위로 버티고 ${con.weak[0].k}${con.weak[0].r}위를 메운다. 그게 이 팀의 시즌이다.`;
+    return '어느 쪽으로도 갈 수 있다. 방향은 당신이 정한다.';
+  }
+
+  /** 강점과 약점을 갈라서 내보낸다. 표로 늘어놓으면 대비가 죽는다. */
+  _contrast(R) {
+    const items = [['전력', R.str], ['타선', R.bat], ['마운드', R.pit],
+                   ['팜', R.farm], ['재정', R.bud]];
+    const hi = Math.ceil(R.of * 0.3), lo = Math.floor(R.of * 0.7) + 1;
+    return {
+      strong: items.filter(([, r]) => r <= hi).sort((a, b) => a[1] - b[1])
+        .map(([k, r]) => ({ k, r })),
+      weak: items.filter(([, r]) => r >= lo).sort((a, b) => b[1] - a[1])
+        .map(([k, r]) => ({ k, r })),
+      mid: items.filter(([, r]) => r > hi && r < lo).map(([k, r]) => ({ k, r })),
+    };
   }
 
   /** 구단주 기대 — 규칙처럼 읽히게. */
