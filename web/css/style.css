@@ -245,6 +245,40 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--mark);padding-left:9px}
 .row.click{cursor:pointer}
 .row.click:hover{background:var(--ground-2)}
 
+/* ── 수비 배치도 ── */
+.diamond{display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(4,auto);
+  gap:6px;max-width:660px;margin:6px 0 2px}
+.dpos{border:1px solid var(--rule);padding:6px 8px;display:block;min-height:52px;
+  background:var(--ground)}
+.dpos.click{cursor:pointer}
+.dpos.click:hover{background:var(--ground-2);border-color:var(--ink)}
+.dpos i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-2);
+  display:block;letter-spacing:.06em}
+.dpos b{display:block;font-size:15px;font-weight:600;line-height:1.25}
+.dpos u{text-decoration:none;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+.dpos.lf{grid-area:1/1} .dpos.cf{grid-area:1/3} .dpos.rf{grid-area:1/5}
+.dpos.ss{grid-area:2/2} .dpos.b2{grid-area:2/4}
+.dpos.b3{grid-area:3/1} .dpos.b1{grid-area:3/5} .dpos.sp{grid-area:3/3}
+.dpos.c{grid-area:4/3} .dpos.cl{grid-area:4/5}
+.dpos.sp,.dpos.cl{border-color:var(--ink);border-width:1.5px}
+@media(max-width:620px){
+  .diamond{grid-template-columns:repeat(2,1fr);grid-template-rows:none}
+  .dpos{grid-area:auto !important}
+}
+
+/* ── 역사 ── */
+.timeline{display:flex;flex-wrap:wrap;gap:0}
+.tl{display:flex;align-items:baseline;gap:7px;padding:5px 10px 5px 0;font-size:14px;
+  width:50%;border-bottom:1px solid var(--rule)}
+.tl i{font-style:normal;color:var(--ink-2);font-size:13px;min-width:38px}
+.tl.sim{font-weight:600}
+.tl.sim i{color:var(--mark)}
+.leadgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0 22px}
+.lead .lab{border-bottom:1px solid var(--rule);padding-bottom:3px;margin:10px 0 1px;font-size:12px}
+.lead .row{padding:4px 0;font-size:14px}
+.logscroll{max-height:340px;overflow:auto}
+@media(max-width:640px){.tl{width:100%}}
+
 /* ── 알림 ── */
 .toasts{position:fixed;right:0;bottom:0;display:flex;flex-direction:column;
   align-items:flex-end;z-index:60;max-width:min(360px,92vw)}

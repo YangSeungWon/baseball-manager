@@ -176,7 +176,8 @@ export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
     team_id: teamId, name, lineup, bench, rotation, bullpen,
     batters: lineup.concat(bench), pitchers: rotation.concat(bullpen), farm: [],
     rot_index: 0, talent: teamTalent, unavailable: new Set(),
-    park: { hrFactor: rng.gauss(0, 0.14), hitFactor: rng.gauss(0, 0.05) },
+    park: { hrFactor: Math.max(-0.21, Math.min(0.21, rng.gauss(0, 0.095))),
+            hitFactor: rng.gauss(0, 0.045) },
     defense: { infield:50, outfield:50, catcherFraming:50 },
     nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
                     this.rot_index++; return p; },

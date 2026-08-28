@@ -126,6 +126,7 @@ export class Game {
     out.debut_year = p.debut_year;
     out.draft = p.drafted_overall ? { round:p.drafted_round, overall:p.drafted_overall } : null;
     out.injuries = { count:p.career_injuries ?? 0, days:p.career_injury_days ?? 0 };
+    out.splits = this.splits(pid);
     out.seasons = [];
     if (c) {
       for (const s of c.seasons) {
@@ -328,14 +329,117 @@ export class Game {
   history(n = 40) {
     return { rows: this.L.history.slice(-n), champions: this.L.champions };
   }
+  /** 선수 스플릿 — 홈/원정, 좌투 상대/우투 상대. 야구 팬의 판단 단위. */
+  splits(pid) {
+    const s = this.season;
+    if (!s) return null;
+    const b = s.bat.get(pid);
+    if (b) {
+      const f = (a) => { const [pa,ab,h,d2,d3,hr,bb,k,rbi] = a;
+        const tb = (h-d2-d3-hr) + 2*d2 + 3*d3 + 4*hr;
+        return { pa, ab, h, hr, bb, k, rbi,
+          avg: ab ? (h/ab).toFixed(3) : '—',
+          obp: pa ? ((h+bb)/pa).toFixed(3) : '—',
+          slg: ab ? (tb/ab).toFixed(3) : '—' }; };
+      return { kind:'B', rows: [['홈', f(b.sp.H)], ['원정', f(b.sp.A)],
+                                ['vs 좌완', f(b.sp.L)], ['vs 우완', f(b.sp.R)]] };
+    }
+    const p = s.pit.get(pid);
+    if (p) {
+      const f = (a) => { const [outs,bf,h,hr,bb,k,r] = a;
+        return { ip: `${Math.floor(outs/3)}.${outs%3}`, bf, h, hr, bb, k,
+          era: outs ? (r*27/outs).toFixed(2) : '—',
+          whip: outs ? ((h+bb)*3/outs).toFixed(2) : '—',
+          k9: outs ? (k*27/outs).toFixed(2) : '—' }; };
+      return { kind:'P', rows: [['홈', f(p.sp.H)], ['원정', f(p.sp.A)]] };
+    }
+    return null;
+  }
+
+  /** 수비 위치 배치 (다이아몬드) */
+  lineupChart(teamId = null) {
+    const t = this.L.team(teamId ?? this.userId);
+    R.rebuildRoster(t, true);
+    const byPos = {};
+    for (const b of t.lineup) if (!byPos[b.position]) byPos[b.position] = this.brief(b, t);
+    const sp = t.rotation[0] ? this.brief(t.rotation[0], t) : null;
+    const cl = t.bullpen[0] ? this.brief(t.bullpen[0], t) : null;
+    return { pos: byPos, sp, closer: cl };
+  }
+
+  /** 구단 연혁 표 */
+  franchises() {
+    return this.L.teams.map(t => {
+      const h = t.history;
+      return { team_id:t.team_id, name:t.name,
+        founded:h?.founded ?? null, seasons:h?.seasons ?? 0,
+        record:h ? `${h.allW}–${h.allL}` : '—', pct:h ? h.pct.toFixed(3) : '—',
+        titles:h?.titles.length ?? 0, pennants:h?.pennants.length ?? 0,
+        lastTitle:h?.lastTitle ?? null, drought:h?.drought ?? null,
+        legend:h?.legend ?? null, tagline:h?.tagline ?? '' };
+    }).sort((a,b) => b.titles - a.titles || b.pct - a.pct);
+  }
+
+  /** 역대 우승 연표 (구단 연혁 + 실제 시뮬레이션 결과) */
+  titleTimeline() {
+    const rows = [];
+    for (const t of this.L.teams)
+      for (const y of (t.history?.titles ?? [])) rows.push({ year:y, team:t.name, sim:false });
+    for (const c of this.L.champions) rows.push({ year:c.year, team:c.team, sim:true });
+    return rows.sort((a,b) => b.year - a.year);
+  }
+
+  awardHistory(n = 20) {
+    return (this.L.awardLog || []).slice(-n).reverse();
+  }
+
+  /** 단일 시즌 최고 기록 */
+  seasonRecords(n = 5) {
+    const bats = [], pits = [];
+    for (const c of this.L.careers.values())
+      for (const s of c.seasons) {
+        const row = { pid:c.p.pid, name:c.p.name, year:s.year, team:s.team, l:s.line, war:s.war };
+        (c.kind === 'B' ? bats : pits).push(row);
+      }
+    const top = (arr, key, fmt, label, min) => ({ label, rows: arr.filter(min)
+      .sort((a,b) => key(b) - key(a)).slice(0,n)
+      .map(x => ({ pid:x.pid, name:x.name, year:x.year, team:x.team, value:fmt(x) })) });
+    return { batting: [
+      top(bats, x=>x.l.hr, x=>String(x.l.hr), '홈런', ()=>true),
+      top(bats, x=>x.l.rbi, x=>String(x.l.rbi), '타점', ()=>true),
+      top(bats, x=>x.l.avg, x=>x.l.avg.toFixed(3), '타율', x=>x.l.pa>=400),
+      top(bats, x=>x.l.sb, x=>String(x.l.sb), '도루', ()=>true),
+      top(bats, x=>x.war, x=>x.war.toFixed(1), 'WAR', ()=>true)],
+      pitching: [
+      top(pits, x=>x.l.w, x=>String(x.l.w), '다승', ()=>true),
+      top(pits, x=>x.l.k, x=>String(x.l.k), '탈삼진', ()=>true),
+      top(pits, x=>-x.l.era, x=>x.l.era.toFixed(2), 'ERA', x=>x.l.outs>=300),
+      top(pits, x=>x.l.sv, x=>String(x.l.sv), '세이브', ()=>true),
+      top(pits, x=>x.war, x=>x.war.toFixed(1), 'WAR', ()=>true)] };
+  }
+
   records(n = 10) {
-    const all = [...this.L.careers.values()].filter(c => c.years >= 2);
-    const bats = all.filter(c => c.kind === 'B');
+    const all = [...this.L.careers.values()].filter(c => c.years >= 1);
+    const bats = all.filter(c => c.kind === 'B'), pits = all.filter(c => c.kind === 'P');
     const row = (c, v) => ({ pid:c.p.pid, name:c.p.name, value:v, years:c.years,
                              active: c.retired_year === null });
+    const top = (arr, key, fmt, label) => ({ label, rows: [...arr]
+      .sort((a,b) => key(b) - key(a)).slice(0,n).map(c => row(c, fmt(c))) });
     return {
       hr: bats.sort((a,b)=>b.tot('hr')-a.tot('hr')).slice(0,n).map(c=>row(c,c.tot('hr'))),
       war: all.sort((a,b)=>b.war-a.war).slice(0,n).map(c=>row(c,c.war.toFixed(1))),
+      batting: [
+        top(bats, c=>c.tot('hr'), c=>String(c.tot('hr')), '홈런'),
+        top(bats, c=>c.tot('h'), c=>String(c.tot('h')), '안타'),
+        top(bats, c=>c.tot('rbi'), c=>String(c.tot('rbi')), '타점'),
+        top(bats, c=>c.tot('sb'), c=>String(c.tot('sb')), '도루'),
+        top(bats, c=>c.war, c=>c.war.toFixed(1), 'WAR')],
+      pitching: [
+        top(pits, c=>c.tot('w'), c=>String(c.tot('w')), '다승'),
+        top(pits, c=>c.tot('k'), c=>String(c.tot('k')), '탈삼진'),
+        top(pits, c=>c.tot('sv'), c=>String(c.tot('sv')), '세이브'),
+        top(pits, c=>Math.round(c.tot('outs')/3), c=>String(Math.round(c.tot('outs')/3)), '이닝'),
+        top(pits, c=>c.war, c=>c.war.toFixed(1), 'WAR')],
     };
   }
   teamList() {
@@ -507,16 +611,24 @@ export class Game {
     }
     const cands = [...S.bat.values()].filter(b=>b.pa>=200).map(b=>[bw.get(b.p.pid), b.p])
       .concat([...S.pit.values()].filter(q=>q.ip>=50).map(q=>[pw.get(q.p.pid), q.p]));
+    if (!L.awardLog) L.awardLog = [];
     if (cands.length) {
       const mvp = cands.reduce((a,b)=>b[0]>a[0]?b:a)[1];
       L.career(mvp).award('MVP');
       L.log(`MVP ${mvp.name}`);
+      const line = S.bat.get(mvp.pid) || S.pit.get(mvp.pid);
+      L.awardLog.push({ year:L.year, kind:'MVP', pid:mvp.pid, name:mvp.name,
+        team: line ? line.team.name : '', line: line ? (S.bat.has(mvp.pid)
+          ? `${line.avg.toFixed(3)} · ${line.hr}HR · ${line.rbi}타점`
+          : `${line.w}승 ${line.l}패 · ${line.era.toFixed(2)}`) : '' });
     }
     const cy = [...S.pit.values()].filter(q=>q.ip>=50);
     if (cy.length) {
       const best = cy.reduce((a,b)=>pw.get(b.p.pid)>pw.get(a.p.pid)?b:a);
       L.career(best.p).award('최고투수');
       L.log(`최고투수 ${best.p.name}`);
+      L.awardLog.push({ year:L.year, kind:'최고투수', pid:best.p.pid, name:best.p.name,
+        team:best.team.name, line:`${best.w}승 ${best.l}패 · ${best.era.toFixed(2)} · ${best.k}K` });
     }
     for (const t of L.teams) for (const p of [...t.batters, ...t.pitchers]) p.service = (p.service ?? 0)+1;
     for (const r of S.standings()) L.recPct.set(r.team.team_id, r.pct);

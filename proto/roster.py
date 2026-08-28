@@ -184,7 +184,8 @@ def make_team(rng, team_id, name, year=2030, team_talent=0.0):
                          role="RP", talent=rng.gauss(team_talent - 0.15, 0.8))
                for _ in range(7)]
     t = Team(team_id, order, bench, rotation, bullpen, None, None, name)
-    t.park = Park(hr_factor=rng.gauss(0, 0.14), hit_factor=rng.gauss(0, 0.05))
+    t.park = Park(hr_factor=max(-0.21, min(0.21, rng.gauss(0, 0.095))),
+                hit_factor=rng.gauss(0, 0.045))
     t.talent = team_talent
     t.batters = lineup + bench
     t.pitchers = rotation + bullpen

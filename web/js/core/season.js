@@ -26,9 +26,12 @@ export function makeSchedule(nTeams, gamesPerTeam, rng) {
 export const BAT_LINE = ['g','pa','ab','h','b2','b3','hr','bb','k','rbi','r','sb','cs','hbp'];
 export const PIT_LINE = ['g','gs','outs','bf','h','hr','bb','k','r','w','l','sv','hld','hbp'];
 
+const zeros = (n) => new Array(n).fill(0);
 export class SeasonBat {
-  constructor(p, team) { this.p = p; this.team = team; for (const f of BAT_LINE) this[f] = 0; }
-  add(L) { this.g++; for (const f of ['pa','ab','h','b2','b3','hr','bb','k','rbi','sb','cs','hbp']) this[f]+=L[f]; this.r += L.run; }
+  constructor(p, team) { this.p = p; this.team = team; for (const f of BAT_LINE) this[f] = 0;
+    this.sp = { H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) }; }
+  add(L) { this.g++; for (const f of ['pa','ab','h','b2','b3','hr','bb','k','rbi','sb','cs','hbp']) this[f]+=L[f]; this.r += L.run;
+    if (L.sp) for (const k of ['H','A','L','R']) for (let i=0;i<9;i++) this.sp[k][i] += L.sp[k][i]; }
   get b1() { return this.h - this.b2 - this.b3 - this.hr; }
   get avg() { return this.ab ? this.h/this.ab : 0; }
   get obp() { return this.pa ? (this.h+this.bb+this.hbp)/this.pa : 0; }
@@ -40,10 +43,12 @@ export class SeasonBat {
 }
 
 export class SeasonPit {
-  constructor(p, team) { this.p = p; this.team = team; for (const f of PIT_LINE) this[f] = 0; }
+  constructor(p, team) { this.p = p; this.team = team; for (const f of PIT_LINE) this[f] = 0;
+    this.sp = { H:zeros(7), A:zeros(7) }; }
   add(L, started) {
     this.g++; if (started) this.gs++;
     for (const f of ['outs','bf','h','hr','bb','k','r','hbp']) this[f] += L[f];
+    if (L.sp) for (const k of ['H','A']) for (let i=0;i<7;i++) this.sp[k][i] += L.sp[k][i];
     if (L.w) this.w++; if (L.l) this.l++; if (L.sv) this.sv++; if (L.hld) this.hld++;
   }
   get ip() { return this.outs/3; }

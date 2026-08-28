@@ -331,37 +331,105 @@ function viewHome(v) {
 }
 
 /* ── 팀 ── */
-function statCell(p) {
-  const s = p.stat || {};
-  if (p.kind === 'B') return s.pa ? `<span class="m">${s.avg}<span class="dim"> · </span>${s.hr}HR<span class="dim"> · </span>${s.rbi}</span>` : '<span class="dim">—</span>';
-  return s.g ? `<span class="m">${s.ip}<span class="dim"> · </span>${s.era}<span class="dim"> · </span>${s.k}K</span>` : '<span class="dim">—</span>';
+const POS_SLOT = { C:'c', '1B':'b1', '2B':'b2', '3B':'b3', SS:'ss',
+                   LF:'lf', CF:'cf', RF:'rf' };
+
+function diamond() {
+  const ch = G.lineupChart();
+  const cell = (pos) => {
+    const p = ch.pos[pos];
+    if (!p) return `<span class="dpos ${POS_SLOT[pos]}"><i>${pos}</i></span>`;
+    return `<span class="dpos ${POS_SLOT[pos]} click" data-pid="${p.pid}"><i>${pos}</i>
+      <b>${esc(p.name)}</b><u>${p.ovr.mid}</u></span>`;
+  };
+  const battery = (p, label) => p
+    ? `<span class="dpos ${label === 'SP' ? 'sp' : 'cl'} click" data-pid="${p.pid}">
+        <i>${label}</i><b>${esc(p.name)}</b><u>${p.ovr.mid}</u></span>` : '';
+  return `<div class="diamond">
+    ${['LF','CF','RF','SS','2B','3B','1B','C'].map(cell).join('')}
+    ${battery(ch.sp, 'SP')}${battery(ch.closer, 'CL')}</div>`;
 }
+
+function batRow(p, live) {
+  const s = p.stat || {};
+  const c = [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+             `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot)];
+  if (live) c.push(`<span class="m">${s.g ?? 0}</span>`, `<span class="m">${s.pa ?? 0}</span>`,
+    `<span class="m">${s.avg ?? '—'}</span>`, `<span class="m">${s.ops ?? '—'}</span>`,
+    `<span class="m">${s.hr ?? 0}</span>`, `<span class="m">${s.rbi ?? 0}</span>`,
+    `<span class="m">${s.sb ?? 0}</span>`);
+  c.push(p.contract ? `<span class="m dim">${p.contract.text}</span>` : '<span class="dim">—</span>');
+  return { p, cells: c };
+}
+function pitRow(p, live) {
+  const s = p.stat || {};
+  const c = [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+             `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot)];
+  if (live) c.push(`<span class="m">${s.g ?? 0}</span>`, `<span class="m">${s.ip ?? '—'}</span>`,
+    `<span class="m">${s.w ?? 0}<span class="dim">-</span>${s.l ?? 0}</span>`,
+    `<span class="m">${s.sv ?? 0}</span>`, `<span class="m">${s.era ?? '—'}</span>`,
+    `<span class="m">${s.k ?? 0}</span>`);
+  c.push(p.contract ? `<span class="m dim">${p.contract.text}</span>` : '<span class="dim">—</span>');
+  return { p, cells: c };
+}
+const BAT_HEAD = (live) => ['선수','P','나이','능력 / 잠재력',
+  ...(live ? ['G','PA','AVG','OPS','HR','RBI','SB'] : []), '계약'];
+const PIT_HEAD = (live) => ['선수','P','나이','능력 / 잠재력',
+  ...(live ? ['G','IP','W-L','SV','ERA','K'] : []), '계약'];
+
 function viewTeam(v) {
   const r = G.roster();
-  const inSeason = ['regular','postseason'].includes(G.state().phase);
+  const live = ['regular','postseason'].includes(G.state().phase);
   const g = el('div', 'grid');
-  const block = (title, list, stat) => {
+
+  if (live) {
+    const ts = G.leagueTeamStats().rows.find(x => x.is_user);
+    const f = G.form(null, 10);
+    const st = G.standings().rows.find(x => x.is_user);
+    g.appendChild(sect('팀 기록', '괄호 안은 리그 순위', `<div class="statgrid">
+      <div><span>전적</span><b class="m">${st.w}–${st.l}</b></div>
+      <div><span>타율</span><b class="m">${ts.avg}<i>${ts.rank.avg}위</i></b></div>
+      <div><span>홈런</span><b class="m">${ts.hr}<i>${ts.rank.hr}위</i></b></div>
+      <div><span>도루</span><b class="m">${ts.sb}<i>${ts.rank.sb}위</i></b></div>
+      <div><span>ERA</span><b class="m">${ts.era}<i>${ts.rank.era}위</i></b></div>
+      <div><span>WHIP</span><b class="m">${ts.whip}</b></div>
+      <div><span>탈삼진</span><b class="m">${ts.pk}<i>${ts.rank.k}위</i></b></div>
+      <div><span>홈/원정</span><b class="m">${f.home[0]}–${f.home[1]}<i>${f.away[0]}–${f.away[1]}</i></b></div>
+    </div>`));
+  }
+
+  g.appendChild(sect('수비 배치', '숫자는 추정 능력 중앙값', diamond()));
+
+  const block = (title, list, kind) => {
     if (!list.length) return;
     g.appendChild(sect(title, `${list.length} · ${AXIS_KEY}`, table(
-      ['선수','','나이','능력 / 잠재력', stat ? '성적' : '계약'],
-      list.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-        `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
-        stat ? statCell(p) : (p.contract ? `<span class="m dim">${p.contract.text}</span>` : '<span class="dim">—</span>')] })),
+      kind === 'B' ? BAT_HEAD(live) : PIT_HEAD(live),
+      list.map(p => (kind === 'B' ? batRow : pitRow)(p, live)),
       (row) => openPlayer(row.p.pid))));
   };
-  block('라인업', r.lineup, inSeason);
-  block('선발', r.rotation, inSeason);
-  block('불펜', r.bullpen, inSeason);
-  block('벤치', r.bench, false);
-  block('부상자', r.injured, false);
+  block('라인업', r.lineup, 'B');
+  block('벤치', r.bench, 'B');
+  block('선발 로테이션', r.rotation, 'P');
+  block('불펜', r.bullpen, 'P');
+  if (r.injured.length) g.appendChild(sect('부상자', `${r.injured.length}`, table(
+    ['선수','P','나이','능력 / 잠재력','복귀까지','계약'],
+    r.injured.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+      `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
+      `<b class="m mark">${p.injury_days}일</b>`,
+      p.contract ? `<span class="m dim">${p.contract.text}</span>` : '—'] })),
+    (row) => openPlayer(row.p.pid))));
+
   const farm = G.farm().rows;
   g.appendChild(sect('2군', `${farm.length} · ${AXIS_KEY}`, table(
-    ['선수','','나이','능력 / 잠재력','확신도'],
+    ['선수','P','나이','능력 / 잠재력','확신도','출신','지명'],
     farm.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
       `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
-      `<span class="m dim">${p.confidence}%</span>`] })),
+      `<span class="m dim">${p.confidence}%</span>`,
+      p.origin ? `<span class="tag hs">${p.origin[0]}</span>` : '<span class="dim">—</span>',
+      `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
     (row) => openPlayer(row.p.pid))));
   v.appendChild(g);
+  v.querySelectorAll('.dpos.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 
 /* ── 리그 ── */
@@ -571,34 +639,63 @@ function drawTrade() {
 
 /* ── 역사 ── */
 function viewHistory(v) {
-  const h = G.history(60), rec = G.records(10);
-  const g = el('div', 'grid g21');
-  g.appendChild(sect('연혁', '', h.rows.length ? h.rows.slice().reverse().map(r =>
-    `<div class="row"><span class="m dim">${r.year}</span><span>${esc(r.text)}</span></div>`).join('')
-    : '<div class="empty">—</div>'));
-  const right = el('div', 'grid');
-  right.appendChild(sect('우승', `${h.champions.length}`, h.champions.length
-    ? h.champions.slice().reverse().map(c =>
-      `<div class="row"><span class="m dim">${c.year}</span><b>${esc(c.team)}</b></div>`).join('')
-    : '<div class="empty">—</div>'));
-  const box = (t, rows) => sect(t, '', rows.length ? rows.map((r, i) =>
-    `<div class="row"><span><span class="m dim">${i+1}</span>
-      ${r.active ? '<span class="dot">●</span> ' : ''}${esc(r.name)}</span>
-     <b class="m">${r.value}</b></div>`).join('') : '<div class="empty">—</div>');
-  right.appendChild(box('통산 홈런', rec.hr));
-  right.appendChild(box('통산 WAR', rec.war));
-  const fr = G.teamList().map(t => G.teamDossier(t.id))
-    .filter(d => d.history).sort((a,b) => b.history.titles - a.history.titles);
-  g.appendChild(sect('구단 연혁', '', table(['구단','창단','통산','승률','우승','최근'],
-    fr.map(d => ({ team_id: d.id, cells: [
-      `<span class="name">${esc(d.name)}</span>`,
-      `<span class="m dim">${d.history.founded}</span>`,
-      `<span class="m">${esc(d.history.record)}</span>`,
-      `<span class="m">${d.history.pct}</span>`,
-      `<span class="m">${d.history.titles}</span>`,
-      `<span class="m dim">${d.history.lastTitle ?? '—'}</span>`] })),
+  const g = el('div', 'grid');
+  const fr = G.franchises();
+  g.appendChild(sect('구단 연혁', `${fr.length}개 구단`, table(
+    ['구단','창단','통산 전적','승률','우승','정규 1위','최근 우승','무관','프랜차이즈 레전드'],
+    fr.map(f => ({ team_id: f.team_id, cells: [
+      `<span class="name">${esc(f.name)}</span>`,
+      `<span class="m dim">${f.founded}</span>`,
+      `<span class="m">${esc(f.record)}</span>`,
+      `<span class="m">${f.pct}</span>`,
+      `<span class="m"><b>${f.titles}</b></span>`,
+      `<span class="m dim">${f.pennants}</span>`,
+      `<span class="m dim">${f.lastTitle ?? '—'}</span>`,
+      `<span class="m ${f.drought >= 20 ? 'mark' : 'dim'}">${f.drought ?? '—'}</span>`,
+      f.legend ? `<span class="sub">${f.legend.number}번 ${esc(f.legend.name)}
+        <span class="dim">${esc(f.legend.line)}</span></span>` : '—'] })),
     (row) => openTeam(row.team_id))));
-  g.appendChild(right); v.appendChild(g);
+
+  const two = el('div', 'grid g2');
+  const tl = G.titleTimeline();
+  two.appendChild(sect('역대 우승', `${tl.length}회`, tl.length
+    ? `<div class="timeline">${tl.slice(0, 40).map(t =>
+        `<span class="tl ${t.sim ? 'sim' : ''}"><i class="m">${t.year}</i>
+         ${esc(short(t.team))}</span>`).join('')}</div>`
+    : '<div class="empty">—</div>'));
+  const aw = G.awardHistory(14);
+  two.appendChild(sect('수상 이력', '', aw.length
+    ? aw.map(a => `<div class="row click" data-pid="${a.pid}">
+        <span><span class="m dim">${a.year}</span> <span class="tag">${a.kind}</span>
+          <span class="name">${esc(a.name)}</span>
+          <span class="sub">${esc(short(a.team))}</span></span>
+        <span class="m dim">${esc(a.line)}</span></div>`).join('')
+    : '<div class="empty">아직 수상자가 없다</div>'));
+  g.appendChild(two);
+
+  const rec = G.records(10), sr = G.seasonRecords(5);
+  const board = (groups, sub) => groups.map(b => `<div class="lead">
+    <div class="lab">${b.label}</div>` +
+    (b.rows.length ? b.rows.map((r, i) => `<div class="row click" data-pid="${r.pid}">
+      <span><span class="m dim">${i+1}</span> ${r.active === false ? '' : (r.active ? '<span class="dot">●</span> ' : '')}${esc(r.name)}
+        ${sub ? `<span class="sub">${r.year}</span>` : ''}</span>
+      <b class="m">${r.value}</b></div>`).join('') : '<div class="empty">—</div>') + '</div>').join('');
+  const c1 = el('div', 'grid g2');
+  c1.appendChild(sect('통산 기록 — 타격', '● 현역', `<div class="leadgrid">${board(rec.batting)}</div>`));
+  c1.appendChild(sect('통산 기록 — 투구', '● 현역', `<div class="leadgrid">${board(rec.pitching)}</div>`));
+  g.appendChild(c1);
+  const c2 = el('div', 'grid g2');
+  c2.appendChild(sect('단일 시즌 최고 — 타격', '', `<div class="leadgrid">${board(sr.batting, true)}</div>`));
+  c2.appendChild(sect('단일 시즌 최고 — 투구', '', `<div class="leadgrid">${board(sr.pitching, true)}</div>`));
+  g.appendChild(c2);
+
+  const h = G.history(80);
+  g.appendChild(sect('리그 연혁', '', h.rows.length
+    ? `<div class="logscroll">${h.rows.slice().reverse().map(r =>
+        `<div class="row"><span class="m dim">${r.year}</span><span>${esc(r.text)}</span></div>`).join('')}</div>`
+    : '<div class="empty">—</div>'));
+  v.appendChild(g);
+  v.querySelectorAll('[data-pid]').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 
 /* ── 겹칩 ── */
@@ -656,6 +753,19 @@ function openPlayer(pid) {
           <div style="margin-top:16px" class="report">${esc(p.comment)}</div>
         </div>
       </div>
+      ${p.splits ? `<div><div class="lab" style="margin-bottom:6px">스플릿</div>
+        <table><thead><tr>${(p.splits.kind === 'B'
+          ? ['구분','PA','AVG','OBP','SLG','HR','RBI','BB','K']
+          : ['구분','IP','ERA','WHIP','K/9','H','HR','BB','K'])
+          .map(x => `<th>${x}</th>`).join('')}</tr></thead><tbody>
+        ${p.splits.rows.map(([k, s]) => `<tr><td>${k}</td>` + (p.splits.kind === 'B'
+          ? `<td class="m">${s.pa}</td><td class="m">${s.avg}</td><td class="m">${s.obp}</td>
+             <td class="m">${s.slg}</td><td class="m">${s.hr}</td><td class="m">${s.rbi}</td>
+             <td class="m">${s.bb}</td><td class="m">${s.k}</td>`
+          : `<td class="m">${s.ip}</td><td class="m">${s.era}</td><td class="m">${s.whip}</td>
+             <td class="m">${s.k9}</td><td class="m">${s.h}</td><td class="m">${s.hr}</td>
+             <td class="m">${s.bb}</td><td class="m">${s.k}</td>`) + '</tr>').join('')}
+        </tbody></table></div>` : ''}
       ${seasons ? `<div><div class="lab" style="margin-bottom:6px">연도별</div>${seasons}</div>` : ''}
       ${p.events && p.events.length ? `<div><div class="lab" style="margin-bottom:6px">이력</div>` +
         p.events.map(e => `<div class="row"><span class="m dim">${e.year}</span><span>${esc(e.text)}</span></div>`).join('')

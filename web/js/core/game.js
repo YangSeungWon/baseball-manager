@@ -18,9 +18,15 @@ class Bases {
   occupied() { return this.r.filter(Boolean).length; }
 }
 
-const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0 });
+// 홈/원정, 상대 투수 손. 야구 팬이 판단에 쓰는 기본 스플릿.
+export const SPLIT_F = ['pa','ab','h','b2','b3','hr','bb','k','rbi'];
+export const PSPLIT_F = ['outs','bf','h','hr','bb','k','r'];
+const zeros = (n) => new Array(n).fill(0);
+const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0,
+  sp:{ H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) } });
 const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,hbp:0,fatigue:0,
-                          entered_inning:0, entered_lead:0, w:false,l:false,sv:false,hld:false });
+                          entered_inning:0, entered_lead:0, w:false,l:false,sv:false,hld:false,
+                          sp:{ H:zeros(7), A:zeros(7) } });
 
 export const starterCapacity = (p) => 9.0 + 0.15 * p.stamina;
 export const relieverCapacity = (p) => 3.0 + 0.045 * p.stamina;
@@ -216,6 +222,17 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     }
     const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng);
     outs += ao; pl.outs += ao;
+    // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
+    const isAb = (res !== BB && res !== HBP);
+    const isH = (res === S1B || res === D2B || res === T3B || res === HR);
+    const add = (a) => { a[0]++; if (isAb) a[1]++; if (isH) a[2]++;
+      if (res === D2B) a[3]++; if (res === T3B) a[4]++; if (res === HR) a[5]++;
+      if (res === BB) a[6]++; if (res === K) a[7]++; a[8] += runs; };
+    add(bl.sp[off.venue]);
+    add(bl.sp[pl.p.throws]);
+    const pa2 = pl.sp[defn.venue];
+    pa2[0] += ao; pa2[1]++; if (isH) pa2[2]++; if (res === HR) pa2[3]++;
+    if (res === BB) pa2[4]++; if (res === K) pa2[5]++; pa2[6] += runs;
     plays.push({ inning, half: off.half, batter: batter.name, desc, runs,
                  outs, score: `${off.runs}-${defn.runs}` });
     if (off.runs > defn.runs && prevDiff <= 0) { off.por = off.cur; defn.lp = defn.cur; }
@@ -248,6 +265,7 @@ function assignDecisions(H, A) {
 export function playGame(home, away, rng, maxInnings = 15) {
   const H = new TeamGameState(home), A = new TeamGameState(away);
   H.half = 'bottom'; A.half = 'top';
+  H.venue = 'H'; A.venue = 'A';
   let inning = 1;
   const plays = [];
   for (;;) {

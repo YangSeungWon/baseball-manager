@@ -11,7 +11,7 @@ export const LG = {
 export const C = {
   kStuff: 0.225, kContact: -0.150, kAvoidK: -0.150, kCommand: 0.05,
   bbDiscipline: 0.275, bbCommand: -0.205, bbPower: 0.06,
-  hrPower: 0.360, hrMovement: -0.185,
+  hrPower: 0.330, hrMovement: -0.185,
   gbBat: 0.30, gbPit: 0.34, ldContact: 0.08,
   babipSpeedGb: 0.145, babipPowerLd: 0.05,
   babipInfDef: -0.072, babipOfDef: -0.078, babipPitSoft: -0.06,

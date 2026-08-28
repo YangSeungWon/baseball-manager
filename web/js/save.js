@@ -99,8 +99,10 @@ export function dump(game) {
   const dumpSeason = (S) => S ? {
     year:S.year, games:S.games, day:S.curDay, rng:S.rng.state,
     sched:S.schedule, rec:Object.fromEntries([...S.rec].map(([k,r])=>[k,[r.w,r.l,r.rs,r.ra,r.d]])),
-    bat:Object.fromEntries([...S.bat].map(([pid,b])=>[pid,[b.team.team_id, BAT_LINE.map(f=>b[f])]])),
-    pit:Object.fromEntries([...S.pit].map(([pid,q])=>[pid,[q.team.team_id, PIT_LINE.map(f=>q[f])]])),
+    bat:Object.fromEntries([...S.bat].map(([pid,b])=>[pid,[b.team.team_id, BAT_LINE.map(f=>b[f]),
+      [b.sp.H,b.sp.A,b.sp.L,b.sp.R]]])),
+    pit:Object.fromEntries([...S.pit].map(([pid,q])=>[pid,[q.team.team_id, PIT_LINE.map(f=>q[f]),
+      [q.sp.H,q.sp.A]]])),
     res:S.results,
     avail:Object.fromEntries(S.availDay), last:Object.fromEntries(S.lastUsed),
     consec:Object.fromEntries(S.consec),
@@ -124,6 +126,7 @@ export function dump(game) {
     scouts: Object.fromEntries([...L.scouts].map(([tid,s]) => [tid, scoutDump(s)])),
     modes: Object.fromEntries(L.modes), recPct: Object.fromEntries(L.recPct),
     history: L.history.slice(-400), champions: L.champions,
+    awardLog: (L.awardLog || []).slice(-300),
     nextPid: R.getPidCounter(),
     season: dumpSeason(game.season),
     faOffers: Object.fromEntries(game.faOffers),
@@ -158,7 +161,7 @@ export function load(data) {
   L.unsigned = data.unsigned.map(pid => players.get(pid)).filter(Boolean);
   L.modes = new Map(Object.entries(data.modes).map(([k,v]) => [+k, v]));
   L.recPct = new Map(Object.entries(data.recPct).map(([k,v]) => [+k, v]));
-  L.draftLog = []; L.season = null; L.faLog = [];
+  L.draftLog = []; L.season = null; L.faLog = []; L.awardLog = data.awardLog || [];
 
   L.teams = data.teams.map(td => {
     const t = { team_id:td.id, name:td.name,
@@ -230,14 +233,18 @@ export function load(data) {
       const r = new TeamRecord(byId.get(+tid)); r.w=w; r.l=l; r.rs=rs; r.ra=ra; r.d=dr||0;
       S.rec.set(+tid, r); }
     S.bat = new Map(); S.pit = new Map();
-    for (const pid in d.bat) { const [tid, vals] = d.bat[pid];
+    for (const pid in d.bat) { const [tid, vals, sp] = d.bat[pid];
       if (!players.has(+pid)) continue;
       const b = new SeasonBat(players.get(+pid), byId.get(tid));
-      BAT_LINE.forEach((f,i) => { b[f] = vals[i]; }); S.bat.set(+pid, b); }
-    for (const pid in d.pit) { const [tid, vals] = d.pit[pid];
+      BAT_LINE.forEach((f,i) => { b[f] = vals[i]; });
+      if (sp) { b.sp = { H:sp[0], A:sp[1], L:sp[2], R:sp[3] }; }
+      S.bat.set(+pid, b); }
+    for (const pid in d.pit) { const [tid, vals, sp] = d.pit[pid];
       if (!players.has(+pid)) continue;
       const q = new SeasonPit(players.get(+pid), byId.get(tid));
-      PIT_LINE.forEach((f,i) => { q[f] = vals[i]; }); S.pit.set(+pid, q); }
+      PIT_LINE.forEach((f,i) => { q[f] = vals[i]; });
+      if (sp) { q.sp = { H:sp[0], A:sp[1] }; }
+      S.pit.set(+pid, q); }
     S.results = d.res; S.injuries = [];
     S.availDay = new Map(Object.entries(d.avail).map(([k,v])=>[+k,v]));
     S.lastUsed = new Map(Object.entries(d.last).map(([k,v])=>[+k,v]));
