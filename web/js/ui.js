@@ -48,10 +48,12 @@ function toast(label, text, kind = '') {
 const CITY_CODE = { 서울:'SE', 부산:'BS', 인천:'IC', 대구:'DG', 대전:'DJ', 광주:'GJ',
   울산:'US', 고양:'GY', 창원:'CW', 청주:'CJ', 천안:'CA', 전주:'JJ', 강릉:'GN', 제주:'JU' };
 // 팀 고유색. 어두운 배경 위에서 읽히도록 조금 올렸다.
-const NICK_COLOR = { 레이븐스:'#2c3f57', 타이탄스:'#8a3a38', 드래곤스:'#2a7150',
-  파이러츠:'#3a3a42', 팬텀스:'#5b4b7a', 코브라스:'#6d7a2c', 울브스:'#5c646f',
-  팰컨스:'#9a4d1c', 재규어스:'#a07a24', 썬더스:'#4a54a0', 레인저스:'#9a2a3a',
-  타이푼스:'#1c7a75', 샤크스:'#35748c', 세이버스:'#7a5a3a' };
+// 팀 고유색. 어두운 배경 위에서 읽히도록 명도를 올렸다.
+const NICK_COLOR = { 울브스:'#5c646f', 팰컨스:'#9a4d1c', 샤크스:'#35748c',
+  재규어스:'#a07a24', 코브라스:'#6d7a2c', 레이븐스:'#2c3f57',
+  타이탄스:'#8a3a38', 드래곤스:'#2a7150', 피닉스:'#b04a26',
+  썬더스:'#4a54a0', 타이푼스:'#1c7a75',
+  스타즈:'#8a6d1c', 킹스:'#6a4a8a', 나이츠:'#3a4a5c' };
 const capOf = (name) => {
   const [city, nick] = name.split(' ');
   return { code: CITY_CODE[city] || city.slice(0,1), color: NICK_COLOR[nick] || '#3a3a3a' };
