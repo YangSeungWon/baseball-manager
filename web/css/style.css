@@ -64,37 +64,35 @@ input:focus{outline:0;border-color:var(--accent)}
 
 /* 구단 목록 — 선 대신 면으로 나눈다 */
 .teamlist{display:flex;flex-direction:column;gap:4px}
-.trow{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:14px;
+.trow{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:12px;
   align-items:center;width:100%;padding:11px 14px 11px 11px;border:0;border-radius:5px;
   background:var(--s1);border-left:4px solid transparent;text-align:left;
   font-family:var(--kr);font-size:16px;color:var(--fg);cursor:pointer}
 .trow:hover{background:var(--hover)}
 .trow[aria-pressed=true]{background:var(--s3);border-left-color:var(--tc,var(--accent))}
+.tpos{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--fg3);text-align:center}
+.trow[aria-pressed=true] .tpos{color:var(--fg)}
 .tname{font-weight:700;font-size:17px;line-height:1.2}
-.tname small{display:block;font-weight:400;font-size:13px;color:var(--fg2);margin-top:3px}
-.tarch{display:inline-block;font-size:12px;font-weight:600;color:var(--fg2);margin-top:5px}
-.tarch.hot{color:var(--tc,var(--accent));background:rgba(255,255,255,.06);
-  padding:1px 8px;border-radius:3px}
-.tlast{text-align:right;line-height:1.15;white-space:nowrap}
-.tlast .rank{font-family:var(--mono);font-size:22px;font-weight:600}
-.tlast .rec{display:block;font-family:var(--mono);font-size:12px;color:var(--fg3);margin-top:2px}
-.tlast .dl{display:block;font-size:11px;color:var(--fg3);margin-top:4px}
-.tlast .dl.d4{color:#e0a03c} .tlast .dl.d5{color:var(--neg)}
+.tarch{display:block;font-size:13px;color:var(--fg2);margin-top:3px}
+.tarch .trec{font-style:normal;font-family:var(--mono);font-size:12px;color:var(--fg3);
+  margin-left:8px}
+.tdl{font-size:12px;font-weight:600;color:var(--fg3);white-space:nowrap;
+  padding:3px 9px;border-radius:99px;background:rgba(255,255,255,.05)}
+.tdl.d4{color:#e0a03c} .tdl.d5{color:var(--neg);background:rgba(216,94,94,.12)}
+.tdl.d1{color:var(--pos)}
 
 /* 구단 서류 — 판타지가 먼저, 숫자가 나중 */
 .dossier{background:var(--s2);border-radius:6px;overflow:hidden;position:sticky;top:12px}
-.dtop{padding:16px 20px 18px;background:
-  linear-gradient(180deg,color-mix(in srgb,var(--tc,#4c8ed9) 26%,transparent),transparent 78%),
-  var(--s3)}
-.dhead{display:flex;align-items:center;gap:13px;margin-bottom:14px}
-.dhead h2{margin:0;font-size:26px;font-weight:800;line-height:1.1}
-.dhead h2 small{display:block;font-size:13px;font-weight:400;color:var(--fg2);margin-top:3px}
-.headline{font-size:21px;line-height:1.45;font-weight:700;margin:0 0 14px;letter-spacing:-.01em}
-.dchips{display:flex;gap:7px;flex-wrap:wrap}
+.dtop{padding:14px 20px 16px;background:var(--s3);
+  border-top:3px solid var(--tc,var(--accent))}
+.dhead{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.dhead h2{margin:0;font-size:23px;font-weight:800;line-height:1.1;flex:1}
+.dhead h2 small{display:block;font-size:12px;font-weight:400;color:var(--fg2);margin-top:2px}
+.headline{font-size:19px;line-height:1.4;font-weight:700;margin:0;letter-spacing:-.01em}
 .chip{font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;
-  background:rgba(255,255,255,.09);color:var(--fg)}
-.chip.tc{background:var(--tc,var(--accent));color:#08121b}
-.chip.d4{background:#e0a03c;color:#1a1206} .chip.d5{background:var(--neg);color:#1a0808}
+  background:rgba(255,255,255,.07);color:var(--fg2);white-space:nowrap}
+.chip.d1{color:var(--pos)} .chip.d4{color:#e0a03c}
+.chip.d5{background:rgba(216,94,94,.15);color:var(--neg)}
 
 .dbody{padding:16px 20px 20px}
 .dsec{margin-top:18px}
@@ -108,9 +106,13 @@ input:focus{outline:0;border-color:var(--accent)}
 .citem{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
   padding:5px 0;font-size:15px}
 .citem b{font-family:var(--mono);font-size:17px;font-weight:700}
-.cbox.s .citem b{color:var(--pos)} .cbox.w .citem b{color:var(--neg)}
+.cbox.s .citem b{color:var(--pos)}
+.citem b.s2{color:var(--neg)} .citem b.s1{color:#e0a03c} .citem b.s0{color:var(--fg3)}
+.cbox.w .citem{align-items:baseline}
+.cbox.w .citem span{flex:1}
+.cbox.w .citem b{font-family:var(--mono);font-size:12px;font-weight:600;text-align:right}
 .cnone{color:var(--fg3);font-size:14px;padding:5px 0}
-.cmid{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--fg3)}
+.cmid{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--fg2)}
 .cmid span b{font-family:var(--mono);color:var(--fg2);margin-left:3px}
 
 /* 재정 — 소진율 막대 */
@@ -133,16 +135,22 @@ input:focus{outline:0;border-color:var(--accent)}
 /* 핵심 선수 — 이 게임의 시그니처 */
 .scout{background:var(--s1);border-radius:5px;padding:13px 14px}
 .scoutkey{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
-  color:var(--fg3);margin-bottom:9px;padding:0 1px}
+  color:var(--fg3);margin-bottom:6px;padding:0 1px}
+.sp-group{font-size:11px;font-weight:700;color:var(--fg3);letter-spacing:.06em;
+  margin:10px 0 2px;padding-top:8px;border-top:1px solid var(--line2)}
+.sp-group:first-of-type{border-top:0;padding-top:0;margin-top:2px}
+.axin{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-style:normal;
+  font-family:var(--mono);font-size:12px;font-weight:600;color:var(--fg);
+  text-shadow:0 1px 3px rgba(0,0,0,.7);z-index:3}
 .sp-row{padding:9px 0;border-bottom:1px solid var(--line2)}
 .sp-row:last-child{border-bottom:0}
 .sp-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
-  margin-bottom:6px}
+  margin-bottom:5px}
 .sp-name{font-size:16px;font-weight:700}
 .sp-name span{font-weight:400;font-size:13px;color:var(--fg2);margin-left:7px}
 .sp-num{font-family:var(--mono);font-size:15px;color:var(--fg2)}
 .sp-num b{color:var(--accent);font-size:17px}
-.axlegend{display:flex;gap:18px;font-size:12px;color:var(--fg2);margin-top:10px;flex-wrap:wrap}
+.axlegend{display:flex;gap:16px;font-size:13px;color:var(--fg2);margin-bottom:10px;flex-wrap:wrap}
 .axlegend b{display:inline-block;width:20px;height:9px;vertical-align:middle;
   margin-right:6px;border-radius:2px}
 .axlegend b.cur{background:var(--accent)}
@@ -223,14 +231,14 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   text-align:right;font-variant-numeric:tabular-nums}
 .ax.big{width:100%;height:26px;border-radius:4px}
 .ax.big i,.ax.big u{top:5px;height:16px;border-radius:2px}
-.ax.big::before{background:linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/25% 100%}
+.ax.big::before{background:linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/16.667% 100%}
 .axkey{display:flex;justify-content:space-between;width:var(--axis-w);
   font-family:var(--mono);font-size:10px;color:var(--fg3);margin-top:2px}
 .attrrow{display:grid;grid-template-columns:80px 1fr;gap:12px;align-items:center;
   padding:5px 0;border-bottom:1px solid var(--line2)}
 .attrrow:last-child{border-bottom:0}
 .attrrow>span:first-child{font-size:14px;color:var(--fg2)}
-.axlegend{display:flex;gap:16px;font-size:12px;color:var(--fg3);margin-bottom:8px;
+.axlegend{display:flex;gap:16px;font-size:13px;color:var(--fg3);margin-bottom:8px;
   flex-wrap:wrap}
 .axlegend b{display:inline-block;width:16px;height:8px;vertical-align:middle;
   margin-right:5px;border-radius:1px}

@@ -8,19 +8,29 @@ const G2 = ["우","호","준","현","석","진","수","훈","빈","한","성","�
   "찬","영","기","환","용","교","건","민","섭","철","원","열"];
 // 특별·광역시 7 + 도 대표 7. 17개 시도 중 14개를 덮는다.
 // 수원(경기)은 고양으로, 춘천(강원)은 영동 거점 강릉으로 바꿨다.
-const CITY = ["서울","부산","인천","대구","대전","광주","울산",
-              "고양","창원","청주","천안","전주","강릉","제주"];
-// KBO 닉네임의 규칙: 익숙한 동물, 아니면 뜻이 바로 통하는 짧은 명사.
-// 뜻을 모르는 영단어는 쓰지 않는다 (베어스·이글스·라이온즈·트윈스·자이언츠·스타즈).
-const NICK = [
-  "울브스", "팰컨스", "샤크스", "재규어스", "코브라스", "레이븐스",   // 동물
-  "타이탄스", "드래곤스", "피닉스",                                  // 신화
-  "썬더스", "타이푼스",                                             // 자연
-  "스타즈", "킹스", "나이츠",                                        // 짧고 강한 명사
+// 연고지 · 구단명 · 마스코트 · 팀 컬러를 고정 매칭한다.
+// 롯데가 항상 부산이듯, 연고와 이름은 무작위로 섞이면 안 된다.
+// 색은 실제 프로야구가 쓰는 계열만 — 빨강 · 버건디 · 주황 · 파랑 · 남색 · 진초록 · 차콜 · 금.
+export const FRANCHISES = [
+  { city:"서울", nick:"타이탄스",  mascot:"고릴라",   color:"#c1121f", code:"SE" },
+  { city:"부산", nick:"돌핀스",    mascot:"돌고래",   color:"#1668b8", code:"BS" },
+  { city:"인천", nick:"썬더스",    mascot:"들소",     color:"#2a4bab", code:"IC" },
+  { city:"대구", nick:"불스",      mascot:"황소",     color:"#7c1d32", code:"DG" },
+  { city:"대전", nick:"드래곤스",  mascot:"용",       color:"#0b5138", code:"DJ" },
+  { city:"광주", nick:"피닉스",    mascot:"불사조",   color:"#d1600f", code:"GJ" },
+  { city:"울산", nick:"샤크스",    mascot:"상어",     color:"#123f6d", code:"US" },
+  { city:"고양", nick:"헌터스",    mascot:"매",       color:"#a37012", code:"GY" },
+  { city:"창원", nick:"코브라스",  mascot:"코브라",   color:"#14663c", code:"CW" },
+  { city:"청주", nick:"스타즈",    mascot:"수리부엉이", color:"#b03410", code:"CJ" },
+  { city:"천안", nick:"팬서스",    mascot:"표범",     color:"#202a3a", code:"CA" },
+  { city:"전주", nick:"재규어스",  mascot:"재규어",   color:"#0d2b52", code:"JJ" },
+  { city:"강릉", nick:"울브스",    mascot:"늑대",     color:"#4a5568", code:"GN" },
+  { city:"제주", nick:"레이븐스",  mascot:"큰까마귀", color:"#1a2233", code:"JU" },
 ];
+const BY_NAME = new Map(FRANCHISES.map(f => [`${f.city} ${f.nick}`, f]));
+export const franchiseOf = (fullName) => BY_NAME.get(fullName) || FRANCHISES[0];
 
 export const personName = (rng) => rng.choice(SUR) + rng.choice(G1) + rng.choice(G2);
 export function teamNames(n, rng) {
-  const c = rng.sample(CITY, n), k = rng.sample(NICK, n);
-  return c.map((x, i) => `${x} ${k[i]}`);
+  return rng.sample(FRANCHISES, n).map(f => `${f.city} ${f.nick}`);
 }

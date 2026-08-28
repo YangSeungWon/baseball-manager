@@ -533,6 +533,7 @@ export class Game {
       difficulty: diff,
       difficultyLabel: ['', '쉬움', '무난', '보통', '어려움', '극한'][diff],
       contrast: con,
+      risk: this._risks(t, f, RK),
       payrollRatio: Math.round(C.payroll(t, this.L.year) / f.budget * 100),
       last, key, prospect,
       history: t.history ? {
@@ -611,6 +612,44 @@ export class Game {
     if (nStrong && nWeak)
       return `${con.strong[0].k}${con.strong[0].r}위로 버티고 ${con.weak[0].k}${con.weak[0].r}위를 메운다. 그게 이 팀의 시즌이다.`;
     return '어느 쪽으로도 갈 수 있다. 방향은 당신이 정한다.';
+  }
+
+  /** 리스크 — 이 팀을 맡으면 무엇이 아픈가.
+   *  '약점 없음'은 재미없는 결론이다. 모든 구단은 고통을 하나씩 안고 있다. */
+  _risks(t, f, R) {
+    const out = [];
+    const core = [...t.lineup, ...t.rotation];
+    const avgAge = core.reduce((s, p) => s + p.age, 0) / (core.length || 1);
+    const ovr = (p) => this.ratings(p, t).ovr.mid;
+    const top = [...core].sort((a, b) => ovr(b) - ovr(a)).slice(0, 8);
+    // 계약이 실제로 2년 안에 끝나고 FA 자격까지 차는 핵심 선수만 센다.
+    // 서비스타임만 보면 베테랑 전원이 걸려 변별력이 없다.
+    const yr = this.L.year;
+    const faSoon = top.filter(p => p.contract && p.contract.end_year <= yr + 1
+      && (p.service ?? 0) + (p.contract.end_year - yr) >= C.FA_SERVICE).length;
+    const old = core.filter(p => p.age >= 33).length;
+    const pay = C.payroll(t, this.L.year) / f.budget * 100;
+    const hi = Math.ceil(R.of * 0.3), lo = Math.floor(R.of * 0.7) + 1;
+
+    // 강팀일수록 창이 좁다. 좋기만 한 구단은 선택이 아니다.
+    if (R.str <= hi && (avgAge >= 29.2 || (avgAge >= 28.2 && faSoon >= 2)))
+      out.push({ k:'우승 창이 좁다', v:`평균 ${avgAge.toFixed(1)}세 · FA ${faSoon}명`, s:2 });
+    if (avgAge >= 29.6) out.push({ k:'노쇠한 주축', v:`평균 ${avgAge.toFixed(1)}세`, s:2 });
+    else if (avgAge >= 28.4) out.push({ k:'나이 든 라인업', v:`평균 ${avgAge.toFixed(1)}세`, s:1 });
+    if (faSoon >= 3) out.push({ k:'주축 FA 이탈', v:`2년 내 ${faSoon}명`, s:2 });
+    else if (faSoon >= 2) out.push({ k:'FA 임박', v:`2년 내 ${faSoon}명`, s:1 });
+    if (pay >= 100) out.push({ k:'예산 초과', v:`소진율 ${Math.round(pay)}%`, s:2 });
+    else if (pay >= 95) out.push({ k:'연봉 포화', v:`소진율 ${Math.round(pay)}%`, s:1 });
+    if (R.farm >= lo) out.push({ k:'팜 고갈', v:`유망주 ${R.farm}위`, s:2 });
+    else if (R.farm > Math.ceil(R.of / 2)) out.push({ k:'얇은 팜', v:`유망주 ${R.farm}위`, s:1 });
+    if (f.patience < 35) out.push({ k:'해고 압박', v:`${f.demand} · 인내심 ${Math.round(f.patience)}`, s:2 });
+    else if (f.demand === '우승' || f.demand === '포스트시즌')
+      out.push({ k:'성적 압박', v:`${f.demand} 요구`, s:1 });
+    if (R.bud >= lo) out.push({ k:'빠듯한 자금', v:`재정 ${R.bud}위`, s:1 });
+    if (R.bat >= lo) out.push({ k:'빈약한 타선', v:`타선 ${R.bat}위`, s:2 });
+    if (R.pit >= lo) out.push({ k:'약한 마운드', v:`마운드 ${R.pit}위`, s:2 });
+    if (!out.length) out.push({ k:'큰 구멍은 없다', v:'지킬 것이 많다', s:0 });
+    return { rows: out.sort((x, y) => y.s - x.s).slice(0, 4), avgAge: Math.round(avgAge * 10) / 10, faSoon };
   }
 
   /** 강점과 약점을 갈라서 내보낸다. 표로 늘어놓으면 대비가 죽는다. */

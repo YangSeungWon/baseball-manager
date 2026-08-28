@@ -25,16 +25,18 @@ const autosave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist
 
 /* ══ 눈금축 — 시그니처 ══
    실선 = 현재 추정 구간, 해칭 = 잠재력 구간. 20·35·50·65·80 눈금 위에 놓인다. */
-const AXIS_KEY = '20 · 35 · 50 · 65 · 80';
+const AXIS_KEY = '20–80';
 const pos = (v) => (Math.max(20, Math.min(80, v)) - 20) / 60 * 100;
-function axis(cur, pot, size = '') {
+function axis(cur, pot, size = '', inline = false) {
   const seg = (r, tag) => {
     const W = Math.max(2.5, pos(r.hi) - pos(r.lo));
     const L = Math.min(pos(r.lo), 100 - W);
     return `<${tag} style="left:${L}%;width:${W}%"></${tag}>`;
   };
-  return `<span class="axrow"><span class="ax ${size}">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}</span>`
-    + `<span class="axnum">${Math.round(cur.lo)}–${Math.round(cur.hi)}</span></span>`;
+  const bar = `<span class="ax ${size}">${pot ? seg(pot, 'u') : ''}${seg(cur, 'i')}`
+    + (inline ? `<em class="axin">${Math.round(cur.lo)}–${Math.round(cur.hi)}</em>` : '') + '</span>';
+  return inline ? bar
+    : `<span class="axrow">${bar}<span class="axnum">${Math.round(cur.lo)}–${Math.round(cur.hi)}</span></span>`;
 }
 
 /* ── 알림 ── */
@@ -45,23 +47,13 @@ function toast(label, text, kind = '') {
 }
 
 /* ── 구단 정체성: 야구 모자 로고 ── */
-const CITY_CODE = { 서울:'SE', 부산:'BS', 인천:'IC', 대구:'DG', 대전:'DJ', 광주:'GJ',
-  울산:'US', 고양:'GY', 창원:'CW', 청주:'CJ', 천안:'CA', 전주:'JJ', 강릉:'GN', 제주:'JU' };
-// 팀 고유색. 어두운 배경 위에서 읽히도록 조금 올렸다.
-// 팀 고유색. 어두운 배경 위에서 읽히도록 명도를 올렸다.
-const NICK_COLOR = { 울브스:'#5c646f', 팰컨스:'#9a4d1c', 샤크스:'#35748c',
-  재규어스:'#a07a24', 코브라스:'#6d7a2c', 레이븐스:'#2c3f57',
-  타이탄스:'#8a3a38', 드래곤스:'#2a7150', 피닉스:'#b04a26',
-  썬더스:'#4a54a0', 타이푼스:'#1c7a75',
-  스타즈:'#8a6d1c', 킹스:'#6a4a8a', 나이츠:'#3a4a5c' };
-const capOf = (name) => {
-  const [city, nick] = name.split(' ');
-  return { code: CITY_CODE[city] || city.slice(0,1), color: NICK_COLOR[nick] || '#3a3a3a' };
-};
+import { franchiseOf } from './core/names.js';
+const SCALE = ['20','30','40','50','60','70','80'];
+const capOf = (name) => { const f = franchiseOf(name); return { code: f.code, color: f.color }; };
 const cap = (name, size = 44) => {
   const c = capOf(name);
   return `<span class="cap" style="background:${c.color};width:${size}px;height:${size}px;
-    font-size:${Math.round(size*0.34)}px">${c.code}</span>`;
+    font-size:${Math.round(size * 0.34)}px">${c.code}</span>`;
 };
 
 /* ── 시작 화면 ── */
@@ -70,26 +62,24 @@ let bootGame = null, bootSel = 1;
 function boot() {
   const seed = Math.floor(Math.random() * 1e9);
   bootGame = new Game({ userTeamId: 1, nTeams: 10, games: 144, seed }).prologue();
-  const list = bootGame.teamList();
-  bootSel = list[0].id;
+  // 작년 순위대로 세운다. 순위표를 보는 것과 같은 순서여야 읽힌다.
+  const list = bootGame.teamList()
+    .map(t => ({ t, d: bootGame.teamDossier(t.id) }))
+    .sort((a, b) => a.d.last.rank - b.d.last.rank);
+  bootSel = list[0].t.id;
   const wrap = $('#teamPick');
   wrap.innerHTML = '';
-  list.forEach(t => {
-    const d = bootGame.teamDossier(t.id);
+  list.forEach(({ t, d }) => {
     const col = capOf(d.name).color;
     const b = el('button', 'trow');
     b.style.setProperty('--tc', col);
     b.setAttribute('aria-pressed', String(t.id === bootSel));
-    // 유형 배지는 특별한 팀에만. 전부 배지면 배지가 아니라 장식이다.
-    const hot = ['디펜딩 챔피언', '우승 청부', '몰락한 명가', '벼랑 끝', '팜이 무기']
-      .includes(d.archetype);
-    b.innerHTML = `${cap(d.name, 46)}
-      <span><span class="tname">${esc(d.name)}
-          <small>${esc(d.history ? d.history.tagline : d.note)}</small></span>
-        <span class="tarch ${hot ? 'hot' : ''}">${esc(d.archetype)}</span></span>
-      <span class="tlast"><span class="rank">${d.last.rank}<i class="off">위</i></span>
-        <span class="rec">${d.last.w}–${d.last.l}</span>
-        <span class="dl d${d.difficulty}">난이도 ${esc(d.difficultyLabel)}</span></span>`;
+    b.innerHTML = `<span class="tpos">${d.last.rank}</span>
+      ${cap(d.name, 40)}
+      <span><span class="tname">${esc(d.name)}</span>
+        <span class="tarch">${esc(d.archetype)}
+          <i class="trec">${d.last.w}–${d.last.l}</i></span></span>
+      <span class="tdl d${d.difficulty}">${esc(d.difficultyLabel)}</span>`;
     b.onclick = () => {
       bootSel = t.id;
       [...wrap.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
@@ -107,29 +97,22 @@ function drawDossier() {
   const saved = localStorage.getItem(KEY);
   const c = d.contrast;
   const H = d.history;
+  const fr = franchiseOf(d.name);
 
   const scoutRow = (p) => `<div class="sp-row">
       <span class="sp-top">
         <span class="sp-name">${esc(p.name)}<span>${p.age}세 · ${p.slot}</span></span>
-        <span class="sp-num"><b>${p.ovr.lo}–${p.ovr.hi}</b>
-          <span class="off">/ ${p.pot.lo}–${p.pot.hi}</span></span>
-      </span>${axis(p.ovr, p.pot, 'big')}</div>`;
+      </span>${axis(p.ovr, p.pot, 'big', true)}</div>`;
 
   const pay = d.payrollRatio;
   const payCls = pay > 100 ? 'over' : pay > 90 ? 'tight' : '';
 
   $('#dossier').innerHTML = `
     <div class="dtop">
-      <div class="dhead">${cap(d.name, 54)}
-        <h2>${esc(d.name)}<small>${esc(d.city)} · 시장 규모 ${d.market}
-          ${H ? ` · 창단 ${H.founded}` : ''}</small></h2></div>
+      <div class="dhead">${cap(d.name, 46)}
+        <h2>${esc(d.name)}<small>${esc(fr.mascot)}${H ? ` · 창단 ${H.founded}` : ''}</small></h2>
+        <span class="chip d${d.difficulty}">${esc(d.difficultyLabel)}</span></div>
       <p class="headline">${esc(d.headline)}</p>
-      <div class="dchips">
-        <span class="chip tc">${esc(d.archetype)}</span>
-        <span class="chip d${d.difficulty}">난이도 ${esc(d.difficultyLabel)}</span>
-        <span class="chip">지난 시즌 ${d.last.rank}위</span>
-        ${H && H.titles ? `<span class="chip">우승 ${H.titles}회</span>` : ''}
-      </div>
     </div>
 
     <div class="dbody">
@@ -138,24 +121,26 @@ function drawDossier() {
           <div class="cbox s"><div class="ctitle">강점</div>
             ${c.strong.length ? c.strong.map(x =>
               `<div class="citem"><span>${x.k}</span><b>${x.r}위</b></div>`).join('')
-              : '<div class="cnone">두드러진 강점 없음</div>'}</div>
-          <div class="cbox w"><div class="ctitle">약점</div>
-            ${c.weak.length ? c.weak.map(x =>
-              `<div class="citem"><span>${x.k}</span><b>${x.r}위</b></div>`).join('')
-              : '<div class="cnone">치명적 약점 없음</div>'}</div>
+              : '<div class="cnone">평균 이상이 없다</div>'}</div>
+          <div class="cbox w"><div class="ctitle">리스크</div>
+            ${d.risk.rows.map(x =>
+              `<div class="citem"><span>${x.k}</span><b class="s${x.s}">${x.v}</b></div>`).join('')}
+          </div>
         </div>
-        ${c.mid.length ? `<div class="cmid">${c.mid.map(x =>
-          `<span>${x.k}<b>${x.r}위</b></span>`).join('')}</div>` : ''}
+        ${c.mid.length || c.weak.length ? `<div class="cmid">${
+          c.weak.concat(c.mid).map(x => `<span>${x.k}<b>${x.r}위</b></span>`).join('')}</div>` : ''}
       </div>
 
       <div class="dsec">
-        <div class="lab">핵심 선수 — 스카우트가 본 범위</div>
+        <div class="lab">스카우트 리포트</div>
         <div class="scout">
-          <div class="scoutkey">${AXIS_KEY.split(' · ').map(x => `<span>${x}</span>`).join('')}</div>
+          <div class="axlegend"><span><b class="cur"></b>지금 이만큼으로 본다</span>
+            <span><b class="pot"></b>여기까지 갈 수도 있다</span></div>
+          <div class="scoutkey">${SCALE.map(x => `<span>${x}</span>`).join('')}</div>
+          <div class="sp-group">주축</div>
           ${d.key.map(scoutRow).join('')}
-          ${d.prospect.length ? d.prospect.map(scoutRow).join('') : ''}
-          <div class="axlegend"><span><b class="cur"></b>추정 능력</span>
-            <span><b class="pot"></b>잠재력 — 아직 확인되지 않음</span></div>
+          ${d.prospect.length ? '<div class="sp-group">유망주</div>'
+            + d.prospect.map(scoutRow).join('') : ''}
         </div>
       </div>
 
@@ -163,7 +148,8 @@ function drawDossier() {
         <div class="lab">재정</div>
         <div class="payline"><span>연봉 소진율</span><b>${pay}%</b></div>
         <div class="paybar ${payCls}"><i style="width:${Math.min(100, pay)}%"></i></div>
-        <div class="paysub"><span>연봉 ${d.payroll}억</span><span>예산 ${d.budget}억</span></div>
+        <div class="paysub"><span>연봉 ${d.payroll}억 / 예산 ${d.budget}억</span>
+          <span>시장 규모 ${d.market}</span></div>
       </div>
 
       <div class="dsec">
