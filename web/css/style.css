@@ -54,11 +54,20 @@ input:focus{outline:0;border-color:var(--accent)}
 /* ── 시작 화면 ── */
 .boot{height:100vh;padding:clamp(12px,1.8vw,20px);display:flex;flex-direction:column;
   background:var(--bg);overflow:hidden}
-.boot-head{display:flex;align-items:baseline;gap:14px;margin-bottom:14px}
-.boot-head h1{margin:0;font-family:var(--mono);font-size:15px;font-weight:600;
+.boot-head{display:flex;align-items:flex-end;gap:20px;margin-bottom:16px}
+.logo{margin:0;display:block}
+.logo svg{height:74px;width:auto;display:block}
+.lg-top{fill:#6d8096}
+.lg-lip{fill:#46596c}
+.lg-shade{fill:#04080d}
+.lg-word{fill:var(--fg);font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:.22em}
+.lg-yr{fill:var(--accent);font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:.02em}
+.lg-rail{stroke:var(--accent);stroke-width:3;fill:none}
+.lg-post path{stroke:#3d5064;stroke-width:3;fill:none}
+.boot-head h1.plain{margin:0;font-family:var(--mono);font-size:15px;font-weight:600;
   letter-spacing:.18em;color:var(--fg2)}
 .boot-head h1 em{font-style:normal;color:var(--accent);margin-left:6px;letter-spacing:.04em}
-.boot-head .goal{font-size:22px;font-weight:700;margin:0}
+.boot-head .goal{font-size:22px;font-weight:700;margin:0 0 12px}
 .boot-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(400px,1fr);
   gap:clamp(12px,1.6vw,20px);flex:1;min-height:0}
 @media(max-width:1020px){
@@ -94,20 +103,33 @@ input:focus{outline:0;border-color:var(--accent)}
 .teamlist{flex-shrink:0}
 .bracket{background:var(--s1);border-radius:6px;padding:12px 14px;flex-shrink:0}
 .bracket .lab{margin-bottom:8px;font-size:13px}
-.br{display:grid;grid-template-columns:74px 1fr auto 84px;gap:10px;align-items:center;
-  padding:6px 0;border-bottom:1px solid var(--line2);font-size:14px}
-.br:last-child{border-bottom:0}
-.brl{font-size:12px;color:var(--fg3)}
-.brw{display:flex;align-items:center;gap:7px;font-weight:600;min-width:0}
-.brw i{font-style:normal;font-size:11px;color:var(--pos);font-weight:700}
-.brs{font-family:var(--mono);font-size:14px;color:var(--fg2)}
-.brx{color:var(--fg3);font-size:13px;text-align:right}
-.br.ks{padding-top:9px;margin-top:2px;border-top:1px solid var(--line)}
-.br.ks .brw{font-size:16px}
-.mapbox{background:var(--s1);border-radius:6px;padding:8px;flex-shrink:0;
-  display:grid;place-items:center}
-.kmap{width:100%;max-width:280px;height:auto}
-.mland{fill:rgba(76,142,217,.07);stroke:var(--line);stroke-width:1.2}
+.bracket-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;align-items:start}
+.bcol{display:flex;flex-direction:column;gap:5px}
+.bcol.c2{padding-top:22px} .bcol.c3{padding-top:44px}
+.bcol.c4{padding-top:66px} .bcol.c5{padding-top:88px}
+.bhd{font-size:11px;color:var(--fg3);white-space:nowrap;margin-bottom:1px}
+.bn{display:grid;grid-template-columns:14px 1fr auto;gap:5px;align-items:center;
+  background:var(--s2);border-left:3px solid var(--tc,var(--line));border-radius:3px;
+  padding:6px 7px;font-size:13px;min-height:30px}
+.bn i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--fg3)}
+.bn span{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bn b{font-family:var(--mono);font-size:11px;color:var(--fg3)}
+.bn.win{background:var(--s3)}
+.bn.win span{color:var(--fg)}
+.bn:not(.win) span{color:var(--fg3)}
+.bn.empty{background:transparent;border-left-color:transparent}
+.bchamp{display:flex;align-items:center;gap:7px;background:var(--tc);border-radius:4px;
+  padding:7px 9px;color:#0a1219;font-weight:700;font-size:14px;min-height:30px}
+.bchamp b{margin-left:auto;font-family:var(--mono);font-size:12px;opacity:.8}
+.bchamp .cap{box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
+@media(max-width:1200px){
+  .bracket-grid{grid-template-columns:repeat(3,1fr)}
+  .bcol{padding-top:0 !important}
+}
+.mapbox{display:flex;justify-content:center;padding:10px 0 4px}
+.kmap{width:100%;max-width:270px;height:auto}
+.mdot circle{transition:none}
+.mland{stroke:#31465c;stroke-width:1.1;stroke-linejoin:round}
 .mlabel{fill:var(--fg);font-size:12px;font-weight:700;font-family:var(--kr)}
 
 /* 구단 서류 — 판타지가 먼저, 숫자가 나중 */
@@ -441,3 +463,5 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   th,td{padding:6px 5px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.pen{font-size:13px;color:var(--fg2);white-space:nowrap}

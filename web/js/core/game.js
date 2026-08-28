@@ -43,14 +43,20 @@ class TeamGameState {
     this.spot = 0;
     this.bat = new Map();
     for (const b of team.lineup) this.bat.set(b.pid, batLine(b));
-    this.starter = team.nextStarter();
-    this.pitchers = [pitLine(this.starter)];
     const unavail = team.unavailable || new Set();
     let avail = team.bullpen.filter(p => !unavail.has(p.pid));
     if (avail.length < 3) {
       const rest = team.bullpen.filter(p => unavail.has(p.pid));
       avail = avail.concat(rest.slice(0, 3 - avail.length));
     }
+    this.starter = team.nextStarter();
+    this.penDay = false;
+    if (!this.starter) {              // 선발이 없으면 불펜데이 — 롱릴리프가 오프너
+      const i = Math.max(0, avail.findIndex(p => p.pen_role === 'LR'));
+      this.starter = avail.splice(i, 1)[0] || team.bullpen[0];
+      this.penDay = true;
+    }
+    this.pitchers = [pitLine(this.starter)];
     this.bullpenLeft = avail;
     this.runs = 0; this.hits = 0; this.lob = 0;
     this.line = []; this.por = null; this.lp = null;
@@ -63,9 +69,21 @@ class TeamGameState {
   }
 }
 
+/** 상황에 맞는 보직을 꺼낸다. 마무리를 5점차에 태우지 않고, 필승조를 아껴 둔다. */
+function pickReliever(pool, inning, lead) {
+  const pick = (role) => {
+    const i = pool.findIndex(p => p.pen_role === role);
+    return i < 0 ? null : pool.splice(i, 1)[0];
+  };
+  if (inning >= 9 && lead > 0 && lead <= 3) return pick('CL') || pick('SU') || pool.shift();
+  if (inning >= 7 && Math.abs(lead) <= 3)   return pick('SU') || pick('MR') || pool.shift();  // 마무리는 9회 전용
+  if (inning <= 4)                          return pick('LR') || pick('MR') || pool.shift();
+  return pick('MR') || pick('LR') || pick('SU') || pool.shift();
+}
+
 function maybeChangePitcher(defn, inning, lead) {
   const cur = defn.cur;
-  const isStarter = defn.pitchers.length === 1;
+  const isStarter = defn.pitchers.length === 1 && !defn.penDay;
   const f = fatigueOf(cur, isStarter);
   cur.fatigue = f;
   if (!defn.bullpenLeft.length) return;
@@ -75,15 +93,17 @@ function maybeChangePitcher(defn, inning, lead) {
     else if (f >= 0.55 && inning >= 5) pull = true;
     else if (cur.r >= 6) pull = true;
   } else {
+    // 불펜은 1이닝이 기본. 이닝이 넘어가면 다음 투수에게 넘긴다. 마무리는 끝까지 간다.
+    const isCL = cur.p.pen_role === 'CL' && lead > 0 && lead <= 3;
     if (f >= 0.85) pull = true;
-    else if (inning > cur.entered_inning && cur.bf >= 4 && defn.bullpenLeft.length >= 3) pull = true;
+    else if (!isCL && inning > cur.entered_inning && cur.bf >= 3
+             && defn.bullpenLeft.length >= 2) pull = true;
   }
-  if (inning >= 9 && lead > 0 && lead <= 3 && defn.bullpenLeft.length
-      && cur.p !== defn.bullpenLeft[0] && (isStarter || f > 0.2)) pull = true;
+  if (inning >= 9 && lead > 0 && lead <= 3
+      && defn.bullpenLeft.some(p => p.pen_role === 'CL')) pull = true;
   if (!pull) return;
-  let nxt;
-  if (inning >= 9 && lead > 0 && lead <= 3) nxt = defn.bullpenLeft.shift();
-  else nxt = defn.bullpenLeft.splice(defn.bullpenLeft.length > 1 ? Math.floor(defn.bullpenLeft.length/2) : 0, 1)[0];
+  const nxt = pickReliever(defn.bullpenLeft, inning, lead);
+  if (!nxt) return;
   const nl = pitLine(nxt);
   nl.entered_inning = inning; nl.entered_lead = lead;
   defn.pitchers.push(nl);
@@ -258,7 +278,7 @@ function assignDecisions(H, A) {
   const last = win.pitchers[win.pitchers.length - 1];
   if (win.pitchers.length > 1 && last !== wp && win.runs - lose.runs <= 3) last.sv = true;
   for (const pl of win.pitchers.slice(1)) {
-    if (pl !== wp && pl !== last && pl.entered_lead < 0 && pl.r === 0) pl.hld = true;
+    if (pl !== wp && pl !== last && pl.entered_lead > 0 && pl.entered_lead <= 3) pl.hld = true;
   }
 }
 

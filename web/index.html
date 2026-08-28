@@ -15,7 +15,18 @@
 <body>
 <div id="boot" class="boot">
   <div class="boot-head">
-    <h1>DUGOUT <em id="bootYear"></em></h1>
+    <h1 class="logo">
+      <svg viewBox="0 0 300 74" role="img" aria-label="DUGOUT 2027">
+        <!-- 그라운드에서 본 더그아웃: 비스듬한 지붕, 그 아래 그늘, 앞을 가로지르는 난간 -->
+        <path class="lg-top"   d="M4 2 H296 L284 15 H16 Z"/>
+        <rect class="lg-lip"   x="16" y="15" width="268" height="5"/>
+        <rect class="lg-shade" x="16" y="20" width="268" height="36"/>
+        <text class="lg-word"  x="34"  y="46">DUGOUT</text>
+        <text class="lg-yr"    x="266" y="46" text-anchor="end" id="bootYear"></text>
+        <path class="lg-rail"  d="M6 56 H294"/>
+        <g class="lg-post"><path d="M32 56v10M76 56v10M120 56v10M164 56v10M208 56v10M252 56v10"/></g>
+      </svg>
+    </h1>
     <p class="goal">구단 선택</p>
   </div>
   <div class="boot-main">

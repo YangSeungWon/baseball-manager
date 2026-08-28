@@ -223,33 +223,72 @@ export class Season {
   }
 }
 
-export function playSeries(higher, lower, bestOf, rng, homePattern) {
+/** 포스트시즌 불펜 운용. 정규시즌과 달리 아무도 등판 간격을 관리하지 않아
+ *  마무리가 18경기 연속 등판해도 지치지 않는 구멍이 있었다. */
+export class PostseasonBullpen {
+  constructor(teams) {
+    this.day = 0;
+    this.avail = new Map();     // pid -> 이 날짜부터 등판 가능
+    this.last = new Map();
+    this.consec = new Map();
+    this.teams = teams;
+  }
+  /** 경기 전: 등판 불가 명단을 팀에 알린다 */
+  apply(t) {
+    t.unavailable = new Set(t.bullpen
+      .filter(p => (this.avail.get(p.pid) ?? 0) > this.day).map(p => p.pid));
+  }
+  /** 경기 후: 등판한 불펜의 휴식일을 계산한다 */
+  record(S) {
+    for (const pl of S.pitchers.slice(1)) {
+      const pid = pl.p.pid;
+      let rest = pl.bf <= 4 ? 0 : (pl.bf <= 8 ? 1 : 2);
+      this.consec.set(pid, this.last.get(pid) === this.day - 1
+        ? (this.consec.get(pid) ?? 0) + 1 : 1);
+      if (this.consec.get(pid) >= 3) rest = Math.max(rest, 1);
+      this.last.set(pid, this.day);
+      this.avail.set(pid, this.day + 1 + rest);
+    }
+  }
+  rest(days) { this.day += days; }   // 시리즈 사이 휴식
+}
+
+export function playSeries(higher, lower, bestOf, rng, homePattern, bp = null) {
   const need = Math.floor(bestOf/2) + 1;
   const w = { [higher.team_id]: 0, [lower.team_id]: 0 };
   const pat = homePattern || Array(bestOf).fill(true);
+  const games = [];
   let g = 0;
   while (Math.max(w[higher.team_id], w[lower.team_id]) < need) {
     const [home, away] = pat[g % pat.length] ? [higher, lower] : [lower, higher];
     let H, A;
+    if (bp) { bp.apply(home); bp.apply(away); }
     do { [H, A] = playGame(home, away, rng); } while (H.runs === A.runs);
+    if (bp) { bp.record(H); bp.record(A); bp.rest(g % 3 === 2 ? 2 : 1); }  // 3연전 뒤 이동일
     w[(H.runs > A.runs ? home : away).team_id]++;
+    games.push({ home: home.name, away: away.name, hr: H.runs, ar: A.runs,
+                 hostHigher: home === higher });
     g++;
   }
   return w[higher.team_id] > w[lower.team_id]
-    ? [higher, lower, [w[higher.team_id], w[lower.team_id]]]
-    : [lower, higher, [w[lower.team_id], w[higher.team_id]]];
+    ? [higher, lower, [w[higher.team_id], w[lower.team_id]], games]
+    : [lower, higher, [w[lower.team_id], w[higher.team_id]], games];
 }
 
 /** 와일드카드 결정전. 4위는 1승만 하면 올라가고, 5위는 2연승해야 한다. */
-function wildCard(fourth, fifth, rng) {
+function wildCard(fourth, fifth, rng, bp) {
   let fifthWins = 0;
+  const games = [];
   for (let g = 0; g < 2; g++) {
     let H, A;
+    if (bp) { bp.apply(fourth); bp.apply(fifth); }
     do { [H, A] = playGame(fourth, fifth, rng); } while (H.runs === A.runs);  // 4위 홈
+    if (bp) { bp.record(H); bp.record(A); bp.rest(1); }
+    games.push({ home: fourth.name, away: fifth.name, hr: H.runs, ar: A.runs, hostHigher: true });
     if (A.runs > H.runs) fifthWins++;
-    else return [fourth, fifth, [1, fifthWins]];        // 4위 1승 → 즉시 진출
+    else return [fourth, fifth, [1, fifthWins], games];   // 4위 1승 → 즉시 진출
   }
-  return [fifth, fourth, [2, 0]];
+  return [fifth, fourth, [2, 0], games];
 }
 
 export function postseason(season, rng) {
@@ -266,10 +305,15 @@ export function postseason(season, rng) {
   }
   const s = st.slice(0,5).map(r => r.team);
   const p1 = [true,true,false,false,true];
-  const [w0,l0,sc0] = wildCard(s[3], s[4], rng);        log.push(['와일드카드', w0, l0, sc0]);
-  const [w1,l1,sc1] = playSeries(s[2], w0, 5, rng, p1); log.push(['준플레이오프', w1, l1, sc1]);
-  const [w2,l2,sc2] = playSeries(s[1], w1, 5, rng, p1); log.push(['플레이오프', w2, l2, sc2]);
-  const [w3,l3,sc3] = playSeries(s[0], w2, 7, rng, [true,true,false,false,false,true,true]);
-  log.push(['한국시리즈', w3, l3, sc3]);
+  // 불펜 피로를 시리즈 너머로 이어간다. 기다린 상위 시드는 그 사이 회복한다.
+  const bp = new PostseasonBullpen(season.teams);
+  const [w0,l0,sc0,g0] = wildCard(s[3], s[4], rng, bp);        log.push(['와일드카드', w0, l0, sc0, g0, s[3], s[4]]);
+  bp.rest(2);
+  const [w1,l1,sc1,g1] = playSeries(s[2], w0, 5, rng, p1, bp); log.push(['준플레이오프', w1, l1, sc1, g1, s[2], w0]);
+  bp.rest(3);
+  const [w2,l2,sc2,g2] = playSeries(s[1], w1, 5, rng, p1, bp); log.push(['플레이오프', w2, l2, sc2, g2, s[1], w1]);
+  bp.rest(4);
+  const [w3,l3,sc3,g3] = playSeries(s[0], w2, 7, rng, [true,true,false,false,false,true,true], bp);
+  log.push(['한국시리즈', w3, l3, sc3, g3, s[0], w2]);
   return [w3, log];
 }

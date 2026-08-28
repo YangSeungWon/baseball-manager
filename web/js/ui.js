@@ -50,8 +50,10 @@ import { franchiseOf, FRANCHISES, GEO, COAST, JEJU } from './core/names.js';
 
 /** 연고지 지도. 실제 위경도를 등장방형으로 투영한다. */
 function drawMap(teams, selName) {
-  const W = 300, H = 380, PAD = 14;
-  const lats = [38.5, 33.1], lons = [125.9, 129.7];
+  // 위도 1도 ≈ 111km, 경도 1도 ≈ 90km(위도 36도). 종횡비를 지켜야 남한처럼 보인다.
+  const lats = [38.6, 33.1], lons = [125.9, 129.8];
+  const H = 430, W = Math.round(H * (lons[1] - lons[0]) * Math.cos(35.8 * Math.PI / 180)
+    / ((lats[0] - lats[1]) * 1.0)), PAD = 12;
   const px = (lat, lon) => [
     PAD + (lon - lons[0]) / (lons[1] - lons[0]) * (W - PAD * 2),
     PAD + (lats[0] - lat) / (lats[0] - lats[1]) * (H - PAD * 2)];
@@ -63,16 +65,19 @@ function drawMap(teams, selName) {
     const [x, y] = px(g[0], g[1]);
     const on = name === selName;
     return `<g class="mdot ${on ? 'on' : ''}">
-      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${on ? 7 : 4.5}"
-        fill="${f.color}" stroke="#0b121a" stroke-width="1.5"/>
-      ${on ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="12" fill="none"
-        stroke="${f.color}" stroke-width="1.5" opacity=".55"/>
-        <text x="${x.toFixed(1)}" y="${(y - 15).toFixed(1)}" text-anchor="middle"
+      <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${on ? 6.5 : 4}"
+        fill="${f.color}" stroke="#0a1119" stroke-width="1.4"/>
+      ${on ? `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="none"
+        stroke="${f.color}" stroke-width="1.4" opacity=".5"/>
+        <text x="${x.toFixed(1)}" y="${(y - 19).toFixed(1)}" text-anchor="middle"
           class="mlabel">${esc(f.city)}</text>` : ''}</g>`;
   }).join('');
   return `<svg viewBox="0 0 ${W} ${H}" class="kmap" aria-label="연고지 지도">
-    <path d="${path(COAST)}" class="mland"/>
-    <path d="${path(JEJU)}" class="mland"/>
+    <defs><linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d3346"/><stop offset="1" stop-color="#152532"/>
+    </linearGradient></defs>
+    <path d="${path(COAST)}" class="mland" fill="url(#lg)"/>
+    <path d="${path(JEJU)}" class="mland" fill="url(#lg)"/>
     ${dots}</svg>`;
 }
 
@@ -181,17 +186,50 @@ async function boot() {
 
 function drawBracket() {
   const ps = bootGame.lastPostseason();
-  if (!ps.rounds.length) return;
-  const el2 = $('#bracket');
-  el2.innerHTML = `<div class="lab">${ps.year} 포스트시즌</div>` +
-    ps.rounds.map((r, i) => {
-      const last = i === ps.rounds.length - 1;
-      return `<div class="br ${last ? 'ks' : ''}">
-        <span class="brl">${esc(r.round)}</span>
-        <span class="brw">${cap(r.winner, 22)}${esc(r.winner)}${last ? ' <i>우승</i>' : ''}</span>
-        <span class="brs m">${r.w}–${r.l}</span>
-        <span class="brx">${esc(short(r.loser))}</span></div>`;
-    }).join('');
+  const box = $('#bracket');
+  if (!ps.rounds.length) { box.innerHTML = ''; return; }
+  const rank = new Map((bootGame.lastTable || []).map(r => [r.team, r.rank]));
+  const R = ps.rounds;                    // 와일드카드 · 준PO · PO · KS
+  const node = (name, score, win, cls = '') => name
+    ? `<div class="bn ${win ? 'win' : ''} ${cls}" style="--tc:${capOf(name).color}">
+        ${rank.has(name) ? `<i>${rank.get(name)}</i>` : '<i class="off">·</i>'}
+        <span>${esc(short(name))}</span>
+        ${score !== null ? `<b>${score}</b>` : ''}</div>`
+    : '<div class="bn empty"></div>';
+  const seedOf = (n) => rank.get(n) ?? 99;
+  const wc = R[0], sp = R[1], pl = R[2], ks = R[3];
+  const lo5 = seedOf(wc.higher) > seedOf(wc.lower) ? wc.higher : wc.lower;
+  const hi4 = lo5 === wc.higher ? wc.lower : wc.higher;
+
+  box.innerHTML = `<div class="lab">${ps.year} 포스트시즌</div>
+    <div class="bracket-grid">
+      <div class="bcol">
+        <span class="bhd">와일드카드</span>
+        ${node(hi4, null, wc.winner === hi4)}
+        ${node(lo5, null, wc.winner === lo5)}
+      </div>
+      <div class="bcol c2">
+        <span class="bhd">준PO</span>
+        ${node(sp.higher, null, sp.winner === sp.higher)}
+        ${node(wc.winner, wc.w + '–' + wc.l, sp.winner === wc.winner, 'adv')}
+      </div>
+      <div class="bcol c3">
+        <span class="bhd">PO</span>
+        ${node(pl.higher, null, pl.winner === pl.higher)}
+        ${node(sp.winner, sp.w + '–' + sp.l, pl.winner === sp.winner, 'adv')}
+      </div>
+      <div class="bcol c4">
+        <span class="bhd">한국시리즈</span>
+        ${node(ks.higher, null, ks.winner === ks.higher)}
+        ${node(pl.winner, pl.w + '–' + pl.l, ks.winner === pl.winner, 'adv')}
+      </div>
+      <div class="bcol c5">
+        <span class="bhd">우승</span>
+        <div class="bchamp" style="--tc:${capOf(ks.winner).color}">
+          ${cap(ks.winner, 26)}<span>${esc(short(ks.winner))}</span>
+          <b>${ks.w}–${ks.l}</b></div>
+      </div>
+    </div>`;
 }
 
 function drawDossier() {
@@ -542,7 +580,7 @@ function diamond() {
 
 function batRow(p, live) {
   const s = p.stat || {};
-  const c = [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+  const c = [nameCell(p), `<span class="pen">${p.pen || p.slot}</span>`,
              `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot)];
   if (live) c.push(`<span class="m">${s.g ?? 0}</span>`, `<span class="m">${s.pa ?? 0}</span>`,
     `<span class="m">${s.avg ?? '—'}</span>`, `<span class="m">${s.ops ?? '—'}</span>`,
@@ -552,8 +590,9 @@ function batRow(p, live) {
   return { p, cells: c };
 }
 function pitRow(p, live) {
+  // 보직(1선발 / 마무리 / 필승조…)이 포지션 표기보다 정보가 많다.
   const s = p.stat || {};
-  const c = [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+  const c = [nameCell(p), `<span class="pen">${p.pen || p.slot}</span>`,
              `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot)];
   if (live) c.push(`<span class="m">${s.g ?? 0}</span>`, `<span class="m">${s.ip ?? '—'}</span>`,
     `<span class="m">${s.w ?? 0}<span class="dim">-</span>${s.l ?? 0}</span>`,
@@ -564,7 +603,7 @@ function pitRow(p, live) {
 }
 const BAT_HEAD = (live) => ['선수','P','나이','능력 / 잠재력',
   ...(live ? ['G','PA','AVG','OPS','HR','RBI','SB'] : []), '계약'];
-const PIT_HEAD = (live) => ['선수','P','나이','능력 / 잠재력',
+const PIT_HEAD = (live) => ['선수','보직','나이','능력 / 잠재력',
   ...(live ? ['G','IP','W-L','SV','ERA','K'] : []), '계약'];
 
 function viewTeam(v) {

@@ -118,7 +118,8 @@ export class Game {
     const injured = [...t.batters, ...t.pitchers].filter(p => p.injury_days > 0);
     return { team_id:t.team_id, name:t.name,
       lineup:grp(t.lineup,'lineup'), bench:grp(t.bench,'bench'),
-      rotation:grp(t.rotation,'rotation'), bullpen:grp(t.bullpen,'bullpen'),
+      rotation:grp(t.rotation,'rotation').map((p,i) => ({ ...p, pen:`${i+1}선발` })),
+      bullpen:grp(t.bullpen,'bullpen').map((p,i) => ({ ...p, pen:R.PEN_LABEL[t.bullpen[i].pen_role] })),
       injured: injured.map(p => ({ ...this.brief(p,t), group:'injured' })),
       payroll:r1(C.payroll(t, this.L.year)), budget:r1(t.finance.budget),
       mode:this.L.modes.get(t.team_id) };
@@ -479,8 +480,10 @@ export class Game {
     S.run();
     this.season = S; this.L.season = S;
     const [champ, plog] = postseason(S, this.L.rng);
-    this.lastPlayoffs = plog.map(([round, w, l, sc]) => ({
-      round, winner: w.name, loser: l.name, w: sc[0], l: sc[1] }));
+    this.lastPlayoffs = plog.map(([round, w, l, sc, games, hi, lo]) => ({
+      round, winner: w.name, loser: l.name, w: sc[0], l: sc[1],
+      higher: hi ? hi.name : null, lower: lo ? lo.name : null,
+      games: (games || []).map(g => ({ home: g.home, away: g.away, hr: g.hr, ar: g.ar })) }));
     this.lastTable = S.standings().map((r, i) => ({
       team_id: r.team.team_id, team: r.team.name, rank: i + 1, w: r.w, l: r.l, d: r.d,
       pct: r.pct.toFixed(3), rs: r.rs, ra: r.ra, playoff: i < 5,
@@ -790,8 +793,11 @@ export class Game {
     if (this.phase !== POSTSEASON) return { error:'wrong_phase' };
     const [champ, log] = postseason(this.season, this.L.rng);
     this.champion = champ.name;
-    this.playoffLog = log.map(([r,w,l,sc]) => ({ round:r, winner:w.name, loser:l.name,
-      score:`${sc[0]}승 ${sc[1]}패`, user: w.team_id===this.userId || l.team_id===this.userId }));
+    this.playoffLog = log.map(([r,w,l,sc,games,hi,lo]) => ({ round:r, winner:w.name, loser:l.name,
+      score:`${sc[0]}승 ${sc[1]}패`, w:sc[0], l:sc[1],
+      higher: hi ? hi.name : null, lower: lo ? lo.name : null,
+      games: (games || []).map(g => ({ home:g.home, away:g.away, hr:g.hr, ar:g.ar })),
+      user: w.team_id===this.userId || l.team_id===this.userId }));
     this.absorbSeason(champ);
     this.phase = OFF_ROLLOVER;
     return { champion:this.champion, rounds:this.playoffLog,

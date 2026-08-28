@@ -107,8 +107,30 @@ export function refreshTeam(t) {
   const c = t.lineup.filter(b => b.position === 'C').map(b=>b.fielding);
   const avg = (a) => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 50;
   t.defense = { infield: avg(inf), outfield: avg(of), catcherFraming: c.length?c[0]:50 };
+  assignPen(t);
   return t;
 }
+
+/** 불펜 보직. CL 마무리 / SU 필승조 / MR 추격조 / LR 롱릴리프(불펜데이 오프너).
+ *  감독이 지정한 보직(pen_lock)은 건드리지 않는다. */
+export function assignPen(t) {
+  const pen = t.bullpen || [];
+  if (!pen.length) return;
+  const free = pen.filter(p => !p.pen_lock);
+  for (const p of free) p.pen_role = null;
+  const taken = (role) => pen.filter(p => p.pen_role === role).length;
+  const take = (role, n, key) => {
+    const want = n - taken(role);                       // 루프 전에 한 번만 센다
+    const c = free.filter(p => !p.pen_role).sort((a,b) => key(b) - key(a));
+    for (let i = 0; i < want && i < c.length; i++) c[i].pen_role = role;
+  };
+  // 롱릴리프는 이닝을 먹어야 하므로 스태미나가 최우선.
+  take('LR', 1, p => p.stamina * 1.6 + p.command * .4 + (p.role === 'SP' ? 22 : 0));
+  take('CL', 1, p => p.stuff * 1.2 + p.command * .7 + p.movement * .3);
+  take('SU', 2, p => p.stuff + p.command * .7 + p.movement * .4);
+  for (const p of free) if (!p.pen_role) p.pen_role = 'MR';
+}
+export const PEN_LABEL = { CL:'마무리', SU:'필승조', MR:'추격조', LR:'롱릴리프' };
 
 export function rebuildRoster(t, healthyOnly = false) {
   const bats = healthyOnly ? t.batters.filter(b => b.injury_days <= 0) : t.batters;
@@ -188,8 +210,15 @@ export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
             hitFactor: rng.gauss(0, 0.045),
             name: null, capacity: 18000, opened: null },
     defense: { infield:50, outfield:50, catcherFraming:50 },
-    nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
-                    this.rot_index++; return p; },
+    /** 로테이션 순번. 부상자는 건너뛰고, 전원 이탈이면 null → 불펜데이. */
+    nextStarter() {
+      const n = this.rotation.length;
+      for (let i = 0; i < n; i++) {
+        const p = this.rotation[(this.rot_index + i) % n];
+        if (p && p.injury_days <= 0) { this.rot_index += i + 1; return p; }
+      }
+      this.rot_index++; return null;
+    },
   };
   for (let i = 0; i < 6; i++) {
     const b = makeProspectBatter(rng, rng.choice(LINEUP_POS), rng.gauss(teamTalent,0.9), year);
