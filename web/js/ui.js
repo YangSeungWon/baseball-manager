@@ -47,10 +47,11 @@ function toast(label, text, kind = '') {
 /* ── 구단 정체성: 야구 모자 로고 ── */
 const CITY_CODE = { 서울:'SE', 부산:'BS', 인천:'IC', 대구:'DG', 대전:'DJ', 광주:'GJ',
   울산:'US', 고양:'GY', 창원:'CW', 청주:'CJ', 천안:'CA', 전주:'JJ', 강릉:'GN', 제주:'JU' };
-const NICK_COLOR = { 레이븐스:'#1d2b3d', 타이탄스:'#6d2c2c', 드래곤스:'#1f5c3a',
-  파이러츠:'#26262b', 머스탱스:'#8a5a1e', 코메츠:'#27508c', 울브스:'#474d56',
-  팰컨스:'#7c3c14', 바이슨:'#5a3a22', 스톰:'#3b3f6d', 레인저스:'#7c1f2c',
-  포세이돈:'#136260', 샤크스:'#2a5f74', 아이언스:'#4a4136' };
+// 팀 고유색. 어두운 배경 위에서 읽히도록 조금 올렸다.
+const NICK_COLOR = { 레이븐스:'#2c3f57', 타이탄스:'#8a3a38', 드래곤스:'#2a7150',
+  파이러츠:'#3a3a42', 팬텀스:'#5b4b7a', 코브라스:'#6d7a2c', 울브스:'#5c646f',
+  팰컨스:'#9a4d1c', 재규어스:'#a07a24', 썬더스:'#4a54a0', 레인저스:'#9a2a3a',
+  타이푼스:'#1c7a75', 샤크스:'#35748c', 세이버스:'#7a5a3a' };
 const capOf = (name) => {
   const [city, nick] = name.split(' ');
   return { code: CITY_CODE[city] || city.slice(0,1), color: NICK_COLOR[nick] || '#3a3a3a' };
@@ -75,7 +76,7 @@ function boot() {
     const b = el('button', 'trow');
     b.setAttribute('aria-pressed', String(t.id === bootSel));
     b.innerHTML = `${cap(d.name, 40)}
-      <span><span class="tname">${esc(d.nick)}<small>${esc(d.city)} · ${esc(d.history ? d.history.tagline : d.note)}</small></span>
+      <span><span class="tname">${esc(d.name)}<small>${esc(d.history ? d.history.tagline : d.note)}</small></span>
         <span class="tarch">${esc(d.archetype)}</span></span>
       <span class="tlast">지난 시즌<b>${d.last.rank}위 ${d.last.w}–${d.last.l}</b></span>
       <span class="tdiff"><span>난이도</span>${
@@ -108,7 +109,7 @@ function drawDossier() {
       ${axis(p.ovr, p.pot, 'big')}</div>`;
   $('#dossier').innerHTML = `
     <div class="dhead">${cap(d.name, 52)}
-      <h2>${esc(d.nick)}<small>${esc(d.city)} · 시장 규모 ${d.market}</small></h2></div>
+      <h2>${esc(d.name)}<small>시장 규모 ${d.market}</small></h2></div>
     <p class="headline">${esc(d.headline)}</p>
     ${d.history ? `<p class="dhist">창단 ${d.history.founded} · 통산 ${esc(d.history.record)}
       (${d.history.pct}) · 우승 ${d.history.titles}회${d.history.titles
