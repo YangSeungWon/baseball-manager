@@ -38,7 +38,7 @@ export const BC = {
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.211, LD: 1.215, FB: 1.232, PU: 1.129 },
+  hangK: { GB: 1.210, LD: 1.214, FB: 1.231, PU: 1.128 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
   // 여유(초)가 클수록 쉬운 타구
@@ -49,7 +49,7 @@ export const BC = {
   qGb: 1.350, qLd: 0.95, qPu: 1.10,
   // 담장 (m). 폴대 99, 중앙 125.
   // 담장 기준 치수 (m). 보정 결과가 실제 KBO 구장 규격과 맞아떨어졌다.
-  fenceLine: 106.74, fenceCenter: 133.72, fenceHeight: 2.8,
+  fenceLine: 103.72, fenceCenter: 130.29, fenceHeight: 2.8,
   // 낮은 직선타는 높은 담장에 걸린다. 뜬 공은 넘어간다.
   heightLd: 2.4, heightFb: 0.7,
   // 고도 100m당 비거리 (m), 인조잔디 타구 가속

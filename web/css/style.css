@@ -481,3 +481,10 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .riskline span{font-size:14px;color:var(--fg2)}
 .riskline b{font-weight:600;color:var(--fg);margin-left:7px}
 .riskline .s2 b{color:var(--neg)}
+
+/* 투수 레퍼토리 */
+.arsenal{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.arsenal span{display:inline-flex;align-items:baseline;gap:6px;background:var(--s2);
+  border-radius:5px;padding:5px 9px;font-size:14px;color:var(--fg3)}
+.arsenal b{font-weight:600;color:var(--fg)}
+.arsenal span::after{content:'km';font-size:11px;margin-left:-3px}

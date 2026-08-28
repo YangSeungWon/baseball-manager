@@ -5,6 +5,7 @@ import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
+import { PITCH, kmh } from './pitch.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail, josa } from './mail.js';
 
@@ -138,6 +139,9 @@ export class Game {
     out.debut_year = p.debut_year;
     out.draft = p.drafted_overall ? { round:p.drafted_round, overall:p.drafted_overall } : null;
     out.injuries = { count:p.career_injuries ?? 0, days:p.career_injury_days ?? 0 };
+    // 레퍼토리는 스카우팅 대상이 아니다. 무슨 공을 던지는지는 보면 안다.
+    if (p.kind === 'P' && p.arsenal)
+      out.arsenal = p.arsenal.map(x => ({ kr: PITCH[x].kr, kmh: kmh(p, x) }));
     out.splits = this.splits(pid);
     out.seasons = [];
     if (c) {

@@ -1,15 +1,23 @@
 // 경기 엔진: 진루 모델 + 이닝 루프 + 투수 교체 AI + 박스스코어.
 import { z, K, BB, HBP, OUT, S1B, D2B, T3B, HR, ERR } from './pa.js';
-import { playCount, FOUL_OUT } from './pitch.js';
+import { playCount, FOUL_OUT, PITCH } from './pitch.js';
 import * as BIP from './bip.js';
 import { C as PACOEF } from './pa.js';
 const PC_FATIGUE_S = PACOEF.fatigueStuff, PC_FATIGUE_C = PACOEF.fatigueCommand;
 
+// 포수 뒤로 빠지는 공, 보크, 런다운. 전부 주자가 있을 때만 의미가 있다.
+export const MISC = {
+  blockBase: 0.845, blockDef: 0.055,      // 포수가 원바운드를 막을 확률
+  d3Reach: 0.60, d3Arm: -0.070, d3Speed: 0.055,   // 낫아웃으로 살아나갈 확률
+  balk: 0.0025,                           // 주자 있을 때 타석당
+  rundown: 0.185, rundownArm: 0.045,      // 과감한 주루가 협살로 끝날 확률
+};
+
 export const ADV = {
-  b1_first_to_third: 0.182, b1_second_scores: 0.403, b2_first_scores: 0.306,
+  b1_first_to_third: 0.187, b1_second_scores: 0.412, b2_first_scores: 0.312,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.334, gb_r3_scores: 0.195, gb_r2_to_third: 0.272, fb_r2_to_third: 0.079,
+  sacfly_base: 0.340, gb_r3_scores: 0.200, gb_r2_to_third: 0.278, fb_r2_to_third: 0.082,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.720, sb_success_speed: 0.055,
 };
@@ -32,7 +40,7 @@ export const PSPLIT_F = ['outs','bf','h','hr','bb','k','r'];
 const zeros = (n) => new Array(n).fill(0);
 const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0,e:0,
   sp:{ H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) } });
-const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,fatigue:0,
+const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,wp:0,bk:0,fatigue:0,
                           entered_inning:0, entered_lead:0, w:false,l:false,sv:false,hld:false,
                           sp:{ H:zeros(7), A:zeros(7) } });
 
@@ -142,6 +150,10 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
   let addedOuts = 0, desc = desc0;
 
   if (res === K) { addedOuts = 1; desc = '삼진'; }
+  else if (res === 'D3') {          // 낫아웃 — 삼진이되 아웃은 없다
+    const s = forceAdvance(bases, batter, me);
+    if (s) scored.push(s);
+  }
   else if (res === ERR) {
     // 아웃이 될 타구를 놓쳤다. 타자는 살고, 이후 득점은 투수 책임이 아니다.
     const s = forceAdvance(bases, batter, me);
@@ -207,11 +219,18 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       const [r1, rp1, ue1] = bases.take(0);
       if (r2) {
         const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm;
-        if (rng.random() < p) scored.push([r2, rp2, ue2]); else bases.put(2, r2, rp2, ue2);
+        if (rng.random() < p) scored.push([r2, rp2, ue2]);
+        else if (outs < 2 && rng.random() < MISC.rundown + MISC.rundownArm * zarm) {
+          addedOuts++; desc = '주루사';            // 협살에 걸렸다
+        } else bases.put(2, r2, rp2, ue2);
       }
       if (r1) {
         const p = ADV.b1_first_to_third + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm;
-        if (!bases.r[2] && rng.random() < p) bases.put(2, r1, rp1, ue1); else bases.put(1, r1, rp1, ue1);
+        if (!bases.r[2] && rng.random() < p) bases.put(2, r1, rp1, ue1);
+        else if (!bases.r[2] && outs + addedOuts < 2
+                 && rng.random() < (MISC.rundown + MISC.rundownArm * zarm) * 0.6) {
+          addedOuts++; desc = '주루사';
+        } else bases.put(1, r1, rp1, ue1);
       }
       bases.put(0, batter, me); if (!desc) desc = '안타';
     }
@@ -239,6 +258,11 @@ function trySteal(bases, outs, off, rng) {
 function playHalf(off, defn, inning, park, rng, walkoff) {
   const dims = BIP.parkDims(park);
   let unearnedInning = false;
+  // 폭투·보크·낫아웃으로 들어오는 득점. 타점은 붙지 않는다.
+  const scoreNow = ([runner, resp, ue]) => {
+    off.runs++; off.lineFor(runner).run++;
+    const rp = resp || defn.cur; rp.r++; if (!ue && !unearnedInning) rp.er++;
+  };
   const bases = new Bases();
   let outs = 0;
   const startRuns = off.runs;
@@ -256,8 +280,32 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     const tto = Math.floor(pl.bf / 9);          // 타순이 한 바퀴 돌 때마다 불리해진다
     const ctx = { cStuff: PC_FATIGUE_S * fat - 0.13 * tto,
                   cCommand: PC_FATIGUE_C * fat + 0.06 * tto, byPos: defn.byPos };
+    // 보크. 주자가 있을 때만.
+    if (bases.occupied() && rng.random() < MISC.balk) {
+      pl.bk++;
+      for (const i of [2,1,0]) if (bases.r[i]) {
+        if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
+      }
+      plays.push({ inning, half: off.half, batter: batter.name, desc: '보크', runs: 1,
+                   outs, score: `${off.runs}-${defn.runs}` });
+    }
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
+    // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
+    if (pc.events.length && bases.occupied()) {
+      const c = defn.byPos.C;
+      for (const ev of pc.events) {
+        if (rng.random() < MISC.blockBase + MISC.blockDef * z(c ? c.fielding : 50)) continue;
+        const wild = ev.wild;
+        if (wild) pl.wp++; else if (c) defn.pb = (defn.pb || 0) + 1;
+        for (const i of [2,1,0]) if (bases.r[i]) {
+          if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
+        }
+        plays.push({ inning, half: off.half, batter: batter.name,
+                     desc: wild ? '폭투' : '포일', runs: 0, outs,
+                     score: `${off.runs}-${defn.runs}`, type: ev.type });
+      }
+    }
     let res, bbt = null, desc0 = '', ball = null, play = null;
     if (pc.res === 'IP') {
       // 볼카운트 -> 타구 질 -> 유형 -> 방향 -> 담당 야수 -> 수비 판정
@@ -275,6 +323,11 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
           desc0 = BIP.describe(ball, play, 'HIT', nb);
         }
       }
+      // 인필드플라이. 1·2루가 찼고 2아웃 전이면 잡히든 놓치든 타자는 아웃이다.
+      if ((res === OUT || res === ERR) && bases.r[0] && bases.r[1] && outs < 2
+          && bbt === 'PU' && play && play.pos !== 'C') {
+        res = OUT; desc0 = '인필드플라이';
+      }
     } else if (pc.res === FOUL_OUT) {
       res = OUT; bbt = 'PU'; play = { pos: pc.dir };
       desc0 = (BIP.POS_KR_OF(pc.dir)) + ' 파울플라이';
@@ -283,7 +336,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     bl.pa++; pl.bf++;
     if (res === BB) { bl.bb++; pl.bb++; }
     else if (res === HBP) { bl.hbp++; pl.hbp++; }
-    else if (res === K) { bl.ab++; bl.k++; pl.k++; }
+    else if (res === K || res === 'D3') { bl.ab++; bl.k++; pl.k++; }
     else {
       bl.ab++;
       // 실책 출루는 안타가 아니다.
@@ -291,6 +344,18 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
         bl.h++; if (res===D2B) bl.b2++; else if (res===T3B) bl.b3++; else if (res===HR) bl.hr++;
       }
     }
+    // 낫아웃. 3스트라이크가 원바운드로 빠지면 타자는 뛸 수 있다.
+    // 1루가 비었거나 2아웃일 때만. 삼진은 그대로 기록된다.
+    let d3 = false;
+    if (res === K && pc.swinging && pc.dirt && (!bases.r[0] || outs === 2)) {
+      const c = defn.byPos.C;
+      if (rng.random() >= MISC.blockBase + MISC.blockDef * z(c ? c.fielding : 50)) {
+        const pReach = MISC.d3Reach + MISC.d3Arm * z(c ? (c.arm ?? c.fielding) : 50)
+          + MISC.d3Speed * z(batter.speed);
+        if (rng.random() < pReach) d3 = true;
+      }
+    }
+    if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning);
     outs += ao; pl.outs += ao;
@@ -308,6 +373,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     if (res === BB) pa2[4]++; if (res === K) pa2[5]++; pa2[6] += runs;
     plays.push({ inning, half: off.half, batter: batter.name, desc, runs, outs,
                  score: `${off.runs}-${defn.runs}`, b: pc.b, s: pc.s, np: pc.np,
+                 pt: pc.type, velo: pc.velo,
                  zone: ball ? ball.zone : null, bbt, pos: play ? play.pos : null });
     if (off.runs > defn.runs && prevDiff <= 0) { off.por = off.cur; defn.lp = defn.cur; }
     if (walkoff && off.runs > defn.runs) {

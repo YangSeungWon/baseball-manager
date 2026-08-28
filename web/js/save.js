@@ -11,8 +11,8 @@ import { DraftSession } from './core/draft.js';
 import { Mailbox } from './core/mail.js';
 
 export const VERSION = 2;
-const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','gb_tendency'];
-const PF = ['stuff','command','movement','stamina','gb_tendency'];
+const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','arm','gb_tendency'];
+const PF = ['stuff','command','movement','stamina','velo','gb_tendency'];
 const META = ['pid','name','age','service','injury_days','career_injuries',
   'career_injury_days','debut_year','draft_year','unsigned_years','height','weight'];
 const f3 = (v) => Math.round(v*1000)/1000;
@@ -25,7 +25,7 @@ function dumpPlayer(p) {
   d.pot = {}; for (const a in p.pot) d.pot[a] = f3(p.pot[a]);
   d.hid = {}; for (const a in p.hidden)
     d.hid[a] = typeof p.hidden[a] === 'string' ? p.hidden[a] : f3(p.hidden[a]);
-  if (ip) { d.throws = p.throws; d.role = p.role; }
+  if (ip) { d.throws = p.throws; d.role = p.role; d.ars = p.arsenal; }
   else { d.bats = p.bats; d.position = p.position; }
   if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(f3)];
   for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by'])
@@ -38,9 +38,10 @@ function dumpPlayer(p) {
 }
 function loadPlayer(d) {
   const ip = d.k === 'P';
-  const p = ip ? { kind:'P', throws:d.throws, role:d.role } : { kind:'B', bats:d.bats, position:d.position };
+  const p = ip ? { kind:'P', throws:d.throws, role:d.role, arsenal:d.ars || ['FF','SL','CH'] }
+                : { kind:'B', bats:d.bats, position:d.position };
   for (const m of META) if (d[m] !== undefined) p[m] = d[m];
-  for (const f of (ip ? PF : BF)) p[f] = d[f];
+  for (const f of (ip ? PF : BF)) p[f] = d[f] ?? 50;   // 예전 저장본에 없던 능력치
   p.pot = { ...d.pot }; p.hidden = { ...d.hid };
   p.contract = d.ct ? new C.Contract(d.ct[0], d.ct[1]) : null;
   for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by'])

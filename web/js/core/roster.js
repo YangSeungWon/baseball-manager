@@ -6,9 +6,9 @@ import { personName, teamNames, franchiseOf } from './names.js';
 const RHO = 0.55;
 // 노화를 거친 뒤 리그 평균이 50(타석 엔진 기준선)에 오도록 하는 보정
 export const CALIB = { contact:1.7, avoid_k:2.7, discipline:2.8, gap_power:3.3,
-  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, stuff:2.0, command:2.5, movement:3.7, stamina:7.9 };
+  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, stuff:2.0, command:2.5, movement:3.7, stamina:7.9, velo:3.0 };
 const YOUTH_GAP = { contact:1.00, avoid_k:0.90, discipline:1.30, gap_power:1.20,
-  hr_power:1.40, speed:0.35, fielding:0.80, arm:0.70, stuff:1.00, command:1.30, movement:1.10, stamina:0.90 };
+  hr_power:1.40, speed:0.35, fielding:0.80, arm:0.70, stuff:1.00, command:1.30, movement:1.10, stamina:0.90, velo:0.75 };
 // [타격보정, 수비요구, 주력보정, 송구요구]
 // 포수와 3루수·유격수는 어깨가 필요하고, 우익수는 3루 송구 때문에 강견을 쓴다.
 export const POS = { C:[-0.35,0.55,-0.60,0.70], '1B':[0.45,-0.35,-0.45,-0.55],
@@ -61,6 +61,20 @@ export function makeProspectBatter(rng, pos, talent = null, year = 0) {
   return finish(b, pot, rng, year);
 }
 
+/** 레퍼토리. 선발은 3~5개, 불펜은 2~3개. 너클볼러는 아주 드물다. */
+export function makeArsenal(rng, role) {
+  if (rng.random() < 0.010) return ['KN', 'FF'];
+  const n = role === 'SP' ? rng.choice([3,3,3,4,4,5]) : rng.choice([2,2,3,3]);
+  const fast = rng.random() < 0.32 ? 'SI' : 'FF';
+  const pool = ['SL','SL','SL','CH','CH','CU','CU','FC','FS'];   // 슬라이더가 가장 흔하다
+  const off = [];
+  while (off.length < n - 1 && pool.length) {
+    const p = pool.splice(Math.floor(rng.random() * pool.length), 1)[0];
+    if (!off.includes(p)) off.push(p);
+  }
+  return [fast, ...off];
+}
+
 export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0) {
   let t = talent === null ? rng.gauss(0,1) : talent;
   let stamShift = 0.60;
@@ -68,9 +82,11 @@ export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0) {
   const pot = {
     stuff: attr(t,rng,RHO, role!=='SP'?0.20:0), command: attr(t,rng,0.45),
     movement: attr(t,rng,0.45), stamina: attr(t,rng,0.20,stamShift),
+    // 구속은 구위와 붙어 있지만 같지는 않다. 느린 공으로 삼진 잡는 투수도 있다.
+    velo: attr(t,rng,0.30, role !== 'SP' ? 0.30 : 0),
   };
   const p = newPitcher({ gb_tendency: attr(0,rng,0), throws: rng.random()<0.28?'L':'R',
-    role, pid: newPid(), name: personName(rng) });
+    role, pid: newPid(), name: personName(rng), arsenal: makeArsenal(rng, role) });
   return finish(p, pot, rng, year);
 }
 

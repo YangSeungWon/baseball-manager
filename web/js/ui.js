@@ -950,7 +950,7 @@ function closeModal() { $('#modal').hidden = true; document.onkeydown = null; }
 
 const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구안', gap_power:'갭파워',
   hr_power:'파워', speed:'주력', fielding:'수비', stuff:'구위', command:'제구',
-  movement:'무브먼트', stamina:'체력' };
+  movement:'무브먼트', stamina:'체력', arm:'송구', velo:'구속' };
 
 function openPlayer(pid) {
   const p = G.player(pid);
@@ -985,6 +985,8 @@ function openPlayer(pid) {
         </div>
         <div>
           <div class="kv"><span>종합</span>${axis(p.ovr, p.pot)}</div>
+          ${p.arsenal ? `<div class="arsenal">${p.arsenal.map(a =>
+            `<span><b>${a.kr}</b>${a.kmh}</span>`).join('')}</div>` : ''}
           <div class="kv"><span>확신도</span><b class="m">${p.confidence}%</b></div>
           <div class="kv"><span>계약</span><b class="m">${p.contract ? p.contract.text : '—'}</b></div>
           <div class="kv"><span>연봉</span><b class="m">${p.contract ? p.contract.salary + '억' : '—'}</b></div>
