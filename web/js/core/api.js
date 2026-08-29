@@ -9,7 +9,7 @@ import { PITCH, kmh } from './pitch.js';
 import { FEAT } from './feats.js';
 import * as FG from './foreign.js';
 import * as dev2 from './development.js';
-import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail, josa } from './mail.js';
+import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail, josa } from './mail.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FOREIGN='off_foreign', OFF_FA='off_fa',
@@ -765,6 +765,7 @@ export class Game {
 
   // ---- 액션 ----------------------------------------------------------
   startSeason() {
+    this.replPool = null;          // 여름 시장은 시즌마다 새로 연다
     if (this.phase !== PRESEASON) return { error:'wrong_phase' };
     this.season = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
     this.L.season = this.season;
@@ -798,7 +799,9 @@ export class Game {
         if (inj.team.team_id === this.userId)
           this.notice(`${inj.player.name} ${inj.label} — ${inj.days}일 결장`, 'injury');
       const d = this.season.curDay;
+      this._aiReplace(d);
       scanDay(this, d, newInj, boxes);
+      for (const m of scanForeign(this, d)) this.L.mail.push(m);
       this._prev = scanState(this, d, this._prev) || this._prev;
       important += this.L.mail.items.slice(mailBefore).filter(m => m.pri >= 1).length;
     }
@@ -910,6 +913,103 @@ export class Game {
     this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 시즌 중 외국인 교체 ──────────────────────────────────
+     여름 시장은 얕다. 방출해도 이미 준 돈은 돌아오지 않는다.
+     그래도 반년을 먹튀와 함께 갈 수는 없다. */
+
+  _replPool() {
+    // 여름 내내 새 이름이 조금씩 들어온다. 다른 리그에서 방출된 선수들이다.
+    if (!this.replPool || this.replPool.length < 6) {
+      const taken = new Set();
+      for (const t of this.L.teams)
+        for (const p of [...t.batters, ...t.pitchers, ...t.farm]) taken.add(p.name);
+      for (const p of this.replPool || []) taken.add(p.name);
+      const add = FG.makeReplacements(this.L.rng, this.L.year,
+        this.replPool ? 5 : 10, taken);
+      this.replPool = (this.replPool || []).concat(add);
+    }
+    return this.replPool;
+  }
+
+  foreignReplacements() {
+    if (this.phase !== REGULAR || !this.season) return { error:'wrong_phase' };
+    const t = this.me, s = this.season;
+    const left = s.totalDays - s.curDay, total = s.totalDays;
+    const open = left >= FG.DEADLINE_LEFT;
+    const [bw, pw] = s.wars();
+    const line = (p) => {
+      const q = p.kind === 'P' ? s.pit.get(p.pid) : s.bat.get(p.pid);
+      if (!q || (!q.g && !q.pa)) return '기록 없음';
+      return p.kind === 'P'
+        ? `${q.g}G ${q.ipStr}이닝 ERA ${q.era.toFixed(2)}`
+        : `${q.g}G ${q.avg.toFixed(3)} ${q.hr}홈런 ${q.rbi}타점`;
+    };
+    return {
+      open, left, deadline: FG.DEADLINE_LEFT,
+      budget: r1(t.finance.budget), payroll: r1(C.payroll(t, this.L.year)),
+      mine: FG.foreignOf(t).all.map(p => ({ ...this.brief(p, t), nation:p.nation,
+        stat: line(p), war: r1((p.kind === 'P' ? pw : bw).get(p.pid) ?? 0),
+        paid: r1(p.contract ? p.contract.salaryIn(this.L.year) : 0) })),
+      pool: open ? this._replPool().map(p => ({ ...this.brief(p, t), nation:p.nation,
+        price: FG.proratedPrice(p, left, total) })) : [],
+    };
+  }
+
+  replaceForeign(outPid, inPid) {
+    if (this.phase !== REGULAR || !this.season) return { error:'wrong_phase' };
+    const s = this.season, left = s.totalDays - s.curDay;
+    if (left < FG.DEADLINE_LEFT) return { error:'deadline' };
+    const t = this.me;
+    const out = FG.foreignOf(t).all.find(p => p.pid === outPid);
+    const i = this._replPool().findIndex(p => p.pid === inPid);
+    if (!out || i < 0) return { error:'not_found' };
+    const inc = this.replPool[i];
+    if (out.kind !== inc.kind && !FG.canSign({ ...t, batters:t.batters.filter(x => x !== out),
+        pitchers:t.pitchers.filter(x => x !== out), farm:t.farm }, inc.kind))
+      return { error:'quota' };
+    const price = FG.proratedPrice(inc, left, s.totalDays);
+    // 방출한 선수 연봉은 그대로 나간다. 새 몸값만큼 여력이 있어야 한다.
+    const room = t.finance.budget - C.payroll(t, this.L.year);
+    if (price > room) return { error:'budget', room:r1(room), price };
+    this.replPool.splice(i, 1);
+    this._dropForeign(t, out);
+    this._addForeign(t, inc, price);
+    inc.debut_year = this.L.year;
+    this.L.log(`${t.name} 외국인 교체 — ${out.name} 방출, ${inc.name} 영입`);
+    this.notice(`${out.name} 방출 · ${inc.name} 영입 (${price}억)`, 'transfer');
+    return { ok:true, price, out:out.name, in:inc.name };
+  }
+
+  /** 다른 구단도 여름에 결단한다. 성적이 확실히 나쁘면 갈아치운다. */
+  _aiReplace(day) {
+    const s = this.season;
+    if (!s || s.totalDays - s.curDay < FG.DEADLINE_LEFT) return;
+    if (s.curDay < 40) return;                   // 40경기는 봐준다
+    const [bw, pw] = s.wars();
+    const pace = s.totalDays / Math.max(1, s.curDay);
+    for (const t of this.L.teams) {
+      if (t.team_id === this.userId) continue;
+      if (this.L.rng.random() > 0.11) continue;  // 매일 다 뒤집지는 않는다
+      const pool = this._replPool();
+      if (!pool.length) return;
+      for (const p of FG.foreignOf(t).all) {
+        const w = ((p.kind === 'P' ? pw : bw).get(p.pid) ?? 0) * pace;
+        const hurt = p.injury_days > 30;         // 오래 못 나오면 그 자리가 비어 있는 것과 같다
+        if (w >= 1.3 && !hurt) continue;         // 시즌 환산 WAR 1.3 미만이면 교체 검토
+        const cands = pool.filter(x => x.kind === p.kind);
+        if (!cands.length) continue;
+        const best = cands.reduce((a, b) => this.L.see(t, b).ovr > this.L.see(t, a).ovr ? b : a);
+        if (!hurt && this.L.see(t, best).ovr <= this.L.see(t, p).ovr + 0.5) continue;
+        pool.splice(pool.indexOf(best), 1);
+        this._dropForeign(t, p);
+        this._addForeign(t, best, FG.proratedPrice(best, s.totalDays - s.curDay, s.totalDays));
+        best.debut_year = this.L.year;
+        this.L.log(`${t.name} 외국인 교체 — ${p.name} 방출, ${best.name} 영입`);
+        break;
+      }
+    }
+  }
+
   /* ── 외국인 시장 ──────────────────────────────────────────
      보유 3명, 그중 투수 2명. 계약은 1년이라 매 겨울 다시 정한다.
      신규 계약에만 상한이 있고 재계약에는 없다. */

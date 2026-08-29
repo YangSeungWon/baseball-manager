@@ -141,6 +141,31 @@ export function scanDay(g, day, newInjuries, boxes) {
 }
 
 /** 연승·연패, 순위 변동, 구단주 — 하루가 끝난 뒤 상태를 본다. */
+/** 외국인이 확실히 안 될 때. 여름 시장이 닫히기 전에 알려야 의미가 있다. */
+export function scanForeign(g, day) {
+  const L = g.L, s = g.season, mb = [];
+  if (!s || s.curDay < 42) return mb;
+  const left = s.totalDays - s.curDay;
+  if (left !== 44) return mb;                     // 마감 열흘 전, 딱 한 번
+  const [bw, pw] = s.wars();
+  const pace = s.totalDays / Math.max(1, s.curDay);
+  for (const p of [...g.me.batters, ...g.me.pitchers]) {
+    if (!p.foreign) continue;
+    const q = p.kind === 'P' ? s.pit.get(p.pid) : s.bat.get(p.pid);
+    if (!q || (!q.g && !q.pa)) continue;
+    const w = ((p.kind === 'P' ? pw : bw).get(p.pid) ?? 0) * pace;
+    if (w >= 1.5) continue;
+    const line = p.kind === 'P'
+      ? `${q.g}경기 ${q.ipStr}이닝 평균자책 ${q.era.toFixed(2)}`
+      : `${q.g}경기 타율 ${q.avg.toFixed(3)} ${q.hr}홈런`;
+    mb.push({ year:L.year, day, kind:'transfer', pri:1, pid:p.pid,
+      title:`${p.name} 교체 시한`,
+      body:`${josa(p.name, '이가')} ${line}에 그치고 있다. 시즌 환산 WAR ${w.toFixed(1)}. `
+        + `외국인 교체는 ${left - 34}일 뒤 마감된다. 프런트에서 여름 시장을 볼 수 있다.` });
+  }
+  return mb;
+}
+
 export function scanState(g, day, prev) {
   prev = prev || { rank: 0, run: 0 };
   const L = g.L, S = g.season, mb = L.mail;

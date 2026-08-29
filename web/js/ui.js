@@ -737,6 +737,32 @@ function viewFront(v) {
   if (s === 'off_trade') return viewTrade(v);
   const f = G.finances();
   const g = el('div', 'grid g21');
+  const fr = G.foreignReplacements();
+  if (!fr.error && fr.mine.length) {
+    const box = el('div', 'grid');
+    box.appendChild(sect('외국인', fr.open ? `교체 마감까지 ${fr.left - fr.deadline}일`
+      : '교체 마감', table(
+      ['선수','국적','P','능력 / 잠재력','올 시즌','WAR','연봉'],
+      fr.mine.map(p => ({ p, cells: [nameCell(p),
+        `<span class="nat">${esc(p.nation)}</span>`,
+        `<span class="m dim">${p.slot}</span>`, axis(p.ovr, p.pot),
+        `<span class="m dim">${esc(p.stat)}</span>`,
+        `<b class="m ${p.war < 1 ? 'neg' : p.war >= 3 ? 'pos' : ''}">${p.war}</b>`,
+        `<span class="m">${p.paid}억</span>`] })))));
+    if (fr.open && fr.pool.length) {
+      box.appendChild(sect('여름 시장', `${fr.pool.length} · ${AXIS_KEY}`, table(
+        ['선수','국적','P','나이','능력 / 잠재력','잔여 몸값',''],
+        fr.pool.map(p => ({ p, cells: [nameCell(p),
+          `<span class="nat">${esc(p.nation)}</span>`,
+          `<span class="m dim">${p.slot}</span>`,
+          `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
+          `<b class="m">${p.price}억</b>`,
+          `<span class="fbtn"><button data-repl="${p.pid}">교체</button></span>`] })))));
+      box.appendChild(sect('', '', `<p class="note">여름에 나와 있는 선수는 겨울에 팔리지 않았거나
+        다른 데서 잘린 선수다. 급이 떨어지고 볼 시간도 짧다. 방출해도 이미 준 돈은 돌아오지 않는다.</p>`));
+    }
+    g.appendChild(box);
+  }
   g.appendChild(sect('연봉', `${f.contracts.length}`, table(['선수','나이','연봉','계약','만료'],
     f.contracts.map(x => ({ pid: x.pid, cells: [`<span class="name">${esc(x.name)}</span>`,
       `<span class="m">${x.age}</span>`, `<span class="m">${x.salary}</span>`,
@@ -773,7 +799,41 @@ function viewFront(v) {
     <div class="kv"><span>현황</span><b>${esc(own.text)}</b></div>`));
   g.appendChild(right);
   v.appendChild(g);
+  v.querySelectorAll('[data-repl]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); openReplace(+b.dataset.repl);
+  });
   v.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => openPlayer(+r.dataset.pid));
+}
+
+/* 누구를 내보낼 것인가. 이건 되돌릴 수 없다. */
+function openReplace(inPid) {
+  const fr = G.foreignReplacements();
+  const inc = fr.pool.find(p => p.pid === inPid);
+  if (!inc) return;
+  modal(`
+    <div class="mhead"><div><h2>${esc(inc.name)} 영입</h2>
+      <div class="meta">${inc.nation} · ${inc.age}세 · ${inc.slot} · 잔여 ${inc.price}억</div></div>
+      <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack">
+      <div class="lab">내보낼 선수</div>
+      ${fr.mine.map(p => `<div class="row click" data-out="${p.pid}">
+        <span><span class="name">${esc(p.name)}</span>
+          <span class="sub">${esc(p.stat)}</span></span>
+        <span><b class="m ${p.war < 1 ? 'neg' : ''}">${p.war}</b>
+          <span class="m dim">${p.paid}억</span></span></div>`).join('')}
+      <p class="note">방출한 선수의 연봉은 그대로 나간다. 새 선수 몸값 ${inc.price}억이
+        더해진다. 남은 여력 ${(fr.budget - fr.payroll).toFixed(1)}억.</p>
+    </div>`);
+  document.querySelectorAll('[data-out]').forEach(e => e.onclick = () => {
+    const out = fr.mine.find(p => p.pid === +e.dataset.out);
+    if (!confirm(`${out.name}을 방출하고 ${inc.name}을 영입한다. 되돌릴 수 없다.`)) return;
+    const r = G.replaceForeign(+e.dataset.out, inPid);
+    closeModal();
+    if (r.error === 'budget') toast('', `예산 부족 · 여력 ${r.room}억`, 'warn');
+    else if (r.error) toast('', '교체할 수 없다', 'warn');
+    else toast('영입', `${r.in} ${r.price}억`);
+    autosave(); render();
+  });
 }
 
 /* 외국인 시장. 보유 3명, 그중 투수 2명. 계약은 1년이라 매 겨울 다시 정한다.

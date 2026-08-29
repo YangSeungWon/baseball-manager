@@ -127,3 +127,37 @@ export function askingPrice(p, resign = false) {
   const cap = resign ? RESIGN_CAP : NEW_CAP;
   return Math.round(Math.min(cap, base) * 10) / 10;
 }
+
+/* ── 시즌 중 교체 ──────────────────────────────────────────
+   여름에 나와 있는 선수는 겨울에 팔리지 않았거나 다른 데서 잘린 선수다.
+   급이 떨어지고, 볼 시간도 짧아 더 모른다. 그래도 지금 쓸 수 있는 건 이들뿐이다. */
+
+export const MIDSEASON_PENALTY = 0.62;   // 여름 매물의 재능 하락폭
+export const MIDSEASON_DIFF = 1.35;      // 그 위에 얹히는 추가 불확실성
+export const DEADLINE_LEFT = 34;         // 남은 경기가 이보다 적으면 교체 불가
+
+/** 여름 시장. 겨울 시장보다 얕다. */
+export function makeReplacements(rng, year, n = 8, taken = null) {
+  const out = [], used = new Set(taken || []);
+  let guard = 0;
+  while (out.length < n && guard++ < n * 12) {
+    const p = makeForeign(rng, out.length % 2 ? 'P' : 'B', year);
+    if (used.has(p.name)) continue;
+    // 겨울에 안 팔린 데는 이유가 있다.
+    for (const a of Object.keys(p.pot)) {
+      p[a] = Math.max(20, p[a] - MIDSEASON_PENALTY * 10 * 0.55);
+      p.pot[a] = Math.max(p[a], p.pot[a] - MIDSEASON_PENALTY * 10 * 0.35);
+    }
+    p.scout_difficulty = SCOUT_DIFF * MIDSEASON_DIFF;
+    p.midseason = true;
+    p.ask_ovr = Math.max(20, (p.ask_ovr ?? dev.overall(p)) - MIDSEASON_PENALTY * 10 * 0.5);
+    used.add(p.name); out.push(p);
+  }
+  return out;
+}
+
+/** 남은 경기에 비례한 몸값. 시즌 절반이 지났으면 절반만 낸다. */
+export function proratedPrice(p, left, total) {
+  const frac = Math.max(0.15, Math.min(1, left / total));
+  return Math.round(askingPrice(p, false) * frac * 10) / 10;
+}
