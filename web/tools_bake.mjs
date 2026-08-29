@@ -3,14 +3,18 @@
 import { Game } from './js/core/api.js';
 import * as save from './js/save.js';
 import fs from 'fs';
+import path from 'path';
+
+// 언제나 web/data 에 굽는다. 다른 데서 실행해도 엉뚱한 곳에 사본이 생기지 않게.
+const OUT = path.join(import.meta.dirname, 'data', 'league.json');
 
 const t0 = Date.now();
 const g = new Game({ userTeamId: 1, nTeams: 10, games: 144, startYear: 2026, seed: 94 });
 g.seedForeign();
 g.prologue();
 const blob = save.dump(g);
-fs.mkdirSync('data', { recursive: true });
-fs.writeFileSync('data/league.json', JSON.stringify(blob));
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
+fs.writeFileSync(OUT, JSON.stringify(blob));
 const kb = (JSON.stringify(blob).length / 1024).toFixed(0);
-console.log(`구움: ${Date.now() - t0}ms | data/league.json ${kb}KB`);
+console.log(`구움: ${Date.now() - t0}ms | web/data/league.json ${kb}KB`);
 console.log(`${g.state().year} 시즌 시작 대기 · 지난 시즌 우승 ${g.lastTable.find(r => r.champion).team}`);
