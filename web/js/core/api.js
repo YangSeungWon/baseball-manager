@@ -7,14 +7,17 @@ import * as market from './market.js';
 import * as R from './roster.js';
 import { PITCH, kmh } from './pitch.js';
 import { FEAT } from './feats.js';
+import * as FG from './foreign.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail, josa } from './mail.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
-  OFF_ROLLOVER='off_rollover', OFF_FA='off_fa', OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
+  OFF_ROLLOVER='off_rollover', OFF_FOREIGN='off_foreign', OFF_FA='off_fa',
+  OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
 export const PHASE_LABEL = {
   [PRESEASON]:'스프링캠프', [REGULAR]:'정규시즌', [POSTSEASON]:'포스트시즌',
-  [OFF_ROLLOVER]:'시즌 정리', [OFF_FA]:'FA 시장', [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
+  [OFF_ROLLOVER]:'시즌 정리', [OFF_FOREIGN]:'외국인 시장', [OFF_FA]:'FA 시장',
+  [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
 };
 const r0 = (v) => Math.round(v);
 const r1 = (v) => Math.round(v*10)/10;
@@ -480,6 +483,23 @@ export class Game {
   }
 
   /** 지난 시즌을 미리 굴려 리그에 과거를 만든다. 팀 선택 화면의 재료가 된다. */
+  /** 창단 시점의 외국인. 리그가 시작될 때 이미 세 명씩 뛰고 있다. */
+  seedForeign() {
+    const rng = this.L.rng;
+    const seeded = new Set();
+    for (const t of this.L.teams) {
+      while (FG.foreignOf(t).room > 0) {
+        const f = FG.foreignOf(t);
+        const kind = f.pitcherRoom > 0 && (f.room > 1 || rng.random() < 0.6) ? 'P' : 'B';
+        let p, guard = 0;
+        do { p = FG.makeForeign(rng, kind, this.L.year); } while (seeded.has(p.name) && guard++ < 30);
+        seeded.add(p.name);
+        p.kbo_years = rng.choice([0, 0, 1, 1, 2, 3]);
+        this._addForeign(t, p, FG.askingPrice(p, p.kbo_years > 0));
+      }
+    }
+  }
+
   prologue() {
     const S = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
     S.run();
@@ -886,9 +906,151 @@ export class Game {
       decline: s.decline.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
     };
     offseasonMail(this, 'retire', out.retired);
-    this.phase = OFF_FA; this.faOffers = new Map();
+    this._openForeign();
+    this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 외국인 시장 ──────────────────────────────────────────
+     보유 3명, 그중 투수 2명. 계약은 1년이라 매 겨울 다시 정한다.
+     신규 계약에만 상한이 있고 재계약에는 없다. */
+
+  _openForeign() {
+    const rng = this.L.rng;
+    // 리그에 이미 있는 이름은 피한다.
+    const taken = new Set();
+    for (const t of this.L.teams)
+      for (const p of [...t.batters, ...t.pitchers, ...t.farm]) taken.add(p.name);
+    this.foreignPool = FG.makeMarket(rng, this.L.year + 1, 26, taken);
+    for (const t of this.L.teams)                     // 계약은 해마다 끝난다
+      for (const p of [...t.batters, ...t.pitchers]) if (p.foreign) p.contract = null;
+  }
+
+  _dropForeign(t, p) {
+    for (const arr of [t.batters, t.pitchers]) {
+      const i = arr.indexOf(p); if (i >= 0) arr.splice(i, 1);
+    }
+    R.rebuildRoster(t);
+  }
+
+  _addForeign(t, p, salary) {
+    p.contract = new C.Contract(this.L.year + 1, [salary]);
+    p.kbo_years = (p.kbo_years || 0) + 1;
+    if (p.debut_year === null) p.debut_year = this.L.year + 1;
+    (p.kind === 'P' ? t.pitchers : t.batters).push(p);
+    R.rebuildRoster(t);
+  }
+
+  foreignMarket() {
+    if (this.phase !== OFF_FOREIGN) return { error:'wrong_phase' };
+    const t = this.me, f = FG.foreignOf(t), s = this.season;
+    const [bw, pw] = s ? s.wars() : [new Map(), new Map()];
+    const line = (p) => {
+      if (!s) return null;
+      const q = p.kind === 'P' ? s.pit.get(p.pid) : s.bat.get(p.pid);
+      if (!q || (!q.g && !q.pa)) return null;
+      return p.kind === 'P'
+        ? `${q.g}G ${q.ipStr}이닝 ERA ${q.era.toFixed(2)}`
+        : `${q.g}G ${q.avg.toFixed(3)} ${q.hr}홈런 ${q.rbi}타점`;
+    };
+    const row = (p, resign) => ({ ...this.brief(p, t), nation:p.nation,
+      years:p.kbo_years || 0, ask:FG.askingPrice(p, resign), stat:line(p),
+      war: s ? r1((p.kind === 'P' ? pw : bw).get(p.pid) ?? 0) : null });
+    return {
+      room: f.room, pitcherRoom: f.pitcherRoom, cap: FG.NEW_CAP,
+      budget: r1(t.finance.budget), payroll: r1(C.payroll(t, this.L.year + 1)),
+      mine: f.all.map(p => row(p, true)),
+      market: this.foreignPool.map(p => row(p, false)),
+    };
+  }
+
+  resignForeign(pid) {
+    if (this.phase !== OFF_FOREIGN) return { error:'wrong_phase' };
+    const t = this.me, p = FG.foreignOf(t).all.find(x => x.pid === pid);
+    if (!p) return { error:'not_found' };
+    p.contract = new C.Contract(this.L.year + 1, [FG.askingPrice(p, true)]);
+    p.kbo_years = (p.kbo_years || 0) + 1;
+    return { ok:true };
+  }
+
+  releaseForeign(pid) {
+    if (this.phase !== OFF_FOREIGN) return { error:'wrong_phase' };
+    const t = this.me, p = FG.foreignOf(t).all.find(x => x.pid === pid);
+    if (!p) return { error:'not_found' };
+    this._dropForeign(t, p);
+    return { ok:true };
+  }
+
+  signForeign(pid) {
+    if (this.phase !== OFF_FOREIGN) return { error:'wrong_phase' };
+    const t = this.me, i = this.foreignPool.findIndex(p => p.pid === pid);
+    if (i < 0) return { error:'gone' };
+    const p = this.foreignPool[i];
+    if (!FG.canSign(t, p.kind)) return { error:'quota' };
+    const price = FG.askingPrice(p, false);
+    this.foreignPool.splice(i, 1);
+    this._addForeign(t, p, price);
+    this._aiForeign(2);            // 고르는 동안 시장은 마른다
+    return { ok:true, price };
+  }
+
+  /** 다른 구단도 움직인다. 각자 자기 스카우트가 본 값으로 고른다. */
+  _aiForeign(steps = 120) {
+    for (let n = 0; n < steps; n++) {
+      const teams = this.L.teams.filter(t => t.team_id !== this.userId && FG.foreignOf(t).room > 0);
+      if (!teams.length || !this.foreignPool.length) return;
+      const t = teams[Math.floor(this.L.rng.random() * teams.length)];
+      let cands = this.foreignPool.filter(p => FG.canSign(t, p.kind));
+      if (!cands.length) {
+        // 원하는 자리의 매물이 없으면 더 알아본다. 겨울은 길다.
+        const need = FG.foreignOf(t).pitcherRoom > 0 ? 'P' : 'B';
+        const extra = FG.makeForeign(this.L.rng, need, this.L.year + 1);
+        this.foreignPool.push(extra); cands = [extra];
+      }
+      const best = cands.reduce((a, b) => this.L.see(t, b).ovr > this.L.see(t, a).ovr ? b : a);
+      this.foreignPool.splice(this.foreignPool.indexOf(best), 1);
+      this._addForeign(t, best, FG.askingPrice(best, false));
+    }
+  }
+
+  /** AI 구단의 재계약·방출 판단. 성적이 나쁘면 갈아치운다. */
+  _aiForeignDecide() {
+    const s = this.season;
+    const [bw, pw] = s ? s.wars() : [new Map(), new Map()];
+    for (const t of this.L.teams) {
+      if (t.team_id === this.userId) continue;
+      for (const p of FG.foreignOf(t).all) {
+        const q = s ? (p.kind === 'P' ? s.pit.get(p.pid) : s.bat.get(p.pid)) : null;
+        const war = q ? ((p.kind === 'P' ? pw : bw).get(p.pid) ?? 0) : 0;
+        const seen = this.L.see(t, p).ovr;
+        // 첫 해 성적이 곧 판단 근거다. 스카우트 보고서보다 이게 더 믿을 만하다.
+        const keep = q ? (war >= 1.4) : seen >= 56;
+        if (keep) p.contract = new C.Contract(this.L.year + 1, [FG.askingPrice(p, true)]);
+        else this._dropForeign(t, p);
+      }
+    }
+  }
+
+  finishForeign() {
+    if (this.phase !== OFF_FOREIGN) return { error:'wrong_phase' };
+    // 재계약하지 않은 내 외국인은 떠난다.
+    for (const p of FG.foreignOf(this.me).all) if (!p.contract) this._dropForeign(this.me, p);
+    this._aiForeignDecide();
+    // 쿼터를 넘긴 구단을 먼저 정리하고, 그다음 빈자리를 채운다.
+    for (const t of this.L.teams) {
+      let f = FG.foreignOf(t), guard = 0;
+      while ((f.room < 0 || f.pitchers.length > FG.QUOTA.pitchers) && guard++ < 8) {
+        const over = f.pitchers.length > FG.QUOTA.pitchers ? f.pitchers : f.all;
+        const worst = over.reduce((a, b) => this.L.see(t, b).ovr < this.L.see(t, a).ovr ? b : a);
+        this._dropForeign(t, worst);
+        f = FG.foreignOf(t);
+      }
+    }
+    this._aiForeign();
+    this.foreignPool = [];
+    this.phase = OFF_FA; this.faOffers = new Map();
+    return { state:this.state() };
+  }
+
   freeAgents() {
     if (this.phase !== OFF_FA) return { rows: [] };
     const me = this.me, year = this.L.year;
@@ -933,7 +1095,8 @@ export class Game {
   tradeAssets(teamId) {
     const t = this.L.team(teamId);
     return { team:t.name, mode:this.L.modes.get(t.team_id),
-      roster: [...t.batters, ...t.pitchers].map(p => this.brief(p, t)),
+      // 외국인은 트레이드 대상이 아니다. 보유 쿼터가 걸려 있다.
+      roster: [...t.batters, ...t.pitchers].filter(p => !p.foreign).map(p => this.brief(p, t)),
       farm: t.farm.map(p => ({ ...this.brief(p, t), farm:true })) };
   }
   tradeEvaluate(givePids, getPids, otherTeamId) {

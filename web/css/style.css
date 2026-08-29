@@ -576,3 +576,16 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .rpspd button.on{background:var(--accent);color:#fff}
 .rpn{margin-left:auto;font-family:var(--mono);font-size:14px;color:var(--fg3)}
 .rpn b{color:var(--fg)}
+
+/* 외국인 시장 */
+.nat{font-size:13px;color:var(--fg3);white-space:nowrap}
+.fbtn{display:flex;gap:5px;justify-content:flex-end}
+.fbtn button{background:var(--accent);border:0;color:#fff;border-radius:5px;
+  padding:6px 12px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.fbtn button.q{background:var(--s3);color:var(--fg2)}
+.quota{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.qb{background:var(--s2);border-radius:6px;padding:11px 12px;text-align:center}
+.qb span{display:block;font-size:13px;color:var(--fg3);margin-bottom:3px}
+.qb b{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--fg)}
+.qb b i{font-style:normal;font-size:14px;color:var(--fg3)}
+.note{font-size:14px;line-height:1.65;color:var(--fg2);margin:0;word-break:keep-all}

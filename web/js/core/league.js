@@ -99,7 +99,8 @@ export class League {
       for (const group of ['batters','pitchers']) {
         const keep = [];
         for (const p of t[group]) {
-          if (rng.random() < dev.retireProb(p, this.playingTime(p, S))) {
+          // 외국인은 은퇴하지 않는다. 재계약이 안 되면 떠날 뿐이다.
+          if (!p.foreign && rng.random() < dev.retireProb(p, this.playingTime(p, S))) {
             const c = this.career(p); c.retired_year = this.year;
             if (c.years >= 3) this.log(`${p.name} 은퇴 (${c.years}시즌, 통산 WAR ${c.war.toFixed(1)})`);
             summary.retired.push({ p, t });

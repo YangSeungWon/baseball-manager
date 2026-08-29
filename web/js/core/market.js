@@ -158,8 +158,9 @@ export function runTrades(L, year, modes, log = null, maxTrades = 6) {
     if (!val.has(k)) val.set(k, tradeValue(L, t, p, year, modes.get(t.team_id), farm));
     return val.get(k);
   };
-  const assets = (t) => [...t.batters, ...t.pitchers].map(p => [p, false])
-    .concat(t.farm.filter(p => p.age >= 19).map(p => [p, true]));
+  // 외국인은 오가지 않는다. 보유 쿼터가 걸려 있어 사실상 트레이드가 안 된다.
+  const assets = (t) => [...t.batters, ...t.pitchers].filter(p => !p.foreign).map(p => [p, false])
+    .concat(t.farm.filter(p => p.age >= 19 && !p.foreign).map(p => [p, true]));
 
   let done = 0;
   const perTeam = new Map(L.teams.map(t => [t.team_id, 0]));

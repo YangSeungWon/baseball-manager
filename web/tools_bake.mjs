@@ -6,6 +6,7 @@ import fs from 'fs';
 
 const t0 = Date.now();
 const g = new Game({ userTeamId: 1, nTeams: 10, games: 144, startYear: 2026, seed: 94 });
+g.seedForeign();
 g.prologue();
 const blob = save.dump(g);
 fs.mkdirSync('data', { recursive: true });

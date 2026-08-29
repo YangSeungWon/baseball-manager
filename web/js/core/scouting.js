@@ -4,6 +4,11 @@ import * as dev from './development.js';
 export const SIGMA_CUR_AMATEUR = 6.5, SIGMA_POT_AMATEUR = 16.0;
 export const SIGMA_CUR_PRO = 2.2, SIGMA_POT_PRO = 7.0;
 export const CONSENSUS_SHARE = 0.72;
+export const FOREIGN_OPTIMISM = 3.4;
+// 외국인은 잠재력뿐 아니라 '지금 이 리그에서 얼마나 하느냐'가 불확실하다.
+// 국내 프로는 여기서 뛴 기록이 있지만, 외국인은 번역해야 한다.
+export const FOREIGN_CUR_MULT = 1.95;
+
 const clamp = (v) => Math.max(20, Math.min(80, v));
 
 export class ScoutingDept {
@@ -42,17 +47,21 @@ export class ScoutingDept {
     const seed = this._seed(p, rng);
     const looks = this.looks.get(p.pid) ?? 0;
     const shrink = 1 / Math.sqrt(1 + 0.40*looks);
-    const sc = (isPro ? SIGMA_CUR_PRO : SIGMA_CUR_AMATEUR) * shrink * this._quality(p,'cur');
+    const sc = (isPro ? SIGMA_CUR_PRO : SIGMA_CUR_AMATEUR) * shrink * this._quality(p,'cur')
+      * (p.foreign ? FOREIGN_CUR_MULT : 1);
     const sp = (isPro ? SIGMA_POT_PRO : SIGMA_POT_AMATEUR) * shrink * this._quality(p,'pot')
       * (p.scout_difficulty ?? 1.0);
     const kc = Math.sqrt(CONSENSUS_SHARE), ki = Math.sqrt(1 - CONSENSUS_SHARE);
+    // 외국인은 다른 리그 성적으로 판단한다. 그 성적은 이쪽으로 그대로 옮겨오지
+    // 않는데, 보고서는 그걸 충분히 깎지 못한다. 리그 전체가 같은 방향으로 틀린다.
+    const fb = p.foreign ? FOREIGN_OPTIMISM : 0;
     const estCur = {}, estPot = {};
     for (const a of dev.attrsOf(p)) {
       const b = this.bias[a] ?? 0;
       const ec = kc*p.scout_consensus[a] + ki*seed.cur[a];
       const ep = kc*p.scout_consensus_pot[a] + ki*seed.pot[a];
-      estCur[a] = clamp(p[a] + ec*sc + b);
-      estPot[a] = clamp(Math.max(p.pot[a] + ep*sp + b*1.3, estCur[a]));
+      estCur[a] = clamp(p[a] + ec*sc + b + fb);
+      estPot[a] = clamp(Math.max(p.pot[a] + ep*sp + b*1.3 + fb, estCur[a]));
     }
     return new Report(p, estCur, estPot, sc, sp, looks);
   }

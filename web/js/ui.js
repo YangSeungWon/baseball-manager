@@ -371,6 +371,13 @@ function renderTop() {
       break;
     case 'postseason': btn('포스트시즌', () => act(() => modalPost(G.runPostseason())), 'primary'); break;
     case 'off_rollover': btn('시즌 정리', () => act(() => modalRollover(G.offseasonRollover())), 'primary'); break;
+    case 'off_foreign': btn('외국인 확정', () => {
+        const m = G.foreignMarket(), keep = m.mine.filter(p => p.contract).length;
+        const msg = keep < 3
+          ? `외국인 ${keep}명으로 시즌을 치른다. 시장은 다시 열리지 않는다. 확정하겠는가?`
+          : '외국인 계약을 확정한다. 되돌릴 수 없다.';
+        if (confirm(msg)) act(() => G.finishForeign());
+      }, 'danger'); break;
     case 'off_fa': btn('시장 마감', () => { if (confirm('FA 시장을 마감한다. 되돌릴 수 없다.'))
         act(() => modalSignings(G.resolveFA())); }, 'danger'); break;
     case 'off_trade': btn('트레이드 마감', () => act(() => G.resolveTrades()), 'danger'); break;
@@ -724,6 +731,7 @@ function viewLeague(v) {
 /* ── 프런트 ── */
 function viewFront(v) {
   const s = G.state().phase;
+  if (s === 'off_foreign') return viewForeign(v);
   if (s === 'off_fa') return viewFA(v);
   if (s === 'off_draft') return viewDraft(v);
   if (s === 'off_trade') return viewTrade(v);
@@ -765,6 +773,71 @@ function viewFront(v) {
     <div class="kv"><span>현황</span><b>${esc(own.text)}</b></div>`));
   g.appendChild(right);
   v.appendChild(g);
+  v.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => openPlayer(+r.dataset.pid));
+}
+
+/* 외국인 시장. 보유 3명, 그중 투수 2명. 계약은 1년이라 매 겨울 다시 정한다.
+   몸값은 리그 공통의 평판에 붙는다. 우리 스카우트가 본 것과 다를 수 있다. */
+function viewForeign(v) {
+  const m = G.foreignMarket();
+  if (m.error) return;
+  const g = el('div', 'grid g21');
+  const left = el('div', 'grid');
+
+  const mineRows = m.mine.map(p => ({ p, cells: [
+    nameCell(p),
+    `<span class="nat">${esc(p.nation)}</span>`,
+    `<span class="m dim">${p.slot}</span>`,
+    `<span class="m">${p.age}</span>`,
+    axis(p.ovr, p.pot),
+    `<span class="m dim">${p.stat || '—'}</span>`,
+    `<b class="m">${p.ask}억</b>`,
+    p.contract ? '<span class="tag ok">재계약</span>'
+      : `<span class="fbtn"><button data-re="${p.pid}">재계약</button><button data-rel="${p.pid}" class="q">방출</button></span>`,
+  ] }));
+  left.appendChild(sect('우리 외국인', `${m.mine.length} / 3`, m.mine.length
+    ? table(['선수','국적','P','나이','능력 / 잠재력','지난 시즌','재계약','']
+        , mineRows) : '<div class="empty">없다</div>'));
+
+  const canP = m.room > 0 && m.pitcherRoom > 0, canB = m.room > 0;
+  left.appendChild(sect('시장', `${m.market.length} · ${AXIS_KEY}`, table(
+    ['선수','국적','P','나이','능력 / 잠재력','몸값',''],
+    m.market.map(p => ({ p, cells: [
+      nameCell(p),
+      `<span class="nat">${esc(p.nation)}</span>`,
+      `<span class="m dim">${p.slot}</span>`,
+      `<span class="m">${p.age}</span>`,
+      axis(p.ovr, p.pot),
+      `<b class="m">${p.ask}억</b>`,
+      (p.kind === 'P' ? canP : canB)
+        ? `<span class="fbtn"><button data-sign="${p.pid}">계약</button></span>`
+        : '<span class="dim">—</span>',
+    ] })))));
+
+  const right = el('div', 'grid');
+  right.appendChild(sect('쿼터', '', `
+    <div class="quota">
+      <div class="qb"><span>보유</span><b>${3 - m.room}<i>/3</i></b></div>
+      <div class="qb"><span>투수</span><b>${2 - m.pitcherRoom}<i>/2</i></b></div>
+    </div>
+    <div class="kv"><span>신규 계약 상한</span><b class="m">${m.cap}억</b></div>
+    <div class="kv"><span>연봉 총액</span><b class="m">${m.payroll}억</b></div>
+    <div class="kv"><span>예산</span><b class="m">${m.budget}억</b></div>`));
+  right.appendChild(sect('', '', `<p class="note">몸값은 리그 전체가 매긴 값이다.
+    우리 스카우트가 본 눈금과 어긋난다면, 그 차이가 곧 기회이거나 함정이다.</p>`));
+  g.appendChild(left); g.appendChild(right);
+  v.appendChild(g);
+
+  v.querySelectorAll('[data-re]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); act(() => G.resignForeign(+b.dataset.re)); });
+  v.querySelectorAll('[data-rel]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation(); act(() => G.releaseForeign(+b.dataset.rel)); });
+  v.querySelectorAll('[data-sign]').forEach(b => b.onclick = (e) => {
+    e.stopPropagation();
+    const r = G.signForeign(+b.dataset.sign);
+    if (r.error === 'gone') toast('', '다른 구단이 먼저 데려갔다', 'warn');
+    autosave(); render();
+  });
   v.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => openPlayer(+r.dataset.pid));
 }
 
