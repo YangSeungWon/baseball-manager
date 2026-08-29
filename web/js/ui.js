@@ -779,6 +779,18 @@ function viewFront(v) {
     }
     g.appendChild(box);
   }
+  const bp = G.ballpark();
+  const bpr = el('div', 'grid');
+  bpr.appendChild(sect(bp.name, `${bp.opened} 개장`, `
+    <div class="parkbox">${fieldSvg(bp, capOf(G.state().user_team.name).color)}</div>
+    <div class="parkspec">
+      <div><span>담장</span><b class="m">${bp.fL}<i>·</i>${bp.fC}<i>·</i>${bp.fR}</b><em>m</em></div>
+      <div><span>담장 높이</span><b class="m">${bp.fH}</b><em>m</em></div>
+      <div><span>수용</span><b class="m">${(bp.capacity/1000).toFixed(1)}</b><em>천</em></div>
+      ${bp.attendance ? `<div><span>평균 관중</span><b class="m">${(bp.attendance/1000).toFixed(1)}</b><em>천 · ${bp.rate}%</em></div>` : ''}
+      <div><span>구장</span><b>${bp.dome ? '돔' : '개방'}${bp.turf ? ' · 인조잔디' : ' · 천연잔디'}</b></div>
+    </div>`));
+  g.appendChild(bpr);
   g.appendChild(sect('연봉', `${f.contracts.length}`, table(['선수','나이','연봉','계약','만료'],
     f.contracts.map(x => ({ pid: x.pid, cells: [`<span class="name">${esc(x.name)}</span>`,
       `<span class="m">${x.age}</span>`, `<span class="m">${x.salary}</span>`,
@@ -1256,7 +1268,7 @@ boot();
 const F_ANGLE = { C:0, P:0, '1B':33, '2B':17, '3B':-33, SS:-17, LF:-30, CF:0, RF:30 };
 const F_DEPTH = { C:3, P:17, '1B':33, '2B':41, '3B':33, SS:41, LF:82, CF:90, RF:82 };
 const F_KR = { P:'투', C:'포', '1B':'1', '2B':'2', '3B':'3', SS:'유', LF:'좌', CF:'중', RF:'우' };
-const FW = 340, FH = 300, HX = 170, HY = 276;
+const FW = 364, FH = 302, HX = 182, HY = 278;
 // 실제 야구장은 내야가 외야에 비해 아주 작다. 그대로 그리면 아무것도 안 보인다.
 // 방송 그래픽처럼 반경을 완만히 압축해 내야에 자리를 준다.
 const RPOW = 0.70, RMAX = 252, RK = RMAX / Math.pow(136, RPOW);
@@ -1265,26 +1277,64 @@ const pt = (ang, dep) => {
   return [HX + r * Math.sin(a), HY - r * Math.cos(a)];
 };
 
-function fieldSvg(park) {
+function fieldSvg(park, color = '#4c8ed9') {
   const dims = BIP.parkDims(park);
-  const arc = [];
-  for (let a = -45; a <= 45; a += 2.5) arc.push(pt(a, BIP.fence(a, dims)));
-  const lineTo = (p) => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
-  const grass = `M${HX} ${HY}` + arc.map(lineTo).join('') + 'Z';
+  const real = dims.real || { fL:99, fC:121, fR:99, fH:3 };
+  const seed = [...(park && park.name ? park.name : '구장')]
+    .reduce((a, c) => (a * 31 + c.codePointAt(0)) % 9973, 7);
+  const stripes = 7 + (seed % 3) * 2;                  // 잔디 줄무늬 수는 구장마다 다르다
+  const standDepth = 13 + ((park && park.capacity ? park.capacity : 18000) - 13000) / 13500 * 15;
+
+  const arc = [], out = [];
+  for (let a = -45; a <= 45; a += 2.5) {
+    const f = BIP.fence(a, dims);
+    arc.push(pt(a, f));
+    out.push(pt(a, f + standDepth / (MPXAT(f) || 1)));
+  }
+  const L = (p) => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+  const M = (p) => `M${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+
+  // 관중석 — 담장 바깥의 띠. 수용 인원이 많을수록 두껍다.
+  const stands = M(arc[0]) + arc.slice(1).map(L).join('')
+    + L(out[out.length - 1]) + out.slice().reverse().slice(1).map(L).join('') + 'Z';
+
+  // 잔디 줄무늬 — 홈에서 부챗살로 퍼진다
+  const mow = [];
+  for (let i = 0; i < stripes; i += 2) {
+    const a0 = -45 + i * (90 / stripes), a1 = Math.min(45, a0 + 90 / stripes);
+    const seg = [];
+    for (let a = a0; a <= a1 + 0.01; a += 1.5) seg.push(pt(a, BIP.fence(a, dims)));
+    mow.push(`M${HX} ${HY}` + seg.map(L).join('') + 'Z');
+  }
+
+  const grass = `M${HX} ${HY}` + arc.map(L).join('') + 'Z';
   const dirt = [];
   for (let a = -46; a <= 46; a += 4) dirt.push(pt(a, 31));
-  const inf = `M${HX} ${HY}` + dirt.map(lineTo).join('') + 'Z';
+  const inf = `M${HX} ${HY}` + dirt.map(L).join('') + 'Z';
   const b1 = pt(45, 27.4), b2 = pt(0, 38.8), b3 = pt(-45, 27.4);
   const men = Object.keys(F_ANGLE).filter(k => k !== 'C').map(k => {
     const [x, y] = pt(F_ANGLE[k], F_DEPTH[k]);
     return `<g class="fm" data-pos="${k}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10"/>
       <text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}">${F_KR[k]}</text></g>`;
   }).join('');
-  return `<svg class="field" viewBox="0 0 ${FW} ${FH}">
+  const fw = (1.4 + real.fH * 0.45).toFixed(1);        // 담장이 높으면 두껍게 그린다
+  const dome = dims.dome ? `<path class="dome" d="${M(out[0])}${out.slice(1).map(L).join('')}"/>` : '';
+  const mark = (a, v) => { const [x, y] = pt(a, BIP.fence(a, dims) - 9);
+    return `<text class="fdist" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+      text-anchor="${a < -10 ? 'start' : a > 10 ? 'end' : 'middle'}"
+      dy="${a === 0 ? 4 : 0}">${v}</text>`; };
+
+  return `<svg class="field ${dims.turf ? 'turf' : ''}" viewBox="0 0 ${FW} ${FH}"
+      style="--pc:${color}">
+    <path class="stands" d="${stands}"/>
+    ${dome}
     <path class="grass" d="${grass}"/>
+    ${mow.map(d => `<path class="mow" d="${d}"/>`).join('')}
     <path class="dirt" d="${inf}"/>
-    <path class="foul" d="M${HX} ${HY} ${lineTo(pt(-45, 136))} M${HX} ${HY} ${lineTo(pt(45, 136))}"/>
-    <path class="fence" d="M${arc[0][0].toFixed(1)} ${arc[0][1].toFixed(1)}${arc.slice(1).map(lineTo).join('')}"/>
+    <path class="foul" d="M${HX} ${HY} ${L(pt(-45, BIP.fence(-45, dims)))}
+      M${HX} ${HY} ${L(pt(45, BIP.fence(45, dims)))}"/>
+    <path class="fence" d="${M(arc[0])}${arc.slice(1).map(L).join('')}" stroke-width="${fw}"/>
+    ${mark(-40, real.fL)}${mark(0, real.fC)}${mark(40, real.fR)}
     <path class="paths" d="M${HX} ${HY} L${b1[0].toFixed(1)} ${b1[1].toFixed(1)}
       L${b2[0].toFixed(1)} ${b2[1].toFixed(1)} L${b3[0].toFixed(1)} ${b3[1].toFixed(1)} Z"/>
     ${[b1, b2, b3].map(b => `<rect class="bag" x="${(b[0]-3.5).toFixed(1)}" y="${(b[1]-3.5).toFixed(1)}"
@@ -1295,6 +1345,9 @@ function fieldSvg(park) {
     <circle id="ball" class="ball" cx="${HX}" cy="${HY}" r="4" opacity="0"/>
   </svg>`;
 }
+
+// 압축된 반경에서 1m가 몇 px인지. 관중석 두께를 미터로 되돌릴 때 쓴다.
+const MPXAT = (dep) => (Math.pow(dep + 1, RPOW) - Math.pow(dep, RPOW)) * RK;
 
 const PT_KR = { FF:'포심', SI:'투심', FC:'커터', SL:'슬라이더', CU:'커브',
                 CH:'체인지업', FS:'포크', KN:'너클볼' };
@@ -1314,7 +1367,7 @@ function openReplay(box) {
       <button id="mx" class="quiet">닫기</button>
     </div>
     <div class="rpbody">
-      <div class="rpfield">${fieldSvg(box.park)}</div>
+      <div class="rpfield">${fieldSvg(box.park, capOf(box.home.team).color)}</div>
       <div class="rpside">
         <div class="rpmatch">
           <div class="rprow"><span>투수</span><b id="rpPit">—</b></div>

@@ -15,10 +15,10 @@ export const MISC = {
 };
 
 export const ADV = {
-  b1_first_to_third: 0.237, b1_second_scores: 0.519, b2_first_scores: 0.393,
+  b1_first_to_third: 0.229, b1_second_scores: 0.501, b2_first_scores: 0.379,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.428, gb_r3_scores: 0.251, gb_r2_to_third: 0.348, fb_r2_to_third: 0.102,
+  sacfly_base: 0.413, gb_r3_scores: 0.242, gb_r2_to_third: 0.336, fb_r2_to_third: 0.098,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.720, sb_success_speed: 0.055,
 };

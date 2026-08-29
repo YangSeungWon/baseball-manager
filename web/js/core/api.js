@@ -950,6 +950,15 @@ export class Game {
   /* ── 감독 지시 ────────────────────────────────────────────
      경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다. */
 
+  /** 우리 구장. 규격은 그림용이 아니라 담장을 넘느냐를 정하는 숫자다. */
+  ballpark() {
+    const t = this.me, p = t.park, f = t.finance;
+    return { name:p.name, capacity:p.capacity, opened:p.opened,
+      fL:p.fL, fC:p.fC, fR:p.fR, fH:p.fH, turf:!!p.turf, dome:!!p.dome, alt:p.alt || 0,
+      attendance: f.homeGames ? Math.round(f.attendance / f.homeGames) : null,
+      rate: f.homeGames ? Math.round(f.attendance / f.homeGames / p.capacity * 100) : null };
+  }
+
   tactics() {
     const t = this.me;
     const v = t.tactics || {};

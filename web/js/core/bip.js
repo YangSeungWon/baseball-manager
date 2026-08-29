@@ -41,7 +41,7 @@ export const BC = {
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.294, LD: 1.298, FB: 1.315, PU: 1.212 },
+  hangK: { GB: 1.300, LD: 1.304, FB: 1.321, PU: 1.218 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
@@ -54,7 +54,7 @@ export const BC = {
   qGb: 1.350, qLd: 0.95, qPu: 1.10,
   // 담장 (m). 폴대 99, 중앙 125.
   // 담장 기준 치수 (m). 보정 결과가 실제 KBO 구장 규격과 맞아떨어졌다.
-  fenceLine: 105.14, fenceCenter: 131.89, fenceHeight: 2.8,
+  fenceLine: 104.68, fenceCenter: 131.37, fenceHeight: 2.8,
   // 낮은 직선타는 높은 담장에 걸린다. 뜬 공은 넘어간다.
   heightLd: 2.4, heightFb: 0.7,
   // 고도 100m당 비거리 (m), 인조잔디 타구 가속
@@ -87,19 +87,20 @@ export function battedType(bat, pit, quality, rng) {
 }
 
 /** 구장 규격. 없으면 리그 평균 구장으로 친다. */
-export const stdPark = () => ({ fLine: BC.fenceLine, fCenter: BC.fenceCenter,
+export const stdPark = () => ({ fL: BC.fenceLine, fC: BC.fenceCenter, fR: BC.fenceLine,
   fHeight: BC.fenceHeight, foul: 1.0, turf: 0, alt: 0 });
 
-/** 담장까지의 거리. 중앙이 멀고 폴대 쪽이 가깝다. */
+/** 담장까지의 거리. 좌우가 다를 수 있고, 중앙이 가장 멀다. */
 export function fence(angle, park) {
-  const p = park && park.fLine ? park : stdPark();
-  return p.fLine + (p.fCenter - p.fLine) * Math.cos(2 * angle * rad);
+  const p = park && park.fL ? park : stdPark();
+  const line = angle < 0 ? p.fL : p.fR;
+  return line + (p.fC - line) * Math.cos(2 * angle * rad);
 }
 
 /** 담장을 넘겼는가. 낮은 직선타일수록 담장 높이의 영향을 크게 받는다. */
 export function overFence(ball, park) {
   if (ball.bbt !== 'FB' && ball.bbt !== 'LD') return false;
-  const p = park && park.fLine ? park : stdPark();
+  const p = park && park.fL ? park : stdPark();
   const extra = (p.fHeight - BC.fenceHeight) * (ball.bbt === 'LD' ? BC.heightLd : BC.heightFb);
   return ball.depth >= fence(ball.angle, p) + extra;
 }
@@ -237,11 +238,21 @@ export function hitBases(ball, bat, rng) {
 }
 
 /** 저장된 구장 정보에서 실제 치수를 뽑는다. 없으면 홈런 팩터로 환산한다. */
+// 실제 치수(m)를 모델 좌표로 옮긴다. 리그 평균 구장에서 보정을 맞췄으므로
+// 평균과의 차이만큼만 밀어 준다.
+const REAL_L = 98.4, REAL_C = 120.8;
 export function parkDims(park) {
   if (!park) return stdPark();
-  if (park.fLine) return park;
+  if (park.fL && park.fL > 200) return park;              // 이미 모델 좌표
+  if (park.fL) return {
+    fL: BC.fenceLine + (park.fL - REAL_L),
+    fC: BC.fenceCenter + (park.fC - REAL_C),
+    fR: BC.fenceLine + (park.fR - REAL_L),
+    fHeight: park.fH ?? BC.fenceHeight,
+    foul: park.foul ?? 1, turf: park.turf ?? 0, alt: park.alt ?? 0, dome: !!park.dome,
+    real: { fL: park.fL, fC: park.fC, fR: park.fR, fH: park.fH } };
   const h = park.hrFactor || 0;
-  return { fLine: BC.fenceLine - h * 12, fCenter: BC.fenceCenter - h * 14,
+  return { fL: BC.fenceLine - h * 12, fC: BC.fenceCenter - h * 14, fR: BC.fenceLine - h * 12,
            fHeight: BC.fenceHeight, foul: park.foul ?? 1, turf: park.turf ?? 0, alt: park.alt ?? 0 };
 }
 

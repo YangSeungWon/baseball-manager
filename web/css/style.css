@@ -523,10 +523,18 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .rpbody{display:grid;grid-template-columns:1fr 300px;gap:20px;padding:16px 0}
 .rpfield{background:#0a1017;border-radius:8px;padding:6px;display:flex;justify-content:center}
 .field{width:100%;max-width:440px;height:auto}
+.field .stands{fill:color-mix(in srgb,var(--pc) 26%,#0d151d);
+  stroke:color-mix(in srgb,var(--pc) 45%,#0d151d);stroke-width:.8}
+.field .dome{fill:none;stroke:#9fb2c4;stroke-width:5;opacity:.55;stroke-linecap:round}
 .field .grass{fill:#14301f}
+.field.turf .grass{fill:#1a3524}
+.field .mow{fill:#ffffff;opacity:.045}
+.field.turf .mow{opacity:.028}
 .field .dirt{fill:#3a2a1c}
 .field .foul{stroke:#5d6d7c;stroke-width:1.2;fill:none;stroke-dasharray:4 4}
-.field .fence{stroke:#7c8d9c;stroke-width:2;fill:none}
+.field .fence{stroke:#93a6b6;fill:none;stroke-linejoin:round}
+.field .fdist{fill:#c3d2df;font-size:10px;font-weight:700;font-family:var(--mono);
+  paint-order:stroke;stroke:#0d1b13;stroke-width:2.5;stroke-linejoin:round}
 .field .paths{stroke:#7a5c3e;stroke-width:2.5;fill:none}
 .field .bag{fill:#e8eef4}
 .field .bag.home{fill:#c9d4de}
@@ -608,3 +616,13 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
 .tsteps button:hover{background:var(--hover);color:var(--fg2)}
 .tsteps button.on{background:var(--accent);color:#fff}
+
+/* 구장 */
+.parkbox{display:flex;justify-content:center;background:#0a1017;border-radius:8px;padding:8px 4px}
+.parkbox .field{max-width:330px}
+.parkspec{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;margin-top:14px}
+.parkspec div{display:flex;align-items:baseline;gap:8px}
+.parkspec span{font-size:14px;color:var(--fg3);min-width:74px}
+.parkspec b{font-size:19px;font-weight:700;color:var(--fg)}
+.parkspec b i{font-style:normal;color:var(--fg3);margin:0 3px;font-size:15px}
+.parkspec em{font-style:normal;font-size:13px;color:var(--fg3)}

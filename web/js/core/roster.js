@@ -257,6 +257,9 @@ export function makeLeague(nTeams, rng, year = 2030) {
     const t = makeTeam(rng, i + 1, n, year, rng.gauss(0, 0.22));
     const f = franchiseOf(n);
     t.park.name = f.park; t.park.capacity = f.cap; t.park.opened = f.opened;
+    // 구장 규격. 그림용이 아니라 담장을 넘느냐를 정하는 바로 그 숫자다.
+    t.park.fL = f.fL; t.park.fC = f.fC; t.park.fR = f.fR; t.park.fH = f.fH;
+    t.park.turf = f.turf || 0; t.park.alt = f.alt || 0; t.park.dome = !!f.dome;
     return t;
   });
 }
