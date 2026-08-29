@@ -515,7 +515,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .rp{display:flex;flex-direction:column;gap:0;min-width:min(880px,88vw)}
 .rphead{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
 .rpteams{display:flex;gap:22px;flex:1}
-.rpt{display:flex;align-items:baseline;gap:9px}
+.rpt{display:flex;align-items:center;gap:9px}
+.rpt .jsy{flex-shrink:0}
 .rpt b{font-size:17px;font-weight:700}
 .rpt em{font-style:normal;font-family:var(--mono);font-size:28px;font-weight:700;color:var(--fg);line-height:1}
 .rpinn{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--accent)}
@@ -626,3 +627,11 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .parkspec b{font-size:19px;font-weight:700;color:var(--fg)}
 .parkspec b i{font-style:normal;color:var(--fg3);margin:0 3px;font-size:15px}
 .parkspec em{font-style:normal;font-size:13px;color:var(--fg3)}
+
+/* 유니폼 */
+.unis{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.uni{text-align:center}
+.ubox{background:#141c25;border-radius:8px;padding:12px 6px 8px}
+.ubox.away{background:#0e151d}
+.uni span{display:block;margin-top:8px;font-size:14px;font-weight:600;color:var(--fg2)}
+.jsy{display:block;margin:0 auto}

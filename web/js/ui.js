@@ -89,7 +89,43 @@ const capOf = (name) => { const f = franchiseOf(name); return { code: f.code, co
  *  키와 몸무게가 어깨 너비와 얼굴 폭에 반영되므로 거포는 다부지고 대도는 날렵하다. */
 const SKIN = ['#e3c0a0', '#d3a985', '#bd8f68', '#9d6f4c'];
 const HAIRC = ['#17120e', '#2b1c12', '#4a3320'];
-function avatar(p, teamColor, size = 38) {
+/* 유니폼 한 벌. 홈은 밝은 바탕에 팀 색, 원정은 구단마다 다른 바탕. */
+function jersey(fr, away, w = 96) {
+  const uni = fr.uni || { hb:'#f5f6f8', hs:0, ab:'#8b939b' };
+  const base = away ? uni.ab : uni.hb;
+  const trim = fr.color;
+  const dark = away && luma(base) < 0.45;          // 어두운 원정 바탕에는 흰 글씨
+  const ink = dark ? '#f2f5f8' : trim;
+  const stripes = !away && uni.hs
+    ? Array.from({ length: 7 }, (_, i) =>
+        `<line x1="${18 + i * 8}" y1="16" x2="${18 + i * 8}" y2="96" stroke="${trim}"
+          stroke-width="1" opacity=".38"/>`).join('')
+    : '';
+  // 홈은 닉네임, 원정은 연고지. 실제 유니폼이 그렇게 나뉜다.
+  const word = away ? fr.city : fr.nick;
+  const body = 'M40 8 L60 17 L80 8 L110 21 L101 46 L90 41 V102 H30 V41 L19 46 L10 21 Z';
+  return `<svg class="jsy" viewBox="0 0 120 112" width="${w}" height="${w * 0.93}">
+    <path d="${body}" fill="${base}"/>
+    ${stripes}
+    <path d="${body}" fill="none" stroke="${trim}" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M40 8 L60 17 L80 8 L73 5.5 L60 12 L47 5.5 Z" fill="${trim}"/>
+    <path d="M30 102 H90" stroke="${trim}" stroke-width="4"/>
+    <path d="M19 46 L10 21 M101 46 L110 21" stroke="${trim}" stroke-width="3"/>
+    <line x1="60" y1="17" x2="60" y2="102" stroke="${trim}" stroke-width="1.2" opacity=".55"/>
+    <text x="60" y="46" text-anchor="middle" font-weight="800" fill="${ink}"
+      font-size="${word.length >= 5 ? 12 : word.length >= 4 ? 13.5 : 16}"
+      textLength="${Math.min(52, word.length * 13)}" lengthAdjust="spacingAndGlyphs">${esc(word)}</text>
+    <text x="60" y="82" text-anchor="middle" font-family="var(--mono)" font-size="27"
+      font-weight="700" fill="${ink}" opacity=".92">${away ? '7' : '1'}</text>
+  </svg>`;
+}
+const luma = (hex) => {
+  const c = hex.replace('#', '');
+  const n = parseInt(c.length === 3 ? c.split('').map(x => x + x).join('') : c, 16);
+  return (((n >> 16) & 255) * 0.299 + ((n >> 8) & 255) * 0.587 + (n & 255) * 0.114) / 255;
+};
+
+function avatar(p, teamColor, size = 38, away = false, fr = null) {
   const h = ((p.pid || 0) * 2654435761) >>> 0;
   const skin = SKIN[h % 4];
   const hair = (h >> 3) % 5;      // 0 짧음 1 옆머리 2 덥수룩 3 삭발 4 장발
@@ -109,7 +145,8 @@ function avatar(p, teamColor, size = 38) {
       <rect width="40" height="40" rx="20" fill="#0c151f"/>
       <path d="M20 25.8c-1.6 0-2.9-.5-2.9-.5v2.4h5.8v-2.4s-1.3.5-2.9.5z" fill="${skin}"/>
       <path d="M${S(20 - sw)} 40c0-7.4 ${S(sw * 0.34)} -11.6 ${S(sw)} -13.2
-        ${S(sw * 0.66)} 1.6 ${S(sw)} 5.8 ${S(sw)} 13.2z" fill="#e6ecf3"/>
+        ${S(sw * 0.66)} 1.6 ${S(sw)} 5.8 ${S(sw)} 13.2z"
+        fill="${away ? ((fr && fr.uni && fr.uni.ab) || '#8b939b') : ((fr && fr.uni && fr.uni.hb) || '#e6ecf3')}"/>
       <path d="M${S(20 - 4.6)} 27.3c1.2 2.9 2.6 5.1 4.6 7.1 2-2 3.4-4.2 4.6-7.1
         -1.4-.8-3-1.3-4.6-1.3s-3.2.5-4.6 1.3z" fill="${teamColor}"/>
       <ellipse cx="20" cy="${S(cy)}" rx="${S(fw)}" ry="${S(fh)}" fill="${skin}"/>
@@ -790,6 +827,11 @@ function viewFront(v) {
       ${bp.attendance ? `<div><span>평균 관중</span><b class="m">${(bp.attendance/1000).toFixed(1)}</b><em>천 · ${bp.rate}%</em></div>` : ''}
       <div><span>구장</span><b>${bp.dome ? '돔' : '개방'}${bp.turf ? ' · 인조잔디' : ' · 천연잔디'}</b></div>
     </div>`));
+  const ufr = franchiseOf(G.state().user_team.name);
+  bpr.appendChild(sect('유니폼', '', `<div class="unis">
+    <div class="uni"><div class="ubox">${jersey(ufr, false, 108)}</div><span>홈</span></div>
+    <div class="uni"><div class="ubox away">${jersey(ufr, true, 108)}</div><span>원정</span></div>
+  </div>`));
   g.appendChild(bpr);
   g.appendChild(sect('연봉', `${f.contracts.length}`, table(['선수','나이','연봉','계약','만료'],
     f.contracts.map(x => ({ pid: x.pid, cells: [`<span class="name">${esc(x.name)}</span>`,
@@ -1360,8 +1402,10 @@ function openReplay(box) {
   modal(`<div class="rp">
     <div class="rphead">
       <div class="rpteams">
-        <span class="rpt"><b id="rpAwayN">${esc(short(box.away.team))}</b><em id="rpAwayR">0</em></span>
-        <span class="rpt"><b id="rpHomeN">${esc(short(box.home.team))}</b><em id="rpHomeR">0</em></span>
+        <span class="rpt">${jersey(franchiseOf(box.away.team), true, 34)}
+          <b id="rpAwayN">${esc(short(box.away.team))}</b><em id="rpAwayR">0</em></span>
+        <span class="rpt">${jersey(franchiseOf(box.home.team), false, 34)}
+          <b id="rpHomeN">${esc(short(box.home.team))}</b><em id="rpHomeR">0</em></span>
       </div>
       <div class="rpinn" id="rpInn">1회초</div>
       <button id="mx" class="quiet">닫기</button>
