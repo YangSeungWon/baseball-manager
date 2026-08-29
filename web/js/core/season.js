@@ -3,7 +3,9 @@ import { playGame } from './game.js';
 import { scan as scanFeats } from './feats.js';
 
 // 시즌을 8등분한 강수 확률. 장마가 한가운데에 온다.
-const RAIN = [0.075, 0.065, 0.100, 0.170, 0.155, 0.095, 0.060, 0.040];
+const RAIN = [0.088, 0.076, 0.118, 0.200, 0.182, 0.112, 0.070, 0.047];
+// 비로 멈춘 경기 중 이미 성립된 것(5회 이후)의 비율. 나머지는 노게임이다.
+const CALLED_SHARE = 0.19;
 import * as injury from './injury.js';
 import { setActive } from './roster.js';
 import { attendRate } from './contract.js';
@@ -168,12 +170,17 @@ export class Season {
     this.injuries.push({ day, team: t, player: p, days, label, lost });
   }
 
-  /** 비. 장마철에 몰리고, 돔은 취소가 없다. */
-  _rainedOut(hi, day) {
+  /** 비. 장마철에 몰리고, 돔은 취소가 없다.
+   *  경기 전에 그치면 취소(노게임), 도중에 쏟아지면 강우 콜드다.
+   *  콜드로 끝난 경기가 동점이면 무승부로 성립한다. */
+  _rain(hi, day) {
     const park = this.teams[hi].park;
-    if (park && park.dome) return false;
-    return this.rng.random() < RAIN[Math.min(RAIN.length - 1,
+    if (park && park.dome) return null;
+    const p = RAIN[Math.min(RAIN.length - 1,
       Math.floor(day / this.totalDays * RAIN.length))];
+    if (this.rng.random() >= p) return null;
+    if (this.rng.random() < CALLED_SHARE) return 5 + Math.floor(this.rng.random() * 4);
+    return 'wash';
   }
 
   /** 오늘 갚을 수 있는 연기 경기. 같은 대진이 다시 잡힌 날에 더블헤더로 치른다.
@@ -208,19 +215,20 @@ export class Season {
     // 오늘 치를 경기 = 정규 편성 + 갚을 연기 경기(더블헤더)
     const card = [];
     for (const g of todays) {
-      if (this._rainedOut(g[0], day)) {
+      const r = this._rain(g[0], day);
+      if (r === 'wash') {
         this.postponed.push([g[0], g[1]]);
         this.rained.push([day, g[0], g[1]]);
         out.push({ hi:g[0], ai:g[1], rain:true, box:null });
         continue;
       }
-      card.push(g);
+      card.push(r ? [g[0], g[1], false, r] : g);   // r 이 숫자면 강우 콜드
     }
     for (const g of this._makeups(day, card)) card.push([g[0], g[1], true]);
-    for (const [hi, ai, dh] of card) {
+    for (const [hi, ai, dh, called] of card) {
       // 더블헤더 2차전. 1차전에 쓴 불펜은 다시 나오지 못한다.
       if (dh) for (const i of [hi, ai]) this._refreshAvail(this.teams[i], day);
-      const [H, A, plays] = playGame(this.teams[hi], this.teams[ai], this.rng);
+      const [H, A, plays] = playGame(this.teams[hi], this.teams[ai], this.rng, called || 11);
       this._absorb(H, A.runs); this._absorb(A, H.runs);
       this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
@@ -231,7 +239,7 @@ export class Season {
         p.injury_days = days; p.career_injuries++; p.career_injury_days += days;
         this.injuries.push({ player:p, team:S2.team, days, label:'사구 부상' });
       }
-      this.results.push([day, hi, ai, H.runs, A.runs, dh ? 1 : 0]);
+      this.results.push([day, hi, ai, H.runs, A.runs, dh ? 1 : 0, called ? 1 : 0]);
       // 홈 구단 관중. 성적이 팬을 부르고, 팬이 다음 시즌 예산이 된다.
       const home = this.teams[hi], rec = this.rec.get(home.team_id);
       const wp = rec.g ? rec.w / Math.max(1, rec.w + rec.l) : 0.5;
@@ -242,7 +250,7 @@ export class Season {
         home.lastPlayoff || false, home.lastTitle || false, this.rng));
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
-      out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh,
+      out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh, called: !!called,
                  box: keep ? { H, A, plays } : null });
     }
     this.curDay++;
@@ -331,7 +339,7 @@ export function playSeries(higher, lower, bestOf, rng, homePattern, bp = null) {
     const [home, away] = pat[g % pat.length] ? [higher, lower] : [lower, higher];
     let H, A;
     if (bp) { bp.apply(home); bp.apply(away); }
-    do { [H, A] = playGame(home, away, rng); } while (H.runs === A.runs);
+    do { [H, A] = playGame(home, away, rng, 15); } while (H.runs === A.runs);
     if (bp) { bp.record(H); bp.record(A); bp.rest(g % 3 === 2 ? 2 : 1); }  // 3연전 뒤 이동일
     w[(H.runs > A.runs ? home : away).team_id]++;
     games.push({ home: home.name, away: away.name, hr: H.runs, ar: A.runs,
@@ -350,7 +358,7 @@ function wildCard(fourth, fifth, rng, bp) {
   for (let g = 0; g < 2; g++) {
     let H, A;
     if (bp) { bp.apply(fourth); bp.apply(fifth); }
-    do { [H, A] = playGame(fourth, fifth, rng); } while (H.runs === A.runs);  // 4위 홈
+    do { [H, A] = playGame(fourth, fifth, rng, 15); } while (H.runs === A.runs);  // 4위 홈
     if (bp) { bp.record(H); bp.record(A); bp.rest(1); }
     games.push({ home: fourth.name, away: fifth.name, hr: H.runs, ar: A.runs, hostHigher: true });
     if (A.runs > H.runs) fifthWins++;

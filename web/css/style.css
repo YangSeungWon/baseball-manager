@@ -601,8 +601,9 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 /* 우천취소 · 더블헤더 */
 .rainy{font-size:13px;color:var(--fg3)}
-.tag.dh{background:var(--s3);color:var(--fg2);font-size:11px;font-weight:700;
-  border-radius:4px;padding:1px 5px;margin-left:5px}
+.tag.dh,.tag.cl{background:var(--s3);color:var(--fg2);font-size:11px;font-weight:700;
+  border-radius:4px;padding:1px 5px;margin-left:5px;white-space:nowrap}
+.tag.cl{color:var(--fg3)}
 
 /* 감독 지시 */
 .tacs{display:flex;flex-direction:column;gap:2px}

@@ -580,7 +580,8 @@ function viewHome(v) {
   two2.appendChild(sect(day.rows.length ? `${day.day}일차 리그 결과` : '리그 결과', '',
     day.rows.length ? day.rows.map(r => `<div class="row ${r.user ? 'me' : ''}">
         <span>${esc(short(r.away))} <span class="dim">@</span> ${esc(short(r.home))}
-          ${r.dh ? '<span class="tag dh">DH</span>' : ''}</span>
+          ${r.dh ? '<span class="tag dh">DH</span>' : ''}
+          ${r.called ? '<span class="tag cl">강우 콜드</span>' : ''}</span>
         ${r.rain ? '<span class="rainy">우천취소</span>'
           : `<span class="m">${r.ar}<span class="dim">:</span>${r.hr}</span>`}</div>`).join('')
       : '<div class="empty">—</div>'));

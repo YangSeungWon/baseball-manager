@@ -15,10 +15,10 @@ export const MISC = {
 };
 
 export const ADV = {
-  b1_first_to_third: 0.209, b1_second_scores: 0.456, b2_first_scores: 0.346,
+  b1_first_to_third: 0.229, b1_second_scores: 0.500, b2_first_scores: 0.379,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.376, gb_r3_scores: 0.221, gb_r2_to_third: 0.306, fb_r2_to_third: 0.089,
+  sacfly_base: 0.412, gb_r3_scores: 0.242, gb_r2_to_third: 0.335, fb_r2_to_third: 0.097,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.720, sb_success_speed: 0.055,
 };
@@ -594,7 +594,9 @@ function assignDecisions(H, A) {
   }
 }
 
-export function playGame(home, away, rng, maxInnings = 15) {
+// KBO 정규시즌은 연장 11회까지. 그 뒤로는 무승부다.
+// 포스트시즌은 15회까지 간다 — 호출하는 쪽에서 넘긴다.
+export function playGame(home, away, rng, maxInnings = 11) {
   const H = new TeamGameState(home), A = new TeamGameState(away);
   H.half = 'bottom'; A.half = 'top';
   H.venue = 'H'; A.venue = 'A';
