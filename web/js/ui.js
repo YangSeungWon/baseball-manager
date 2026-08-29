@@ -930,6 +930,17 @@ function viewHistory(v) {
   c2.appendChild(sect('단일 시즌 최고 — 투구', '', `<div class="leadgrid">${board(sr.pitching, true)}</div>`));
   g.appendChild(c2);
 
+  // 대기록. 통계표에는 남지 않지만 사람들이 기억하는 것들.
+  const ft = G.feats(24);
+  g.appendChild(sect('대기록', Object.entries(ft.tally)
+    .sort((a, b) => a[1] - b[1]).slice(0, 5).map(([k, n]) => `${k} ${n}`).join(' · '),
+    ft.rows.length ? `<div class="feats">${ft.rows.map(f => `<div class="feat r${f.rank <= 2 ? 1 : f.rank <= 4 ? 2 : 3}${f.mine ? ' mine' : ''}">
+      <span class="fk">${esc(f.kind)}</span>
+      <span class="fn">${esc(f.name)}<i>${esc(short(f.team))} · vs ${esc(short(f.opp))}</i></span>
+      <span class="fv">${esc(f.detail)}</span>
+      <span class="fy m">${f.year}</span></div>`).join('')}</div>`
+    : '<div class="empty">아직 없다</div>'));
+
   const h = G.history(80);
   g.appendChild(sect('리그 연혁', '', h.rows.length
     ? `<div class="logscroll">${h.rows.slice().reverse().map(r =>

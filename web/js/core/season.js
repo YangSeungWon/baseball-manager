@@ -1,5 +1,6 @@
 // 시즌: 일정 생성 / 하루 단위 진행 / 기록 집계 / WAR / 포스트시즌
 import { playGame } from './game.js';
+import { scan as scanFeats } from './feats.js';
 import * as injury from './injury.js';
 import { setActive } from './roster.js';
 import { attendRate } from './contract.js';
@@ -99,7 +100,7 @@ export class Season {
     this.curDay = 0;
     this.rec = new Map(teams.map(t => [t.team_id, new TeamRecord(t)]));
     this.bat = new Map(); this.pit = new Map();
-    this.results = []; this.injuries = [];
+    this.results = []; this.injuries = []; this.feats = [];
     this.availDay = new Map(); this.lastUsed = new Map(); this.consec = new Map();
     this.att = new Map(teams.map(t => [t.team_id, { games: 0, total: 0 }]));
   }
@@ -165,6 +166,7 @@ export class Season {
     for (const [hi, ai] of this.byDay.get(day)) {
       const [H, A, plays] = playGame(this.teams[hi], this.teams[ai], this.rng);
       this._absorb(H, A.runs); this._absorb(A, H.runs);
+      this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
       this._injuryRolls(H, day); this._injuryRolls(A, day);
       this.results.push([day, hi, ai, H.runs, A.runs]);

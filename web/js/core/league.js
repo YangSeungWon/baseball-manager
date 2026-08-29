@@ -31,6 +31,7 @@ export class League {
     this.year = startYear; this.games = games;
     this.teams = R.makeLeague(nTeams, this.rng, startYear);
     this.careers = new Map(); this.history = []; this.champions = [];
+    this.feats = [];   // 한 경기 대기록. 시즌이 끝나면 여기로 옮겨 리그에 남는다.
     this.unsigned = []; this.draftLog = [];
     this.scouts = new Map(this.teams.map(t => [t.team_id, new ScoutingDept(this.rng)]));
     this.modes = new Map(this.teams.map(t => [t.team_id, market.NEUTRAL]));

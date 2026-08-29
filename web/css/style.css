@@ -488,3 +488,20 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   border-radius:5px;padding:5px 9px;font-size:14px;color:var(--fg3)}
 .arsenal b{font-weight:600;color:var(--fg)}
 .arsenal span::after{content:'km';font-size:11px;margin-left:-3px}
+
+/* 대기록 — 굵직한 것일수록 앞의 띠가 진하다 */
+.feats{display:flex;flex-direction:column}
+.feat{display:grid;grid-template-columns:130px 1fr auto 52px;align-items:center;
+  gap:14px;padding:11px 12px 11px 16px;border-bottom:1px solid var(--line2);position:relative}
+.feat:last-child{border-bottom:0}
+.feat::before{content:'';position:absolute;left:0;top:9px;bottom:9px;width:3px;border-radius:2px}
+.feat.r1::before{background:var(--pos)}
+.feat.r2::before{background:var(--accent)}
+.feat.r3::before{background:var(--line)}
+.feat.mine{background:var(--s2)}
+.fk{font-size:14px;font-weight:700;color:var(--fg)}
+.feat.r1 .fk{color:var(--pos)}
+.fn{font-size:15px;font-weight:600;color:var(--fg);display:flex;flex-direction:column}
+.fn i{font-style:normal;font-size:13px;font-weight:400;color:var(--fg3);margin-top:2px}
+.fv{font-size:14px;color:var(--fg2);white-space:nowrap}
+.fy{font-size:14px;color:var(--fg3);text-align:right}

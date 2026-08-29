@@ -108,6 +108,7 @@ export function dump(game) {
     res:S.results,
     avail:Object.fromEntries(S.availDay), last:Object.fromEntries(S.lastUsed),
     consec:Object.fromEntries(S.consec),
+    feats:(S.feats||[]).map(f => [f.y,f.d,f.k,f.pid,f.name,f.team,f.opp,f.v]),
   } : null;
 
   return {
@@ -130,6 +131,8 @@ export function dump(game) {
     scouts: Object.fromEntries([...L.scouts].map(([tid,s]) => [tid, scoutDump(s)])),
     modes: Object.fromEntries(L.modes), recPct: Object.fromEntries(L.recPct),
     history: L.history.slice(-400), champions: L.champions,
+    // 대기록은 짧게 쓰고 많이 쌓인다. 최근 600건만 남긴다.
+    feats: (L.feats || []).slice(-600).map(f => [f.y, f.d, f.k, f.pid, f.name, f.team, f.opp, f.v]),
     awardLog: (L.awardLog || []).slice(-300),
     mail: L.mail ? { items:L.mail.items, seq:L.mail.seq, seen:[...L.mail.seen] } : null,
     nextPid: R.getPidCounter(),
@@ -164,6 +167,8 @@ export function load(data) {
   L.rng = new RNG(1); L.rng.state = data.rng;
   L.year = data.year; L.games = data.games;
   L.history = data.history; L.champions = data.champions;
+  L.feats = (data.feats || []).map(a =>
+    ({ y:a[0], d:a[1], k:a[2], pid:a[3], name:a[4], team:a[5], opp:a[6], v:a[7] }));
   L.unsigned = data.unsigned.map(pid => players.get(pid)).filter(Boolean);
   L.modes = new Map(Object.entries(data.modes).map(([k,v]) => [+k, v]));
   L.recPct = new Map(Object.entries(data.recPct).map(([k,v]) => [+k, v]));
@@ -264,6 +269,8 @@ export function load(data) {
     S.availDay = new Map(Object.entries(d.avail).map(([k,v])=>[+k,v]));
     S.lastUsed = new Map(Object.entries(d.last).map(([k,v])=>[+k,v]));
     S.consec = new Map(Object.entries(d.consec).map(([k,v])=>[+k,v]));
+    S.feats = (d.feats || []).map(a =>
+      ({ y:a[0], d:a[1], k:a[2], pid:a[3], name:a[4], team:a[5], opp:a[6], v:a[7] }));
     g.season = S; L.season = S;
   } else g.season = null;
 

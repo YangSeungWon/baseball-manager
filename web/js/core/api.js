@@ -6,6 +6,7 @@ import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
 import { PITCH, kmh } from './pitch.js';
+import { FEAT } from './feats.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, offseasonMail, seasonEndMail, josa } from './mail.js';
 
@@ -492,6 +493,11 @@ export class Game {
       team_id: r.team.team_id, team: r.team.name, rank: i + 1, w: r.w, l: r.l, d: r.d,
       pct: r.pct.toFixed(3), rs: r.rs, ra: r.ra, playoff: i < 5,
       champion: r.team.team_id === champ.team_id }));
+    // 이번 시즌에 나온 대기록을 리그 역사에 남긴다.
+    if (this.season && this.season.feats) {
+      this.L.feats.push(...this.season.feats);
+      this.season.feats = [];            // 옮겼으면 비운다. 두 번 세면 안 된다.
+    }
     this.absorbSeason(champ);
     syncHistory(this.L.teams, this.L.year, champ.name, this.lastTable);
     this.L.offRollover();
@@ -802,6 +808,11 @@ export class Game {
       higher: hi ? hi.name : null, lower: lo ? lo.name : null,
       games: (games || []).map(g => ({ home:g.home, away:g.away, hr:g.hr, ar:g.ar })),
       user: w.team_id===this.userId || l.team_id===this.userId }));
+    // 이번 시즌에 나온 대기록을 리그 역사에 남긴다.
+    if (this.season && this.season.feats) {
+      this.L.feats.push(...this.season.feats);
+      this.season.feats = [];            // 옮겼으면 비운다. 두 번 세면 안 된다.
+    }
     this.absorbSeason(champ);
     this.phase = OFF_ROLLOVER;
     return { champion:this.champion, rounds:this.playoffLog,
@@ -846,6 +857,24 @@ export class Game {
     L.champions.push({ year:L.year, team:champ.name });
     L.log(`★ 챔피언 ${champ.name}`);
   }
+  /** 대기록. 최근 순으로, 굵직한 것부터. */
+  feats(limit = 40) {
+    const live = (this.season && this.season.feats) || [];
+    const all = [...this.L.feats, ...live];
+    const me = this.me;
+    // 희소한 것부터. 만루홈런처럼 흔한 것은 집계에만 남기고 목록에서 뺀다.
+    const rows = all.filter(f => FEAT[f.k] && !FEAT[f.k].minor)
+      .sort((a, b) => (FEAT[a.k].rank - FEAT[b.k].rank) || (b.y - a.y) || (b.d - a.d))
+      .slice(0, limit)
+      .map(f => ({ year:f.y, day:f.d, kind:FEAT[f.k].kr, rank:FEAT[f.k].rank,
+        name:f.name, team:f.team, opp:f.opp, detail:f.v,
+        mine: me && f.team === me.name }));
+    // 부문별 통산 횟수
+    const tally = {};
+    for (const f of all) tally[FEAT[f.k].kr] = (tally[FEAT[f.k].kr] || 0) + 1;
+    return { rows, tally };
+  }
+
   offseasonRollover() {
     if (this.phase !== OFF_ROLLOVER) return { error:'wrong_phase' };
     const s = this.L.offRollover();

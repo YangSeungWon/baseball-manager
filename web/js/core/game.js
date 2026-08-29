@@ -38,9 +38,9 @@ class Bases {
 export const SPLIT_F = ['pa','ab','h','b2','b3','hr','bb','k','rbi'];
 export const PSPLIT_F = ['outs','bf','h','hr','bb','k','r'];
 const zeros = (n) => new Array(n).fill(0);
-const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0,e:0,
+const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0,e:0,gsl:0,
   sp:{ H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) } });
-const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,wp:0,bk:0,fatigue:0,
+const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,wp:0,bk:0,br:0,fatigue:0,
                           entered_inning:0, entered_lead:0, w:false,l:false,sv:false,hld:false,
                           sp:{ H:zeros(7), A:zeros(7) } });
 
@@ -110,7 +110,7 @@ function maybeChangePitcher(defn, inning, lead) {
   let pull = false;
   if (isStarter) {
     if (f >= 1.0) pull = true;
-    else if (f >= 0.55 && inning >= 5) pull = true;
+    else if (f >= 0.32 && inning >= 5) pull = true;
     else if (cur.r >= 6) pull = true;
   } else {
     // 불펜은 1이닝이 기본. 이닝이 넘어가면 다음 투수에게 넘긴다. 마무리는 끝까지 간다.
@@ -121,6 +121,13 @@ function maybeChangePitcher(defn, inning, lead) {
   }
   if (inning >= 9 && lead > 0 && lead <= 3
       && defn.bullpenLeft.some(p => p.pen_role === 'CL')) pull = true;
+
+  // 잘 던지고 있으면 끝까지 간다. 노히터를 앞두고 바꾸는 감독은 없고,
+  // 투구수가 적고 주자를 안 준 투수를 8회에 내리지도 않는다.
+  if (isStarter && inning >= 7 && lead >= 0) {
+    if (cur.h === 0 && cur.np < 132) pull = false;
+    else if (inning >= 7 && cur.br <= 4 && cur.np < 110 && f < 1.35) pull = false;
+  }
   if (!pull) return;
   const nxt = pickReliever(defn.bullpenLeft, inning, lead);
   if (!nxt) return;
@@ -147,6 +154,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
   const zs = z(batter.speed), zarm = z(defn.team.defense.outfield);
   const me = defn.cur;
   const scored = [];
+  const bases0 = bases.occupied();          // 타석 시작 시점의 주자
   let addedOuts = 0, desc = desc0;
 
   if (res === K) { addedOuts = 1; desc = '삼진'; }
@@ -200,6 +208,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     if (res === HR) {
       me.hr++;
       for (const i of [2,1,0]) if (bases.r[i]) scored.push(bases.take(i));
+      if (bases0 === 3) { bl.gsl++; desc = '만루 홈런'; }
       scored.push([batter, me]); if (!desc) desc = '홈런';
     } else if (res === T3B) {
       for (const i of [2,1,0]) if (bases.r[i]) scored.push(bases.take(i));
@@ -357,6 +366,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     }
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
+    if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
     const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]

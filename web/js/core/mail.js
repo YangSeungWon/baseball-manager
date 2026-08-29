@@ -103,12 +103,29 @@ export function scanDay(g, day, newInjuries, boxes) {
         title:`${b.name} 한 경기 ${L2.hr}홈런`,
         body:`${josa(b.name, '이가')} ${them.team.name}전에서 홈런 ${L2.hr}개를 몰아쳤다. `
           + `${L2.h}안타 ${L2.rbi}타점.` });
+      else if (L2.h - L2.b2 - L2.b3 - L2.hr >= 1 && L2.b2 >= 1 && L2.b3 >= 1 && L2.hr >= 1)
+        mb.push({ year:L.year, day, kind:'game', pri:1, pid:b.pid,
+          title:`${b.name} 사이클링히트`,
+          body:`${josa(b.name, '이가')} ${them.team.name}전에서 단타·2루타·3루타·홈런을 모두 쳤다. `
+            + `${L2.h}안타 ${L2.rbi}타점.` });
+      else if (L2.gsl >= 1) mb.push({ year:L.year, day, kind:'game', pid:b.pid,
+        title:`${b.name} 만루 홈런`,
+        body:`${josa(b.name, '이가')} 만루에서 담장을 넘겼다. 이 경기 ${L2.rbi}타점.` });
       else if (L2.h >= 4) mb.push({ year:L.year, day, kind:'game', pid:b.pid,
         title:`${b.name} ${L2.h}안타`,
         body:`${josa(b.name, '이가')} ${L2.ab}타수 ${L2.h}안타 ${L2.rbi}타점으로 맹타를 휘둘렀다.` });
     }
     const sp = us.pitchers[0];
-    if (sp && sp.outs >= 27 && sp.r === 0) mb.push({ year:L.year, day, kind:'game', pri:1,
+    const cg = sp && us.pitchers.length === 1 && sp.outs >= 24;
+    if (cg && sp.br === 0) mb.push({ year:L.year, day, kind:'game', pri:1, pid:sp.p.pid,
+      title:`${sp.p.name} 퍼펙트게임`,
+      body:`${josa(sp.p.name, '이가')} ${them.team.name}전에서 단 한 명도 내보내지 않았다. `
+        + `${(sp.outs/3).toFixed(0)}이닝 ${sp.k}탈삼진. 리그 역사에 남는다.` });
+    else if (cg && sp.h === 0) mb.push({ year:L.year, day, kind:'game', pri:1, pid:sp.p.pid,
+      title:`${sp.p.name} 노히트노런`,
+      body:`${josa(sp.p.name, '이가')} ${josa(them.team.name, '을를')} 상대로 안타를 하나도 내주지 않았다. `
+        + `볼넷 ${sp.bb}개, 탈삼진 ${sp.k}개.` });
+    else if (sp && sp.outs >= 27 && sp.r === 0) mb.push({ year:L.year, day, kind:'game', pri:1,
       pid:sp.p.pid, title:`${sp.p.name} 완봉승`,
       body:`${josa(sp.p.name, '이가')} ${josa(them.team.name, '을를')} 상대로 9이닝을 완봉했다. `
         + `피안타 ${sp.h}개, 탈삼진 ${sp.k}개.` });
