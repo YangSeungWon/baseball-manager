@@ -594,3 +594,17 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .rainy{font-size:13px;color:var(--fg3)}
 .tag.dh{background:var(--s3);color:var(--fg2);font-size:11px;font-weight:700;
   border-radius:4px;padding:1px 5px;margin-left:5px}
+
+/* 감독 지시 */
+.tacs{display:flex;flex-direction:column;gap:2px}
+.tac{display:grid;grid-template-columns:190px 1fr;gap:16px;align-items:center;
+  padding:10px 2px;border-bottom:1px solid var(--line2)}
+.tac:last-child{border-bottom:0}
+.tk{font-size:16px;font-weight:600;color:var(--fg);display:flex;flex-direction:column}
+.tk i{font-style:normal;font-size:13px;font-weight:400;color:var(--fg3);margin-top:3px;
+  word-break:keep-all;line-height:1.45}
+.tsteps{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.tsteps button{background:var(--s2);border:0;color:var(--fg3);border-radius:5px;
+  padding:9px 4px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap}
+.tsteps button:hover{background:var(--hover);color:var(--fg2)}
+.tsteps button.on{background:var(--accent);color:#fff}

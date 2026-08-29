@@ -25,7 +25,7 @@ export const kmh = (p, type) =>
 
 export const PC = {
   // 겨냥. 존 반폭을 1로 둔 좌표. 몰아붙일 땐 바깥을, 몰렸을 땐 한복판을 본다.
-  aimEdge: 0.63222, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
+  aimEdge: 0.65168, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
   scatterBase: 0.60, scatterCommand: -0.115,
 
   // 스트라이크존 스윙률
@@ -37,7 +37,7 @@ export const PC = {
   swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.085,
 
   // 컨택률
-  ctZBase: 0.90729, ctOBase: 0.68843, ctDecay: 0.30,
+  ctZBase: 0.90454, ctOBase: 0.68430, ctDecay: 0.30,
   ctContact: 0.030, ctAvoidK: 0.024, ctStuff: -0.040, ctMove: -0.014,
   ctWhiff: -0.115, ctTwoStrike: -0.032,
 

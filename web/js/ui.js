@@ -652,6 +652,16 @@ function viewTeam(v) {
 
   g.appendChild(sect('수비 배치', '', diamond()));
 
+  // 경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다.
+  const tc = G.tactics();
+  g.appendChild(sect('감독 지시', '', `<div class="tacs">${tc.rows.map(r => `
+    <div class="tac">
+      <div class="tk">${esc(r.label)}<i>${esc(r.hint)}</i></div>
+      <div class="tsteps">${r.steps.map((s, i) =>
+        `<button data-tk="${r.key}" data-tv="${i}" class="${i === r.value ? 'on' : ''}">${esc(s)}</button>`
+      ).join('')}</div>
+    </div>`).join('')}</div>`));
+
   const block = (title, list, kind) => {
     if (!list.length) return;
     g.appendChild(sect(title, `${list.length} · ${AXIS_KEY}`, table(
@@ -681,6 +691,9 @@ function viewTeam(v) {
       `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
     (row) => openPlayer(row.p.pid))));
   v.appendChild(g);
+  v.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => {
+    G.setTactic(b.dataset.tk, +b.dataset.tv); autosave(); render();
+  });
   v.querySelectorAll('.dpos.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 

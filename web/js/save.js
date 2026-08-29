@@ -120,7 +120,8 @@ export function dump(game) {
       fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue),
            f3(t.finance.budget), f3(t.finance.patience), t.finance.attendance || 0,
            t.finance.homeGames || 0, t.finance.income || null],
-      up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null })),
+      up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null,
+      tac:t.tactics || null })),
     players: live, ghosts,
     careers: [...L.careers.values()].filter(c => c.seasons.length || live[c.p.pid]).map(c => ({
       pid:c.p.pid, k:c.kind,
@@ -186,6 +187,7 @@ export function load(data) {
       park:{ hrFactor:td.park[0], hitFactor:td.park[1], name:td.park[2],
              capacity:td.park[3] || 18000, opened:td.park[4] },
       upside_weight: td.up, talent: td.talent, history: td.hist || null,
+      tactics: td.tac || null,
       unavailable:new Set(),
       lineup:[], bench:[], rotation:[], bullpen:[],
       defense:{ infield:50, outfield:50, catcherFraming:50 },

@@ -14,6 +14,19 @@ import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail,
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FOREIGN='off_foreign', OFF_FA='off_fa',
   OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
+export const TACTIC_DEFS = [
+  { key:'bunt',  label:'번트',      steps:['안 함','적게','보통','자주','적극'],
+    hint:'주자를 한 베이스 보내는 대신 아웃 하나를 준다' },
+  { key:'steal', label:'도루',      steps:['자제','신중','보통','적극','저돌'],
+    hint:'성공하면 득점권, 실패하면 이닝이 끝난다' },
+  { key:'pinch', label:'대타',      steps:['안 함','아끼기','보통','자주','총력'],
+    hint:'한 번 쓰면 원래 타자는 그날 끝이다' },
+  { key:'hook',  label:'투수 교체', steps:['길게','여유','보통','빠르게','즉시'],
+    hint:'같은 피로에서 얼마나 먼저 손을 드는가' },
+  { key:'ibb',   label:'고의사구',  steps:['안 함','드물게','보통','자주','적극'],
+    hint:'무서운 타자를 거르고 다음 타자와 승부한다' },
+];
+
 export const PHASE_LABEL = {
   [PRESEASON]:'스프링캠프', [REGULAR]:'정규시즌', [POSTSEASON]:'포스트시즌',
   [OFF_ROLLOVER]:'시즌 정리', [OFF_FOREIGN]:'외국인 시장', [OFF_FA]:'FA 시장',
@@ -926,6 +939,25 @@ export class Game {
     this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 감독 지시 ────────────────────────────────────────────
+     경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다. */
+
+  tactics() {
+    const t = this.me;
+    const v = t.tactics || {};
+    return { rows: TACTIC_DEFS.map(d => ({ key:d.key, label:d.label,
+      value: v[d.key] ?? 2, steps:d.steps, hint:d.hint })) };
+  }
+
+  setTactic(key, value) {
+    const d = TACTIC_DEFS.find(x => x.key === key);
+    if (!d) return { error:'unknown' };
+    const t = this.me;
+    if (!t.tactics) t.tactics = {};
+    t.tactics[key] = Math.max(0, Math.min(4, value | 0));
+    return { ok:true };
+  }
+
   /* ── 시즌 중 외국인 교체 ──────────────────────────────────
      여름 시장은 얕다. 방출해도 이미 준 돈은 돌아오지 않는다.
      그래도 반년을 먹튀와 함께 갈 수는 없다. */
