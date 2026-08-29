@@ -16,6 +16,7 @@ const rkCls = (r, of) => r <= Math.ceil(of * 0.3) ? 'r1' : (r >= Math.floor(of *
 const rkNum = (r, of) => `<b class="m ${rkCls(r, of)}">${r}위</b>`;
 
 let G = null, tab = 'home', saveTimer = null, lastPhase = null, lastBox = null;
+let luSel = null, luRot = null;   // 편성 화면에서 고른 타순 / 선발
 
 /* ── 저장 ── */
 function persist() {
@@ -690,6 +691,31 @@ function viewTeam(v) {
 
   g.appendChild(sect('수비 배치', '', diamond()));
 
+  // 편성. 타순과 자리를 직접 정한다. 출전 시간이 곧 육성이다.
+  const lu = G.lineup();
+  const fitCls = (f) => f === '적합' ? '' : f === '가능' ? 'w1' : f === '무리' ? 'w2' : 'w3';
+  g.appendChild(sect('편성', lu.manual ? '수동' : '자동',
+    `<div class="lu">
+      <div class="lurows">${lu.slots.map(s => `
+        <div class="lurow${luSel === s.order ? ' sel' : ''}" data-slot="${s.order}">
+          <span class="lo">${s.order}</span>
+          <span class="ln">${esc(s.name)}<i>${s.nat}</i></span>
+          <select class="lp" data-pos="${s.order}">${lu.positions.map(p =>
+            `<option value="${p}"${p === s.slot ? ' selected' : ''}>${p}</option>`).join('')}</select>
+          <span class="lf ${fitCls(s.fit)}">${s.fit}${s.pen ? ` <i>-${s.pen}</i>` : ''}</span>
+          <span class="la">${axis(s.ovr, s.pot)}</span>
+        </div>`).join('')}</div>
+      <div class="lubench">
+        <div class="lab">벤치</div>
+        ${lu.bench.length ? lu.bench.map(b => `<button class="lb" data-bench="${b.pid}">
+          ${esc(b.name)}<i>${b.nat}</i></button>`).join('') : '<div class="empty">—</div>'}
+        <div class="lab" style="margin-top:14px">선발 로테이션</div>
+        <div class="lurot">${lu.rotation.map(p => `<button class="lb rot"
+          data-rot="${p.pid}">${p.order}<i>${esc(p.name)}</i></button>`).join('')}</div>
+        <button class="quiet luauto" id="luAuto">자동 편성으로</button>
+      </div>
+    </div>`));
+
   // 경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다.
   const tc = G.tactics();
   g.appendChild(sect('감독 지시', '', `<div class="tacs">${tc.rows.map(r => `
@@ -729,6 +755,27 @@ function viewTeam(v) {
       `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
     (row) => openPlayer(row.p.pid))));
   v.appendChild(g);
+  v.querySelectorAll('.lurow').forEach(r => r.onclick = (e) => {
+    if (e.target.tagName === 'SELECT') return;
+    const n = +r.dataset.slot;
+    if (luSel === null) { luSel = n; render(); return; }
+    if (luSel === n) { luSel = null; render(); return; }
+    G.swapLineup(luSel, n); luSel = null; autosave(); render();
+  });
+  v.querySelectorAll('[data-pos]').forEach(s => s.onchange = () => {
+    G.setSlotPos(+s.dataset.pos, s.value); autosave(); render();
+  });
+  v.querySelectorAll('[data-bench]').forEach(b => b.onclick = () => {
+    if (luSel === null) { toast('', '먼저 바꿀 타순을 고른다', 'warn'); return; }
+    G.placeInLineup(luSel, +b.dataset.bench); luSel = null; autosave(); render();
+  });
+  v.querySelectorAll('[data-rot]').forEach(b => b.onclick = () => {
+    if (luRot === null) { luRot = +b.dataset.rot; render(); return; }
+    const list = G.lineup().rotation;
+    const to = list.findIndex(p => p.pid === +b.dataset.rot) + 1;
+    G.setRotation(to, luRot); luRot = null; autosave(); render();
+  });
+  const la = $('#luAuto'); if (la) la.onclick = () => { G.autoLineup(); luSel = null; autosave(); render(); };
   v.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => {
     G.setTactic(b.dataset.tk, +b.dataset.tv); autosave(); render();
   });

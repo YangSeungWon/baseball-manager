@@ -16,6 +16,26 @@ export const POS = { C:[-0.35,0.55,-0.60,0.70], '1B':[0.45,-0.35,-0.45,-0.55],
   LF:[0.25,-0.20,0.05,-0.25], CF:[-0.10,0.45,0.60,0.20], RF:[0.20,-0.05,0.10,0.60],
   DH:[0.55,-1.00,-0.35,-0.70] };
 export const LINEUP_POS = ['C','1B','2B','3B','SS','LF','CF','RF','DH'];
+
+// 수비 스펙트럼. 오른쪽으로 갈수록 어렵다.
+// 어려운 자리에서 쉬운 자리로 가는 건 공짜지만, 반대는 값을 치른다.
+const SPECTRUM = ['DH','1B','LF','RF','3B','CF','2B','SS','C'];
+const SPEC_I = Object.fromEntries(SPECTRUM.map((p,i)=>[p,i]));
+
+/** 이 선수를 이 자리에 세우면 수비가 얼마나 깎이는가.
+ *  포수는 아무나 못 선다. */
+export function posPenalty(p, pos) {
+  const from = SPEC_I[p.position] ?? 0, to = SPEC_I[pos] ?? 0;
+  if (pos === 'C' && p.position !== 'C') return 26;      // 포수는 전문 자리다
+  if (p.position === 'C' && pos !== 'C') return 3;       // 포수가 나오면 조금 어색하다
+  const step = to - from;
+  if (step <= 0) return 0;
+  return [0, 4, 9, 14, 19, 24, 28, 32][Math.min(7, step)];
+}
+export const posFit = (p, pos) => {
+  const d = posPenalty(p, pos);
+  return d === 0 ? '적합' : d <= 4 ? '가능' : d <= 14 ? '무리' : '불가';
+};
 export const FIELD_POS = ['C','1B','2B','3B','SS','LF','CF','RF'];
 
 let _pid = 1;
@@ -113,16 +133,22 @@ const AGE_REG = [24,25,25,26,26,27,27,28,28,29,30,30,31,32,33,34];
 const AGE_SUB = [23,24,25,26,27,28,29,30,31,33];
 
 export function refreshTeam(t) {
-  t.rotation.sort((a,b) => -(a.stuff+a.command*.7+a.movement*.5+a.stamina*.4)
-                         + (b.stuff+b.command*.7+b.movement*.5+b.stamina*.4));
+  if (!(t.manual && t.manual.rot && t.manual.rot.length))
+    t.rotation.sort((a,b) => -(a.stuff+a.command*.7+a.movement*.5+a.stamina*.4)
+                           + (b.stuff+b.command*.7+b.movement*.5+b.stamina*.4));
   t.bullpen.sort((a,b) => -(a.stuff+a.command*.6) + (b.stuff+b.command*.6));
-  t.lineup.sort((a,b) => -(a.discipline*1.2+a.contact+a.hr_power*.6)
-                        + (b.discipline*1.2+b.contact+b.hr_power*.6));
-  if (t.lineup.length > 1) { const x = t.lineup[0]; t.lineup[0] = t.lineup[1]; t.lineup[1] = x; }
+  const manualOrder = t.manual && t.manual.order && t.manual.order.length;
+  if (!manualOrder) {
+    t.lineup.sort((a,b) => -(a.discipline*1.2+a.contact+a.hr_power*.6)
+                          + (b.discipline*1.2+b.contact+b.hr_power*.6));
+    if (t.lineup.length > 1) { const x = t.lineup[0]; t.lineup[0] = t.lineup[1]; t.lineup[1] = x; }
+  }
   if (!t.lineup.length) return t;
-  const inf = t.lineup.filter(b => ['C','1B','2B','3B','SS'].includes(b.position)).map(b=>b.fielding);
-  const of = t.lineup.filter(b => ['LF','CF','RF'].includes(b.position)).map(b=>b.fielding);
-  const c = t.lineup.filter(b => b.position === 'C').map(b=>b.fielding);
+  // 배치된 자리 기준으로 본다. 자기 자리가 아니면 그만큼 깎인다.
+  const at = (b) => Math.max(20, b.fielding - posPenalty(b, b.slot || b.position));
+  const inf = t.lineup.filter(b => ['C','1B','2B','3B','SS'].includes(b.slot || b.position)).map(at);
+  const of = t.lineup.filter(b => ['LF','CF','RF'].includes(b.slot || b.position)).map(at);
+  const c = t.lineup.filter(b => (b.slot || b.position) === 'C').map(at);
   const avg = (a) => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 50;
   t.defense = { infield: avg(inf), outfield: avg(of), catcherFraming: c.length?c[0]:50 };
   assignPen(t);
@@ -150,20 +176,56 @@ export function assignPen(t) {
 }
 export const PEN_LABEL = { CL:'마무리', SU:'필승조', MR:'추격조', LR:'롱릴리프' };
 
+/** 감독이 짜 둔 편성. 다친 선수는 자동으로 메운다. */
+function applyManual(t, pool) {
+  const m = t.manual;
+  if (!m || !m.order || !m.order.length) return null;
+  const by = new Map(pool.map(p => [p.pid, p]));
+  const used = new Set(), lineup = [];
+  for (const pid of m.order) {
+    const p = by.get(pid);
+    if (!p || used.has(pid)) continue;
+    p.slot = (m.pos && m.pos[pid]) || p.position;
+    used.add(pid); lineup.push(p);
+  }
+  if (lineup.length < 9) {                     // 빈 자리는 남은 선수로 메운다
+    const taken = new Set(lineup.map(p => p.slot));
+    const rest = pool.filter(p => !used.has(p.pid))
+      .sort((a, b) => dev.overall(b) - dev.overall(a));
+    for (const pos of FIELD_POS) {
+      if (taken.has(pos) || lineup.length >= 9) continue;
+      const i = rest.findIndex(p => p.position === pos);
+      const p = rest.splice(i >= 0 ? i : 0, 1)[0];
+      if (!p) break;
+      p.slot = pos; taken.add(pos); used.add(p.pid); lineup.push(p);
+    }
+    while (lineup.length < 9 && rest.length) {
+      const p = rest.shift(); p.slot = 'DH'; used.add(p.pid); lineup.push(p);
+    }
+  }
+  return { lineup, bench: pool.filter(p => !used.has(p.pid)) };
+}
+
 export function rebuildRoster(t, healthyOnly = false) {
   const bats = healthyOnly ? t.batters.filter(b => b.injury_days <= 0) : t.batters;
   const pits = healthyOnly ? t.pitchers.filter(p => p.injury_days <= 0) : t.pitchers;
   const pool = [...bats].sort((a,b) => dev.overall(b) - dev.overall(a));
-  const used = new Set(); const lineup = [];
-  for (const pos of FIELD_POS) {
-    let cand = pool.filter(b => b.position === pos && !used.has(b.pid));
-    if (!cand.length) cand = pool.filter(b => !used.has(b.pid));
-    if (!cand.length) break;
-    used.add(cand[0].pid); lineup.push(cand[0]);
+  // 감독이 짜 둔 편성이 있으면 자동 배치는 아예 돌리지 않는다.
+  // 돌리면 마지막에 남은 선수의 자리를 덮어써 버린다.
+  const man = applyManual(t, pool);
+  if (man) { t.lineup = man.lineup; t.bench = man.bench; }
+  else {
+    const used = new Set(); const lineup = [];
+    for (const pos of FIELD_POS) {
+      let cand = pool.filter(b => b.position === pos && !used.has(b.pid));
+      if (!cand.length) cand = pool.filter(b => !used.has(b.pid));
+      if (!cand.length) break;
+      used.add(cand[0].pid); cand[0].slot = pos; lineup.push(cand[0]);
+    }
+    let rest = pool.filter(b => !used.has(b.pid));
+    if (rest.length) { rest[0].slot = 'DH'; lineup.push(rest[0]); rest = rest.slice(1); }
+    t.lineup = lineup; t.bench = rest;
   }
-  let rest = pool.filter(b => !used.has(b.pid));
-  if (rest.length) { lineup.push(rest[0]); rest = rest.slice(1); }
-  t.lineup = lineup; t.bench = rest;
 
   const sp = pits.filter(p => p.role === 'SP')
     .sort((a,b) => -(a.stuff+a.command*.7+a.movement*.5+a.stamina*.4)
@@ -171,7 +233,14 @@ export function rebuildRoster(t, healthyOnly = false) {
   const rp = pits.filter(p => p.role === 'RP')
     .sort((a,b) => -(a.stuff+a.command*.6)+(b.stuff+b.command*.6));
   while (sp.length < 5 && rp.length) sp.push(rp.shift());
-  if (sp.length) { t.rotation = sp.slice(0,5); t.bullpen = rp.concat(sp.slice(5)).slice(0,8); }
+  if (sp.length) {
+    t.rotation = sp.slice(0,5); t.bullpen = rp.concat(sp.slice(5)).slice(0,8);
+    if (t.manual && t.manual.rot && t.manual.rot.length) {   // 감독이 정한 선발 순서
+      const by = new Map(t.rotation.map(p => [p.pid, p]));
+      const ord = t.manual.rot.map(pid => by.get(pid)).filter(Boolean);
+      t.rotation = ord.concat(t.rotation.filter(p => !ord.includes(p)));
+    }
+  }
   else if (rp.length) { t.rotation = rp.slice(0,5); t.bullpen = rp.slice(5).length ? rp.slice(5) : rp.slice(0,1); }
   return refreshTeam(t);
 }

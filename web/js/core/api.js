@@ -960,6 +960,95 @@ export class Game {
       rate: f.homeGames ? Math.round(f.attendance / f.homeGames / p.capacity * 100) : null };
   }
 
+  /* ── 편성 ────────────────────────────────────────────────
+     누구를 어디에 세우고 몇 번 타순에 놓는가. 출전 시간이 곧 육성이다. */
+
+  lineup() {
+    const t = this.me;
+    const row = (b, extra = {}) => ({ ...this.brief(b, t), nat:b.position,
+      slot:b.slot || b.position, fit:R.posFit(b, b.slot || b.position),
+      pen:R.posPenalty(b, b.slot || b.position), ...extra });
+    return {
+      manual: !!(t.manual && t.manual.order && t.manual.order.length),
+      positions: R.LINEUP_POS,
+      slots: t.lineup.map((b, i) => row(b, { order:i + 1 })),
+      bench: t.bench.map(b => row(b)),
+      rotation: t.rotation.map((p, i) => ({ ...this.brief(p, t), order:i + 1 })),
+      bullpen: t.bullpen.map(p => ({ ...this.brief(p, t),
+        role:p.pen_role, roleKr:R.PEN_LABEL[p.pen_role], locked:!!p.pen_lock })),
+      penRoles: Object.entries(R.PEN_LABEL).map(([k, v]) => ({ key:k, label:v })),
+    };
+  }
+
+  /** 지금 편성을 그대로 감독의 지시로 굳힌다. */
+  _pinLineup() {
+    const t = this.me;
+    if (!t.manual) t.manual = {};
+    t.manual.order = t.lineup.map(b => b.pid);
+    t.manual.pos = {};
+    for (const b of t.lineup) t.manual.pos[b.pid] = b.slot || b.position;
+    t.manual.rot = t.rotation.map(p => p.pid);
+    R.rebuildRoster(t);
+    return { ok:true };
+  }
+
+  swapLineup(a, b) {
+    const t = this.me;
+    if (a === b || a < 1 || b < 1 || a > t.lineup.length || b > t.lineup.length)
+      return { error:'range' };
+    const x = t.lineup[a - 1]; t.lineup[a - 1] = t.lineup[b - 1]; t.lineup[b - 1] = x;
+    return this._pinLineup();
+  }
+
+  /** 벤치 선수를 그 타순에 넣는다. 있던 선수는 벤치로 간다. */
+  placeInLineup(order, pid) {
+    const t = this.me;
+    if (order < 1 || order > t.lineup.length) return { error:'range' };
+    const i = t.bench.findIndex(b => b.pid === pid);
+    if (i < 0) return { error:'not_found' };
+    const inc = t.bench[i], out = t.lineup[order - 1];
+    inc.slot = out.slot || out.position;
+    t.lineup[order - 1] = inc; t.bench[i] = out;
+    return this._pinLineup();
+  }
+
+  setSlotPos(order, pos) {
+    const t = this.me;
+    if (order < 1 || order > t.lineup.length) return { error:'range' };
+    if (!R.LINEUP_POS.includes(pos)) return { error:'pos' };
+    const b = t.lineup[order - 1];
+    const other = t.lineup.find(x => x !== b && (x.slot || x.position) === pos);
+    if (other && pos !== 'DH') other.slot = b.slot || b.position;   // 자리를 맞바꾼다
+    b.slot = pos;
+    return this._pinLineup();
+  }
+
+  setRotation(order, pid) {
+    const t = this.me;
+    const i = t.rotation.findIndex(p => p.pid === pid);
+    if (i < 0 || order < 1 || order > t.rotation.length) return { error:'range' };
+    const x = t.rotation.splice(i, 1)[0];
+    t.rotation.splice(order - 1, 0, x);
+    return this._pinLineup();
+  }
+
+  setPenRole(pid, role) {
+    const t = this.me;
+    const p = t.bullpen.find(x => x.pid === pid);
+    if (!p || !R.PEN_LABEL[role]) return { error:'not_found' };
+    p.pen_role = role; p.pen_lock = true;
+    return { ok:true };
+  }
+
+  autoLineup() {
+    const t = this.me;
+    t.manual = null;
+    for (const b of t.batters) delete b.slot;
+    for (const p of t.pitchers) delete p.pen_lock;
+    R.rebuildRoster(t);
+    return { ok:true };
+  }
+
   tactics() {
     const t = this.me;
     const v = t.tactics || {};

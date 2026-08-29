@@ -77,7 +77,9 @@ class TeamGameState {
     this.bullpenLeft = avail;
     // 어느 자리에 누가 서 있는가. 타구가 향한 곳의 야수를 여기서 찾는다.
     this.byPos = {};
-    for (const b of team.lineup) if (!this.byPos[b.position]) this.byPos[b.position] = b;
+    // 자기 포지션이 아니라 오늘 선 자리 기준이다.
+    for (const b of team.lineup) { const s = b.slot || b.position;
+      if (!this.byPos[s]) this.byPos[s] = b; }
     this.bench = [...(team.bench || [])];
     this.hurt = [];                            // 이 경기에서 맞고 다친 선수
     this.usedBench = new Set();
