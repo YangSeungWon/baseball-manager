@@ -10,10 +10,11 @@
 import { z, LG, C } from './pa.js';
 
 // 각도: -45 좌익선, 0 중견, +45 우익선. 깊이: 홈플레이트에서 미터.
-const POS_ANGLE = { C: 0, P: 0, '1B': 25, '2B': 12, '3B': -25, SS: -12,
-                    LF: -27, CF: 0, RF: 27 };
-const POS_DEPTH = { C: 3, P: 17, '1B': 31, '2B': 39, '3B': 31, SS: 39,
-                    LF: 79, CF: 87, RF: 79 };
+// 실제 수비 위치. 코너 내야수는 선상에 붙고, 유격수·2루수는 그 사이 구멍을 메운다.
+const POS_ANGLE = { C: 0, P: 0, '1B': 33, '2B': 17, '3B': -33, SS: -17,
+                    LF: -30, CF: 0, RF: 30 };
+const POS_DEPTH = { C: 3, P: 17, '1B': 33, '2B': 41, '3B': 33, SS: 41,
+                    LF: 82, CF: 90, RF: 82 };
 const INFIELD = ['P', '1B', '2B', '3B', 'SS'];
 const OUTFIELD = ['LF', 'CF', 'RF'];
 
@@ -28,7 +29,9 @@ export function zoneName(angle) {
 
 export const BC = {
   // 방향. 거포일수록 당겨치고, 교타자일수록 넓게 뿌린다.
-  pullDeg: 15.0, pullPower: 3.2, pullContact: -2.0, spraySd: 15.5,
+  pullDeg: 10.5, pullPower: 2.6, pullContact: -2.0, spraySd: 15.5,
+  // 땅볼은 더 넓게 퍼진다. 선상으로 빠지는 타구가 코너 내야수의 몫이다.
+  spraySdBy: { GB: 20.5, LD: 18.0, FB: 18.5, PU: 14.0 },
   // 깊이 [평균, 표준편차] — 타구 질과 장타력이 얹힌다.
   depth: { GB: [30, 9], LD: [72, 16], FB: [88, 27], PU: [34, 12] },
   depthQuality: { GB: 6, LD: 20, FB: 30, PU: 8 },
@@ -38,9 +41,11 @@ export const BC = {
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.210, LD: 1.214, FB: 1.231, PU: 1.128 },
+  hangK: { GB: 1.300, LD: 1.304, FB: 1.321, PU: 1.218 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
+  // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
+  pReact: 0.28, pRange: 0.55,
   // 여유(초)가 클수록 쉬운 타구
   tau: 0.62,
   // 땅볼은 잡아도 던져야 아웃이다
@@ -49,7 +54,7 @@ export const BC = {
   qGb: 1.350, qLd: 0.95, qPu: 1.10,
   // 담장 (m). 폴대 99, 중앙 125.
   // 담장 기준 치수 (m). 보정 결과가 실제 KBO 구장 규격과 맞아떨어졌다.
-  fenceLine: 103.72, fenceCenter: 130.29, fenceHeight: 2.8,
+  fenceLine: 103.26, fenceCenter: 129.77, fenceHeight: 2.8,
   // 낮은 직선타는 높은 담장에 걸린다. 뜬 공은 넘어간다.
   heightLd: 2.4, heightFb: 0.7,
   // 고도 100m당 비거리 (m), 인조잔디 타구 가속
@@ -100,7 +105,7 @@ export function overFence(ball, park) {
 export function battedBall(bbt, bat, quality, rng, park = null) {
   const hand = bat.bats === 'L' ? -1 : 1;
   const pull = BC.pullDeg + BC.pullPower * z(bat.hr_power) + BC.pullContact * z(bat.contact);
-  const angle = clamp(rng.gauss(-hand * pull, BC.spraySd), -45, 45);
+  const angle = clamp(rng.gauss(-hand * pull, BC.spraySdBy[bbt] ?? BC.spraySd), -45, 45);
 
   const [dm, ds] = BC.depth[bbt];
   // 뜬 공의 비거리는 장타력이, 굴러가는 타구는 갭파워가 끌고 간다.
@@ -133,7 +138,9 @@ export function assign(ball, byPos) {
     // 투수에게는 수비 능력치가 없다. 자리 기본값으로 메운다.
     const fld = num(f && f.fielding, pos === 'P' ? 45 : 50);
     const spd = num(f && f.speed, pos === 'P' ? 45 : 50);
-    const v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
+    let v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
+    let react = BC.react;
+    if (pos === 'P') { v *= BC.pRange; react += BC.pReact; }
     let dist, avail;
     if (ground) {
       // 땅볼은 야수 쪽으로 굴러온다. 옆으로만 움직이면 되고,
@@ -145,7 +152,7 @@ export function assign(ball, byPos) {
                         ball.depth - POS_DEPTH[pos]);
       avail = ball.hang;
     }
-    const slack = (avail - BC.react) - dist / v;
+    const slack = (avail - react) - dist / v;
     if (!best || slack > best.slack) best = { pos, fielder: f, slack, dist };
   }
   // 여유가 클수록 쉬운 타구. 0 근처면 전력질주해야 닿는다.

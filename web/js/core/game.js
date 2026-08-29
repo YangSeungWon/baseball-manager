@@ -1,4 +1,5 @@
 // 경기 엔진: 진루 모델 + 이닝 루프 + 투수 교체 AI + 박스스코어.
+const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 10) / 10);
 import { z, K, BB, HBP, OUT, S1B, D2B, T3B, HR, ERR } from './pa.js';
 import { playCount, FOUL_OUT, PITCH } from './pitch.js';
 import * as BIP from './bip.js';
@@ -14,10 +15,10 @@ export const MISC = {
 };
 
 export const ADV = {
-  b1_first_to_third: 0.187, b1_second_scores: 0.412, b2_first_scores: 0.312,
+  b1_first_to_third: 0.210, b1_second_scores: 0.460, b2_first_scores: 0.348,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.340, gb_r3_scores: 0.200, gb_r2_to_third: 0.278, fb_r2_to_third: 0.082,
+  sacfly_base: 0.379, gb_r3_scores: 0.222, gb_r2_to_third: 0.309, fb_r2_to_third: 0.091,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.720, sb_success_speed: 0.055,
 };
@@ -296,7 +297,9 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
         if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
       }
       plays.push({ inning, half: off.half, batter: batter.name, desc: '보크', runs: 1,
-                   outs, score: `${off.runs}-${defn.runs}` });
+                   outs, ro: off.runs, rd: defn.runs, pitcher: pl.p.name,
+                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
+                          bases.r[2]?bases.r[2].name:null] });
     }
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
@@ -311,8 +314,10 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
           if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
         }
         plays.push({ inning, half: off.half, batter: batter.name,
-                     desc: wild ? '폭투' : '포일', runs: 0, outs,
-                     score: `${off.runs}-${defn.runs}`, type: ev.type });
+                     desc: wild ? '폭투' : '포일', runs: 0, outs, ro: off.runs, rd: defn.runs,
+                     pitcher: pl.p.name, pt: ev.type,
+                     base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
+                            bases.r[2]?bases.r[2].name:null] });
       }
     }
     let res, bbt = null, desc0 = '', ball = null, play = null;
@@ -381,10 +386,18 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     const pa2 = pl.sp[defn.venue];
     pa2[0] += ao; pa2[1]++; if (isH) pa2[2]++; if (res === HR) pa2[3]++;
     if (res === BB) pa2[4]++; if (res === K) pa2[5]++; pa2[6] += runs;
-    plays.push({ inning, half: off.half, batter: batter.name, desc, runs, outs,
-                 score: `${off.runs}-${defn.runs}`, b: pc.b, s: pc.s, np: pc.np,
-                 pt: pc.type, velo: pc.velo,
-                 zone: ball ? ball.zone : null, bbt, pos: play ? play.pos : null });
+    plays.push({ inning, half: off.half, batter: batter.name, bat: batter.pid,
+                 pitcher: pl.p.name, desc, runs, outs, ro: off.runs, rd: defn.runs,
+                 b: pc.b, s: pc.s, np: pc.np, pt: pc.type, velo: pc.velo,
+                 px: r2(pc.px), pz: r2(pc.pz),
+                 zone: ball ? ball.zone : null, bbt,
+                 ang: ball ? r2(ball.angle) : null, dep: ball ? r2(ball.depth) : null,
+                 pos: play ? play.pos : null,
+                 fld: play && play.fielder ? play.fielder.name : null,
+                 hard: play ? r2(1 - play.difficulty) : null,
+                 base: [bases.r[0] ? bases.r[0].name : null,
+                        bases.r[1] ? bases.r[1].name : null,
+                        bases.r[2] ? bases.r[2].name : null] });
     if (off.runs > defn.runs && prevDiff <= 0) { off.por = off.cur; defn.lp = defn.cur; }
     if (walkoff && off.runs > defn.runs) {
       off.lob += bases.occupied(); off.line.push(off.runs - startRuns);

@@ -505,3 +505,74 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .fn i{font-style:normal;font-size:13px;font-weight:400;color:var(--fg3);margin-top:2px}
 .fv{font-size:14px;color:var(--fg2);white-space:nowrap}
 .fy{font-size:14px;color:var(--fg3);text-align:right}
+
+/* ── 경기 재생 ── */
+.lastgame{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 2px}
+.lgs{display:flex;align-items:center;gap:10px;font-size:16px;color:var(--fg2)}
+.lgs b{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--fg)}
+.lgs i{font-style:normal;color:var(--fg3)}
+
+.rp{display:flex;flex-direction:column;gap:0;min-width:min(880px,88vw)}
+.rphead{display:flex;align-items:center;gap:20px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.rpteams{display:flex;gap:22px;flex:1}
+.rpt{display:flex;align-items:baseline;gap:9px}
+.rpt b{font-size:17px;font-weight:700}
+.rpt em{font-style:normal;font-family:var(--mono);font-size:28px;font-weight:700;color:var(--fg);line-height:1}
+.rpinn{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--accent)}
+
+.rpbody{display:grid;grid-template-columns:1fr 300px;gap:20px;padding:16px 0}
+.rpfield{background:#0a1017;border-radius:8px;padding:6px;display:flex;justify-content:center}
+.field{width:100%;max-width:440px;height:auto}
+.field .grass{fill:#14301f}
+.field .dirt{fill:#3a2a1c}
+.field .foul{stroke:#5d6d7c;stroke-width:1.2;fill:none;stroke-dasharray:4 4}
+.field .fence{stroke:#7c8d9c;stroke-width:2;fill:none}
+.field .paths{stroke:#7a5c3e;stroke-width:2.5;fill:none}
+.field .bag{fill:#e8eef4}
+.field .bag.home{fill:#c9d4de}
+.field .fm circle{fill:#1b2634;stroke:#516375;stroke-width:1.5}
+.field .fm text{fill:var(--fg2);font-size:10px;font-weight:700;text-anchor:middle;font-family:var(--kr)}
+.field .fm.on circle{fill:var(--accent);stroke:#cfe2f7}
+.field .fm.on text{fill:#fff}
+.field .trail{stroke:#ffd45e;stroke-width:2;fill:none;opacity:.65;stroke-linecap:round}
+.field .ball{fill:#fff;stroke:#ffd45e;stroke-width:1.5}
+
+.rpside{display:flex;flex-direction:column;gap:14px;min-width:0}
+.rpmatch{background:var(--s1);border-radius:8px;padding:12px 14px}
+.rprow{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.rprow span{font-size:13px;color:var(--fg3)}
+.rprow b{font-size:18px;font-weight:700}
+.rprow.bat{margin-top:10px;padding-top:10px;border-top:1px solid var(--line2)}
+.rppitch{display:flex;align-items:baseline;gap:8px;margin-top:4px;color:var(--fg2)}
+.rppitch b{font-size:15px;font-weight:600;color:var(--accent)}
+.rppitch span{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--fg)}
+.rppitch i{font-style:normal;font-size:11px;color:var(--fg3);margin-left:2px}
+
+.rpstate{display:flex;align-items:center;gap:18px;background:var(--s1);border-radius:8px;padding:12px 14px}
+.dia{width:62px;height:62px;flex-shrink:0}
+.dia .db{fill:none;stroke:#55677a;stroke-width:2}
+.dia .db.on{fill:#ffd45e;stroke:#ffd45e}
+.dia .db.home{fill:#55677a}
+.cnt{display:flex;flex-direction:column;gap:6px}
+.cnt div{display:flex;align-items:center;gap:6px}
+.cnt span{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--fg3);width:12px}
+.cnt i{width:11px;height:11px;border-radius:50%;background:var(--s3);display:block}
+.cnt i.on{background:var(--accent)}
+.cnt .o i.on{background:var(--neg)}
+
+.rplog{flex:1;min-height:150px;max-height:230px;overflow-y:auto;background:var(--s1);
+  border-radius:8px;padding:6px 4px}
+.rpl{display:grid;grid-template-columns:34px 62px 1fr auto;gap:8px;align-items:baseline;
+  padding:5px 10px;font-size:14px;color:var(--fg2)}
+.rpl.cur{background:var(--sel);color:var(--fg);border-radius:5px}
+.rpl .ri{font-family:var(--mono);font-size:12px;color:var(--fg3)}
+.rpl .rb{font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpl em{font-style:normal;font-family:var(--mono);font-weight:700;color:var(--pos)}
+
+.rpbar{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.rpspd{display:flex;gap:4px;margin-left:6px}
+.rpspd button{background:var(--s2);border:0;color:var(--fg3);border-radius:5px;
+  padding:6px 11px;font-family:var(--mono);font-size:14px;cursor:pointer}
+.rpspd button.on{background:var(--accent);color:#fff}
+.rpn{margin-left:auto;font-family:var(--mono);font-size:14px;color:var(--fg3)}
+.rpn b{color:var(--fg)}

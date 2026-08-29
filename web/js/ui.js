@@ -3,6 +3,7 @@
 import { Game } from './core/api.js';
 import { josa } from './core/mail.js';
 import * as save from './save.js';
+import * as BIP from './core/bip.js';
 
 const KEY = 'dugout.save.v1';
 const $ = (s, r = document) => r.querySelector(s);
@@ -14,7 +15,7 @@ const short = (s) => String(s).split(' ')[0];
 const rkCls = (r, of) => r <= Math.ceil(of * 0.3) ? 'r1' : (r >= Math.floor(of * 0.7) + 1 ? 'r3' : '');
 const rkNum = (r, of) => `<b class="m ${rkCls(r, of)}">${r}위</b>`;
 
-let G = null, tab = 'home', saveTimer = null, lastPhase = null;
+let G = null, tab = 'home', saveTimer = null, lastPhase = null, lastBox = null;
 
 /* ── 저장 ── */
 function persist() {
@@ -384,7 +385,11 @@ function renderTop() {
 }
 function act(fn) { const r = fn(); autosave(); render(); return r; }
 function report(r) {
-  if (r && r.games) for (const g of r.games.slice(-2)) toast(g.result, `${g.score}  ${short(g.opponent)}`);
+  if (r && r.games) {
+    for (const g of r.games.slice(-2)) toast(g.result, `${g.score}  ${short(g.opponent)}`);
+    const last = r.games.filter(g => g.box).pop();
+    if (last) lastBox = last.box;              // 방금 끝난 내 팀 경기. 다시 볼 수 있다.
+  }
   const s = G.state();
   for (const n of s.notices) toast(n.kind === 'injury' ? '부상' : '', n.text, n.kind);
   if (s.new_important > 0) tab = 'inbox';        // 사건이 있으면 편지함으로
@@ -513,6 +518,13 @@ function viewHome(v) {
 
   const rec = G.recentResults(8).rows;
   const day = G.dayResults();
+  if (lastBox) {
+    const r = lastBox, aw = r.away, hm = r.home;
+    left.appendChild(sect('직전 경기', '', `<div class="lastgame">
+      <div class="lgs"><span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
+        <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span></div>
+      <button class="go" id="rpOpen">경기 다시 보기</button></div>`));
+  }
   const two2 = el('div', 'grid g2');
   two2.appendChild(sect('최근 경기', '', rec.length
     ? rec.slice().reverse().map(r => `<div class="row">
@@ -556,6 +568,7 @@ function viewHome(v) {
 
   g.appendChild(left); g.appendChild(right); v.appendChild(g);
   v.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => openPlayer(+r.dataset.pid));
+  const rpb = $('#rpOpen'); if (rpb) rpb.onclick = () => openReplay(lastBox);
 }
 
 /* ── 팀 ── */
@@ -1080,3 +1093,188 @@ function modalSignings(r) {
 }
 
 boot();
+
+/* ── 경기 재생 ────────────────────────────────────────────────
+   시뮬레이션은 이미 끝났다. 여기서는 그 결과를 되짚어 보여줄 뿐이다.
+   구장은 엔진과 같은 기하로 그린다. 타구는 실제로 간 곳에 떨어진다. */
+
+const F_ANGLE = { C:0, P:0, '1B':33, '2B':17, '3B':-33, SS:-17, LF:-30, CF:0, RF:30 };
+const F_DEPTH = { C:3, P:17, '1B':33, '2B':41, '3B':33, SS:41, LF:82, CF:90, RF:82 };
+const F_KR = { P:'투', C:'포', '1B':'1', '2B':'2', '3B':'3', SS:'유', LF:'좌', CF:'중', RF:'우' };
+const FW = 340, FH = 300, HX = 170, HY = 276;
+// 실제 야구장은 내야가 외야에 비해 아주 작다. 그대로 그리면 아무것도 안 보인다.
+// 방송 그래픽처럼 반경을 완만히 압축해 내야에 자리를 준다.
+const RPOW = 0.70, RMAX = 252, RK = RMAX / Math.pow(136, RPOW);
+const pt = (ang, dep) => {
+  const a = ang * Math.PI / 180, r = Math.pow(Math.max(0, dep), RPOW) * RK;
+  return [HX + r * Math.sin(a), HY - r * Math.cos(a)];
+};
+
+function fieldSvg(park) {
+  const dims = BIP.parkDims(park);
+  const arc = [];
+  for (let a = -45; a <= 45; a += 2.5) arc.push(pt(a, BIP.fence(a, dims)));
+  const lineTo = (p) => `L${p[0].toFixed(1)} ${p[1].toFixed(1)}`;
+  const grass = `M${HX} ${HY}` + arc.map(lineTo).join('') + 'Z';
+  const dirt = [];
+  for (let a = -46; a <= 46; a += 4) dirt.push(pt(a, 31));
+  const inf = `M${HX} ${HY}` + dirt.map(lineTo).join('') + 'Z';
+  const b1 = pt(45, 27.4), b2 = pt(0, 38.8), b3 = pt(-45, 27.4);
+  const men = Object.keys(F_ANGLE).filter(k => k !== 'C').map(k => {
+    const [x, y] = pt(F_ANGLE[k], F_DEPTH[k]);
+    return `<g class="fm" data-pos="${k}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10"/>
+      <text x="${x.toFixed(1)}" y="${(y + 4).toFixed(1)}">${F_KR[k]}</text></g>`;
+  }).join('');
+  return `<svg class="field" viewBox="0 0 ${FW} ${FH}">
+    <path class="grass" d="${grass}"/>
+    <path class="dirt" d="${inf}"/>
+    <path class="foul" d="M${HX} ${HY} ${lineTo(pt(-45, 136))} M${HX} ${HY} ${lineTo(pt(45, 136))}"/>
+    <path class="fence" d="M${arc[0][0].toFixed(1)} ${arc[0][1].toFixed(1)}${arc.slice(1).map(lineTo).join('')}"/>
+    <path class="paths" d="M${HX} ${HY} L${b1[0].toFixed(1)} ${b1[1].toFixed(1)}
+      L${b2[0].toFixed(1)} ${b2[1].toFixed(1)} L${b3[0].toFixed(1)} ${b3[1].toFixed(1)} Z"/>
+    ${[b1, b2, b3].map(b => `<rect class="bag" x="${(b[0]-3.5).toFixed(1)}" y="${(b[1]-3.5).toFixed(1)}"
+      width="7" height="7"/>`).join('')}
+    <rect class="bag home" x="${HX-3.5}" y="${HY-3.5}" width="7" height="7"/>
+    ${men}
+    <path id="trail" class="trail" d=""/>
+    <circle id="ball" class="ball" cx="${HX}" cy="${HY}" r="4" opacity="0"/>
+  </svg>`;
+}
+
+const PT_KR = { FF:'포심', SI:'투심', FC:'커터', SL:'슬라이더', CU:'커브',
+                CH:'체인지업', FS:'포크', KN:'너클볼' };
+
+function openReplay(box) {
+  const P = box.plays || [];
+  if (!P.length) return;
+  let i = 0, timer = null, speed = 1;
+
+  modal(`<div class="rp">
+    <div class="rphead">
+      <div class="rpteams">
+        <span class="rpt"><b id="rpAwayN">${esc(short(box.away.team))}</b><em id="rpAwayR">0</em></span>
+        <span class="rpt"><b id="rpHomeN">${esc(short(box.home.team))}</b><em id="rpHomeR">0</em></span>
+      </div>
+      <div class="rpinn" id="rpInn">1회초</div>
+      <button id="mx" class="quiet">닫기</button>
+    </div>
+    <div class="rpbody">
+      <div class="rpfield">${fieldSvg(box.park)}</div>
+      <div class="rpside">
+        <div class="rpmatch">
+          <div class="rprow"><span>투수</span><b id="rpPit">—</b></div>
+          <div class="rppitch" id="rpPitch">—</div>
+          <div class="rprow bat"><span>타자</span><b id="rpBat">—</b></div>
+        </div>
+        <div class="rpstate">
+          <svg class="dia" viewBox="0 0 60 60">
+            <rect class="db" id="db2" x="24" y="4"  width="12" height="12" transform="rotate(45 30 10)"/>
+            <rect class="db" id="db3" x="4"  y="24" width="12" height="12" transform="rotate(45 10 30)"/>
+            <rect class="db" id="db1" x="44" y="24" width="12" height="12" transform="rotate(45 50 30)"/>
+            <rect class="db home" x="24" y="44" width="12" height="12" transform="rotate(45 30 50)"/>
+          </svg>
+          <div class="cnt">
+            <div><span>B</span><i id="cb0"></i><i id="cb1"></i><i id="cb2"></i></div>
+            <div><span>S</span><i id="cs0"></i><i id="cs1"></i></div>
+            <div class="o"><span>O</span><i id="co0"></i><i id="co1"></i></div>
+          </div>
+        </div>
+        <div class="rplog" id="rpLog"></div>
+      </div>
+    </div>
+    <div class="rpbar">
+      <button id="rpPrev" class="quiet">◀</button>
+      <button id="rpPlay" class="go">재생</button>
+      <button id="rpNext" class="quiet">▶</button>
+      <span class="rpspd">${[1,2,4].map(s => `<button data-s="${s}" class="${s===1?'on':''}">×${s}</button>`).join('')}</span>
+      <span class="rpn"><b id="rpI">0</b> / ${P.length}</span>
+      <button id="rpEnd" class="quiet">결과만 보기</button>
+    </div>
+  </div>`);
+
+  const $$ = (id) => document.getElementById(id);
+  const log = $$('rpLog');
+
+  function paint(p, animate) {
+    const top = p.half === 'top';
+    $$('rpInn').textContent = `${p.inning}회${top ? '초' : '말'}`;
+    // ro는 공격 팀 득점이다. 어느 쪽이 공격인지에 따라 갈라 넣는다.
+    $$('rpAwayR').textContent = top ? p.ro : p.rd;
+    $$('rpHomeR').textContent = top ? p.rd : p.ro;
+    $$('rpPit').textContent = p.pitcher || '—';
+    $$('rpBat').textContent = p.batter || '—';
+    $$('rpPitch').innerHTML = p.pt
+      ? `<b>${PT_KR[p.pt] || p.pt}</b>${p.velo ? `<span>${p.velo}<i>km/h</i></span>` : ''}` : '—';
+    for (let k = 0; k < 3; k++)
+      $$('cb' + k).classList.toggle('on', (p.b ?? 0) > k);
+    for (let k = 0; k < 2; k++)
+      $$('cs' + k).classList.toggle('on', (p.s ?? 0) > k);
+    for (let k = 0; k < 2; k++)
+      $$('co' + k).classList.toggle('on', (p.outs ?? 0) > k);
+    const bs = p.base || [null, null, null];
+    for (let k = 0; k < 3; k++) $$('db' + (k + 1)).classList.toggle('on', !!bs[k]);
+    document.querySelectorAll('.fm').forEach(e =>
+      e.classList.toggle('on', p.pos === e.dataset.pos));
+    drawBall(p, animate);
+    log.innerHTML = P.slice(0, i + 1).slice(-40).map((x, n, a) =>
+      `<div class="rpl${n === a.length - 1 ? ' cur' : ''}">
+        <span class="ri">${x.inning}${x.half === 'top' ? '초' : '말'}</span>
+        <span class="rb">${esc(x.batter || '')}</span>
+        <span class="rd">${esc(x.desc || '')}</span>
+        ${x.runs ? `<em>+${x.runs}</em>` : ''}</div>`).join('');
+    log.scrollTop = log.scrollHeight;
+    $$('rpI').textContent = i + 1;
+  }
+
+  let raf = null;
+  function drawBall(p, animate) {
+    const ball = $$('ball'), trail = $$('trail');
+    if (raf) { cancelAnimationFrame(raf); raf = null; }
+    if (p.ang === null || p.ang === undefined) {
+      ball.setAttribute('opacity', 0); trail.setAttribute('d', ''); return;
+    }
+    const [x, y] = pt(p.ang, p.dep);
+    const d = `M${HX} ${HY} L${x.toFixed(1)} ${y.toFixed(1)}`;
+    trail.setAttribute('d', d);
+    ball.setAttribute('opacity', 1);
+    if (!animate) { ball.setAttribute('cx', x); ball.setAttribute('cy', y); return; }
+    const dur = 420 / speed, t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 2);
+      ball.setAttribute('cx', HX + (x - HX) * e);
+      ball.setAttribute('cy', HY + (y - HY) * e);
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+  }
+
+  function go(n, animate = true) {
+    i = Math.max(0, Math.min(P.length - 1, n));
+    paint(P[i], animate);
+    if (i >= P.length - 1) stop();
+  }
+  function tick() { if (i < P.length - 1) go(i + 1); }
+  function start() {
+    if (timer) return;
+    if (i >= P.length - 1) i = -1;
+    $$('rpPlay').textContent = '일시정지';
+    tick();
+    timer = setInterval(tick, 1150 / speed);
+  }
+  function stop() {
+    if (timer) clearInterval(timer);
+    timer = null; $$('rpPlay').textContent = '재생';
+  }
+  $$('rpPlay').onclick = () => (timer ? stop() : start());
+  $$('rpPrev').onclick = () => { stop(); go(i - 1, false); };
+  $$('rpNext').onclick = () => { stop(); go(i + 1); };
+  $$('rpEnd').onclick = () => { stop(); go(P.length - 1, false); };
+  document.querySelectorAll('.rpspd button').forEach(b => b.onclick = () => {
+    speed = +b.dataset.s;
+    document.querySelectorAll('.rpspd button').forEach(x => x.classList.toggle('on', x === b));
+    if (timer) { stop(); start(); }
+  });
+  go(0, false);
+  start();
+}
