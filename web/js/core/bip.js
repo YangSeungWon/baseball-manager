@@ -34,14 +34,15 @@ export const BC = {
   spraySdBy: { GB: 20.5, LD: 18.0, FB: 18.5, PU: 14.0 },
   // 깊이 [평균, 표준편차] — 타구 질과 장타력이 얹힌다.
   depth: { GB: [30, 9], LD: [72, 16], FB: [88, 27], PU: [34, 12] },
-  depthQuality: { GB: 6, LD: 20, FB: 30, PU: 8 },
+  // 잘 맞은 공이 넘어간다. 뜬 공은 타구 질이 비거리를 크게 끌어올린다.
+  depthQuality: { GB: 6, LD: 20, FB: 50, PU: 8 },
   depthPower: { GB: 1.5, LD: 6.5, FB: 6.5, PU: 1.5 },
   // 체공 시간 [상수, 깊이계수]. 땅볼은 타구 속도로 따로 계산한다.
   hang: { GB: [0, 0], LD: [0.72, 1 / 62], FB: [1.60, 1 / 27], PU: [2.90, 1 / 34] },
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.283, LD: 1.287, FB: 1.304, PU: 1.201 },
+  hangK: { GB: 1.373, LD: 1.347, FB: 1.144, PU: 1.301 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
@@ -50,6 +51,8 @@ export const BC = {
   tau: 0.62,
   // 땅볼은 잡아도 던져야 아웃이다
   gbOutBase: 0.962, gbSpeed: -0.045, gbArm: 0.020, gbDeep: -0.0035,
+  // 닿은 타구를 아웃으로 바꾸지 못하는 정도. 어려운 타구일수록 세이프가 된다.
+  gbDiff: 0.42, flyDiff: 0.50,
   // 타구 질이 유형에 미치는 영향
   qGb: 1.350, qLd: 0.95, qPu: 1.10,
   // 담장 (m). 폴대 99, 중앙 125.
@@ -211,7 +214,7 @@ export function fieldIt(ball, play, bat, rng) {
       if (rng.random() < BC.errThrow * Math.exp(BC.errThrowArm * za))
         return { ...play, result: 'ERR', kind: 'throw' };
       const pOut = clamp(BC.gbOutBase + BC.gbSpeed * z(bat.speed) + BC.gbArm * za
-        + BC.gbDeep * (play.dist - 8) - 0.62 * play.difficulty, 0.05, 0.995);
+        + BC.gbDeep * (play.dist - 8) - BC.gbDiff * play.difficulty, 0.05, 0.995);
       return { ...play, result: rng.random() < pOut ? 'OUT' : 'HIT' };
     }
     return { ...play, result: 'OUT' };                    // 내야 뜬공·직선타
@@ -220,7 +223,7 @@ export function fieldIt(ball, play, bat, rng) {
   // 뜬 공 — 닿았으면 대개 잡는다. 어려운 타구일수록 흘린다.
   if (rng.random() < BC.errField * play.difficulty * 0.55 * Math.exp(BC.errFieldDef * zf))
     return { ...play, result: 'ERR', kind: 'field' };
-  return { ...play, result: rng.random() < 1 - play.difficulty * 0.42 ? 'OUT' : 'HIT' };
+  return { ...play, result: rng.random() < 1 - play.difficulty * BC.flyDiff ? 'OUT' : 'HIT' };
 }
 
 /** 안타의 등급. 선상과 갭으로 빠질수록, 깊을수록 길어진다. */
