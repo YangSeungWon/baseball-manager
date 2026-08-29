@@ -25,6 +25,8 @@ export function makeHidden(rng) {
   return {
     work_ethic: clamp(rng.gauss(50,14)), professionalism: clamp(rng.gauss(50,14)),
     consistency: clamp(rng.gauss(50,13)), injury_prone: clamp(rng.gauss(50,15)),
+    // 승부처에서의 기질. 아무도 모르고, 몇 해치 기록이 쌓여야 겨우 보인다.
+    clutch: rng.gauss(0, 1), poise: rng.gauss(0, 1),
     ambition: clamp(rng.gauss(50,15)),
     aging_profile: rng.choices(PROFILE_KEYS, PROFILE_W),
     decline_rate: Math.max(0.45, rng.gauss(1.0,0.22)),

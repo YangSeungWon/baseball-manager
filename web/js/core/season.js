@@ -34,9 +34,9 @@ export const PIT_LINE = ['g','gs','outs','bf','h','hr','bb','k','r','er','np','w
 const zeros = (n) => new Array(n).fill(0);
 export class SeasonBat {
   constructor(p, team) { this.p = p; this.team = team; for (const f of BAT_LINE) this[f] = 0;
-    this.sp = { H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) }; }
+    this.sp = { H:zeros(10), A:zeros(10), L:zeros(10), R:zeros(10), S:zeros(10) }; }
   add(L) { this.g++; for (const f of ['pa','ab','h','b2','b3','hr','bb','k','rbi','sb','cs','hbp','sh']) this[f]+=L[f]; this.r += L.run;
-    if (L.sp) for (const k of ['H','A','L','R']) for (let i=0;i<9;i++) this.sp[k][i] += L.sp[k][i]; }
+    if (L.sp) for (const k of ['H','A','L','R','S']) for (let i=0;i<10;i++) this.sp[k][i] += L.sp[k][i]; }
   get b1() { return this.h - this.b2 - this.b3 - this.hr; }
   get avg() { return this.ab ? this.h/this.ab : 0; }
   get obp() { return this.pa ? (this.h+this.bb+this.hbp)/this.pa : 0; }
@@ -225,6 +225,12 @@ export class Season {
       this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
       this._injuryRolls(H, day); this._injuryRolls(A, day);
+      // 사구 부상. 맞은 그 자리에서 결정된다.
+      for (const S2 of [H, A]) for (const [p, days] of S2.hurt) {
+        if (p.injury_days > 0) continue;
+        p.injury_days = days; p.career_injuries++; p.career_injury_days += days;
+        this.injuries.push({ player:p, team:S2.team, days, label:'사구 부상' });
+      }
       this.results.push([day, hi, ai, H.runs, A.runs, dh ? 1 : 0]);
       // 홈 구단 관중. 성적이 팬을 부르고, 팬이 다음 시즌 예산이 된다.
       const home = this.teams[hi], rec = this.rec.get(home.team_id);

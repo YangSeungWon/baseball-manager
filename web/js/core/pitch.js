@@ -25,7 +25,7 @@ export const kmh = (p, type) =>
 
 export const PC = {
   // 겨냥. 존 반폭을 1로 둔 좌표. 몰아붙일 땐 바깥을, 몰렸을 땐 한복판을 본다.
-  aimEdge: 0.65168, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
+  aimEdge: 0.64218, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
   scatterBase: 0.60, scatterCommand: -0.115,
 
   // 스트라이크존 스윙률
@@ -37,7 +37,7 @@ export const PC = {
   swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.085,
 
   // 컨택률
-  ctZBase: 0.90454, ctOBase: 0.68430, ctDecay: 0.30,
+  ctZBase: 0.90990, ctOBase: 0.69233, ctDecay: 0.30,
   ctContact: 0.030, ctAvoidK: 0.024, ctStuff: -0.040, ctMove: -0.014,
   ctWhiff: -0.115, ctTwoStrike: -0.032,
 
@@ -84,7 +84,8 @@ function choosePitch(arsenal, b, s, rng) {
 export function playCount(bat, pit, ctx, rng) {
   const zs = z(pit.stuff) + ctx.cStuff, zc = z(pit.command) + ctx.cCommand;
   const zm = z(pit.movement);
-  const zd = z(bat.discipline), zk = z(bat.avoid_k), zct = z(bat.contact);
+  const cb = ctx.cBat || 0;                 // 승부처에서의 기질
+  const zd = z(bat.discipline) + cb * 0.5, zk = z(bat.avoid_k) + cb, zct = z(bat.contact) + cb;
   const arsenal = pit.arsenal;
 
   let b = 0, s = 0, np = 0, f = 0;
@@ -162,7 +163,7 @@ export function playCount(bat, pit, ctx, rng) {
     TALLY.inplay++;
     const quality = clamp(0.5 + PC.qCenter * Math.max(0, 1 - mid) + PC.qEdge * out
       + (b - s >= 1 ? PC.qAhead : 0) + (two ? PC.qTwoStrike : 0)
-      + rng.gauss(0, PC.qSd), 0.02, 0.98);
+      + cb * 0.035 + rng.gauss(0, PC.qSd), 0.02, 0.98);
     return done(IN_PLAY, { quality, gbBias: P.gb });
 
     function done(res, extra) {

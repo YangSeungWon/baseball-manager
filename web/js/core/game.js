@@ -15,10 +15,10 @@ export const MISC = {
 };
 
 export const ADV = {
-  b1_first_to_third: 0.225, b1_second_scores: 0.492, b2_first_scores: 0.373,
+  b1_first_to_third: 0.237, b1_second_scores: 0.519, b2_first_scores: 0.393,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.406, gb_r3_scores: 0.238, gb_r2_to_third: 0.331, fb_r2_to_third: 0.097,
+  sacfly_base: 0.428, gb_r3_scores: 0.251, gb_r2_to_third: 0.348, fb_r2_to_third: 0.102,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.720, sb_success_speed: 0.055,
 };
@@ -36,12 +36,12 @@ class Bases {
 }
 
 // 홈/원정, 상대 투수 손. 야구 팬이 판단에 쓰는 기본 스플릿.
-export const SPLIT_F = ['pa','ab','h','b2','b3','hr','bb','k','rbi'];
+export const SPLIT_F = ['pa','ab','h','b2','b3','hr','bb','k','rbi','hbp'];
 export const PSPLIT_F = ['outs','bf','h','hr','bb','k','r'];
 const zeros = (n) => new Array(n).fill(0);
 const batLine = (b) => ({ b, pa:0,ab:0,h:0,b2:0,b3:0,hr:0,bb:0,k:0,rbi:0,run:0,sb:0,cs:0,hbp:0,e:0,gsl:0,sh:0,
-  sp:{ H:zeros(9), A:zeros(9), L:zeros(9), R:zeros(9) } });
-const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,wp:0,bk:0,br:0,fatigue:0,
+  sp:{ H:zeros(10), A:zeros(10), L:zeros(10), R:zeros(10), S:zeros(10) } });
+const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,wp:0,bk:0,br:0,cold:0,fatigue:0,
                           entered_inning:0, entered_lead:0, w:false,l:false,sv:false,hld:false,
                           sp:{ H:zeros(7), A:zeros(7) } });
 
@@ -79,6 +79,7 @@ class TeamGameState {
     this.byPos = {};
     for (const b of team.lineup) if (!this.byPos[b.position]) this.byPos[b.position] = b;
     this.bench = [...(team.bench || [])];
+    this.hurt = [];                            // 이 경기에서 맞고 다친 선수
     this.usedBench = new Set();
     this.errors = 0;
     this.runs = 0; this.hits = 0; this.lob = 0;
@@ -104,7 +105,7 @@ function pickReliever(pool, inning, lead) {
   return pick('MR') || pick('LR') || pick('SU') || pool.shift();
 }
 
-function maybeChangePitcher(defn, inning, lead) {
+function maybeChangePitcher(defn, inning, lead, outs) {
   const cur = defn.cur;
   const isStarter = defn.pitchers.length === 1 && !defn.penDay;
   // 교체 성향. 빠르게 내리는 감독일수록 같은 피로에서 먼저 손을 든다.
@@ -138,6 +139,8 @@ function maybeChangePitcher(defn, inning, lead) {
   if (!nxt) return;
   const nl = pitLine(nxt);
   nl.entered_inning = inning; nl.entered_lead = lead;
+  // 몸이 덜 풀렸다. 이닝 중간에 급히 올라온 투수는 처음 몇 타자가 위태롭다.
+  nl.cold = outs > 0 ? 1 : 0;
   defn.pitchers.push(nl);
 }
 
@@ -154,7 +157,7 @@ function forceAdvance(bases, batter, resp) {
   return scored;
 }
 
-function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false) {
+function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140) {
   const bl = off.lineFor(batter);
   const zs = z(batter.speed), zarm = z(defn.team.defense.outfield);
   const me = defn.cur;
@@ -178,6 +181,14 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     const s = forceAdvance(bases, batter, me);
     if (s) scored.push(s);
     desc = res === BB ? '볼넷' : '몸에 맞는 공';
+    if (res === HBP) {
+      // 빠른 공에 맞으면 다친다. 손등, 팔꿈치, 발등.
+      const v = (velo0 - 130) / 25;
+      if (rng.random() < HBP_HURT.base * (1 + HBP_HURT.velo * Math.max(0, v))) {
+        off.hurt.push([batter, 3 + Math.floor(rng.random() * rng.random() * 40)]);
+        desc = '몸에 맞는 공 — 통증';
+      }
+    }
   } else if (res === OUT) {
     addedOuts = 1;
     if (bbt === 'GB' && bases.r[0] && outs < 2) {
@@ -262,7 +273,13 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
    번트, 대타, 고의사구, 도루 지시. 전부 상황과 지시 성향이 함께 정한다.
    지시는 0(안 함) ~ 4(적극), 2가 보통이다. */
 
-export const TACTICS = { bunt:2, steal:2, pinch:2, hook:2, ibb:2 };
+export const HBP_HURT = { base: 0.085, velo: 1.4 };   // 사구 부상
+
+export const COLD = { hit: 0.30, span: 3 };   // 몸풀기 부족
+
+export const CLUTCH = { clutch: 0.26, poise: 0.20 };   // z 단위 보정
+
+export const TACTICS = { bunt:2, steal:2, pinch:2, hook:2, ibb:2, shift:2 };
 const tac = (t, k) => (t.tactics && t.tactics[k] !== undefined ? t.tactics[k] : 2);
 const TMUL = [0.05, 0.45, 1.00, 1.40, 1.85];   // 안 함 / 적게 / 보통 / 자주 / 적극
 const tmul = (v) => TMUL[Math.max(0, Math.min(4, v | 0))];
@@ -273,11 +290,17 @@ export const MGR = {
   buntSucceed: 0.760, buntHit: 0.110, buntForce: 0.090,
   pinchBase: 0.240, pinchGap: 0.055, pinchLate: 0.10,
   ibbBase: 0.070, ibbGap: 0.055,
+  buntVsShift: 0.055, buntShiftHit: 0.46,
 };
 
 /** 희생번트. 약한 타자, 늦은 이닝, 접전에서 나온다. */
 function tryBunt(bases, outs, off, defn, inning, rng) {
   if (outs >= 2) return null;
+  const b0 = off.order[off.spot];
+  // 시프트를 크게 걸면 빈 쪽으로 대는 번트가 대응이 된다. 주자가 없어도 시도한다.
+  const sh = Math.abs(BIP.shiftDeg(b0, tac(defn.team, 'shift')));
+  if (sh >= 11 && rng.random() < MGR.buntVsShift * (sh - 10) / 8
+      * tmul(tac(off.team, 'bunt'))) return 'shift';
   const onFirst = bases.r[0] && !bases.r[1], onSecond = bases.r[1] && !bases.r[2];
   if (!onFirst && !onSecond) return null;
   const b = off.order[off.spot];
@@ -348,7 +371,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
   const plays = [];
   while (outs < 3) {
     const lead = defn.runs - off.runs;
-    maybeChangePitcher(defn, inning, lead);
+    maybeChangePitcher(defn, inning, lead, outs);
     outs += trySteal(bases, outs, off, rng);
     if (outs >= 3) break;
 
@@ -366,19 +389,21 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
                           bases.r[2]?bases.r[2].name:null] });
     }
 
-    // 희생번트
-    if (tryBunt(bases, outs, off, defn, inning, rng)) {
+    // 희생번트 (또는 시프트를 뚫는 기습번트)
+    const buntKind = tryBunt(bases, outs, off, defn, inning, rng);
+    if (buntKind) {
       const b = off.batterUp(), bl2 = off.lineFor(b), pl2 = defn.cur;
       bl2.pa++; pl2.bf++; pl2.np += 2 + Math.floor(rng.random() * 3);
       const lead0 = bases.r[2] ? 2 : (bases.r[1] ? 1 : 0);
       const r = rng.random();
+      const hitP = buntKind === 'shift' ? MGR.buntShiftHit : MGR.buntHit;
       let ao = 0, desc2, runs2 = 0;
-      if (r < MGR.buntHit) {                       // 기습번트가 살았다
+      if (r < hitP) {                              // 기습번트가 살았다
         bl2.ab++; bl2.h++; pl2.h++; off.hits++;
         const s = forceAdvance(bases, b, pl2);
         if (s) { scoreNow(s); runs2 = 1; }
         desc2 = '번트 안타';
-      } else if (r < MGR.buntHit + MGR.buntForce) { // 선행 주자가 잡혔다
+      } else if (r < hitP + MGR.buntForce) {       // 선행 주자가 잡혔다
         bases.take(lead0); bases.put(0, b, pl2);
         ao = 1; desc2 = '번트 실패';
       } else {                                     // 정상 처리
@@ -415,8 +440,11 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     const isStarter = defn.pitchers.length === 1;
     const fat = fatigueOf(pl, isStarter);
     const tto = Math.floor(pl.bf / 9);          // 타순이 한 바퀴 돌 때마다 불리해진다
-    const ctx = { cStuff: PC_FATIGUE_S * fat - 0.13 * tto,
-                  cCommand: PC_FATIGUE_C * fat + 0.06 * tto, byPos: defn.byPos };
+    // 이닝 중간에 올라온 투수는 처음 세 타자 동안 덜 풀린 값으로 던진다.
+    const cold = pl.cold ? COLD.hit * Math.max(0, 1 - pl.bf / COLD.span) : 0;
+    const ctx = { cStuff: PC_FATIGUE_S * fat - 0.13 * tto - cold,
+                  cCommand: PC_FATIGUE_C * fat + 0.06 * tto - cold * 0.8,
+                  byPos: defn.byPos };
     // 보크. 주자가 있을 때만.
     if (bases.occupied() && rng.random() < MISC.balk) {
       pl.bk++;
@@ -428,6 +456,18 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
                    base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
                           bases.r[2]?bases.r[2].name:null] });
     }
+    // 수비 시프트. 이 타자에게 얼마나 옮겨 설 것인가.
+    const shift = BIP.shiftDeg(batter, tac(defn.team, 'shift'));
+    // 승부처. 득점권에서 사람은 저마다 다르게 흔들린다.
+    // 효과는 작다. 한 시즌 기록으로는 알 수 없고, 몇 해가 쌓여야 겨우 보인다.
+    const risp = !!(bases.r[1] || bases.r[2]);
+    if (risp) {
+      const cl = (batter.hidden && batter.hidden.clutch) || 0;
+      const po = (pl.p.hidden && pl.p.hidden.poise) || 0;
+      ctx.cStuff += CLUTCH.poise * po;
+      ctx.cCommand += CLUTCH.poise * po * 0.6;
+      ctx.cBat = CLUTCH.clutch * cl;
+    } else ctx.cBat = 0;
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
     // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
@@ -455,7 +495,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
       if (BIP.overFence(ball, dims)) { res = HR; desc0 = BIP.describe(ball, {}, 'HR'); }
       else {
         defn.byPos.P = pl.p;
-        play = BIP.fieldIt(ball, BIP.assign(ball, defn.byPos), batter, rng);
+        play = BIP.fieldIt(ball, BIP.assign(ball, defn.byPos, shift), batter, rng);
         if (play.result === 'ERR') { res = ERR; desc0 = BIP.describe(ball, play, 'ERR'); defn.errors++; }
         else if (play.result === 'OUT') { res = OUT; desc0 = BIP.describe(ball, play, 'OUT'); }
         else {
@@ -499,7 +539,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
-    const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning);
+    const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
     const isAb = (res !== BB && res !== HBP);
@@ -507,9 +547,11 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     void isH;
     const add = (a) => { a[0]++; if (isAb) a[1]++; if (isH) a[2]++;
       if (res === D2B) a[3]++; if (res === T3B) a[4]++; if (res === HR) a[5]++;
-      if (res === BB) a[6]++; if (res === K) a[7]++; a[8] += runs; };
+      if (res === BB) a[6]++; if (res === K) a[7]++; a[8] += runs;
+      if (res === HBP) a[9]++; };
     add(bl.sp[off.venue]);
     add(bl.sp[pl.p.throws]);
+    if (risp) add(bl.sp.S);                    // 득점권
     const pa2 = pl.sp[defn.venue];
     pa2[0] += ao; pa2[1]++; if (isH) pa2[2]++; if (res === HR) pa2[3]++;
     if (res === BB) pa2[4]++; if (res === K) pa2[5]++; pa2[6] += runs;

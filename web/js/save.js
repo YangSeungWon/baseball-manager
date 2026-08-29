@@ -102,7 +102,7 @@ export function dump(game) {
     year:S.year, games:S.games, day:S.curDay, rng:S.rng.state,
     sched:S.schedule, rec:Object.fromEntries([...S.rec].map(([k,r])=>[k,[r.w,r.l,r.rs,r.ra,r.d]])),
     bat:Object.fromEntries([...S.bat].map(([pid,b])=>[pid,[b.team.team_id, BAT_LINE.map(f=>b[f]),
-      [b.sp.H,b.sp.A,b.sp.L,b.sp.R]]])),
+      [b.sp.H,b.sp.A,b.sp.L,b.sp.R,b.sp.S]]])),
     pit:Object.fromEntries([...S.pit].map(([pid,q])=>[pid,[q.team.team_id, PIT_LINE.map(f=>q[f]),
       [q.sp.H,q.sp.A]]])),
     res:S.results,
@@ -259,7 +259,7 @@ export function load(data) {
       if (!players.has(+pid)) continue;
       const b = new SeasonBat(players.get(+pid), byId.get(tid));
       BAT_LINE.forEach((f,i) => { b[f] = vals[i]; });
-      if (sp) { b.sp = { H:sp[0], A:sp[1], L:sp[2], R:sp[3] }; }
+      if (sp) { b.sp = { H:sp[0], A:sp[1], L:sp[2], R:sp[3], S:sp[4] || new Array(9).fill(0) }; }
       S.bat.set(+pid, b); }
     for (const pid in d.pit) { const [tid, vals, sp] = d.pit[pid];
       if (!players.has(+pid)) continue;

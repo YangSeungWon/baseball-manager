@@ -41,7 +41,7 @@ export const BC = {
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.304, LD: 1.308, FB: 1.325, PU: 1.222 },
+  hangK: { GB: 1.294, LD: 1.298, FB: 1.315, PU: 1.212 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
@@ -54,11 +54,14 @@ export const BC = {
   qGb: 1.350, qLd: 0.95, qPu: 1.10,
   // 담장 (m). 폴대 99, 중앙 125.
   // 담장 기준 치수 (m). 보정 결과가 실제 KBO 구장 규격과 맞아떨어졌다.
-  fenceLine: 104.89, fenceCenter: 131.62, fenceHeight: 2.8,
+  fenceLine: 105.14, fenceCenter: 131.89, fenceHeight: 2.8,
   // 낮은 직선타는 높은 담장에 걸린다. 뜬 공은 넘어간다.
   heightLd: 2.4, heightFb: 0.7,
   // 고도 100m당 비거리 (m), 인조잔디 타구 가속
   altGain: 0.55, turfEv: 0.05,
+  // 시프트. 당겨치는 타자 쪽으로 야수를 옮긴다.
+  // 당긴 타구는 막히고 반대쪽은 비는데, 그 둘 다 기하에서 저절로 나온다.
+  shiftBase: 4.4, shiftOf: 0.35, shiftMin: 0.35,
   // 실책
   errField: 0.0732, errFieldDef: -0.34, errThrow: 0.0299, errThrowArm: -0.36,
 };
@@ -128,8 +131,32 @@ export function battedBall(bbt, bat, quality, rng, park = null) {
   return { bbt, angle, depth, hang: (h0 + depth * h1) * BC.hangK[bbt], zone: zoneName(angle) };
 }
 
+// 지시 단계별 시프트 강도
+const SHIFT_MUL = [0, 0.45, 1.00, 1.55, 2.15];
+// 자리마다 얼마나 따라 움직이는가. 당긴 쪽 코너는 거의 그대로 서 있고,
+// 반대편 2루수·유격수가 크게 건너온다.
+const SHIFT_W = { corner_pull: 0.15, mid_pull: 0.70, mid_away: 1.70, corner_away: 0.35 };
+function shiftWeight(pos, shift) {
+  const pullLeft = shift < 0;                       // 우타 상대 (좌측으로 이동)
+  if (pos === '3B') return pullLeft ? SHIFT_W.corner_pull : SHIFT_W.corner_away;
+  if (pos === '1B') return pullLeft ? SHIFT_W.corner_away : SHIFT_W.corner_pull;
+  if (pos === 'SS') return pullLeft ? SHIFT_W.mid_pull : SHIFT_W.mid_away;
+  if (pos === '2B') return pullLeft ? SHIFT_W.mid_away : SHIFT_W.mid_pull;
+  return 1;
+}
+
+/** 이 타자에게 얼마나 옮겨 설 것인가. 안 당기는 타자에게는 움직이지 않는다. */
+export function shiftDeg(bat, dial = 2) {
+  const m = SHIFT_MUL[Math.max(0, Math.min(4, dial | 0))];
+  if (!m) return 0;
+  const pull = z(bat.hr_power) * 0.55 - z(bat.contact) * 0.35 - z(bat.speed) * 0.25;
+  if (pull < BC.shiftMin) return 0;
+  const hand = bat.bats === 'L' ? 1 : -1;     // 우타는 좌측, 좌타는 우측으로 당긴다
+  return hand * BC.shiftBase * Math.min(2.4, pull) * m;
+}
+
 /** 그 타구에 누가 먼저 닿는가. 표가 아니라 경합으로 정한다. */
-export function assign(ball, byPos) {
+export function assign(ball, byPos, shift = 0) {
   const ground = ball.bbt === 'GB';
   const pool = ground ? INFIELD : (ball.depth < 52 ? INFIELD : OUTFIELD);
   let best = null;
@@ -142,13 +169,18 @@ export function assign(ball, byPos) {
     let react = BC.react;
     if (pos === 'P') { v *= BC.pRange; react += BC.pReact; }
     let dist, avail;
+    // 시프트는 야수를 통째로 미는 게 아니다. 반대편 야수가 건너오고,
+    // 당긴 쪽 코너는 선을 지킨다. 투수와 포수는 움직이지 않는다.
+    const sh = (pos === 'P' || pos === 'C') ? 0
+      : shift * (OUTFIELD.includes(pos) ? BC.shiftOf : shiftWeight(pos, shift));
+    const pa = POS_ANGLE[pos] + sh;
     if (ground) {
       // 땅볼은 야수 쪽으로 굴러온다. 옆으로만 움직이면 되고,
       // 쓸 수 있는 시간은 공이 그 깊이까지 오는 시간이다.
-      dist = Math.abs(ball.angle - POS_ANGLE[pos]) * rad * POS_DEPTH[pos];
+      dist = Math.abs(ball.angle - pa) * rad * POS_DEPTH[pos];
       avail = POS_DEPTH[pos] / ball.ev * BC.hangK.GB;
     } else {
-      dist = Math.hypot((ball.angle - POS_ANGLE[pos]) * rad * ball.depth,
+      dist = Math.hypot((ball.angle - pa) * rad * ball.depth,
                         ball.depth - POS_DEPTH[pos]);
       avail = ball.hang;
     }

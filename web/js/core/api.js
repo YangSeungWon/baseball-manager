@@ -25,6 +25,8 @@ export const TACTIC_DEFS = [
     hint:'같은 피로에서 얼마나 먼저 손을 드는가' },
   { key:'ibb',   label:'고의사구',  steps:['안 함','드물게','보통','자주','적극'],
     hint:'무서운 타자를 거르고 다음 타자와 승부한다' },
+  { key:'shift', label:'시프트',    steps:['안 함','약하게','보통','적극','극단'],
+    hint:'당긴 타구를 막는 대신 반대쪽이 열린다' },
 ];
 
 export const PHASE_LABEL = {
@@ -387,14 +389,20 @@ export class Game {
     if (!s) return null;
     const b = s.bat.get(pid);
     if (b) {
-      const f = (a) => { const [pa,ab,h,d2,d3,hr,bb,k,rbi] = a;
+      const f = (a) => { const [pa,ab,h,d2,d3,hr,bb,k,rbi,hbp=0] = a;
         const tb = (h-d2-d3-hr) + 2*d2 + 3*d3 + 4*hr;
         return { pa, ab, h, hr, bb, k, rbi,
           avg: ab ? (h/ab).toFixed(3) : '—',
-          obp: pa ? ((h+bb)/pa).toFixed(3) : '—',
+          obp: pa ? ((h+bb+hbp)/pa).toFixed(3) : '—',
           slg: ab ? (tb/ab).toFixed(3) : '—' }; };
+      // 득점권은 표본이 작다. 그 숫자를 곧이곧대로 읽으면 안 된다.
+      const risp = f(b.sp.S), all = b.ab ? b.h / b.ab : 0;
+      const w = risp.pa / (risp.pa + 260);
+      risp.est = risp.ab ? (w * (b.sp.S[2] / b.sp.S[1]) + (1 - w) * all).toFixed(3) : '—';
+      risp.trust = Math.round(w * 100);
       return { kind:'B', rows: [['홈', f(b.sp.H)], ['원정', f(b.sp.A)],
-                                ['vs 좌완', f(b.sp.L)], ['vs 우완', f(b.sp.R)]] };
+                                ['vs 좌완', f(b.sp.L)], ['vs 우완', f(b.sp.R)],
+                                ['득점권', risp]] };
     }
     const p = s.pit.get(pid);
     if (p) {

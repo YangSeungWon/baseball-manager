@@ -1181,7 +1181,13 @@ function openPlayer(pid) {
           : `<td class="m">${s.ip}</td><td class="m">${s.era}</td><td class="m">${s.whip}</td>
              <td class="m">${s.k9}</td><td class="m">${s.h}</td><td class="m">${s.hr}</td>
              <td class="m">${s.bb}</td><td class="m">${s.k}</td>`) + '</tr>').join('')}
-        </tbody></table></div>` : ''}
+        </tbody></table>
+        ${p.splits.kind === 'B' && p.splits.rows.some(([k]) => k === '득점권') ? (() => {
+          const s = p.splits.rows.find(([k]) => k === '득점권')[1];
+          return `<p class="risp">득점권 ${s.pa}타석은 판단하기에 작은 표본이다.
+            리그와 본인 통산으로 되돌리면 <b>${s.est}</b> 쯤이 맞다
+            <i>신뢰 ${s.trust}%</i></p>`;
+        })() : ''}</div>` : ''}
       ${seasons ? `<div><div class="lab" style="margin-bottom:6px">연도별</div>${seasons}</div>` : ''}
       ${p.events && p.events.length ? `<div><div class="lab" style="margin-bottom:6px">이력</div>` +
         p.events.map(e => `<div class="row"><span class="m dim">${e.year}</span><span>${esc(e.text)}</span></div>`).join('')
