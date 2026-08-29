@@ -10,6 +10,7 @@ import { FEAT } from './feats.js';
 import * as FG from './foreign.js';
 import * as SF from './staff.js';
 import * as PS from './persona.js';
+import * as ML from './military.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail, josa } from './mail.js';
 
@@ -92,6 +93,9 @@ export class Game {
       ovr:rep.ovr, pot:rep.pot, confidence:rep.confidence,
       team_id: team ? team.team_id : null, injury_days:p.injury_days,
       contract:this.contractOf(p), service:p.service ?? 0, origin:p.origin ?? null,
+      mil: p.foreign ? null : { s:p.mil || 'none', kr:ML.STATUS_KR[p.mil || 'none'],
+        kind:p.milKind || null, left:p.milLeft || 0, natl:p.natl || 0,
+        due: (p.mil === 'none' && !p.foreign) ? Math.max(0, ML.MIL.callAge - p.age) : null },
       height:p.height ?? null, weight:p.weight ?? null };
   }
   state() {
@@ -804,11 +808,19 @@ export class Game {
   // ---- 액션 ----------------------------------------------------------
   startSeason() {
     this.replPool = null;          // 여름 시장은 시즌마다 새로 연다
+    this.wbc = null;
     if (this.phase !== PRESEASON) return { error:'wrong_phase' };
     this.season = new Season(this.L.teams, this.L.year, this.L.games, this.L.rng);
     this.L.season = this.season;
     this.phase = REGULAR; this.notices = []; this.champion = null;
     this._prev = { rank: 0, run: 0 };   // 쿨다운이 시즌을 넘어가면 안 된다
+    this.wbc = this.L.runWBC();         // 3월. 대회를 치르고 시즌에 들어간다
+    if (this.wbc) {
+      const mine = this.wbc.squad.filter(s => s.team === this.me.name);
+      if (mine.length) this.notice(`WBC 차출 ${mine.length}명`, 'transfer');
+      for (const h of this.wbc.hurt) if (h.team === this.me.name)
+        this.notice(`${h.name} WBC 후 부상 — ${h.days}일`, 'injury');
+    }
     return this.state();
   }
   advance(days = 1) {
@@ -956,9 +968,43 @@ export class Game {
     };
     offseasonMail(this, 'retire', out.retired);
     this._openForeign();
+    out.tournament = s.tournament || null;
+    out.enlisted = (s.enlisted || []).filter(x => x.t.team_id === me)
+      .map(x => ({ name:x.p.name, age:x.p.age, kind:x.kind }));
+    out.discharged = (s.discharged || []).filter(x => x.t.team_id === me)
+      .map(x => ({ name:x.p.name, age:x.p.age }));
     this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 병역 ────────────────────────────────────────────────
+     1군에서 쓴 선수만 대표팀에 뽑히고, 금메달이면 커리어 2년이 돌아온다. */
+
+  military() {
+    const t = this.me, y = this.L.year;
+    const all = [...t.batters, ...t.pitchers, ...t.farm].filter(p => !p.foreign);
+    const row = (p) => ({ ...this.brief(p, t),
+      status:p.mil || 'none', kr:ML.STATUS_KR[p.mil || 'none'],
+      kind:p.milKind === 'sangmu' ? '상무' : p.milKind === 'active' ? '현역' : null,
+      left:p.milLeft || 0, natl:p.natl || 0,
+      due: (p.mil || 'none') === 'none' ? Math.max(0, ML.MIL.callAge - p.age) : null,
+      active: t.batters.includes(p) || t.pitchers.includes(p) });
+    const cal = [];
+    for (let k = 0; k < 9; k++) {
+      const ms = ML.meets(y + k);
+      if (ms.length) cal.push({ year:y + k, meets:ms.map(m => ML.MEET_KR[m]),
+        exempt: ms.some(m => m !== ML.WBC) });
+    }
+    return {
+      calendar: cal.slice(0, 4),
+      serving: all.filter(p => p.mil === 'serving').map(row)
+        .sort((a, b) => a.left - b.left),
+      due: all.filter(p => (p.mil || 'none') === 'none' && p.age >= 21)
+        .map(row).sort((a, b) => a.due - b.due),
+      exempt: all.filter(p => p.mil === 'exempt').map(row),
+      ageLimit: ML.MIL.ageLimit, callAge: ML.MIL.callAge,
+    };
+  }
+
   /* ── 2군 운영 ────────────────────────────────────────────
      1군에 올려두고 안 쓰면 퇴보한다. 2군에서는 매일 뛴다.
      그래서 콜업과 강등이 육성의 절반이다. */

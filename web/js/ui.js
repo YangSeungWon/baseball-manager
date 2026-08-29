@@ -737,6 +737,32 @@ function viewTeam(v) {
   block('벤치', r.bench, 'B');
   block('선발 로테이션', r.rotation, 'P');
   block('불펜', r.bullpen, 'P');
+  // 병역. 1군에서 쓴 선수만 대표팀에 뽑히고, 금메달이면 2년이 돌아온다.
+  const ml = G.military();
+  const milRow = (p, kind) => `<div class="mrow">
+    <span class="mn">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+    ${kind === 'serving' ? `<span class="mk">${p.kind}</span><span class="ml2">${p.left}년 남음</span>`
+      : kind === 'due' ? `<span class="mk ${p.active ? 'on' : ''}">${p.active ? '1군' : '2군'}</span>
+          <span class="ml2 ${p.due <= 1 ? 'urg' : ''}">${p.due === 0 ? '올겨울 입대' : `${p.due}년 뒤`}</span>`
+      : `<span class="mk ok">면제</span><span class="ml2">${p.natl ? `대표 ${p.natl}회` : ''}</span>`}
+  </div>`;
+  g.appendChild(sect('병역', ml.calendar.length
+    ? ml.calendar.map(c => `${c.year} ${c.meets.join('·')}`).join('  ·  ') : '',
+    `<div class="mil3">
+      <div><div class="lab">미필 <span class="dim">${ml.due.length}</span></div>
+        <div class="mlist">${ml.due.length ? ml.due.map(p => milRow(p, 'due')).join('')
+          : '<div class="empty">—</div>'}</div></div>
+      <div><div class="lab">복무 중 <span class="dim">${ml.serving.length}</span></div>
+        <div class="mlist">${ml.serving.length ? ml.serving.map(p => milRow(p, 'serving')).join('')
+          : '<div class="empty">—</div>'}</div></div>
+      <div><div class="lab">면제 <span class="dim">${ml.exempt.length}</span></div>
+        <div class="mlist">${ml.exempt.length ? ml.exempt.map(p => milRow(p, 'exempt')).join('')
+          : '<div class="empty">—</div>'}</div>
+        <p class="note">대표팀은 그 시즌 1군 성적으로 뽑는다.
+          ${ml.ageLimit}세 이하가 원칙이고 와일드카드가 셋이다.
+          아시안게임 금메달과 올림픽 동메달 이상이 면제다. WBC는 면제가 없다.</p></div>
+    </div>`));
+
   // 1군 등록과 2군. 올려두고 안 쓰면 퇴보하고, 2군에서는 매일 뛴다.
   const fm = G.farmMoves();
   const roleCls = { 주전:'r1', 선발:'r1', 불펜:'r2', 대기:'r3' };
@@ -1313,6 +1339,10 @@ function openPlayer(pid) {
     <div class="mhead"><div><h2>${esc(p.name)}${awards}</h2>
       <div class="meta">${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
         ${p.origin ? ' · ' + p.origin : ''}${p.draft ? ` · #${p.draft.overall}` : ''}
+        ${p.mil && p.mil.s !== 'done' ? ` · <span class="milt ${p.mil.s}">${p.mil.s === 'serving'
+          ? `${p.mil.kind === 'sangmu' ? '상무' : '현역'} ${p.mil.left}년`
+          : p.mil.s === 'exempt' ? '병역 면제'
+          : p.mil.due === 0 ? '올겨울 입대' : `미필 · ${p.mil.due}년`}</span>` : ''}
         ${p.injury_days ? ` · <span class="mark">✚${p.injury_days}</span>` : ''}</div></div>
       <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">

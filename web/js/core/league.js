@@ -7,6 +7,7 @@ import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
 import * as staff from './staff.js';
 import * as persona from './persona.js';
+import * as mil from './military.js';
 import * as draft from './draft.js';
 import { Season, postseason } from './season.js';
 import { buildHistory, droughtPressure, syncHistory } from './history.js';
@@ -37,6 +38,7 @@ export class League {
     this.unsigned = []; this.draftLog = [];
     this.scouts = new Map(this.teams.map(t => [t.team_id, new ScoutingDept(this.rng)]));
     this.ensureStaff();
+    this.ensureMil();          // 시즌을 돌리기 전에 정해 둬야 한다
     this.modes = new Map(this.teams.map(t => [t.team_id, market.NEUTRAL]));
     this.recPct = new Map(this.teams.map(t => [t.team_id, 0.5]));
     this.season = null;
@@ -74,6 +76,38 @@ export class League {
     for (const t of this.teams) if (!t.staff) t.staff = staff.makeStaff(this.rng);
   }
 
+  /** 창단 시점의 병역. 스물다섯이 넘었으면 이미 겪은 사람들이다.
+   *  이걸 안 해두면 개막하자마자 리그의 절반이 입대한다. */
+  ensureMil() {
+    const rng = this.rng;
+    for (const t of this.teams)
+      for (const p of [...t.batters, ...t.pitchers, ...t.farm]) {
+        if (!mil.isKorean(p) || p.mil) continue;
+        const r = rng.random();
+        if (p.age >= 25) p.mil = r < 0.22 ? 'exempt' : 'done';
+        else if (p.age >= 23) {
+          // 이 나이대는 이미 다녀온 사람, 지금 가 있는 사람, 아직 안 간 사람이 섞인다
+          if (r < 0.30) p.mil = 'done';
+          else if (r < 0.38) p.mil = 'exempt';
+          else if (r < 0.46) this._enlistNow(p, t, rng);
+          else p.mil = 'none';
+        } else {
+          if (r < 0.018) this._enlistNow(p, t, rng);
+          else p.mil = 'none';
+        }
+      }
+  }
+
+  _enlistNow(p, t, rng) {
+    p.mil = 'serving';
+    p.milKind = rng.random() < 0.45 ? 'sangmu' : 'active';
+    p.milLeft = 1 + Math.floor(rng.random() * mil.MIL.years);
+    for (const arr of [t.batters, t.pitchers]) {
+      const i = arr.indexOf(p); if (i >= 0) { arr.splice(i, 1); break; }
+    }
+    if (!t.farm.includes(p)) t.farm.push(p);
+  }
+
   see(t, p) {
     const c = this.careers.get(p.pid);
     return this.scouts.get(t.team_id).report(p, this.rng, !!(c && c.seasons.length),
@@ -90,10 +124,121 @@ export class League {
     return p.age <= 23 ? 0.30 : 0.20;
   }
 
+  /* ── 국제대회와 병역 ──────────────────────────────────────
+     1군에서 쓴 선수만 대표팀에 뽑힌다. 금메달이면 커리어 2년이
+     돌아오고, 못 받으면 스물일곱에 2년이 사라진다. */
+
+  /** 그 시즌 1군에서 얼마나 잘했는가. 대표팀 승선의 근거다. */
+  natValue(t, p, S) {
+    if (!S) return 0;
+    const [bw, pw] = this._warCache || [null, null];
+    const w = (p.kind === 'P' ? pw : bw);
+    return w ? Math.max(0, w.get(p.pid) ?? 0) : 0;
+  }
+
+  /** WBC. 3월이라 스프링캠프 대신 전력투구를 하고 시즌에 들어간다.
+   *  면제는 없다. 남는 건 명예와 부상뿐이다. */
+  runWBC() {
+    if (!mil.meets(this.year).includes(mil.WBC)) return null;
+    const prev = this.history.length;
+    this._warCache = null;
+    // 지난 시즌 성적으로 뽑는다. 3월이니 올해 기록은 아직 없다.
+    const val = (t, p) => Math.max(0, this.see(t, p).ovr - 44);
+    const squad = mil.pickSquad(this.teams, null, this.rng, val, mil.WBC);
+    if (squad.length < 12) return null;
+    const medal = mil.result(mil.WBC, squad, this.rng);
+    const hurt = [];
+    for (const c of squad) {
+      c.p.natl = (c.p.natl || 0) + 1;
+      c.p.wbc = this.year;
+      if (this.rng.random() < mil.MIL.wbcInjury) {
+        const d = 10 + Math.floor(this.rng.random() * this.rng.random() * 50);
+        c.p.injury_days = Math.max(c.p.injury_days, d);
+        c.p.career_injuries++; c.p.career_injury_days += d;
+        hurt.push({ p:c.p, t:c.t, days:d });
+      }
+    }
+    this.log(`${this.year} WBC 야구 ${medal ? mil.MEDAL_KR[medal] : '1라운드 탈락'}`);
+    void prev;
+    return { kind: mil.WBC, medal, exempt: false,
+      squad: squad.map(c => ({ pid:c.p.pid, name:c.p.name, team:c.t.name,
+        age:c.p.age, war: Math.round(c.v * 10) / 10 })),
+      hurt: hurt.map(h => ({ name:h.p.name, team:h.t.name, days:h.days })) };
+  }
+
+  runTournament() {
+    const kinds = mil.meets(this.year).filter(k => k !== mil.WBC);
+    const kind = kinds[0];
+    if (!kind || !this.season) return null;
+    this._warCache = this.season.wars();
+    const squad = mil.pickSquad(this.teams, this.season, this.rng,
+      (t, p, S) => this.natValue(t, p, S), kind);
+    this._warCache = null;
+    if (squad.length < 12) return null;
+    const medal = mil.result(kind, squad, this.rng);
+    const free = mil.exempts(kind, medal);
+    if (free) for (const c of squad) if (c.p.mil !== 'done') c.p.mil = 'exempt';
+    for (const c of squad) c.p.natl = (c.p.natl || 0) + 1;
+    this.log(`${this.year} ${mil.MEET_KR[kind]} 야구 ${medal ? mil.MEDAL_KR[medal] : '노메달'}`
+      + (free ? ' — 대표팀 전원 병역 면제' : ''));
+    return { kind, medal, exempt: free,
+      squad: squad.map(c => ({ pid:c.p.pid, name:c.p.name, team:c.t.name,
+        age:c.p.age, wild:c.wild, war: Math.round(c.v * 10) / 10 })) };
+  }
+
+  /** 복무를 한 해 보낸다. 상무는 뛰고, 현역은 못 뛴다. */
+  runService(rng) {
+    const out = [];
+    for (const t of this.teams) {
+      // 복무 중인 선수가 어디에 있든 한 해는 지나간다.
+      for (const p of [...t.farm, ...t.batters, ...t.pitchers]) {
+        if (p.mil !== 'serving') continue;
+        dev.develop(p, rng, p.milKind === 'sangmu' ? mil.MIL.sangmuDev : mil.MIL.activeDev);
+        if (--p.milLeft <= 0) { p.mil = 'done'; p.milKind = null; out.push({ p, t }); }
+      }
+    }
+    return out;
+  }
+
+  /** 입대. 스물일곱까지 미필이면 더 미룰 수 없다.
+   *  상무는 자리가 정해져 있어 잘하는 순으로 간다. */
+  runEnlist(rng) {
+    const due = [];
+    for (const t of this.teams) {
+      const active = new Set([...t.batters, ...t.pitchers].map(p => p.pid));
+      for (const p of [...t.batters, ...t.pitchers, ...t.farm]) {
+        if (!mil.isKorean(p) || p.mil === 'exempt' || p.mil === 'done'
+            || p.mil === 'serving') continue;
+        // 스물여섯이면 더 못 미룬다. 그 전이라도 1군에 못 올라온 채
+        // 스물둘을 넘기면 대개 그때 다녀온다 — 기다릴 이유가 없다.
+        const forced = p.age >= mil.MIL.callAge;
+        const idle = !active.has(p.pid) && p.age >= 22
+          && rng.random() < mil.MIL.idleEnlist;
+        if (forced || idle || p.enlistNow) due.push({ p, t });
+      }
+    }
+    due.sort((a, b) => dev.overall(b.p) - dev.overall(a.p));
+    const out = [];
+    due.forEach(({ p, t }, i) => {
+      p.mil = 'serving';
+      p.milKind = i < mil.MIL.sangmuPerYear ? 'sangmu' : 'active';
+      p.milLeft = mil.MIL.years;
+      p.enlistNow = false;
+      for (const arr of [t.batters, t.pitchers]) {
+        const j = arr.indexOf(p); if (j >= 0) { arr.splice(j, 1); break; }
+      }
+      if (!t.farm.includes(p)) t.farm.push(p);
+      out.push({ p, t, kind: p.milKind });
+    });
+    return out;
+  }
+
   // ---- 오프시즌 단계 ------------------------------------------------
   offRollover() {
     const S = this.season, rng = this.rng;
     const summary = { retired: [], breakout: [], decline: [] };
+    summary.tournament = this.runTournament();
+    summary.discharged = this.runService(rng);
     for (const t of this.teams) {
       for (const p of [...t.batters, ...t.pitchers, ...t.farm]) p.injury_days = Math.max(0, p.injury_days - 120);
       this.trim(t);
@@ -106,9 +251,12 @@ export class League {
         dev.develop(p, rng, this.playingTime(p, S), staff.devMult(t, p.kind));
       }
       for (const p of t.farm) persona.observe(t, p);
-      for (const p of t.farm) dev.develop(p, rng, p.age <= 22 ? 0.85 : 0.6);
+      // 복무 중인 선수는 따로 굴렸다.
+      for (const p of t.farm) if (p.mil !== 'serving')
+        dev.develop(p, rng, p.age <= 22 ? 0.85 : 0.6);
     }
     for (const p of this.unsigned) dev.develop(p, rng, 0.30);
+    summary.enlisted = this.runEnlist(rng);
 
     for (const t of this.teams) {
       for (const group of ['batters','pitchers']) {
@@ -128,8 +276,8 @@ export class League {
         }
         t[group] = keep;
       }
-      const cut = t.farm.filter(p => p.age > 24);
-      t.farm = t.farm.filter(p => p.age <= 24);
+      const cut = t.farm.filter(p => p.age > 24 && p.mil !== 'serving');
+      t.farm = t.farm.filter(p => p.age <= 24 || p.mil === 'serving');
       for (const p of cut) { const c = this.careers.get(p.pid); if (c && c.seasons.length) c.retired_year = this.year; }
     }
     for (const t of this.teams) { this.fillRoster(t); R.rebuildRoster(t); }
@@ -176,12 +324,16 @@ export class League {
     for (const t of this.teams) {
       const dept = this.scouts.get(t.team_id);
       for (const p of t.farm) dept.observe(p, rng, 1);
+      // 복무 중인 선수는 군보류다. 2군 정원에 들지 않는다.
+      const held = t.farm.filter(p => p.mil === 'serving');
+      t.farm = t.farm.filter(p => p.mil !== 'serving');
       while (t.farm.length > League.FARM_CAP) {
         const worst = t.farm.reduce((a,b) => this.farmValue(t,b) < this.farmValue(t,a) ? b : a);
         t.farm.splice(t.farm.indexOf(worst), 1);
         const c = this.careers.get(worst.pid);
         if (c && c.seasons.length) c.retired_year = this.year;
       }
+      t.farm.push(...held);
     }
   }
 
