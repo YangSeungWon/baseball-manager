@@ -1,6 +1,9 @@
 // 시즌: 일정 생성 / 하루 단위 진행 / 기록 집계 / WAR / 포스트시즌
 import { playGame } from './game.js';
 import { scan as scanFeats } from './feats.js';
+
+// 시즌을 8등분한 강수 확률. 장마가 한가운데에 온다.
+const RAIN = [0.075, 0.065, 0.100, 0.170, 0.155, 0.095, 0.060, 0.040];
 import * as injury from './injury.js';
 import { setActive } from './roster.js';
 import { attendRate } from './contract.js';
@@ -101,6 +104,7 @@ export class Season {
     this.rec = new Map(teams.map(t => [t.team_id, new TeamRecord(t)]));
     this.bat = new Map(); this.pit = new Map();
     this.results = []; this.injuries = []; this.feats = [];
+    this.postponed = []; this.rained = [];   // 연기된 경기와 그 기록
     this.availDay = new Map(); this.lastUsed = new Map(); this.consec = new Map();
     this.att = new Map(teams.map(t => [t.team_id, { games: 0, total: 0 }]));
   }
@@ -117,6 +121,12 @@ export class Season {
     if (S.runs > oppRuns) r.w++; else if (S.runs < oppRuns) r.l++; else r.d++;
     for (const L of S.bat.values()) if (L.pa) this._bat(L.b, S.team).add(L);
     S.pitchers.forEach((pl, i) => this._pit(pl.p, S.team).add(pl, i === 0));
+  }
+
+  /** 등판 간격을 지금 시점 기준으로 다시 계산한다. */
+  _refreshAvail(t, day) {
+    t.unavailable = new Set(t.bullpen
+      .filter(p => (this.availDay.get(p.pid) ?? 0) > day).map(p => p.pid));
   }
 
   _newDay(day) {
@@ -158,18 +168,64 @@ export class Season {
     this.injuries.push({ day, team: t, player: p, days, label, lost });
   }
 
+  /** 비. 장마철에 몰리고, 돔은 취소가 없다. */
+  _rainedOut(hi, day) {
+    const park = this.teams[hi].park;
+    if (park && park.dome) return false;
+    return this.rng.random() < RAIN[Math.min(RAIN.length - 1,
+      Math.floor(day / this.totalDays * RAIN.length))];
+  }
+
+  /** 오늘 갚을 수 있는 연기 경기. 같은 대진이 다시 잡힌 날에 더블헤더로 치른다.
+   *  시즌 막바지에는 남은 것을 몰아서 갚는다. */
+  _makeups(day, todays) {
+    if (!this.postponed.length) return [];
+    const late = day > this.totalDays - 24;
+    const busy = new Set();                       // 하루에 세 경기를 뛸 수는 없다
+    for (const g of todays) { busy.add(g[0]); busy.add(g[1]); }
+    const twice = new Set();
+    const out = [];
+    for (const g of todays) {
+      const i = this.postponed.findIndex(([h, a]) => {
+        if (twice.has(h) || twice.has(a)) return false;
+        if (h === g[0] && a === g[1]) return true;
+        return late && (busy.has(h) && busy.has(a));
+      });
+      if (i >= 0) {
+        const mk = this.postponed.splice(i, 1)[0];
+        twice.add(mk[0]); twice.add(mk[1]); out.push(mk);
+      }
+    }
+    return out;
+  }
+
   playDay(keepPlays = null) {
     const day = this.curDay;
     if (!this.byDay.has(day)) { this.curDay++; return []; }
     this._newDay(day);
     const out = [];
-    for (const [hi, ai] of this.byDay.get(day)) {
+    const todays = this.byDay.get(day);
+    // 오늘 치를 경기 = 정규 편성 + 갚을 연기 경기(더블헤더)
+    const card = [];
+    for (const g of todays) {
+      if (this._rainedOut(g[0], day)) {
+        this.postponed.push([g[0], g[1]]);
+        this.rained.push([day, g[0], g[1]]);
+        out.push({ hi:g[0], ai:g[1], rain:true, box:null });
+        continue;
+      }
+      card.push(g);
+    }
+    for (const g of this._makeups(day, card)) card.push([g[0], g[1], true]);
+    for (const [hi, ai, dh] of card) {
+      // 더블헤더 2차전. 1차전에 쓴 불펜은 다시 나오지 못한다.
+      if (dh) for (const i of [hi, ai]) this._refreshAvail(this.teams[i], day);
       const [H, A, plays] = playGame(this.teams[hi], this.teams[ai], this.rng);
       this._absorb(H, A.runs); this._absorb(A, H.runs);
       this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
       this._injuryRolls(H, day); this._injuryRolls(A, day);
-      this.results.push([day, hi, ai, H.runs, A.runs]);
+      this.results.push([day, hi, ai, H.runs, A.runs, dh ? 1 : 0]);
       // 홈 구단 관중. 성적이 팬을 부르고, 팬이 다음 시즌 예산이 된다.
       const home = this.teams[hi], rec = this.rec.get(home.team_id);
       const wp = rec.g ? rec.w / Math.max(1, rec.w + rec.l) : 0.5;
@@ -180,7 +236,8 @@ export class Season {
         home.lastPlayoff || false, home.lastTitle || false, this.rng));
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
-      out.push({ hi, ai, hr: H.runs, ar: A.runs, box: keep ? { H, A, plays } : null });
+      out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh,
+                 box: keep ? { H, A, plays } : null });
     }
     this.curDay++;
     return out;

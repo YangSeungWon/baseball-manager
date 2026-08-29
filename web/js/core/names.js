@@ -13,7 +13,7 @@ const G2 = ["우","호","준","현","석","진","수","훈","빈","한","성","�
 // 색은 실제 프로야구가 쓰는 계열만 — 빨강 · 버건디 · 주황 · 파랑 · 남색 · 진초록 · 차콜 · 금.
 export const FRANCHISES = [
   { city:"서울", nick:"타이탄스",  mascot:"고릴라",   color:"#d81f26", code:"SE",
-    park:"한강돔",         cap:26500, opened:2021 },
+    park:"한강돔",         cap:26500, opened:2021, dome:true },
   { city:"부산", nick:"돌핀스",    mascot:"돌고래",   color:"#0d7ac4", code:"BS",
     park:"해운대야구장",   cap:23200, opened:1985 },
   { city:"인천", nick:"썬더스",    mascot:"들소",     color:"#2a51c4", code:"IC",

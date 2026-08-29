@@ -393,7 +393,8 @@ function renderTop() {
 function act(fn) { const r = fn(); autosave(); render(); return r; }
 function report(r) {
   if (r && r.games) {
-    for (const g of r.games.slice(-2)) toast(g.result, `${g.score}  ${short(g.opponent)}`);
+    for (const g of r.games.slice(-2))
+      toast(g.result, g.result === '우천취소' ? short(g.opponent) : `${g.score}  ${short(g.opponent)}`);
     const last = r.games.filter(g => g.box).pop();
     if (last) lastBox = last.box;              // 방금 끝난 내 팀 경기. 다시 볼 수 있다.
   }
@@ -541,8 +542,10 @@ function viewHome(v) {
     : '<div class="empty">—</div>'));
   two2.appendChild(sect(day.rows.length ? `${day.day}일차 리그 결과` : '리그 결과', '',
     day.rows.length ? day.rows.map(r => `<div class="row ${r.user ? 'me' : ''}">
-        <span>${esc(short(r.away))} <span class="dim">@</span> ${esc(short(r.home))}</span>
-        <span class="m">${r.ar}<span class="dim">:</span>${r.hr}</span></div>`).join('')
+        <span>${esc(short(r.away))} <span class="dim">@</span> ${esc(short(r.home))}
+          ${r.dh ? '<span class="tag dh">DH</span>' : ''}</span>
+        ${r.rain ? '<span class="rainy">우천취소</span>'
+          : `<span class="m">${r.ar}<span class="dim">:</span>${r.hr}</span>`}</div>`).join('')
       : '<div class="empty">—</div>'));
   left.appendChild(two2);
 

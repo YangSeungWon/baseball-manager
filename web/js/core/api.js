@@ -279,9 +279,14 @@ export class Game {
     const s = this.season;
     if (!s) return { day:0, rows:[] };
     const d = day ?? s.curDay - 1;
-    return { day: d + 1, rows: s.results.filter(r => r[0] === d).map(([, hi, ai, hr, ar]) => ({
-      home: s.teams[hi].name, away: s.teams[ai].name, hr, ar,
-      user: s.teams[hi].team_id === this.userId || s.teams[ai].team_id === this.userId })) };
+    const mine = (hi, ai) =>
+      s.teams[hi].team_id === this.userId || s.teams[ai].team_id === this.userId;
+    const rows = s.results.filter(r => r[0] === d).map(([, hi, ai, hr, ar, dh]) => ({
+      home: s.teams[hi].name, away: s.teams[ai].name, hr, ar, dh: !!dh, user: mine(hi, ai) }));
+    // 비로 열리지 않은 경기도 그날의 결과다.
+    for (const [rd, hi, ai] of s.rained) if (rd === d)
+      rows.push({ home: s.teams[hi].name, away: s.teams[ai].name, rain: true, user: mine(hi, ai) });
+    return { day: d + 1, rows };
   }
 
   /** 구단주 요구 대비 현재 위치 */
@@ -786,12 +791,20 @@ export class Game {
       for (const g of this.season.playDay(this.userId)) {
         if (g.box) boxes.push(g.box);
         const H = this.season.teams[g.hi], A = this.season.teams[g.ai];
+        if (g.rain) {
+          if (H.team_id === this.userId || A.team_id === this.userId) {
+            const opp = (H.team_id === this.userId ? A : H).name;
+            played.push({ day:this.season.curDay, opponent:opp, score:'—', result:'우천취소', box:null });
+            this.notice(`${opp}전 우천취소`, 'rain');
+          }
+          continue;
+        }
         if (H.team_id === this.userId || A.team_id === this.userId) {
           const mine = H.team_id === this.userId ? g.hr : g.ar;
           const opp = H.team_id === this.userId ? g.ar : g.hr;
           played.push({ day:this.season.curDay, opponent:(H.team_id===this.userId?A:H).name,
             score:`${mine} : ${opp}`, result: mine>opp?'승':(mine<opp?'패':'무'),
-            box: g.box ? this.boxscore(g.box) : null });
+            dh: !!g.dh, box: g.box ? this.boxscore(g.box) : null });
         }
       }
       const newInj = this.season.injuries.slice(nInj);

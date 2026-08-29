@@ -589,3 +589,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .qb b{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--fg)}
 .qb b i{font-style:normal;font-size:14px;color:var(--fg3)}
 .note{font-size:14px;line-height:1.65;color:var(--fg2);margin:0;word-break:keep-all}
+
+/* 우천취소 · 더블헤더 */
+.rainy{font-size:13px;color:var(--fg3)}
+.tag.dh{background:var(--s3);color:var(--fg2);font-size:11px;font-weight:700;
+  border-radius:4px;padding:1px 5px;margin-left:5px}
