@@ -5,6 +5,7 @@ import * as R from './roster.js';
 import * as C from './contract.js';
 import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
+import * as staff from './staff.js';
 import * as draft from './draft.js';
 import { Season, postseason } from './season.js';
 import { buildHistory, droughtPressure, syncHistory } from './history.js';
@@ -34,6 +35,7 @@ export class League {
     this.feats = [];   // 한 경기 대기록. 시즌이 끝나면 여기로 옮겨 리그에 남는다.
     this.unsigned = []; this.draftLog = [];
     this.scouts = new Map(this.teams.map(t => [t.team_id, new ScoutingDept(this.rng)]));
+    this.ensureStaff();
     this.modes = new Map(this.teams.map(t => [t.team_id, market.NEUTRAL]));
     this.recPct = new Map(this.teams.map(t => [t.team_id, 0.5]));
     this.season = null;
@@ -66,9 +68,15 @@ export class League {
   }
   log(text) { this.history.push({ year: this.year, text }); }
 
+  /** 예전 저장본에는 코치진이 없다. 없으면 만들어 준다. */
+  ensureStaff() {
+    for (const t of this.teams) if (!t.staff) t.staff = staff.makeStaff(this.rng);
+  }
+
   see(t, p) {
     const c = this.careers.get(p.pid);
-    return this.scouts.get(t.team_id).report(p, this.rng, !!(c && c.seasons.length));
+    return this.scouts.get(t.team_id).report(p, this.rng, !!(c && c.seasons.length),
+      staff.scoutMult(t));
   }
   farmValue(t, p) { const r = this.see(t, p); return 0.65*r.pot + 0.35*r.ovr; }
 
@@ -90,7 +98,8 @@ export class League {
     const before = new Map();
     for (const t of this.teams) for (const p of [...t.batters, ...t.pitchers]) before.set(p.pid, dev.overall(p));
     for (const t of this.teams) {
-      for (const p of [...t.batters, ...t.pitchers]) dev.develop(p, rng, this.playingTime(p, S));
+      for (const p of [...t.batters, ...t.pitchers])
+        dev.develop(p, rng, this.playingTime(p, S), staff.devMult(t, p.kind));
       for (const p of t.farm) dev.develop(p, rng, p.age <= 22 ? 0.85 : 0.6);
     }
     for (const p of this.unsigned) dev.develop(p, rng, 0.30);

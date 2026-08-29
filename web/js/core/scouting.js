@@ -43,10 +43,10 @@ export class ScoutingDept {
     return Math.max(0.45, 1.30 - 0.32*z);
   }
   observe(p, rng, n = 1) { this._seed(p, rng); this.looks.set(p.pid, (this.looks.get(p.pid) ?? 0) + n); }
-  report(p, rng, isPro = false) {
+  report(p, rng, isPro = false, staffMult = 1) {
     const seed = this._seed(p, rng);
     const looks = this.looks.get(p.pid) ?? 0;
-    const shrink = 1 / Math.sqrt(1 + 0.40*looks);
+    const shrink = staffMult / Math.sqrt(1 + 0.40*looks);
     const sc = (isPro ? SIGMA_CUR_PRO : SIGMA_CUR_AMATEUR) * shrink * this._quality(p,'cur')
       * (p.foreign ? FOREIGN_CUR_MULT : 1);
     const sp = (isPro ? SIGMA_POT_PRO : SIGMA_POT_AMATEUR) * shrink * this._quality(p,'pot')

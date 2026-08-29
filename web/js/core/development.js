@@ -55,7 +55,7 @@ export function updateWeight(p) {
 
 export const bodyAdj = (p) => (p.kind === 'P' ? [3.0, -3.0] : (BODY[p.position] || [0, 0]));
 
-export function develop(p, rng, playingTime = 1.0) {
+export function develop(p, rng, playingTime = 1.0, coach = 1.0) {
   const h = p.hidden, prof = PROFILES[h.aging_profile];
   const ethic = 0.65 + 0.7 * (h.work_ethic / 50);
   const pt = 0.55 + 0.45 * Math.min(playingTime, 1.3);
@@ -76,7 +76,7 @@ export function develop(p, rng, playingTime = 1.0) {
       const youth = Math.max(0, Math.min(1, (peak - p.age) / Math.max(1, peak - YOUTH_FLOOR)));
       const gap = p.pot[a] - cur;
       const rate = GROWTH_RATE * youth * gm * prof[2] * ethic * pt * h.dev_rate
-        * yearMult * rng.uniform(0.6, 1.4);
+        * yearMult * coach * rng.uniform(0.6, 1.4);   // 코치가 성장 속도를 바꾼다
       cur += gap * Math.min(rate, 0.75);
       if (gap < 0) cur += gap * 0.05;
     } else {

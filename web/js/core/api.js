@@ -8,6 +8,7 @@ import * as R from './roster.js';
 import { PITCH, kmh } from './pitch.js';
 import { FEAT } from './feats.js';
 import * as FG from './foreign.js';
+import * as SF from './staff.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail, josa } from './mail.js';
 
@@ -64,7 +65,8 @@ export class Game {
   ratings(p, viewer = null) {
     viewer = viewer || this.me;
     const c = this.L.careers.get(p.pid);
-    const rep = this.L.scouts.get(viewer.team_id).report(p, this.L.rng, !!(c && c.seasons.length));
+    const rep = this.L.scouts.get(viewer.team_id)
+      .report(p, this.L.rng, !!(c && c.seasons.length), SF.scoutMult(viewer));
     const attrs = {};
     for (const a of dev.attrsOf(p)) {
       const [lo,hi] = rep.rangeOf(a,'cur'), [plo,phi] = rep.rangeOf(a,'pot');
@@ -398,9 +400,10 @@ export class Game {
           slg: ab ? (tb/ab).toFixed(3) : '—' }; };
       // 득점권은 표본이 작다. 그 숫자를 곧이곧대로 읽으면 안 된다.
       const risp = f(b.sp.S), all = b.ab ? b.h / b.ab : 0;
-      const w = risp.pa / (risp.pa + 260);
+      const w = risp.pa / (risp.pa + SF.regressPrior(this.me));
       risp.est = risp.ab ? (w * (b.sp.S[2] / b.sp.S[1]) + (1 - w) * all).toFixed(3) : '—';
       risp.trust = Math.round(w * 100);
+      risp.analyst = SF.dataTrust(this.me);
       return { kind:'B', rows: [['홈', f(b.sp.H)], ['원정', f(b.sp.A)],
                                 ['vs 좌완', f(b.sp.L)], ['vs 우완', f(b.sp.R)],
                                 ['득점권', risp]] };
@@ -948,6 +951,46 @@ export class Game {
     this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 코치진 ──────────────────────────────────────────────
+     코치는 선수의 진짜 능력을 알려주지 않는다. 결과를 바꾸거나
+     우리가 보는 숫자의 노이즈를 줄일 뿐이다. */
+
+  staff() {
+    const t = this.me;
+    if (!this.coachMarket) this.coachMarket = SF.makeMarket(this.L.rng, 3);
+    const eff = {
+      bat: `타자 성장 ×${SF.devMult(t, 'B').toFixed(2)}`,
+      pit: `투수 성장 ×${SF.devMult(t, 'P').toFixed(2)}`,
+      train: `부상 ×${SF.injuryMult(t).toFixed(2)} · 회복 ×${SF.healMult(t).toFixed(2)}`,
+      scout: `보고서 폭 ×${SF.scoutMult(t).toFixed(2)}`,
+      data: `숫자 신뢰도 ${SF.dataTrust(t)}%`,
+    };
+    return {
+      cost: r1(SF.staffCost(t)),
+      budget: r1(t.finance.budget), payroll: r1(C.payroll(t, this.L.year)),
+      rows: SF.ROLES.map(r => ({ key:r.key, label:r.label, hint:r.hint,
+        effect: eff[r.key],
+        cur: t.staff[r.key] ? { ...t.staff[r.key] } : null,
+        market: (this.coachMarket[r.key] || []).map(c => ({ ...c })) })),
+    };
+  }
+
+  hireCoach(role, id) {
+    const t = this.me;
+    if (!this.coachMarket || !this.coachMarket[role]) return { error:'closed' };
+    const i = this.coachMarket[role].findIndex(c => c.id === id);
+    if (i < 0) return { error:'not_found' };
+    const c = this.coachMarket[role][i];
+    const room = t.finance.budget - C.payroll(t, this.L.year) - SF.staffCost(t)
+      + (t.staff[role] ? t.staff[role].salary : 0);
+    if (c.salary > room) return { error:'budget', room:r1(room) };
+    const out = t.staff[role];
+    this.coachMarket[role].splice(i, 1);
+    if (out) this.coachMarket[role].push(out);      // 내보낸 코치는 시장에 남는다
+    t.staff[role] = c;
+    return { ok:true, name:c.name };
+  }
+
   /* ── 감독 지시 ────────────────────────────────────────────
      경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다. */
 

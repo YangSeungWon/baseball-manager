@@ -17,13 +17,15 @@ export function risk(p, fatigue = 0, workload = 1) {
   return Math.min(0.25, f);
 }
 
-export function roll(p, rng, fatigue = 0, workload = 1) {
+export function roll(p, rng, fatigue = 0, workload = 1, care = 1, heal = 1) {
   if (p.injury_days > 0) return null;
-  if (rng.random() >= risk(p, fatigue, workload)) return null;
+  // care 는 트레이닝 코치. 다치는 빈도와 회복 기간을 함께 움직인다.
+  if (rng.random() >= risk(p, fatigue, workload) * care) return null;
   const table = p.kind === 'B' ? SEV_BAT : SEV_PIT;
   const r = rng.random();
-  for (const [cut, lo, hi, label] of table) if (r < cut) return [rng.randint(lo, hi), label];
-  return [rng.randint(4, 15), "경상"];
+  const d = (v) => Math.max(1, Math.round(v * heal));
+  for (const [cut, lo, hi, label] of table) if (r < cut) return [d(rng.randint(lo, hi)), label];
+  return [d(rng.randint(4, 15)), "경상"];
 }
 
 export function apply(p, days, rng) {

@@ -864,6 +864,20 @@ function viewFront(v) {
     }
     g.appendChild(box);
   }
+  // 코치진. 코치는 정답을 주지 않는다. 결과를 바꾸거나 노이즈를 줄인다.
+  const sf = G.staff();
+  g.appendChild(sect('코치진', `연봉 ${sf.cost}억`, `<div class="stf">${sf.rows.map(r => `
+    <div class="sr">
+      <div class="sk">${esc(r.label)}<i>${esc(r.hint)}</i></div>
+      <div class="sc">${r.cur ? `<b>${esc(r.cur.name)}</b>
+        <span class="m sn">${r.cur.rating}</span>
+        <span class="m dim">${r.cur.salary}억 · ${r.cur.age}세</span>` : '<span class="dim">공석</span>'}</div>
+      <div class="se">${esc(r.effect)}</div>
+      <div class="sm">${r.market.map(c => `<button data-hire="${r.key}:${c.id}"
+        class="${r.cur && c.rating > r.cur.rating ? 'up' : ''}">${esc(c.name)}
+        <i>${c.rating}</i><em>${c.salary}억</em></button>`).join('')}</div>
+    </div>`).join('')}</div>`));
+
   const bp = G.ballpark();
   const bpr = el('div', 'grid');
   bpr.appendChild(sect(bp.name, `${bp.opened} 개장`, `
@@ -917,6 +931,14 @@ function viewFront(v) {
     <div class="kv"><span>현황</span><b>${esc(own.text)}</b></div>`));
   g.appendChild(right);
   v.appendChild(g);
+  v.querySelectorAll('[data-hire]').forEach(b => b.onclick = () => {
+    const [role, id] = b.dataset.hire.split(':');
+    const r = G.hireCoach(role, +id);
+    if (r.error === 'budget') toast('', `예산 부족 · 여력 ${r.room}억`, 'warn');
+    else if (r.error) toast('', '영입할 수 없다', 'warn');
+    else toast('영입', r.name);
+    autosave(); render();
+  });
   v.querySelectorAll('[data-repl]').forEach(b => b.onclick = (e) => {
     e.stopPropagation(); openReplace(+b.dataset.repl);
   });

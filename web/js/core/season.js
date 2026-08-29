@@ -1,6 +1,7 @@
 // 시즌: 일정 생성 / 하루 단위 진행 / 기록 집계 / WAR / 포스트시즌
 import { playGame } from './game.js';
 import { scan as scanFeats } from './feats.js';
+import * as staff from './staff.js';
 
 // 시즌을 8등분한 강수 확률. 장마가 한가운데에 온다.
 const RAIN = [0.088, 0.076, 0.118, 0.200, 0.182, 0.112, 0.070, 0.047];
@@ -153,15 +154,17 @@ export class Season {
 
   _injuryRolls(S, day) {
     const t = S.team;
+    const care = staff.injuryMult(t), heal = staff.healMult(t);
     for (const b of t.lineup) {
       const L = S.bat.get(b.pid);
       if (!L || !L.pa) continue;
-      const r = injury.roll(b, this.rng);
+      const r = injury.roll(b, this.rng, 0, 1, care, heal);
       if (r) this._hurt(b, t, day, r[0], r[1]);
     }
     for (const pl of S.pitchers) {
       if (!pl.bf) continue;
-      const r = injury.roll(pl.p, this.rng, pl.fatigue, 1 + 0.02*Math.max(0, pl.bf-20));
+      const r = injury.roll(pl.p, this.rng, pl.fatigue,
+        1 + 0.02*Math.max(0, pl.bf-20), care, heal);
       if (r) this._hurt(pl.p, t, day, r[0], r[1]);
     }
   }
