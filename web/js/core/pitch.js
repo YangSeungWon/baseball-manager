@@ -25,29 +25,29 @@ export const kmh = (p, type) =>
 
 export const PC = {
   // 겨냥. 존 반폭을 1로 둔 좌표. 몰아붙일 땐 바깥을, 몰렸을 땐 한복판을 본다.
-  aimEdge: 0.62813, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
+  aimEdge: 0.64377, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
   scatterBase: 0.60, scatterCommand: -0.115,
 
   // 스트라이크존 스윙률
-  swZBase: 0.69425, swZDisc: -0.018, swZTwoStrike: 0.215,
-  swZThreeBall: -0.165, swZFirst: -0.145,
+  swZBase: 0.95000, swZDisc: -0.018, swZTwoStrike: 0.215,
+  swZThreeBall: -0.165, swZFirst: -0.62673, swZ2nd: 0.68090,   // 2구는 초구 자제의 절반쯤
 
   // 존 밖 스윙률(체이스). 존에서 멀수록 급격히 떨어진다.
-  swOBase: 0.40593, swODecay: 1.05, swODisc: -0.062, swOStuff: 0.024, swOMove: 0.018,
-  swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.085,
+  swOBase: 0.52897, swODecay: 1.05, swODisc: -0.062, swOStuff: 0.024, swOMove: 0.018,
+  swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.38857,
 
   // 컨택률
-  ctZBase: 0.90911, ctOBase: 0.69114, ctDecay: 0.30,
+  ctZBase: 0.93162, ctOBase: 0.72912, ctDecay: 0.30,
   ctContact: 0.030, ctAvoidK: 0.024, ctStuff: -0.040, ctMove: -0.014,
   ctWhiff: -0.115, ctTwoStrike: -0.032,
 
   // 컨택 중 파울 비율
-  foulBase: 0.38270, foulTwoStrike: 0.220, foulOut: 0.155, foulContact: -0.014,
+  foulBase: 0.41683, foulTwoStrike: 0.220, foulOut: 0.155, foulContact: -0.014,
 
   // 파울도 잡히면 아웃이다. 이게 없으면 그 몫을 삼진이 떠안는다.
   foulCatchable: 0.0290, foulCatchBase: 0.760, foulCatchDef: 0.045, foulDropErr: 0.16,
 
-  hbpPerBall: 0.00730, hbpInside: 1.6,
+  hbpPerBall: 0.00749, hbpInside: 1.6,
 
   // 타구 질(0~1). 존 한복판에서, 유리한 카운트에서 강하게 맞는다.
   qCenter: 0.150, qEdge: -0.175, qAhead: 0.095, qTwoStrike: -0.115, qSd: 0.175,
@@ -92,7 +92,9 @@ export function playCount(bat, pit, ctx, rng) {
   const events = [];                                   // 폭투·포일 등 타석 밖 사건
   for (;;) {
     np++;
-    const two = s >= 2, three = b >= 3, first = np === 1;
+    const two = s >= 2, three = b >= 3;
+    // 이른 카운트일수록 지켜본다. 초구가 가장 강하고 2구가 그다음이다.
+    const early = np === 1 ? 1 : (np === 2 ? PC.swZ2nd : 0);
     const type = choosePitch(arsenal, b, s, rng);
     const P = PITCH[type];
 
@@ -114,10 +116,10 @@ export function playCount(bat, pit, ctx, rng) {
     // 2. 타자 — 칠 것인가. 존 밖은 멀수록 급격히 참는다.
     const pSwing = inZone
       ? clamp(PC.swZBase + PC.swZDisc * zd + (two ? PC.swZTwoStrike : 0)
-          + (three ? PC.swZThreeBall : 0) + (first ? PC.swZFirst : 0))
+          + (three ? PC.swZThreeBall : 0) + PC.swZFirst * early)
       : clamp((PC.swOBase + PC.swODisc * zd + PC.swOStuff * zs + PC.swOMove * zm
           + (two ? PC.swOTwoStrike : 0) + (three ? PC.swOThreeBall : 0)
-          + (first ? PC.swOFirst : 0)) * Math.exp(-PC.swODecay * out));
+          + PC.swOFirst * early) * Math.exp(-PC.swODecay * out));
 
     if (rng.random() >= pSwing) {                      // 지켜봤다
       if (inZone) { TALLY.called++; if (++s >= 3) return done(K); }
