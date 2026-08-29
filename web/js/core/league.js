@@ -6,6 +6,7 @@ import * as C from './contract.js';
 import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
 import * as staff from './staff.js';
+import * as persona from './persona.js';
 import * as draft from './draft.js';
 import { Season, postseason } from './season.js';
 import { buildHistory, droughtPressure, syncHistory } from './history.js';
@@ -98,8 +99,11 @@ export class League {
     const before = new Map();
     for (const t of this.teams) for (const p of [...t.batters, ...t.pitchers]) before.set(p.pid, dev.overall(p));
     for (const t of this.teams) {
-      for (const p of [...t.batters, ...t.pitchers])
+      for (const p of [...t.batters, ...t.pitchers]) {
+        persona.observe(t, p);          // 한 해를 같이 보냈다
         dev.develop(p, rng, this.playingTime(p, S), staff.devMult(t, p.kind));
+      }
+      for (const p of t.farm) persona.observe(t, p);
       for (const p of t.farm) dev.develop(p, rng, p.age <= 22 ? 0.85 : 0.6);
     }
     for (const p of this.unsigned) dev.develop(p, rng, 0.30);

@@ -1290,6 +1290,11 @@ function openPlayer(pid) {
           <div class="kv"><span>서비스</span><b class="m">${p.service}</b></div>
           <div class="kv"><span>통산 WAR</span><b class="m">${p.career_war ?? '—'}</b></div>
           <div class="kv"><span>부상</span><b class="m">${p.injuries.count} · ${p.injuries.days}일</b></div>
+          ${p.traits && p.traits.length ? `<div class="prs">
+            <div class="lab">성향</div>
+            ${p.traits.map(t => `<span class="pt ${t.level}${t.good ? ' g' : ' b'}">${esc(t.text)}</span>`).join('')}
+          </div>` : `<div class="prs"><div class="lab">성향</div>
+            <span class="pt none">겪어본 게 없어 아직 모른다</span></div>`}
           <div style="margin-top:16px" class="report">${esc(p.comment)}</div>
         </div>
       </div>

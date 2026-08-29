@@ -9,6 +9,7 @@ import { PITCH, kmh } from './pitch.js';
 import { FEAT } from './feats.js';
 import * as FG from './foreign.js';
 import * as SF from './staff.js';
+import * as PS from './persona.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail, josa } from './mail.js';
 
@@ -164,6 +165,13 @@ export class Game {
     if (p.kind === 'P' && p.arsenal)
       out.arsenal = p.arsenal.map(x => ({ kr: PITCH[x].kr, kmh: kmh(p, x) }));
     out.splits = this.splits(pid);
+    // 성향. 겪어본 만큼만 보인다.
+    const t2 = this.find(pid)[1] || this.me;
+    const car = this.L.careers.get(pid);
+    const cpa = car ? car.seasons.reduce((s, x) => s + ((x.line && x.line.pa) || 0), 0) : 0;
+    out.traits = PS.read(p, { years: PS.yearsWith(this.me, p),
+      seasons: car ? car.seasons.length : 0,
+      rispPa: Math.round(cpa * 0.22), talks: p.talks || 0 });
     out.seasons = [];
     if (c) {
       for (const s of c.seasons) {
@@ -1371,6 +1379,8 @@ export class Game {
              room:r1(me.finance.budget - C.payroll(me, year+1)) };
   }
   offer(pid, years, aav) {
+    // 협상 자리에서 사람이 드러난다
+    { const [p] = this.find(pid); if (p) p.talks = (p.talks || 0) + 1; }
     if (this.phase !== OFF_FA) return { error:'wrong_phase' };
     this.faOffers.set(pid, [Math.max(1,+years), Math.max(C.MIN_SALARY,+aav)]);
     return { ok:true };
