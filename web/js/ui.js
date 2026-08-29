@@ -712,6 +712,13 @@ function viewTeam(v) {
         <div class="lab" style="margin-top:14px">선발 로테이션</div>
         <div class="lurot">${lu.rotation.map(p => `<button class="lb rot"
           data-rot="${p.pid}">${p.order}<i>${esc(p.name)}</i></button>`).join('')}</div>
+        <div class="lab" style="margin-top:14px">불펜 보직</div>
+        <div class="lupen">${lu.bullpen.map(p => `<div class="pnrow">
+          <span class="pnn">${esc(p.name)}${p.locked ? '<em>지정</em>' : ''}</span>
+          <select class="lp" data-pen="${p.pid}">${lu.penRoles.map(r =>
+            `<option value="${r.key}"${r.key === p.role ? ' selected' : ''}>${r.label}</option>`
+          ).join('')}</select>
+        </div>`).join('')}</div>
         <button class="quiet luauto" id="luAuto">자동 편성으로</button>
       </div>
     </div>`));
@@ -832,6 +839,11 @@ function viewTeam(v) {
   });
   v.querySelectorAll('[data-pos]').forEach(s => s.onchange = () => {
     G.setSlotPos(+s.dataset.pos, s.value); autosave(); render();
+  });
+  v.querySelectorAll('[data-pen]').forEach(s => s.onchange = () => {
+    const r = G.setPenRole(+s.dataset.pen, s.value);
+    if (!r.error) toast(r.kr, r.name);
+    autosave(); render();
   });
   v.querySelectorAll('[data-bench]').forEach(b => b.onclick = () => {
     if (luSel === null) { toast('', '먼저 바꿀 타순을 고른다', 'warn'); return; }

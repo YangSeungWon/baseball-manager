@@ -659,6 +659,12 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lb i{font-style:normal;font-size:12px;color:var(--fg3);margin-left:6px}
 .lurot{display:flex;flex-direction:column;gap:4px;width:100%}
 .lb.rot{font-family:var(--mono)}
+.lupen{display:flex;flex-direction:column;gap:4px;width:100%}
+.pnrow{display:grid;grid-template-columns:1fr 86px;gap:8px;align-items:center}
+.pnn{font-size:14px;font-weight:600;color:var(--fg);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pnn em{font-style:normal;font-size:11px;color:var(--accent);margin-left:5px}
+.pnrow .lp{font-size:13px;padding:4px 5px}
 .luauto{margin-top:14px;width:100%}
 
 /* 코치진 */

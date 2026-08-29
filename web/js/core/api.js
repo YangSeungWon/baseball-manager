@@ -1216,7 +1216,8 @@ export class Game {
     const p = t.bullpen.find(x => x.pid === pid);
     if (!p || !R.PEN_LABEL[role]) return { error:'not_found' };
     p.pen_role = role; p.pen_lock = true;
-    return { ok:true };
+    R.assignPen(t);              // 지정한 자리는 그대로 두고 나머지를 다시 배분한다
+    return { ok:true, name:p.name, role, kr:R.PEN_LABEL[role] };
   }
 
   autoLineup() {
