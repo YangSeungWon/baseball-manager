@@ -15,12 +15,12 @@ export const MISC = {
 };
 
 export const ADV = {
-  b1_first_to_third: 0.229, b1_second_scores: 0.500, b2_first_scores: 0.379,
+  b1_first_to_third: 0.236, b1_second_scores: 0.516, b2_first_scores: 0.392,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.412, gb_r3_scores: 0.242, gb_r2_to_third: 0.335, fb_r2_to_third: 0.097,
+  sacfly_base: 0.425, gb_r3_scores: 0.250, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
-  sb_success_base: 0.720, sb_success_speed: 0.055,
+  sb_success_base: 0.655, sb_success_speed: 0.055, sb_success_arm: -0.033,
 };
 
 // 주자마다 책임 투수와 자책 여부를 함께 들고 다닌다.
@@ -347,13 +347,16 @@ function tryIbb(bases, outs, off, defn, rng) {
   return rng.random() < p;
 }
 
-function trySteal(bases, outs, off, rng) {
+function trySteal(bases, outs, off, defn, rng) {
   const r1 = bases.r[0];
   if (!r1 || bases.r[1] || outs >= 2) return 0;
   const zs = z(r1.speed);
-  if (rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs)
-      * tmul(tac(off.team, 'steal'))) return 0;
-  if (rng.random() < ADV.sb_success_base + ADV.sb_success_speed*zs) {
+  // ABS 아래에서 포수의 값어치는 프레이밍이 아니라 어깨와 블로킹으로 간다.
+  const c = defn && defn.byPos ? defn.byPos.C : null;
+  const za = z(c ? (c.arm ?? c.fielding) : 50);
+  if (rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
+      + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return 0;
+  if (rng.random() < ADV.sb_success_base + ADV.sb_success_speed*zs + ADV.sb_success_arm*za) {
     bases.move(0, 1); off.lineFor(r1).sb++; return 0;
   }
   bases.take(0); off.lineFor(r1).cs++; return 1;
@@ -374,7 +377,7 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
   while (outs < 3) {
     const lead = defn.runs - off.runs;
     maybeChangePitcher(defn, inning, lead, outs);
-    outs += trySteal(bases, outs, off, rng);
+    outs += trySteal(bases, outs, off, defn, rng);
     if (outs >= 3) break;
 
     // 대타. 한 번 나가면 원래 타자는 그날 끝이다.

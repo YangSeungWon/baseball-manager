@@ -1,4 +1,8 @@
-// 투구 단위 타석 엔진.
+// 투구 단위 타석 엔진. 판정은 ABS(자동 볼판정)를 전제한다.
+//
+// 그래서 심판 편차도, 카운트에 따른 존 확대도, 포수 프레이밍도 없다.
+// 존은 좌표상의 딱딱한 경계다. 대신 ABS 규정대로 존의 높이가
+// 타자 신장에 비례한다 — 작은 타자는 존이 작고 볼넷을 더 얻는다.
 //
 //   구종·구속 선택 → 존 어디에 꽂혔는가 → 타자의 스윙 판단 → 컨택 → 타구 질
 //
@@ -25,7 +29,7 @@ export const kmh = (p, type) =>
 
 export const PC = {
   // 겨냥. 존 반폭을 1로 둔 좌표. 몰아붙일 땐 바깥을, 몰렸을 땐 한복판을 본다.
-  aimEdge: 0.66147, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
+  aimEdge: 0.63619, aimTwoK: 1.45, aimThreeK: 0.35,   // 유인구·한복판은 겨냥점의 배수
   scatterBase: 0.60, scatterCommand: -0.115,
 
   // 스트라이크존 스윙률
@@ -37,7 +41,7 @@ export const PC = {
   swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.38857,
 
   // 컨택률
-  ctZBase: 0.93622, ctOBase: 0.73602, ctDecay: 0.30,
+  ctZBase: 0.93017, ctOBase: 0.72696, ctDecay: 0.30,
   ctContact: 0.030, ctAvoidK: 0.024, ctStuff: -0.040, ctMove: -0.014,
   ctWhiff: -0.115, ctTwoStrike: -0.032,
 
@@ -87,6 +91,9 @@ export function playCount(bat, pit, ctx, rng) {
   const cb = ctx.cBat || 0;                 // 승부처에서의 기질
   const zd = z(bat.discipline) + cb * 0.5, zk = z(bat.avoid_k) + cb, zct = z(bat.contact) + cb;
   const arsenal = pit.arsenal;
+  // ABS 존 높이는 신장에 비례한다 (상단 56.35%, 하단 27.64%).
+  // 리그 평균 키를 1로 두고 그 비율만 쓴다.
+  const zH = Math.max(0.86, Math.min(1.14, (bat.height || 182) / 182));
 
   let b = 0, s = 0, np = 0, f = 0;
   const events = [];                                   // 폭투·포일 등 타석 밖 사건
@@ -103,15 +110,15 @@ export function playCount(bat, pit, ctx, rng) {
     const sc = Math.max(0.22, (PC.scatterBase + PC.scatterCommand * zc) / P.ctl);
     const px = rng.gauss((rng.random() < 0.5 ? -1 : 1) * aim, sc);
     const pz = rng.gauss((rng.random() < 0.5 ? -1 : 1) * aim * 0.72, sc);
-    const inZone = Math.abs(px) <= 1 && Math.abs(pz) <= 1;
+    const inZone = Math.abs(px) <= 1 && Math.abs(pz) <= zH;
     // 존 경계에서 얼마나 벗어났는가
-    const out = Math.hypot(Math.max(0, Math.abs(px) - 1), Math.max(0, Math.abs(pz) - 1));
+    const out = Math.hypot(Math.max(0, Math.abs(px) - 1), Math.max(0, Math.abs(pz) - zH));
     const mid = Math.hypot(px, pz);                    // 한복판에서의 거리
     TALLY.pitches++; if (inZone) TALLY.zone++;
 
     // 원바운드 — 낮게 빠진 변화구
-    const dirt = !inZone && pz < -1 && rng.random() < PC.dirtBase * P.dirt
-      * (1 + PC.dirtLow * Math.max(0, -pz - 1));
+    const dirt = !inZone && pz < -zH && rng.random() < PC.dirtBase * P.dirt
+      * (1 + PC.dirtLow * Math.max(0, -pz - zH));
 
     // 2. 타자 — 칠 것인가. 존 밖은 멀수록 급격히 참는다.
     const pSwing = inZone
