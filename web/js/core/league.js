@@ -85,7 +85,9 @@ export class League {
     if (!S) return p.age <= 23 ? 0.85 : 0.45;
     if (p.kind === 'B') { const b = S.bat.get(p.pid); if (b && b.pa) return Math.min(1.3, b.pa/380); }
     else { const q = S.pit.get(p.pid); if (q && q.outs) return Math.min(1.3, q.gs ? q.ip/90 : q.g/40); }
-    return p.age <= 23 ? 0.85 : 0.45;
+    // 1군에 있었는데 안 나왔다. 그것도 정보다.
+    // 2군에서 매일 뛰는 것보다 못 큰다 — 그래서 강등이 선택이 된다.
+    return p.age <= 23 ? 0.30 : 0.20;
   }
 
   // ---- 오프시즌 단계 ------------------------------------------------

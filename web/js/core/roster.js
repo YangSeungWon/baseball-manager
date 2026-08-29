@@ -245,6 +245,8 @@ export function rebuildRoster(t, healthyOnly = false) {
   return refreshTeam(t);
 }
 
+export const ACTIVE_MAX = 28;   // KBO 1군 등록 한도
+
 export function callUp(t, wantPitcher, rng, year, role = null) {
   let cand = t.farm.filter(p => (p.kind === 'P') === wantPitcher && p.injury_days <= 0
                                 && (role === null || p.role === role));
@@ -265,15 +267,29 @@ export function callUp(t, wantPitcher, rng, year, role = null) {
 
 export function setActive(t, rng, year) {
   const ups = [];
-  let guard = 0;
-  while (t.batters.filter(b => b.injury_days <= 0).length < 10 && guard++ < 20)
-    ups.push(callUp(t, false, rng, year));
-  guard = 0;
-  while (t.pitchers.filter(p => p.injury_days <= 0).length < 9 && guard++ < 20)
-    ups.push(callUp(t, true, rng, year));
-  guard = 0;
-  while (t.pitchers.filter(p => p.injury_days <= 0 && p.role === 'SP').length < 4 && guard++ < 20)
-    ups.push(callUp(t, true, rng, year, 'SP'));
+  const full = () => t.batters.length + t.pitchers.length >= ACTIVE_MAX;
+  // 자리가 없으면 오래 못 나올 선수를 먼저 말소한다. 실제로 그렇게 한다.
+  const makeRoom = () => {
+    const hurt = [...t.batters, ...t.pitchers].filter(p => p.injury_days > 0)
+      .sort((a, b) => b.injury_days - a.injury_days);
+    if (!hurt.length) return false;
+    const p = hurt[0];
+    for (const arr of [t.batters, t.pitchers]) {
+      const i = arr.indexOf(p); if (i >= 0) { arr.splice(i, 1); break; }
+    }
+    t.farm.push(p);
+    return true;
+  };
+  const need = (fn, want, pitcher, role) => {
+    let guard = 0;
+    while (fn() < want && guard++ < 24) {
+      if (full() && !makeRoom()) break;
+      ups.push(callUp(t, pitcher, rng, year, role));
+    }
+  };
+  need(() => t.batters.filter(b => b.injury_days <= 0).length, 10, false, null);
+  need(() => t.pitchers.filter(p => p.injury_days <= 0).length, 9, true, null);
+  need(() => t.pitchers.filter(p => p.injury_days <= 0 && p.role === 'SP').length, 4, true, 'SP');
   rebuildRoster(t, true);
   return ups;
 }

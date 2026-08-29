@@ -737,6 +737,32 @@ function viewTeam(v) {
   block('벤치', r.bench, 'B');
   block('선발 로테이션', r.rotation, 'P');
   block('불펜', r.bullpen, 'P');
+  // 1군 등록과 2군. 올려두고 안 쓰면 퇴보하고, 2군에서는 매일 뛴다.
+  const fm = G.farmMoves();
+  const roleCls = { 주전:'r1', 선발:'r1', 불펜:'r2', 대기:'r3' };
+  g.appendChild(sect('1군 · 2군', `등록 ${fm.count} / ${fm.max}`, `<div class="fm2">
+    <div>
+      <div class="lab">1군 등록</div>
+      <div class="fmlist">${fm.active.map(p => `<div class="fmrow">
+        <span class="fr ${roleCls[p.role] || ''}">${p.role}</span>
+        <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+        <span class="fs">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>` : (p.stat ? esc(p.stat) : '')}</span>
+        <span class="fb">
+          <button data-down="${p.pid}">2군</button>
+          <button data-rel="${p.pid}" class="q">방출</button></span>
+      </div>`).join('')}</div>
+    </div>
+    <div>
+      <div class="lab">2군 <span class="dim">${fm.farm.length}명</span></div>
+      <div class="fmlist">${fm.farm.map(p => `<div class="fmrow">
+        <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+        <span class="fa2">${axis(p.ovr, p.pot)}</span>
+        <span class="fb">${p.wait ? `<span class="dim">${p.wait}일 대기</span>`
+          : `<button data-up="${p.pid}">1군</button>`}</span>
+      </div>`).join('')}</div>
+    </div>
+  </div>`));
+
   if (r.injured.length) g.appendChild(sect('부상자', `${r.injured.length}`, table(
     ['선수','P','나이','능력 / 잠재력','복귀까지','계약'],
     r.injured.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
@@ -755,6 +781,22 @@ function viewTeam(v) {
       `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
     (row) => openPlayer(row.p.pid))));
   v.appendChild(g);
+  const move = (fn, pid, ok) => { const r = fn(pid);
+    if (r.error === 'full') toast('', '1군 등록이 꽉 찼다', 'warn');
+    else if (r.error === 'thin') toast('', '1군 인원이 모자란다', 'warn');
+    else if (r.error === 'wait') toast('', `${r.days}일 뒤에 올릴 수 있다`, 'warn');
+    else if (r.error) toast('', '움직일 수 없다', 'warn');
+    else ok(r);
+    autosave(); render(); };
+  v.querySelectorAll('[data-up]').forEach(b => b.onclick = () =>
+    move(x => G.callUpPlayer(x), +b.dataset.up, r => toast('1군 등록', r.name)));
+  v.querySelectorAll('[data-down]').forEach(b => b.onclick = () =>
+    move(x => G.sendDownPlayer(x), +b.dataset.down, r => toast('2군', r.name)));
+  v.querySelectorAll('[data-rel]').forEach(b => b.onclick = () => {
+    const nm = b.closest('.fmrow').querySelector('.fn2').textContent.trim();
+    if (!confirm(`${nm} 을(를) 방출한다. 잔여 연봉은 그대로 나간다.`)) return;
+    move(x => G.releasePlayer(x), +b.dataset.rel, r => toast('방출', `${r.name} · ${r.cost}억`));
+  });
   v.querySelectorAll('.lurow').forEach(r => r.onclick = (e) => {
     if (e.target.tagName === 'SELECT') return;
     const n = +r.dataset.slot;

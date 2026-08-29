@@ -28,7 +28,7 @@ function dumpPlayer(p) {
   if (ip) { d.throws = p.throws; d.role = p.role; d.ars = p.arsenal; }
   else { d.bats = p.bats; d.position = p.position; }
   if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(f3)];
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil'])
     if (p[o] !== undefined) d[o] = p[o];
   if (p.scout_consensus) {
     const attrs = dev.attrsOf(p);
@@ -44,7 +44,7 @@ function loadPlayer(d) {
   for (const f of (ip ? PF : BF)) p[f] = d[f] ?? 50;   // 예전 저장본에 없던 능력치
   p.pot = { ...d.pot }; p.hidden = { ...d.hid };
   p.contract = d.ct ? new C.Contract(d.ct[0], d.ct[1]) : null;
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil'])
     if (d[o] !== undefined) p[o] = d[o];
   if (d.sc) {
     const attrs = dev.attrsOf(p);

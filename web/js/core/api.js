@@ -959,6 +959,88 @@ export class Game {
     this.phase = OFF_FOREIGN;
     return out;
   }
+  /* ── 2군 운영 ────────────────────────────────────────────
+     1군에 올려두고 안 쓰면 퇴보한다. 2군에서는 매일 뛴다.
+     그래서 콜업과 강등이 육성의 절반이다. */
+
+  static ACTIVE_MAX = 28;
+  static ACTIVE_MIN = 24;
+  static DOWN_DAYS = 10;      // 말소 후 재등록까지
+
+  farmMoves() {
+    const t = this.me, day = this.season ? this.season.curDay : null;
+    const s = this.season;
+    const line = (p) => {
+      if (!s) return null;
+      const q = p.kind === 'P' ? s.pit.get(p.pid) : s.bat.get(p.pid);
+      if (!q || (!q.g && !q.pa)) return null;
+      return p.kind === 'P' ? `${q.g}G ${q.ipStr}이닝 ERA ${q.era.toFixed(2)}`
+                            : `${q.g}G ${q.avg.toFixed(3)} ${q.hr}홈런`;
+    };
+    const inLineup = new Set(t.lineup.map(b => b.pid));
+    const inStaff = new Set([...t.rotation, ...t.bullpen].map(p => p.pid));
+    const act = [...t.batters, ...t.pitchers].map(p => ({ ...this.brief(p, t),
+      stat: line(p), hurt: p.injury_days > 0 ? p.injury_days : 0,
+      role: inLineup.has(p.pid) ? '주전' : inStaff.has(p.pid)
+        ? (t.rotation.some(x => x.pid === p.pid) ? '선발' : '불펜') : '대기',
+      pay: p.contract ? r1(p.contract.salaryIn(this.L.year)) : 0 }));
+    const farm = [...t.farm].sort((x, y) => this.L.see(t, y).pot - this.L.see(t, x).pot)
+      .map(p => ({ ...this.brief(p, t), hurt: p.injury_days > 0 ? p.injury_days : 0,
+        wait: day !== null && p.downUntil ? Math.max(0, p.downUntil - day) : 0 }));
+    return { active: act, farm, count: act.length,
+      max: Game.ACTIVE_MAX, min: Game.ACTIVE_MIN, inSeason: !!s };
+  }
+
+  callUpPlayer(pid) {
+    const t = this.me, day = this.season ? this.season.curDay : null;
+    const i = t.farm.findIndex(p => p.pid === pid);
+    if (i < 0) return { error:'not_found' };
+    if (t.batters.length + t.pitchers.length >= Game.ACTIVE_MAX) return { error:'full' };
+    const p = t.farm[i];
+    if (day !== null && p.downUntil && p.downUntil > day)
+      return { error:'wait', days: p.downUntil - day };
+    t.farm.splice(i, 1);
+    if (p.debut_year === null || p.debut_year === undefined) p.debut_year = this.L.year;
+    (p.kind === 'P' ? t.pitchers : t.batters).push(p);
+    R.rebuildRoster(t);
+    return { ok:true, name:p.name };
+  }
+
+  sendDownPlayer(pid) {
+    const t = this.me, day = this.season ? this.season.curDay : null;
+    if (t.batters.length + t.pitchers.length <= Game.ACTIVE_MIN) return { error:'thin' };
+    const arr = t.batters.some(p => p.pid === pid) ? t.batters : t.pitchers;
+    const i = arr.findIndex(p => p.pid === pid);
+    if (i < 0) return { error:'not_found' };
+    const p = arr[i];
+    arr.splice(i, 1);
+    if (day !== null) p.downUntil = day + Game.DOWN_DAYS;
+    if (t.manual) {                              // 편성에서도 빼 준다
+      if (t.manual.order) t.manual.order = t.manual.order.filter(x => x !== pid);
+      if (t.manual.rot) t.manual.rot = t.manual.rot.filter(x => x !== pid);
+    }
+    t.farm.push(p);
+    R.rebuildRoster(t);
+    return { ok:true, name:p.name };
+  }
+
+  /** 방출. 잔여 연봉은 그대로 나간다. */
+  releasePlayer(pid) {
+    const t = this.me;
+    const [p, owner] = this.find(pid);
+    if (!p || owner !== t) return { error:'not_found' };
+    const left = p.contract ? p.contract.remaining(this.L.year).reduce((a, b) => a + b, 0) : 0;
+    t.finance.budget = Math.max(0, t.finance.budget - left);
+    for (const arr of [t.batters, t.pitchers, t.farm]) {
+      const i = arr.indexOf(p); if (i >= 0) arr.splice(i, 1);
+    }
+    p.contract = null;
+    this.L.unsigned.push(p);
+    R.rebuildRoster(t);
+    this.L.log(`${t.name} ${p.name} 방출`);
+    return { ok:true, name:p.name, cost:r1(left) };
+  }
+
   /* ── 코치진 ──────────────────────────────────────────────
      코치는 선수의 진짜 능력을 알려주지 않는다. 결과를 바꾸거나
      우리가 보는 숫자의 노이즈를 줄일 뿐이다. */
