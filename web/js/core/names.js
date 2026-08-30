@@ -33,13 +33,13 @@ export const FRANCHISES = [
     park:"유니콘스파크",   cap:17500, opened:2019, fL:101, fC:123, fR:98,  fH:3.0, uni:{hb:'#f6f4f8', hs:1, ab:'#868c96'} },
   { city:"청주", nick:"스타즈",    mascot:"수리부엉이", color:"#c2410c", code:"CJ", mark:"Z",
     park:"무심천야구장",   cap:14800, opened:1979, fL:94,  fC:116, fR:94,  fH:6.0, uni:{hb:'#f8f6f3', hs:0, ab:'#8d9298'} },
-  { city:"천안", nick:"애로우스",  mascot:"화살",     color:"#1e3a6e", code:"CA", mark:"A",
+  { city:"천안", nick:"애로우즈",  mascot:"화살",     color:"#d02231", code:"CA", mark:"A",
     park:"천안야구장",     cap:15600, opened:2022, fL:98,  fC:121, fR:98,  fH:3.0, uni:{hb:'#f4f6fa', hs:1, ab:'#8b929c'}, turf:1 },
   { city:"전주", nick:"재규어스",  mascot:"재규어",   color:"#558b2f", code:"JJ", mark:"J",
     park:"덕진야구장",     cap:14200, opened:1982, fL:97,  fC:119, fR:97,  fH:2.8, uni:{hb:'#f4f7f2', hs:0, ab:'#33501e'} },
-  { city:"강릉", nick:"울브스",    mascot:"늑대",     color:"#3a4cc9", code:"GN", mark:"W",
-    park:"경포야구장",     cap:13500, opened:2010, fL:100, fC:124, fR:100, fH:3.4, uni:{hb:'#f4f5fa', hs:1, ab:'#8b929c'}, alt:30 },
-  { city:"제주", nick:"레이븐스",  mascot:"큰까마귀", color:"#0272c9", code:"JU", mark:"V",
+  { city:"강릉", nick:"울브스",    mascot:"늑대",     color:"#efc027", code:"GN", mark:"W",
+    park:"경포야구장",     cap:13500, opened:2010, fL:100, fC:124, fR:100, fH:3.4, uni:{hb:'#faf6ec', hs:1, ab:'#4a4a4f'}, alt:30 },
+  { city:"제주", nick:"레이븐스",  mascot:"큰까마귀", color:"#3f46b8", code:"JU", mark:"V",
     park:"한라야구장",     cap:13000, opened:2007, fL:98,  fC:120, fR:98,  fH:3.2, uni:{hb:'#f4f7fa', hs:0, ab:'#1a2733'}, alt:20 },
 ];
 // 실제 위경도. 연고지 지도에 쓴다.

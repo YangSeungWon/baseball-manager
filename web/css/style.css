@@ -396,8 +396,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   background:var(--line);color:var(--fg2)}
 .res.w{background:var(--pos);color:#0b1119} .res.l{background:var(--neg);color:#0b1119}
 .cap{flex-shrink:0;display:block;border-radius:50%}
-.capm{fill:#fff;font-family:var(--mono);font-weight:700;letter-spacing:.02em;
-  paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:.6px}
+.capm{font-family:var(--mono);font-weight:700;letter-spacing:.02em;
+  paint-order:stroke;stroke-width:.6px}
 
 .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   padding:7px 0;border-bottom:1px solid var(--line2)}

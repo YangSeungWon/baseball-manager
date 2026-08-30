@@ -236,6 +236,7 @@ const cap = (name, size = 44) => {
     <circle cx="22" cy="22" r="21.2" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="1.6"/>
     <circle cx="22" cy="22" r="17.4" fill="none" stroke="#fff" stroke-opacity=".62" stroke-width="1.5"/>
     <text class="capm" x="22" y="22" text-anchor="middle" dominant-baseline="central"
+      fill="${c.fg}" stroke="${c.fg === '#08121b' ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.25)'}"
       font-size="${(size >= 34 ? 21 : 22)}">${c.mark}</text>
   </svg>`;
 };
