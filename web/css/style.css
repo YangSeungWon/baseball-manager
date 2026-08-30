@@ -472,8 +472,12 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 @media(max-width:640px){
   :root{--axis-w:110px}
   body{font-size:15px}
-  .tabs,.topbar{position:static}
   th,td{padding:6px 5px}
+  /* 탭은 붙여 둔다. 팀 화면이 폰에서 6,000px 가 넘는데 탭을 놓치면
+     맨 위까지 올라갔다 와야 한다. */
+  .topbar{padding:8px 12px}
+  .tabs{top:41px}
+  .tabs button{padding:10px 13px 8px;font-size:14px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
@@ -743,3 +747,77 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .ml2.urg{color:var(--neg);font-weight:700}
 .milt{font-weight:700}
 .milt.serving{color:#d8a24a} .milt.exempt{color:var(--pos)} .milt.none{color:var(--fg2)}
+
+/* ══ 좁은 화면 ═══════════════════════════════════════════════
+   폰에서도 시즌을 굴릴 수 있어야 한다. 원칙은 하나 — 열을 지우지 않는다.
+   표는 카드 안에서만 옆으로 밀고, 고정 다단은 전부 1단으로 접는다.
+   정보 밀도가 이 게임이고, 그건 화면이 좁다고 버릴 것이 아니다. */
+.tw{overflow-x:auto;overscroll-behavior-x:contain}
+
+@media(max-width:760px){
+  .grid{gap:14px}
+  .sect{padding:13px 14px 11px}
+  .sect>h3{margin-bottom:9px}
+  /* 표가 카드 가장자리까지 밀려야 더 있다는 것이 보인다 */
+  .tw{margin:0 -14px;padding:0 14px}
+
+  /* 편성 — 오른쪽 열을 아래로 내리고, 한 줄을 두 줄로 */
+  .lu{grid-template-columns:1fr;gap:16px}
+  .lurow{grid-template-columns:24px minmax(0,1fr) 68px;row-gap:5px;padding:8px 6px;
+    grid-template-areas:"no name pos" "ax ax fit"}
+  .lurow .lo{grid-area:no} .lurow .ln{grid-area:name} .lurow .lp{grid-area:pos}
+  .lurow .la{grid-area:ax} .lurow .lf{grid-area:fit;text-align:right}
+  .lubench{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;align-items:start}
+  .lubench>.lab,.lurot,.lupen,.luauto{grid-column:1/-1}
+  .lurot{flex-direction:row;flex-wrap:wrap}
+  .lurot .lb{width:auto;flex:1 1 30%}
+  .lupen{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+
+  /* 감독 지시 — 설명을 위로, 다섯 단계를 아래로 */
+  .tac{grid-template-columns:1fr;gap:8px;padding:11px 2px}
+  .tsteps button{padding:11px 2px;font-size:13px}
+
+  /* 코치진 · 1군2군 · 병역 — 전부 1단 */
+  .sr{grid-template-columns:1fr;gap:7px;padding:12px 2px}
+  .fm2{grid-template-columns:1fr;gap:16px}
+  .fm2 > div:last-child .fmrow{grid-template-columns:1fr auto auto}
+  .fmlist,.mlist{max-height:none}
+  .mil3{grid-template-columns:1fr;gap:16px}
+
+  /* 경기 재생 — 중계와 옆 정보를 위아래로 */
+  .rpbody{grid-template-columns:1fr;gap:14px;padding:12px 0}
+  .rphead{flex-wrap:wrap;gap:10px 14px}
+  .modal{padding:0}
+  .modal-body{max-width:none;width:100%;border-radius:0;max-height:100vh}
+  .mhead{padding:13px 14px 11px}
+  .mbody{padding:13px 14px 18px}
+
+  /* 구장 제원 — 두 칸을 한 칸으로. '평균 관중 10.1천 · 65%' 가 안 접힌다 */
+  .parkspec{grid-template-columns:1fr;gap:8px 0}
+
+  /* 대기록 — 날짜와 이름을 한 줄, 내용을 다음 줄 */
+  .feat{grid-template-columns:1fr auto;row-gap:3px;padding:10px 10px 10px 14px}
+}
+
+@media(max-width:640px){
+  .lubench{grid-template-columns:1fr}
+  .lupen{grid-template-columns:1fr}
+  .tsteps{grid-template-columns:repeat(5,1fr);gap:3px}
+  .tsteps button{padding:11px 1px;font-size:12px}
+}
+
+@media(max-width:760px){
+  /* 손가락은 커서가 아니다. 누를 것은 40px 이상으로. */
+  .fb button,.sm button{padding:9px 11px;font-size:13px}
+  .lb{padding:10px 11px}
+  .lp{padding:8px 6px;font-size:15px}
+  button{padding:9px 14px}
+  /* 표가 옆으로 더 있다는 것을 가장자리 그림자로 알린다 */
+  .tw{background:
+    linear-gradient(to right,var(--s1) 30%,transparent),
+    linear-gradient(to left,var(--s1) 30%,transparent) 100% 0,
+    radial-gradient(farthest-side at 0 50%,rgba(0,0,0,.4),transparent),
+    radial-gradient(farthest-side at 100% 50%,rgba(0,0,0,.4),transparent) 100% 0;
+    background-repeat:no-repeat;background-size:34px 100%,34px 100%,12px 100%,12px 100%;
+    background-attachment:local,local,scroll,scroll}
+}

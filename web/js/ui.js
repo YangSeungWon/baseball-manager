@@ -466,7 +466,9 @@ function table(head, rows, onRow) {
       tr.onkeydown = (e) => { if (e.key === 'Enter') onRow(r); }; }
     tb.appendChild(tr);
   });
-  t.appendChild(tb); return t;
+  t.appendChild(tb);
+  // 좁은 화면에서는 표만 카드 안에서 옆으로 민다. 열을 지우지 않기 위해서다.
+  const wrap = el('div', 'tw'); wrap.appendChild(t); return wrap;
 }
 const nameCell = (p) => `<span class="name">${esc(p.name)}</span>`
   + (p.injury_days ? `<span class="tag inj">✚${p.injury_days}</span>` : '');
