@@ -1,3 +1,16 @@
+/* IBM Plex Mono — 직접 제공한다. 외부로 나가는 요청이 하나도 없어야
+   "아무것도 수집하지 않는다" 를 사실로 쓸 수 있다. (SIL OFL 1.1, fonts/OFL.txt) */
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;
+  src:url(../fonts/ibm-plex-mono-400.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:500;font-display:swap;
+  src:url(../fonts/ibm-plex-mono-500.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600;font-display:swap;
+  src:url(../fonts/ibm-plex-mono-600.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:700;font-display:swap;
+  src:url(../fonts/ibm-plex-mono-600.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:800;font-display:swap;
+  src:url(../fonts/ibm-plex-mono-600.woff2) format('woff2')}
+
 /* ══════════════════════════════════════════════════════════════
    Project Dugout — 프런트 오피스
 
@@ -847,3 +860,16 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .rn-line{grid-column:2;text-align:left}
   .rn-line i{display:inline;margin-left:8px}
 }
+
+/* 정보 · 약관 */
+.disclaim{margin:14px 0 0;font-size:13px;line-height:1.6;color:var(--fg3)}
+.linky{background:none;border:0;padding:0 0 0 8px;color:var(--accent);
+  font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline}
+.linky:hover{background:none;color:var(--fg)}
+.doc section{margin-bottom:22px}
+.doc h3{margin:0 0 8px;font-size:16px;font-weight:700;color:var(--fg)}
+.doc p{margin:0 0 8px;font-size:15px;line-height:1.7;color:var(--fg2);max-width:70ch}
+.doc ul{margin:0;padding-left:18px}
+.doc li{font-size:15px;line-height:1.7;color:var(--fg2);margin-bottom:6px;max-width:70ch}
+.doc b{color:var(--fg)}
+.doc a{color:var(--accent)}

@@ -412,13 +412,16 @@ function drawDossier() {
       <button id="btnNew" class="primary">${esc(josa(d.name, '으로'))} 시작</button>
       ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
       <button id="btnLoad" class="quiet">파일에서 불러오기</button>
-    </div>`;
+    </div>
+    <p class="disclaim">구단과 선수는 모두 가상입니다. 실존하는 구단·인물과 관련이 없습니다.
+      <button id="btnInfo" class="linky">정보 · 약관</button></p>`;
   const mapBox = $('#kmap');
   if (mapBox) mapBox.innerHTML = drawMap(bootGame.teamList().map(t => t.name), d.name);
   $('#dossier').style.setProperty('--tc', col);
   document.querySelector('.boot-main').style.setProperty('--tc', col);
   $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
+  $('#btnInfo').onclick = modalInfo;
   if ($('#btnResume')) $('#btnResume').onclick = () => {
     try { G = save.load(JSON.parse(saved)); start(); }
     catch (e) { localStorage.removeItem(KEY); toast('불러오기 실패', '새 게임으로 시작하세요', 'injury');
@@ -965,10 +968,12 @@ function saveSection(v) {
     <div class="savebtn">
       <button id="svExport" class="primary">파일로 내보내기</button>
       <button id="svImport" class="quiet">파일에서 불러오기</button>
+      <button id="svInfo" class="quiet">정보 · 약관</button>
     </div>
   </div>`);
   v.appendChild(sec);
   $('#svExport').onclick = () => exportSave();
+  $('#svInfo').onclick = modalInfo;
   $('#svImport').onclick = () => {
     if (!confirm('불러오면 지금 구단은 사라진다. 계속하겠는가?')) return;
     pickSaveFile(() => { lastPhase = null; render(); toast('불러왔다', G.state().year + ' 시즌'); });
@@ -1408,6 +1413,58 @@ async function makeCard(p) {
     if (how === 'downloaded') toast('카드를 내려받았다', p.name);
   } catch (e) { toast('카드 실패', '다시 시도해 보라', 'injury'); }
   b.disabled = false; b.textContent = '카드 만들기';
+}
+
+/* ── 정보 · 약관 ──────────────────────────────────────────────
+   길게 쓰지 않는다. 실제로 하는 일만 적으면 짧아진다. */
+const REPO = 'https://github.com/YangSeungWon/baseball-manager';
+function modalInfo() {
+  modal(`<div class="mhead"><div><h2>정보</h2>
+      <div class="meta">Project Dugout</div></div>
+    <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack doc">
+      <section>
+        <h3>가상입니다</h3>
+        <p>이 게임에 나오는 구단, 선수, 기록, 사건은 <b>전부 지어낸 것</b>입니다.
+          선수 이름은 프로그램이 음절을 조합해 만듭니다. 실존하는 인물과 이름이
+          같더라도 우연입니다.</p>
+        <p>구단 이름과 연고지, 리그 제도는 한국 프로야구의 리듬을 참고했지만,
+          실존하는 구단·단체·인물과는 아무 관련이 없습니다. 어떤 프로야구 기구나
+          구단으로부터 후원이나 승인을 받지 않았고, 그들을 대표하지도 않습니다.</p>
+      </section>
+      <section>
+        <h3>개인정보</h3>
+        <p><b>서버가 없습니다.</b> 계정도, 로그인도, 결제도 없습니다.</p>
+        <ul>
+          <li>세이브는 이 브라우저의 저장소에만 있습니다. 밖으로 나가지 않습니다.
+            지우려면 브라우저의 사이트 데이터를 비우면 됩니다.</li>
+          <li>방문 기록도, 이용 통계도, 광고 식별자도 수집하지 않습니다.
+            추적 스크립트가 하나도 없습니다.</li>
+          <li>글꼴을 포함한 모든 파일을 이 사이트에서 직접 보냅니다.
+            페이지를 여는 동안 <b>다른 회사로 나가는 요청이 없습니다.</b></li>
+          <li>다만 이 사이트는 GitHub Pages 로 서비스됩니다. 접속하는 순간
+            GitHub 이 자체 운영 기록(접속 IP 등)을 남길 수 있고, 그것은
+            제작자가 통제하거나 열람할 수 없습니다.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>이용약관</h3>
+        <ul>
+          <li>무료이고, <b>있는 그대로</b> 제공됩니다. 언제든 멈추거나 바뀔 수 있습니다.</li>
+          <li>세이브가 사라져도 되돌려 드릴 방법이 없습니다. 브라우저 저장소는
+            영구적이지 않습니다 — <b>프런트 탭에서 파일로 내보내 두세요.</b></li>
+          <li>게임을 즐기는 것 외의 용도로 쓰지 마세요. 자동화된 대량 접속처럼
+            서비스를 방해하는 행위는 삼가 주십시오.</li>
+          <li>이 게임을 하다 생긴 어떤 손해에 대해서도 제작자는 책임지지 않습니다.</li>
+        </ul>
+      </section>
+      <section>
+        <h3>만든 것들</h3>
+        <p>글꼴 IBM Plex Mono — © IBM Corp., SIL Open Font License 1.1
+          (<a href="fonts/OFL.txt" target="_blank" rel="noopener">전문</a>).</p>
+        <p>문의와 버그 제보는 <a href="${REPO}" target="_blank" rel="noopener">저장소</a>로.</p>
+      </section>
+    </div>`);
 }
 
 function modal(html) {
