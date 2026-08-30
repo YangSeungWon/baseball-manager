@@ -1314,6 +1314,17 @@ function drawTrade() {
 function viewHistory(v) {
   const g = el('div', 'grid');
   const fr = G.franchises();
+  // 영구결번. 15년을 굴려야 하나 걸린다.
+  const hon = fr.filter(f => f.retired && f.retired.length);
+  if (hon.length) g.appendChild(sect('영구결번',
+    `${hon.reduce((a, f) => a + f.retired.length, 0)}개`,
+    `<div class="rnums">${hon.map(f => f.retired.map(r => `
+      <div class="rnum" style="--tc:${capOf(f.name).color}">
+        <b>${r.number}</b>
+        <span class="rn-main"><span class="rn-name">${esc(r.name)}<i>${r.pos}</i></span>
+          <span class="rn-sub">${esc(short(f.name))} · ${r.from}–${r.to} · ${r.years}시즌</span></span>
+        <span class="rn-line">${esc(r.line)}<i>WAR ${r.war}</i></span>
+      </div>`).join('')).join('')}</div>`));
   g.appendChild(sect('구단 연혁', `${fr.length}개 구단`, table(
     ['구단','창단','통산 전적','승률','우승','정규 1위','최근 우승','무관','프랜차이즈 레전드'],
     fr.map(f => ({ team_id: f.team_id, cells: [
@@ -1432,7 +1443,7 @@ function openPlayer(pid) {
   const bindShare = () => { const b = $('#mshare'); if (b) b.onclick = () => makeCard(p); };
   modal(`
     <div class="mhead"><div><h2>${esc(p.name)}${awards}</h2>
-      <div class="meta">${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
+      <div class="meta">${p.number ? `<b class="m">${p.number}번</b> · ` : ''}${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
         ${p.origin ? ' · ' + p.origin : ''}${p.draft ? ` · #${p.draft.overall}` : ''}
         ${p.mil && p.mil.s !== 'done' ? ` · <span class="milt ${p.mil.s}">${p.mil.s === 'serving'
           ? `${p.mil.kind === 'sangmu' ? '상무' : '현역'} ${p.mil.left}년`
@@ -1526,6 +1537,11 @@ function modalRollover(r) {
   modal(`<div class="mhead"><div><h2>${G.state().year} 시즌 정리</h2></div>
     <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
+    ${(r.honored || []).length ? `<div><div class="lab" style="margin-bottom:6px">영구결번</div>
+      ${r.honored.map(h => `<div class="row ${h.mine ? 'me' : ''}">
+        <span><b class="m">${h.number}번</b> ${esc(h.name)}
+          <span class="sub">${esc(short(h.team))} · ${h.from}–${h.to}</span></span>
+        <span class="m dim">${h.years}시즌 · WAR ${h.war}</span></div>`).join('')}</div>` : ''}
     ${block('은퇴', r.retired.slice(0, 24), x => `<div class="row ${x.mine ? 'me' : ''}">
       <span>${esc(x.name)} <span class="sub">${x.age} ${esc(short(x.team))}</span></span>
       <span class="m dim">${x.years}시즌 · ${x.war}</span></div>`)}

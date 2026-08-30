@@ -206,7 +206,57 @@ function applyManual(t, pool) {
   return { lineup, bench: pool.filter(p => !used.has(p.pid)) };
 }
 
+
+/* ── 등번호 ────────────────────────────────────────────────
+   구단 안에서 겹치지 않고, 영구결번은 다시 쓰지 않는다.
+   자리마다 즐겨 쓰는 번호대가 있다. 포수는 20번대, 선발은 10번대·1번. */
+const NUM_PREF = {
+  P:  [11,18,19,21,20,17,28,29,1,15,26,27,31,34,38,46,54,55,57,60],
+  C:  [22,25,20,42,44,26,32,55],
+  '1B':[3,7,25,33,52,53], '2B':[2,4,8,13,16,50], '3B':[5,7,10,14,23,52],
+  SS: [1,2,6,7,10,16,24], LF:[9,24,30,35,37,51], CF:[8,12,24,31,36,51],
+  RF: [9,23,30,37,45,51], DH:[3,33,44,52,55],
+};
+const numKey = (p) => (p.kind === 'P' ? 'P' : (p.position || 'DH'));
+
+/** 이 구단에서 쓸 수 없는 번호 — 이미 쓰는 번호와 영구결번. */
+function takenNumbers(t) {
+  const used = new Set();
+  for (const p of [...(t.batters||[]), ...(t.pitchers||[]), ...(t.farm||[])])
+    if (p.number) used.add(p.number);
+  const h = t.history;
+  if (h) {
+    for (const r of h.retired || []) used.add(r.number);
+    if (h.legend && h.legend.number) used.add(h.legend.number);   // 창단 레전드
+  }
+  return used;
+}
+
+/** 번호 없는 선수에게 번호를 준다. 겹치면 뒤에 온 쪽이 바꾼다. */
+export function ensureNumbers(t, rng = null) {
+  const used = new Set();
+  const h = t.history;
+  if (h) {
+    for (const r of h.retired || []) used.add(r.number);
+    if (h.legend && h.legend.number) used.add(h.legend.number);
+  }
+  const all = [...(t.batters||[]), ...(t.pitchers||[]), ...(t.farm||[])];
+  const need = [];
+  for (const p of all) {
+    if (p.number && !used.has(p.number)) { used.add(p.number); continue; }
+    need.push(p);                                  // 없거나 겹친다
+  }
+  for (const p of need) {
+    p.number = null;
+    for (const n of (NUM_PREF[numKey(p)] || [])) if (!used.has(n)) { p.number = n; break; }
+    if (!p.number) for (let n = 1; n <= 99; n++) if (!used.has(n)) { p.number = n; break; }
+    if (!p.number) p.number = 0;
+    used.add(p.number);
+  }
+}
+
 export function rebuildRoster(t, healthyOnly = false) {
+  ensureNumbers(t);
   const bats = healthyOnly ? t.batters.filter(b => b.injury_days <= 0) : t.batters;
   const pits = healthyOnly ? t.pitchers.filter(p => p.injury_days <= 0) : t.pitchers;
   const pool = [...bats].sort((a,b) => dev.overall(b) - dev.overall(a));

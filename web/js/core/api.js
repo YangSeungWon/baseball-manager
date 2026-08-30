@@ -87,7 +87,7 @@ export class Game {
   }
   brief(p, team = null, viewer = null) {
     const rep = this.ratings(p, viewer);
-    return { pid:p.pid, name:p.name, age:p.age,
+    return { pid:p.pid, name:p.name, age:p.age, number:p.number ?? null,
       slot: p.kind==='P' ? p.role : p.position, kind:p.kind,
       hand: p.kind==='P' ? p.throws : p.bats,
       ovr:rep.ovr, pot:rep.pot, confidence:rep.confidence,
@@ -456,7 +456,8 @@ export class Game {
         record:h ? `${h.allW}–${h.allL}` : '—', pct:h ? h.pct.toFixed(3) : '—',
         titles:h?.titles.length ?? 0, pennants:h?.pennants.length ?? 0,
         lastTitle:h?.lastTitle ?? null, drought:h?.drought ?? null,
-        legend:h?.legend ?? null, tagline:h?.tagline ?? '' };
+        legend:h?.legend ?? null, tagline:h?.tagline ?? '',
+        retired: (h?.retired ?? []).slice().sort((a,b) => a.number - b.number) };
     }).sort((a,b) => b.titles - a.titles || b.pct - a.pct);
   }
 
@@ -645,6 +646,7 @@ export class Game {
         founded: t.history.founded, seasons: t.history.seasons,
         titles: t.history.titles.length, pennants: t.history.pennants.length,
         lastTitle: t.history.lastTitle, drought: t.history.drought,
+        retired: (t.history.retired || []).slice().sort((a,b) => a.number - b.number),
         record: `${t.history.allW}승 ${t.history.allL}패`,
         pct: t.history.pct.toFixed(3), tagline: t.history.tagline,
         legend: t.history.legend, titleYears: t.history.titles,
@@ -977,6 +979,7 @@ export class Game {
     offseasonMail(this, 'retire', out.retired);
     this._openForeign();
     out.tournament = s.tournament || null;
+    out.honored = s.honored || [];          // 영구결번. 15년을 굴려야 하나 나온다.
     out.enlisted = (s.enlisted || []).filter(x => x.t.team_id === me)
       .map(x => ({ name:x.p.name, age:x.p.age, kind:x.kind }));
     out.discharged = (s.discharged || []).filter(x => x.t.team_id === me)

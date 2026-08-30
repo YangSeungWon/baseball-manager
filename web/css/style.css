@@ -828,3 +828,22 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 /* 모달 머리의 버튼들 */
 .mbtns{display:flex;gap:8px;flex-shrink:0}
+
+/* 영구결번 — 15년을 굴려야 하나 걸린다 */
+.rnums{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:10px 20px}
+.rnum{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center;
+  padding:10px 12px;background:var(--s2);border-left:3px solid var(--tc,var(--accent))}
+.rnum>b{font-family:var(--mono);font-size:34px;font-weight:800;color:var(--tc,var(--fg));
+  text-align:center;line-height:1}
+.rn-main{min-width:0}
+.rn-name{display:block;font-size:16px;font-weight:700;color:var(--fg)}
+.rn-name i{font-style:normal;font-size:12px;color:var(--fg3);margin-left:6px}
+.rn-sub{display:block;font-size:13px;color:var(--fg3);margin-top:2px}
+.rn-line{font-size:13px;color:var(--fg2);text-align:right;white-space:nowrap}
+.rn-line i{font-style:normal;display:block;font-family:var(--mono);color:var(--fg3);font-size:12px}
+@media(max-width:760px){
+  .rnums{grid-template-columns:1fr}
+  .rnum{grid-template-columns:52px 1fr;row-gap:4px}
+  .rn-line{grid-column:2;text-align:left}
+  .rn-line i{display:inline;margin-left:8px}
+}

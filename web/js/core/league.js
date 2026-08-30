@@ -236,7 +236,7 @@ export class League {
   // ---- 오프시즌 단계 ------------------------------------------------
   offRollover() {
     const S = this.season, rng = this.rng;
-    const summary = { retired: [], breakout: [], decline: [] };
+    const summary = { retired: [], breakout: [], decline: [], honored: [] };
     summary.tournament = this.runTournament();
     summary.discharged = this.runService(rng);
     for (const t of this.teams) {
@@ -266,7 +266,9 @@ export class League {
           if (!p.foreign && rng.random() < dev.retireProb(p, this.playingTime(p, S))) {
             const c = this.career(p); c.retired_year = this.year;
             if (c.years >= 3) this.log(`${p.name} 은퇴 (${c.years}시즌, 통산 WAR ${c.war.toFixed(1)})`);
-            summary.retired.push({ p, t });
+            const hon = this.honorNumber(t, p, c);
+            if (hon) summary.honored.push({ ...hon, team: t.name, mine: t.team_id === this.userId });
+            summary.retired.push({ p, t, honored: !!hon });
           } else {
             keep.push(p);
             const d = dev.overall(p) - (before.get(p.pid) ?? dev.overall(p));
@@ -335,6 +337,40 @@ export class League {
       }
       t.farm.push(...held);
     }
+  }
+
+  /* 영구결번. 흔하면 값이 없다 — 한 구단에서 오래, 크게 남긴 선수만.
+     KBO 는 40여 년 동안 전 구단 합쳐 열댓 명뿐이다. */
+  honorNumber(t, p, c) {
+    if (!p.number || !c || c.years < 8) return null;
+    const h = t.history; if (!h) return null;
+    const mine = c.seasons.filter(s => s.team === t.name);
+    if (mine.length < 8) return null;
+    // 커리어의 대부분을 이 구단에서 보냈어야 한다. 떠돌이는 결번이 안 된다.
+    const warHere = mine.reduce((a, s) => a + s.war, 0);
+    if (c.war <= 0 || warHere / c.war < 0.62) return null;
+    const awards = Object.values(c.awards || {}).reduce((a, b) => a + b, 0);
+    const rings = mine.filter(s => this.champions.some(x => x.year === s.year && x.team === t.name)).length;
+    // 세 갈래로 연다 — 압도적인 커리어, 훈장, 우승, 또는 한 구단에서 오래 버틴 얼굴.
+    const ok = c.war >= 35
+      || (c.war >= 28 && awards >= 1)
+      || (c.war >= 26 && rings >= 2)
+      || (c.war >= 30 && mine.length >= 12);
+    if (!ok) return null;
+    h.retired = h.retired || [];
+    if (h.retired.some(r => r.number === p.number)) return null;   // 이미 걸린 번호
+    const bat = p.kind === 'B';
+    const tot = mine.reduce((a, s) => { const l = s.line;
+      a.hr += l.hr || 0; a.rbi += l.rbi || 0; a.h += l.h || 0;
+      a.w += l.w || 0; a.k += l.k || 0; a.sv += l.sv || 0; return a; }, {hr:0,rbi:0,h:0,w:0,k:0,sv:0});
+    const rec = { number: p.number, name: p.name, pos: bat ? p.position : p.role,
+      from: mine[0].year, to: mine[mine.length - 1].year, years: mine.length,
+      war: Math.round(c.war * 10) / 10, awards, rings,
+      line: bat ? `통산 ${tot.h}안타 · ${tot.hr}홈런 · ${tot.rbi}타점`
+                : `통산 ${tot.w}승 · ${tot.k}탈삼진${tot.sv ? ` · ${tot.sv}세이브` : ''}` };
+    h.retired.push(rec);
+    this.log(`★ ${t.name} ${p.number}번 영구결번 — ${p.name}`);
+    return rec;
   }
 
   newDraftSession() {
