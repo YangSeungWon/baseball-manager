@@ -873,3 +873,19 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .doc li{font-size:15px;line-height:1.7;color:var(--fg2);margin-bottom:6px;max-width:70ch}
 .doc b{color:var(--fg)}
 .doc a{color:var(--accent)}
+
+/* 승부처 — 멈춰 선 순간 */
+.clutch .csit{background:var(--s2);border-radius:2px;padding:14px 16px;margin-bottom:16px;
+  border-left:3px solid var(--accent)}
+.cscore{display:flex;align-items:baseline;gap:8px;font-size:15px;color:var(--fg2)}
+.cscore b{font-family:var(--mono);font-size:30px;font-weight:800;color:var(--fg)}
+.cscore i{font-style:normal;color:var(--fg3)}
+.cbase{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;font-size:14px;color:var(--fg)}
+.cbase span{background:var(--s3);border-radius:2px;padding:3px 9px}
+.cpit{margin-top:6px;font-size:13px;color:var(--fg3)}
+.mq{margin:0 0 14px;font-size:17px;line-height:1.6;color:var(--fg)}
+.mopts{display:flex;gap:8px;flex-wrap:wrap}
+.mopts button{padding:12px 18px;font-size:15px;font-weight:600}
+.mopts button i{font-style:normal;font-size:12px;color:var(--fg3);margin-left:6px}
+.mopts button.primary i{color:rgba(11,17,25,.6)}
+@media(max-width:760px){.mopts{flex-direction:column}.mopts button{width:100%}}

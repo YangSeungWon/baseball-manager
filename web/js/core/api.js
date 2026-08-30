@@ -834,6 +834,22 @@ export class Game {
     return this.state();
   }
   advance(days = 1) {
+    const it = this.advanceGen(days, null);
+    let r = it.next();
+    while (!r.done) r = it.next(null);
+    return r.value;
+  }
+
+  /** 내 경기를 지켜본다. 승부처마다 멈춰 서고, 고른 답으로 이어간다.
+   *  step(답) 이 { ask } 를 주면 사람 차례, { done } 이면 그날이 끝난 것. */
+  watchDay() {
+    if (this.phase !== REGULAR) return { error:'wrong_phase' };
+    const it = this.advanceGen(1, this.userId);
+    return { step: (answer) => { const r = it.next(answer);
+      return r.done ? { done:true, result:r.value } : { ask:r.value }; } };
+  }
+
+  *advanceGen(days = 1, watch = null) {
     if (this.phase !== REGULAR) return { error:'wrong_phase' };
     this.notices = [];
     const played = [];
@@ -843,7 +859,10 @@ export class Game {
       const nInj = this.season.injuries.length;
       const mailBefore = this.L.mail.items.length;
       const boxes = [];
-      for (const g of this.season.playDay(this.userId)) {
+      const dayRes = watch != null
+        ? yield* this.season.playDayGen(this.userId, watch)
+        : this.season.playDay(this.userId);
+      for (const g of dayRes) {
         if (g.box) boxes.push(g.box);
         const H = this.season.teams[g.hi], A = this.season.teams[g.ai];
         if (g.rain) {

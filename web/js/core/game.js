@@ -3,6 +3,7 @@ const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 10) / 1
 import { z, K, BB, HBP, OUT, S1B, D2B, T3B, HR, ERR } from './pa.js';
 import { playCount, FOUL_OUT, PITCH } from './pitch.js';
 import * as BIP from './bip.js';
+import * as dev from './development.js';
 import { C as PACOEF } from './pa.js';
 const PC_FATIGUE_S = PACOEF.fatigueStuff, PC_FATIGUE_C = PACOEF.fatigueCommand;
 
@@ -362,7 +363,26 @@ function trySteal(bases, outs, off, defn, rng) {
   bases.take(0); off.lineFor(r1).cs++; return 1;
 }
 
-function playHalf(off, defn, inning, park, rng, walkoff) {
+
+/* ── 승부처 ────────────────────────────────────────────────
+   감독이 실제로 손을 쓰는 순간에만 멈춘다. 매 타석 붙잡으면 게임이 아니라 일이다.
+   늦은 이닝 · 한두 점 차 · 그 결정이 실제로 걸린 상황. 한 경기 세 번까지. */
+export const CLUTCH_MAX = 3;
+function lateClose(inning, off, defn) {
+  const diff = off.runs - defn.runs;
+  return inning >= 7 && Math.abs(diff) <= 2;
+}
+/** 지금 상황을 사람이 읽을 수 있게. 모달이 이걸 그대로 쓴다. */
+function moment(kind, off, defn, inning, outs, bases, extra = {}) {
+  return { kind, inning, half: extra.half || off.half, outs,
+    us: off.team.name, them: defn.team.name,
+    ours: off.runs, theirs: defn.runs,
+    bases: [bases.r[0] ? bases.r[0].name : null, bases.r[1] ? bases.r[1].name : null,
+            bases.r[2] ? bases.r[2].name : null],
+    pitcher: defn.cur ? defn.cur.p.name : null, ...extra };
+}
+
+function* playHalf(off, defn, inning, park, rng, walkoff, ask = null) {
   const dims = BIP.parkDims(park);
   let unearnedInning = false;
   // 폭투·보크·낫아웃으로 들어오는 득점. 타점은 붙지 않는다.
@@ -372,6 +392,9 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
   };
   const bases = new Bases();
   let outs = 0;
+  // 이 반 이닝에서 물어볼 수 있는가 — 공격이 내 팀일 때 번트·대타, 수비일 때 고의사구.
+  const askOff = ask && ask.team === off.team.team_id ? ask : null;
+  const askDef = ask && ask.team === defn.team.team_id ? ask : null;
   const startRuns = off.runs;
   const plays = [];
   while (outs < 3) {
@@ -381,7 +404,17 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     if (outs >= 3) break;
 
     // 대타. 한 번 나가면 원래 타자는 그날 끝이다.
-    const ph = tryPinch(off, defn, inning, outs, bases, rng);
+    let ph = tryPinch(off, defn, inning, outs, bases, rng);
+    if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
+        && off.bench.length && (bases.r[0] || bases.r[1] || bases.r[2])) {
+      const up = off.order[off.spot], cand = off.bench.slice(0, 3);
+      if (cand.length && (ph || dev.overall(cand[0]) > dev.overall(up) + 2)) {
+        askOff.left--;
+        const pick = yield moment('pinch', off, defn, inning, outs, bases,
+          { batter: up.name, options: cand.map(b => ({ pid: b.pid, name: b.name, slot: b.position })) });
+        ph = pick && pick.pid ? (cand.find(b => b.pid === pick.pid) || null) : null;
+      }
+    }
     if (ph) {
       const old = off.order[off.spot];
       off.order[off.spot] = ph;
@@ -395,7 +428,14 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
     }
 
     // 희생번트 (또는 시프트를 뚫는 기습번트)
-    const buntKind = tryBunt(bases, outs, off, defn, inning, rng);
+    let buntKind = tryBunt(bases, outs, off, defn, inning, rng);
+    if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
+        && outs < 2 && bases.r[0] && !bases.r[2]) {
+      askOff.left--;
+      const pick = yield moment('bunt', off, defn, inning, outs, bases,
+        { batter: off.order[off.spot].name });
+      buntKind = pick && pick.yes ? 'sac' : null;
+    }
     if (buntKind) {
       const b = off.batterUp(), bl2 = off.lineFor(b), pl2 = defn.cur;
       bl2.pa++; pl2.bf++; pl2.np += 2 + Math.floor(rng.random() * 3);
@@ -427,8 +467,17 @@ function playHalf(off, defn, inning, park, rng, walkoff) {
       continue;
     }
 
-    // 고의사구
-    if (tryIbb(bases, outs, off, defn, rng)) {
+    // 고의사구 — 이건 수비하는 쪽의 결정이다
+    let ibb = tryIbb(bases, outs, off, defn, rng);
+    if (askDef && askDef.left > 0 && lateClose(inning, off, defn)
+        && !bases.r[0] && (bases.r[1] || bases.r[2]) && outs < 2) {
+      askDef.left--;
+      const pick = yield moment('ibb', defn, off, inning, outs, bases,
+        { half: off.half, batter: off.order[off.spot].name,
+          next: off.order[(off.spot + 1) % 9].name });
+      ibb = !!(pick && pick.yes);
+    }
+    if (ibb) {
       const b = off.batterUp(), bl2 = off.lineFor(b), pl2 = defn.cur;
       bl2.pa++; bl2.bb++; pl2.bf++; pl2.bb++; pl2.br++; pl2.np += 4;
       const s = forceAdvance(bases, b, pl2);
@@ -601,16 +650,19 @@ function assignDecisions(H, A) {
 
 // KBO 정규시즌은 연장 11회까지. 그 뒤로는 무승부다.
 // 포스트시즌은 15회까지 간다 — 호출하는 쪽에서 넘긴다.
-export function playGame(home, away, rng, maxInnings = 11) {
+/** 경기를 한 판. 승부처마다 멈춰 서려면 이쪽을 쓴다.
+ *  watch 에 구단 id 를 주면 그 구단의 결정 순간에 yield 하고, 받은 답으로 이어간다. */
+export function* playGameGen(home, away, rng, maxInnings = 11, watch = null) {
   const H = new TeamGameState(home), A = new TeamGameState(away);
   H.half = 'bottom'; A.half = 'top';
   H.venue = 'H'; A.venue = 'A';
+  const ask = watch == null ? null : { team: watch, left: CLUTCH_MAX };
   let inning = 1;
   const plays = [];
   for (;;) {
-    plays.push(...playHalf(A, H, inning, home.park, rng, false)[1]);
+    plays.push(...(yield* playHalf(A, H, inning, home.park, rng, false, ask))[1]);
     if (inning >= 9 && H.runs > A.runs) break;
-    const [walk, pl] = playHalf(H, A, inning, home.park, rng, inning >= 9);
+    const [walk, pl] = yield* playHalf(H, A, inning, home.park, rng, inning >= 9, ask);
     plays.push(...pl);
     if (walk) break;
     if (inning >= 9 && H.runs !== A.runs) break;
@@ -619,4 +671,12 @@ export function playGame(home, away, rng, maxInnings = 11) {
   }
   assignDecisions(H, A);
   return [H, A, plays];
+}
+
+/** 묻지 않고 끝까지 돌린다. 지금까지의 호출부는 이걸 그대로 쓴다. */
+export function playGame(home, away, rng, maxInnings = 11) {
+  const g = playGameGen(home, away, rng, maxInnings, null);
+  let r = g.next();
+  while (!r.done) r = g.next(null);
+  return r.value;
 }

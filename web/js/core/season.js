@@ -1,5 +1,5 @@
 // 시즌: 일정 생성 / 하루 단위 진행 / 기록 집계 / WAR / 포스트시즌
-import { playGame } from './game.js';
+import { playGameGen, playGame } from './game.js';
 import { scan as scanFeats } from './feats.js';
 import * as staff from './staff.js';
 
@@ -209,7 +209,8 @@ export class Season {
     return out;
   }
 
-  playDay(keepPlays = null) {
+  /** 하루치 경기. watch 에 구단 id 를 주면 그 팀 경기에서 승부처마다 멈춘다. */
+  *playDayGen(keepPlays = null, watch = null) {
     const day = this.curDay;
     if (!this.byDay.has(day)) { this.curDay++; return []; }
     this._newDay(day);
@@ -231,7 +232,11 @@ export class Season {
     for (const [hi, ai, dh, called] of card) {
       // 더블헤더 2차전. 1차전에 쓴 불펜은 다시 나오지 못한다.
       if (dh) for (const i of [hi, ai]) this._refreshAvail(this.teams[i], day);
-      const [H, A, plays] = playGame(this.teams[hi], this.teams[ai], this.rng, called || 11);
+      const mine = watch != null &&
+        (this.teams[hi].team_id === watch || this.teams[ai].team_id === watch);
+      const [H, A, plays] = mine
+        ? yield* playGameGen(this.teams[hi], this.teams[ai], this.rng, called || 11, watch)
+        : playGame(this.teams[hi], this.teams[ai], this.rng, called || 11);
       this._absorb(H, A.runs); this._absorb(A, H.runs);
       this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
@@ -258,6 +263,14 @@ export class Season {
     }
     this.curDay++;
     return out;
+  }
+
+  /** 묻지 않고 하루를 끝낸다. 지금까지의 호출부는 이걸 그대로 쓴다. */
+  playDay(keepPlays = null) {
+    const g = this.playDayGen(keepPlays, null);
+    let r = g.next();
+    while (!r.done) r = g.next(null);
+    return r.value;
   }
 
   run() { while (!this.finished) this.playDay(); return this; }

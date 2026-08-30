@@ -451,6 +451,7 @@ function renderTop() {
     case 'preseason': btn('시즌 시작', () => act(() => G.startSeason()), 'primary'); break;
     case 'regular':
       btn('다음 날', () => act(() => report(G.advance(1))), 'primary');
+      btn('지켜보기', () => watchDay());
       btn('7일', () => act(() => report(G.advance(7))));
       btn('끝까지', () => act(() => report(G.simToEnd())));
       break;
@@ -1466,6 +1467,75 @@ function modalInfo() {
       </section>
     </div>`);
 }
+
+/* ── 승부처 ───────────────────────────────────────────────────
+   하루를 지켜본다. 감독이 실제로 손을 쓰는 순간에만 멈춰 선다.
+   여기서 고른 것은 진짜로 경기 결과를 바꾼다 — 재생이 아니라 진행 중인 경기다. */
+function watchDay() {
+  const w = G.watchDay();
+  if (w.error) return;
+  const finish = (r) => { closeModal(); autosave(); render(); report(r.result); };
+  const go = (answer) => {
+    const r = w.step(answer);
+    if (r.done) return finish(r);
+    askMoment(r.ask, go, bail);
+  };
+  // 창을 닫으면 남은 결정은 감독에게 맡기고 하루를 끝낸다.
+  // 여기서 멈춘 채로 두면 하루가 반만 치러진 상태로 남고,
+  // 그 뒤 '다음 날' 을 누르면 같은 날이 두 번 열린다.
+  const bail = () => {
+    let r = w.step(null);
+    while (!r.done) r = w.step(null);
+    finish(r);
+  };
+  go();
+}
+
+function askMoment(m, go, bail) {
+  const half = m.half === 'top' ? '초' : '말';
+  const on = m.bases.map((b, i) => b ? `${i + 1}루 ${esc(b)}` : null).filter(Boolean);
+  const title = { bunt:'번트를 댈까', pinch:'대타를 쓸까', ibb:'거를까' }[m.kind];
+  // 세 갈래를 함수로 둔다. 객체 리터럴로 두면 번트 상황에서도 대타 쪽이
+  // 함께 평가돼 m.options 를 읽다 터진다.
+  const body = ({
+    bunt: () => `<p class="mq">${esc(m.batter)} 타석. 아웃 하나를 주고 주자를 보낼 것인가.</p>
+      <div class="mopts">
+        <button data-a='{"yes":true}' class="primary">번트</button>
+        <button data-a='{"yes":false}'>강공</button></div>`,
+    pinch: () => `<p class="mq">${esc(m.batter)} 타석. 벤치를 쓸 것인가.
+        한 번 쓰면 원래 타자는 오늘 끝이다.</p>
+      <div class="mopts">${m.options.map(o =>
+        `<button data-a='{"pid":${o.pid}}' class="primary">${esc(o.name)}
+          <i>${o.slot}</i></button>`).join('')}
+        <button data-a='null'>그대로 간다</button></div>`,
+    ibb: () => `<p class="mq">${esc(m.batter)} 타석. 거르면 ${esc(m.next)} 와 승부한다.</p>
+      <div class="mopts">
+        <button data-a='{"yes":true}' class="primary">거른다</button>
+        <button data-a='{"yes":false}'>승부한다</button></div>`,
+  }[m.kind])();
+
+  modal(`<div class="mhead"><div><h2>${title}</h2>
+      <div class="meta">${m.inning}회${half} · ${m.outs}아웃</div></div></div>
+    <div class="mbody clutch">
+      <div class="csit">
+        <div class="cscore"><span>${esc(short(m.us))}</span><b>${m.ours}</b>
+          <i>–</i><b>${m.theirs}</b><span>${esc(short(m.them))}</span></div>
+        <div class="cbase">${on.length ? on.map(x => `<span>${x}</span>`).join('')
+          : '<span class="dim">주자 없음</span>'}</div>
+        ${m.pitcher ? `<div class="cpit">투수 ${esc(m.pitcher)}</div>` : ''}
+      </div>
+      ${body}
+    </div>`);
+  document.querySelectorAll('.mopts button').forEach(b => b.onclick = () => {
+    const a = JSON.parse(b.dataset.a);
+    b.closest('.mopts').querySelectorAll('button').forEach(x => x.disabled = true);
+    go(a);
+  });
+  // 닫기(배경 클릭·Esc)는 취소가 아니라 위임이다
+  $('#modal').onclick = (e) => { if (e.target.id === 'modal') bail(); };
+  document.onkeydown = (e) => { if (e.key === 'Escape') bail(); };
+}
+
 
 function modal(html) {
   $('#modalBody').innerHTML = html; $('#modal').hidden = false;
