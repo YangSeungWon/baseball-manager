@@ -759,21 +759,25 @@ export class Game {
 
   /** 강점과 약점을 갈라서 내보낸다. 표로 늘어놓으면 대비가 죽는다. */
   _contrast(R) {
-    const items = [['전력', R.str], ['타선', R.bat], ['마운드', R.pit],
-                   ['유망주', R.farm], ['재정', R.bud]];
+    // 전력은 타선과 마운드의 평균이다. 셋을 나란히 세우면 같은 말을 두 번 하고,
+    // 강점 개수도 부풀려 센다 — 타선·마운드가 좋은 팀은 자동으로 전력도 강점이 된다.
+    const items = [['타선', R.bat], ['마운드', R.pit], ['유망주', R.farm], ['재정', R.bud]];
     const hi = Math.ceil(R.of * 0.3), lo = Math.floor(R.of * 0.7) + 1;
     const strong = items.filter(([, r]) => r <= hi).sort((a, b) => a[1] - b[1])
       .map(([k, r]) => ({ k, r }));
-    // 상위 30% 가 하나도 없으면 그중 가장 나은 둘을 '상대적 강점' 으로 보여준다.
+    let mid = items.filter(([, r]) => r > hi && r < lo).map(([k, r]) => ({ k, r }));
+    // 상위 30% 가 하나도 없으면 그중 가장 나은 둘을 '상대적 강점' 으로 올린다.
     // 칸이 비면 화면이 죽고, 어떤 팀이든 기댈 곳은 있다.
-    if (!strong.length)
-      items.slice().sort((a, b) => a[1] - b[1]).slice(0, 2)
-        .forEach(([k, r]) => strong.push({ k, r, soft: true }));
+    // 올린 항목은 중간에서 빼야 한다. 안 그러면 같은 부문이 화면에 두 번 나온다.
+    if (!strong.length) {
+      const soft = mid.slice().sort((a, b) => a.r - b.r).slice(0, 2);
+      for (const x of soft) strong.push({ ...x, soft: true });
+      mid = mid.filter(x => !soft.includes(x));
+    }
     return {
-      strong,
+      strong, mid,
       weak: items.filter(([, r]) => r >= lo).sort((a, b) => b[1] - a[1])
         .map(([k, r]) => ({ k, r })),
-      mid: items.filter(([, r]) => r > hi && r < lo).map(([k, r]) => ({ k, r })),
     };
   }
 
