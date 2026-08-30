@@ -25,6 +25,47 @@ function persist() {
 }
 const autosave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); };
 
+/* 세이브를 파일로 꺼낸다.
+   브라우저 저장소는 영구적이지 않다 — 사파리는 한동안 안 들어오면 지운다.
+   기기를 바꿔도 사라진다. 몇 시즌 키운 구단이 그렇게 없어지면 안 된다. */
+function saveFileName(blob) {
+  const t = blob.teams.find(x => x.id === blob.user);
+  return `dugout-${(t ? t.name : '세이브').replace(/\s+/g, '')}-${blob.year}.json`;
+}
+async function exportSave() {
+  const blob = save.dump(G);
+  const name = saveFileName(blob);
+  const file = new File([JSON.stringify(blob)], name, { type: 'application/json' });
+  // 폰에서는 공유 시트가 낫다. 파일 앱이든 메신저든 사용자가 고른다.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: name }); return; }
+    catch (e) { if (e && e.name === 'AbortError') return; }   // 사용자가 닫았다
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('내보냈다', name);
+}
+function importSave(file, onDone) {
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const g = save.load(JSON.parse(r.result));
+      G = g; persist(); onDone();
+    } catch (e) { toast('불러오기 실패', '세이브 파일이 아니다', 'injury'); }
+  };
+  r.onerror = () => toast('불러오기 실패', '파일을 읽지 못했다', 'injury');
+  r.readAsText(file);
+}
+/** 파일 고르기 창을 띄운다. */
+function pickSaveFile(onDone) {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'application/json,.json';
+  inp.onchange = () => { if (inp.files && inp.files[0]) importSave(inp.files[0], onDone); };
+  inp.click();
+}
+
 /* ══ 눈금축 — 시그니처 ══
    실선 = 현재 추정 구간, 해칭 = 잠재력 구간. 20·35·50·65·80 눈금 위에 놓인다. */
 const AXIS_KEY = '20–80';
@@ -369,12 +410,14 @@ function drawDossier() {
     <div class="dstart">
       <button id="btnNew" class="primary">${esc(josa(d.name, '으로'))} 시작</button>
       ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
+      <button id="btnLoad" class="quiet">파일에서 불러오기</button>
     </div>`;
   const mapBox = $('#kmap');
   if (mapBox) mapBox.innerHTML = drawMap(bootGame.teamList().map(t => t.name), d.name);
   $('#dossier').style.setProperty('--tc', col);
   document.querySelector('.boot-main').style.setProperty('--tc', col);
   $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
+  $('#btnLoad').onclick = () => pickSaveFile(() => start());
   if ($('#btnResume')) $('#btnResume').onclick = () => {
     try { G = save.load(JSON.parse(saved)); start(); }
     catch (e) { localStorage.removeItem(KEY); toast('불러오기 실패', '새 게임으로 시작하세요', 'injury');
@@ -912,6 +955,25 @@ function viewLeague(v) {
 }
 
 /* ── 프런트 ── */
+/** 세이브 구역. 브라우저 저장소는 영구적이지 않다는 것을 말해 준다. */
+function saveSection(v) {
+  const sec = sect('세이브', '', `<div class="savebox">
+    <p class="note">이 구단은 이 브라우저 안에만 있다. 저장 공간을 비우거나
+      한동안 들어오지 않으면 사라진다. 기기를 바꿔도 따라오지 않는다.
+      파일로 꺼내 두면 어디서든 이어서 할 수 있다.</p>
+    <div class="savebtn">
+      <button id="svExport" class="primary">파일로 내보내기</button>
+      <button id="svImport" class="quiet">파일에서 불러오기</button>
+    </div>
+  </div>`);
+  v.appendChild(sec);
+  $('#svExport').onclick = () => exportSave();
+  $('#svImport').onclick = () => {
+    if (!confirm('불러오면 지금 구단은 사라진다. 계속하겠는가?')) return;
+    pickSaveFile(() => { lastPhase = null; render(); toast('불러왔다', G.state().year + ' 시즌'); });
+  };
+}
+
 function viewFront(v) {
   const s = G.state().phase;
   if (s === 'off_foreign') return viewForeign(v);
@@ -1013,6 +1075,7 @@ function viewFront(v) {
     <div class="kv"><span>현황</span><b>${esc(own.text)}</b></div>`));
   g.appendChild(right);
   v.appendChild(g);
+  saveSection(v);
   v.querySelectorAll('[data-hire]').forEach(b => b.onclick = () => {
     const [role, id] = b.dataset.hire.split(':');
     const r = G.hireCoach(role, +id);

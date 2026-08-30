@@ -821,3 +821,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
     background-repeat:no-repeat;background-size:34px 100%,34px 100%,12px 100%,12px 100%;
     background-attachment:local,local,scroll,scroll}
 }
+
+/* 세이브 — 브라우저 저장소는 영구적이지 않다 */
+.savebox .note{margin:0 0 12px;font-size:14px;line-height:1.6;color:var(--fg2);max-width:64ch}
+.savebtn{display:flex;gap:8px;flex-wrap:wrap}
