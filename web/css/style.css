@@ -128,28 +128,41 @@ input:focus{outline:0;border-color:var(--accent)}
 .teamlist{flex-shrink:0}
 .bracket{background:var(--s1);border-radius:2px;padding:12px 14px;flex-shrink:0}
 .bracket .lab{margin-bottom:8px;font-size:13px}
-.bracket-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;align-items:start}
-.bcol{display:flex;flex-direction:column;gap:5px}
-.bcol.c2{padding-top:22px} .bcol.c3{padding-top:44px}
-.bcol.c4{padding-top:66px} .bcol.c5{padding-top:88px}
-.bhd{font-size:11px;color:var(--fg3);white-space:nowrap;margin-bottom:1px}
+/* 대진표 — 계단식 사다리. 오른쪽으로 한 칸씩 올라간다. */
+.brk{display:grid;grid-template-columns:repeat(5,1fr);gap:0 18px;align-items:start}
+.brd{position:relative;display:flex;flex-direction:column}
+.brd.r2{padding-top:26px} .brd.r3{padding-top:52px}
+.brd.r4{padding-top:78px} .brd.champ{padding-top:104px}
+.bhd{font-size:11px;color:var(--fg3);white-space:nowrap;margin-bottom:5px}
+.bmatch{position:relative;display:flex;flex-direction:column;gap:5px}
+/* 두 팀을 묶어 오른쪽으로 뻗는 ㅓ 자 */
+.bmatch::after{content:'';position:absolute;left:100%;top:15px;bottom:15px;width:9px;
+  border:1px solid var(--line);border-left:0;pointer-events:none}
+.brd.champ .bmatch::after,.brd:last-child .bmatch::after{display:none}
+/* 다음 라운드로 들어가는 짧은 선 */
+.brd.r2 .bmatch::before,.brd.r3 .bmatch::before,.brd.r4 .bmatch::before,
+.brd.champ .bmatch::before{content:'';position:absolute;right:100%;top:50%;width:9px;
+  border-top:1px solid var(--line)}
+.brd.champ .bmatch{gap:0}
 .bn{display:grid;grid-template-columns:14px 1fr auto;gap:5px;align-items:center;
   background:var(--s2);border-left:3px solid var(--tc,var(--line));border-radius:2px;
   padding:6px 7px;font-size:13px;min-height:30px}
 .bn i{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--fg3)}
 .bn span{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bn b{font-family:var(--mono);font-size:11px;color:var(--fg3)}
+.bn b{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--fg3)}
+.bn.win b{color:var(--fg)}
 .bn.win{background:var(--s3)}
 .bn.win span{color:var(--fg)}
 .bn:not(.win) span{color:var(--fg3)}
 .bn.empty{background:transparent;border-left-color:transparent}
 .bchamp{display:flex;align-items:center;gap:7px;background:var(--tc);border-radius:2px;
-  padding:7px 9px;color:#0a1219;font-weight:700;font-size:14px;min-height:30px}
+  padding:7px 9px;color:var(--tcfg,#0a1219);font-weight:700;font-size:14px;min-height:30px}
 .bchamp b{margin-left:auto;font-family:var(--mono);font-size:12px;opacity:.8}
-.bchamp .cap{box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
+.bchamp .cap{box-shadow:0 0 0 1.5px rgba(255,255,255,.5);border-radius:50%}
 @media(max-width:1200px){
-  .bracket-grid{grid-template-columns:repeat(3,1fr)}
-  .bcol{padding-top:0 !important}
+  .brk{grid-template-columns:repeat(3,1fr);gap:14px 12px}
+  .brd{padding-top:0 !important}
+  .bmatch::after,.bmatch::before{display:none !important}
 }
 .mapbox{display:flex;justify-content:center;padding:10px 0 4px}
 .kmap{width:100%;max-width:270px;height:auto}
@@ -259,12 +272,21 @@ input:focus{outline:0;border-color:var(--accent)}
 .legend b{display:block;font-size:15px}
 .legend .sub{display:block;font-size:13px;color:var(--fg2)}
 .dhist{margin:0 0 8px;font-size:14px;color:var(--fg2)}
-.dstart{display:grid;gap:8px;padding:14px 20px 16px;background:var(--s3);
-  box-shadow:0 -8px 20px rgba(0,0,0,.35)}
-.dstart button{width:100%;padding:15px;font-size:17px;font-weight:700;
-  background:var(--tc,var(--accent));border-color:transparent;color:#08121b}
-.dstart button:hover{filter:brightness(1.12)}
-.dstart p{margin:0;font-size:12px;color:var(--fg3);text-align:center}
+.dstart{display:grid;grid-template-columns:1fr auto;gap:10px;padding:14px 20px 16px;
+  background:var(--s3);box-shadow:0 -8px 20px rgba(0,0,0,.35)}
+/* 이 화면의 유일한 결정이다. 다른 버튼과 같은 크기면 안 된다. */
+.dstart .go{padding:17px 20px;font-size:20px;font-weight:800;letter-spacing:-.01em;
+  background:var(--tc,var(--accent));border-color:transparent;color:var(--tcfg,#08121b)}
+.dstart .go:hover{filter:brightness(1.12)}
+.dstart .second{padding:17px 18px;font-size:15px;font-weight:600;background:transparent;
+  border:1px solid var(--line);color:var(--fg2)}
+.dstart .second:hover{border-color:var(--fg3);color:var(--fg);background:transparent}
+@media(max-width:760px){.dstart{grid-template-columns:1fr}}
+
+/* 시작 화면 발치 — 팀과 무관한 것들 */
+.bootfoot{margin:14px 2px 4px;font-size:13px;line-height:1.7;color:var(--fg3);
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px}
+.bootfoot>span{flex:1 1 260px}
 
 .parkrow{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;
   margin-bottom:8px}
@@ -373,9 +395,9 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   font-family:var(--mono);font-size:11px;font-weight:600;margin-right:7px;border-radius:2px;
   background:var(--line);color:var(--fg2)}
 .res.w{background:var(--pos);color:#0b1119} .res.l{background:var(--neg);color:#0b1119}
-.cap{border-radius:50%;display:grid;place-items:center;font-family:var(--mono);
-  font-weight:600;color:#f2f6fa;flex-shrink:0;
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.22), 0 0 0 1px rgba(0,0,0,.4)}
+.cap{flex-shrink:0;display:block;border-radius:50%}
+.capm{fill:#fff;font-family:var(--mono);font-weight:700;letter-spacing:.02em;
+  paint-order:stroke;stroke:rgba(0,0,0,.25);stroke-width:.6px}
 
 .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
   padding:7px 0;border-bottom:1px solid var(--line2)}

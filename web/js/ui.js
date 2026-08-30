@@ -127,7 +127,18 @@ function drawMap(teams, selName) {
 
 const SCALE = ['20','30','40','50','60','70','80'];
 // '팜' 은 MLB 용어다. 한국 야구는 2군·육성·유망주라고 쓴다.
-const capOf = (name) => { const f = franchiseOf(name); return { code: f.code, color: f.color }; };
+/** 이 색 위에 올릴 글자색. 팀 컬러는 금색부터 짙은 갈색까지라
+ *  한쪽으로 고정하면 어느 구단에서는 반드시 안 읽힌다. */
+function onColor(hex) {
+  const v = (i) => { const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const L = 0.2126 * v(1) + 0.7152 * v(3) + 0.0722 * v(5);
+  return L > 0.34 ? '#08121b' : '#f6f9fc';
+}
+const capOf = (name) => { const f = franchiseOf(name);
+  return { code: f.code, color: f.color, mark: f.mark || f.code[0], fg: onColor(f.color) }; };
+/** 팀 색과 그 위 글자색을 한 쌍으로 심는다. */
+const tcVars = (c) => `--tc:${c.color};--tcfg:${c.fg}`;
 /** 선수 아바타. 체격·머리·수염·피부를 조합한다.
  *  키와 몸무게가 어깨 너비와 얼굴 폭에 반영되므로 거포는 다부지고 대도는 날렵하다. */
 const SKIN = ['#e3c0a0', '#d3a985', '#bd8f68', '#9d6f4c'];
@@ -215,16 +226,26 @@ function avatar(p, teamColor, size = 38, away = false, fr = null) {
     </svg></span>`;
 }
 
+/* 구단 마크. 야구 모자에 박히는 그것 — 한 글자, 그 둘레에 링.
+   두 겹으로 두른 건 자수 테두리를 흉내낸 것이다. */
 const cap = (name, size = 44) => {
   const c = capOf(name);
-  return `<span class="cap" style="background:${c.color};width:${size}px;height:${size}px;
-    font-size:${Math.round(size * 0.34)}px">${c.code}</span>`;
+  return `<svg class="cap" viewBox="0 0 44 44" width="${size}" height="${size}"
+      role="img" aria-label="${esc(short(name))}">
+    <circle cx="22" cy="22" r="21.2" fill="${c.color}"/>
+    <circle cx="22" cy="22" r="21.2" fill="none" stroke="#000" stroke-opacity=".35" stroke-width="1.6"/>
+    <circle cx="22" cy="22" r="17.4" fill="none" stroke="#fff" stroke-opacity=".62" stroke-width="1.5"/>
+    <text class="capm" x="22" y="22" text-anchor="middle" dominant-baseline="central"
+      font-size="${(size >= 34 ? 21 : 22)}">${c.mark}</text>
+  </svg>`;
 };
 
 /* ── 시작 화면 ── */
 let bootGame = null, bootSel = 1;
 
 async function boot() {
+  $('#btnLoad').onclick = () => pickSaveFile(() => start());
+  $('#btnInfo').onclick = modalInfo;
   // 고정 리그. 한 번 구운 세계를 그대로 불러온다. 매번 시즌을 다시 돌리지 않는다.
   try {
     const res = await fetch('data/league.json', { cache: 'force-cache' });
@@ -248,6 +269,7 @@ async function boot() {
     const col = capOf(d.name).color;
     const b = el('button', 'trow');
     b.style.setProperty('--tc', col);
+    b.style.setProperty('--tcfg', onColor(col));
     b.setAttribute('aria-pressed', String(t.id === bootSel));
     b.innerHTML = `<span class="tpos">${d.last.rank}</span>
       ${cap(d.name, 40)}
@@ -271,42 +293,37 @@ function drawBracket() {
   if (!ps.rounds.length) { box.innerHTML = ''; return; }
   const rank = new Map((bootGame.lastTable || []).map(r => [r.team, r.rank]));
   const R = ps.rounds;                    // 와일드카드 · 준PO · PO · KS
-  const node = (name, score, win, cls = '') => name
-    ? `<div class="bn ${win ? 'win' : ''} ${cls}" style="--tc:${capOf(name).color}">
+  // 점수는 그 시리즈의 것이어야 한다. 이긴 쪽에 승수, 진 쪽에 패수.
+  const node = (name, wins, win) => name
+    ? `<div class="bn ${win ? 'win' : ''}" style="${tcVars(capOf(name))}">
         ${rank.has(name) ? `<i>${rank.get(name)}</i>` : '<i class="off">·</i>'}
         <span>${esc(short(name))}</span>
-        ${score !== null ? `<b>${score}</b>` : ''}</div>`
+        ${wins !== null ? `<b>${wins}</b>` : ''}</div>`
     : '<div class="bn empty"></div>';
+  /** 한 시리즈를 두 줄로. 위가 상위 시드, 아래가 올라온 팀. */
+  const match = (r, top, bot) => {
+    const tw = r.winner === top, bw = r.winner === bot;
+    return node(top, tw ? r.w : r.l, tw) + node(bot, bw ? r.w : r.l, bw);
+  };
   const seedOf = (n) => rank.get(n) ?? 99;
   const wc = R[0], sp = R[1], pl = R[2], ks = R[3];
   const lo5 = seedOf(wc.higher) > seedOf(wc.lower) ? wc.higher : wc.lower;
   const hi4 = lo5 === wc.higher ? wc.lower : wc.higher;
 
+  // 계단식. 위에서 기다리던 상위 시드가 아래에서 올라온 팀을 맞는다.
+  // 선을 그어야 사다리로 읽힌다 — 안 그으면 그냥 네 덩어리다.
+  const round = (label, rows, cls = '') =>
+    `<div class="brd ${cls}"><span class="bhd">${label}</span>
+       <div class="bmatch">${rows}</div></div>`;
+
   box.innerHTML = `<div class="lab">${ps.year} 포스트시즌</div>
-    <div class="bracket-grid">
-      <div class="bcol">
-        <span class="bhd">와일드카드</span>
-        ${node(hi4, null, wc.winner === hi4)}
-        ${node(lo5, null, wc.winner === lo5)}
-      </div>
-      <div class="bcol c2">
-        <span class="bhd">준PO</span>
-        ${node(sp.higher, null, sp.winner === sp.higher)}
-        ${node(wc.winner, wc.w + '–' + wc.l, sp.winner === wc.winner, 'adv')}
-      </div>
-      <div class="bcol c3">
-        <span class="bhd">PO</span>
-        ${node(pl.higher, null, pl.winner === pl.higher)}
-        ${node(sp.winner, sp.w + '–' + sp.l, pl.winner === sp.winner, 'adv')}
-      </div>
-      <div class="bcol c4">
-        <span class="bhd">한국시리즈</span>
-        ${node(ks.higher, null, ks.winner === ks.higher)}
-        ${node(pl.winner, pl.w + '–' + pl.l, ks.winner === pl.winner, 'adv')}
-      </div>
-      <div class="bcol c5">
-        <span class="bhd">우승</span>
-        <div class="bchamp" style="--tc:${capOf(ks.winner).color}">
+    <div class="brk">
+      ${round('와일드카드', match(wc, hi4, lo5), 'r1')}
+      ${round('준PO', match(sp, sp.higher, wc.winner), 'r2')}
+      ${round('PO', match(pl, pl.higher, sp.winner), 'r3')}
+      ${round('한국시리즈', match(ks, ks.higher, pl.winner), 'r4')}
+      <div class="brd champ"><span class="bhd">우승</span>
+        <div class="bchamp" style="${tcVars(capOf(ks.winner))}">
           ${cap(ks.winner, 26)}<span>${esc(short(ks.winner))}</span>
           <b>${ks.w}–${ks.l}</b></div>
       </div>
@@ -409,19 +426,17 @@ function drawDossier() {
 
     </div>
     <div class="dstart">
-      <button id="btnNew" class="primary">${esc(josa(d.name, '으로'))} 시작</button>
-      ${saved ? '<button id="btnResume" class="quiet">이어하기</button>' : ''}
-      <button id="btnLoad" class="quiet">파일에서 불러오기</button>
-    </div>
-    <p class="disclaim">구단과 선수는 모두 가상입니다. 실존하는 구단·인물과 관련이 없습니다.
-      <button id="btnInfo" class="linky">정보 · 약관</button></p>`;
+      <button id="btnNew" class="go">${esc(josa(d.name, '으로'))} 시작</button>
+      ${saved ? '<button id="btnResume" class="second">이어하기</button>' : ''}
+    </div>`;
   const mapBox = $('#kmap');
   if (mapBox) mapBox.innerHTML = drawMap(bootGame.teamList().map(t => t.name), d.name);
-  $('#dossier').style.setProperty('--tc', col);
-  document.querySelector('.boot-main').style.setProperty('--tc', col);
+  for (const el of [$('#dossier'), document.querySelector('.boot-main')]) {
+    el.style.setProperty('--tc', col);
+    el.style.setProperty('--tcfg', onColor(col));
+  }
   $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
-  $('#btnLoad').onclick = () => pickSaveFile(() => start());
-  $('#btnInfo').onclick = modalInfo;
+
   if ($('#btnResume')) $('#btnResume').onclick = () => {
     try { G = save.load(JSON.parse(saved)); start(); }
     catch (e) { localStorage.removeItem(KEY); toast('불러오기 실패', '새 게임으로 시작하세요', 'injury');
