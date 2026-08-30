@@ -340,7 +340,7 @@ export class League {
   newDraftSession() {
     const order = this.season.standings().slice().reverse().map(r => r.team);
     const pool = draft.makeClass(this.rng, this.year + 1);
-    return new draft.DraftSession(this.teams, this.scouts, order, pool, this.rng);
+    return new draft.DraftSession(this.teams, this.scouts, order, pool, this.rng, this.year + 1);
   }
   finishDraft(session) {
     this.draftLog.push({ year: this.year + 1, picks: session.picks });

@@ -44,8 +44,8 @@ export function pickValue(team, dept, p, rng) {
 }
 
 export class DraftSession {
-  constructor(teams, scouts, order, pool, rng) {
-    this.teams = teams; this.scouts = scouts; this.rng = rng;
+  constructor(teams, scouts, order, pool, rng, year = 0) {
+    this.teams = teams; this.scouts = scouts; this.rng = rng; this.year = year;
     this.order = order; this.pool = pool; this.available = [...pool];
     this.picks = []; this.n = 0;
     for (const t of teams) scoutClass(scouts.get(t.team_id), pool, rng);
@@ -70,6 +70,12 @@ export class DraftSession {
     t.farm.push(p);
     const rec = { n: this.n, round: p.drafted_round, team: t, player: p,
                   report: this.scouts.get(t.team_id).report(p, this.rng) };
+    // 지명한 구단이 그날 본 것을 남긴다. 몇 해 뒤에 이 숫자와 실제를
+    // 나란히 놓는 것이 이 게임의 이야기다.
+    const oR = rec.report.ovrRange('cur'), pR = rec.report.ovrRange('pot');
+    p.drafted_year = this.year;
+    p.draft_look = [Math.round(oR[0]), Math.round(oR[1]),
+                    Math.round(pR[0]), Math.round(pR[1])];
     this.picks.push(rec);
     return rec;
   }

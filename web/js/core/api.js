@@ -162,8 +162,12 @@ export class Game {
     if (!p) return { error:'not_found' };
     const c = this.L.careers.get(pid);
     const out = { ...this.brief(p, t), ...this.ratings(p) };
+    out.team = t ? t.name : null;
     out.debut_year = p.debut_year;
-    out.draft = p.drafted_overall ? { round:p.drafted_round, overall:p.drafted_overall } : null;
+    out.draft = p.drafted_overall ? { round:p.drafted_round, overall:p.drafted_overall,
+      year: p.drafted_year || null,
+      look: p.draft_look ? { ovr:[p.draft_look[0], p.draft_look[1]],
+                             pot:[p.draft_look[2], p.draft_look[3]] } : null } : null;
     out.injuries = { count:p.career_injuries ?? 0, days:p.career_injury_days ?? 0 };
     // 레퍼토리는 스카우팅 대상이 아니다. 무슨 공을 던지는지는 보면 안다.
     if (p.kind === 'P' && p.arsenal)

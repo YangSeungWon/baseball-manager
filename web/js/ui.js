@@ -3,6 +3,7 @@
 import { Game } from './core/api.js';
 import { josa } from './core/mail.js';
 import * as save from './save.js';
+import * as card from './share.js';
 import * as BIP from './core/bip.js';
 
 const KEY = 'dugout.save.v1';
@@ -1382,6 +1383,22 @@ function viewHistory(v) {
 }
 
 /* ── 겹칩 ── */
+/* 자랑거리를 밖으로. 지명하던 날의 평가와 그 뒤 성적을 한 장에 겹친다. */
+async function makeCard(p) {
+  const b = $('#mshare'); if (!b) return;
+  b.disabled = true; b.textContent = '만드는 중';
+  try {
+    await (document.fonts ? document.fonts.ready : Promise.resolve());
+    const cp = capOf(p.team || G.me.name);
+    const blob = await card.playerCard(p, { team: p.team || G.me.name,
+      color: cp.color, code: cp.code, year: G.state().year });
+    const how = await card.shareCard(blob, `dugout-${p.name}.png`,
+      `${p.name} · ${p.seasons.length}시즌 · 통산 WAR ${(p.career_war ?? 0).toFixed(1)}`);
+    if (how === 'downloaded') toast('카드를 내려받았다', p.name);
+  } catch (e) { toast('카드 실패', '다시 시도해 보라', 'injury'); }
+  b.disabled = false; b.textContent = '카드 만들기';
+}
+
 function modal(html) {
   $('#modalBody').innerHTML = html; $('#modal').hidden = false;
   const x = $('#mx'); if (x) x.onclick = closeModal;
@@ -1412,6 +1429,7 @@ function openPlayer(pid) {
     `<td class="m"><b>${s.war}</b></td></tr>`).join('')}</tbody></table>` : '';
   const awards = p.awards && Object.keys(p.awards).length
     ? Object.entries(p.awards).map(([k, v]) => `<span class="tag hs">${k}×${v}</span>`).join('') : '';
+  const bindShare = () => { const b = $('#mshare'); if (b) b.onclick = () => makeCard(p); };
   modal(`
     <div class="mhead"><div><h2>${esc(p.name)}${awards}</h2>
       <div class="meta">${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
@@ -1421,7 +1439,8 @@ function openPlayer(pid) {
           : p.mil.s === 'exempt' ? '병역 면제'
           : p.mil.due === 0 ? '올겨울 입대' : `미필 · ${p.mil.due}년`}</span>` : ''}
         ${p.injury_days ? ` · <span class="mark">✚${p.injury_days}</span>` : ''}</div></div>
-      <button id="mx" class="quiet">닫기</button></div>
+      <span class="mbtns"><button id="mshare" class="quiet">카드 만들기</button>
+      <button id="mx" class="quiet">닫기</button></span></div>
     <div class="mbody stack">
       <div class="grid g2">
         <div>
@@ -1471,6 +1490,7 @@ function openPlayer(pid) {
         p.events.map(e => `<div class="row"><span class="m dim">${e.year}</span><span>${esc(e.text)}</span></div>`).join('')
         + '</div>' : ''}
     </div>`);
+  bindShare();
 }
 
 function openTeam(tid) {
