@@ -94,14 +94,20 @@ export function develop(p, rng, playingTime = 1.0, coach = 1.0) {
 }
 
 const zz = (v) => (v - 50) / 10;
+/* 종합 능력 — 이 리그의 가격표다.
+   한 능력치를 실제 값어치보다 비싸게 매기면, 모든 구단이 30년에 걸쳐
+   그쪽으로 선수를 사 모은다. 그래서 가중치는 취향이 아니라 측정값이어야 한다.
+   엔진에서 능력치 +10 이 600타석당 몇 점인지 재서 그 비율로 맞췄다.
+     타자  홈런 13.7 · 수비 12.3 · 컨택 7.0 · 주력 6.0 · 선구 5.2 · 삼진회피 3.9 · 갭 3.1
+     투수  제구 11.2 · 구위 8.2 · 무브먼트 3.2                                       */
 export function overall(p) {
   let s;
   if (p.kind === 'B') {
-    s = (0.30*zz(p.contact) + 0.30*zz(p.hr_power) + 0.22*zz(p.discipline)
-      + 0.10*zz(p.gap_power) + 0.10*zz(p.avoid_k) + 0.09*zz(p.speed)
-      + 0.16*zz(p.fielding)) / 1.10;
+    s = (0.19*zz(p.contact) + 0.33*zz(p.hr_power) + 0.14*zz(p.discipline)
+      + 0.08*zz(p.gap_power) + 0.10*zz(p.avoid_k) + 0.14*zz(p.speed)
+      + 0.27*zz(p.fielding)) / 1.10;
   } else {
-    s = (0.46*zz(p.stuff) + 0.30*zz(p.command) + 0.24*zz(p.movement)
+    s = (0.36*zz(p.stuff) + 0.50*zz(p.command) + 0.14*zz(p.movement)
       + 0.12*zz(p.stamina)) / 1.06;
   }
   return clamp(50 + 10 * s);
