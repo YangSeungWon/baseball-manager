@@ -35,14 +35,14 @@ export const BC = {
   // 깊이 [평균, 표준편차] — 타구 질과 장타력이 얹힌다.
   depth: { GB: [30, 9], LD: [72, 16], FB: [88, 27], PU: [34, 12] },
   // 잘 맞은 공이 넘어간다. 뜬 공은 타구 질이 비거리를 크게 끌어올린다.
-  depthQuality: { GB: 6, LD: 20, FB: 50, PU: 8 },
+  depthQuality: { GB: 6, LD: 20, FB: 40, PU: 8 },
   depthPower: { GB: 1.5, LD: 6.5, FB: 6.5, PU: 1.5 },
   // 체공 시간 [상수, 깊이계수]. 땅볼은 타구 속도로 따로 계산한다.
   hang: { GB: [0, 0], LD: [0.72, 1 / 62], FB: [1.60, 1 / 27], PU: [2.90, 1 / 34] },
   // 땅볼 타구 속도 (m/s)
   gbSpeedBase: 30.0, gbSpeedQuality: 11.0, gbSpeedPower: 1.4,
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
-  hangK: { GB: 1.373, LD: 1.347, FB: 1.144, PU: 1.301 },
+  hangK: { GB: 1.319, LD: 1.294, FB: 1.099, PU: 1.249 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
@@ -232,7 +232,7 @@ export function hitBases(ball, bat, rng) {
   const gap = Math.min(Math.abs(Math.abs(ball.angle) - 15) < 7 ? 1 : 0,
                        ball.bbt === 'GB' ? 0 : 1);
   const line = Math.abs(ball.angle) > 34 ? 1 : 0;
-  let p2 = 0.16 + 0.0075 * (ball.depth - 60) + 0.20 * gap + 0.24 * line
+  let p2 = 0.125 + 0.0075 * (ball.depth - 60) + 0.20 * gap + 0.24 * line
     + 0.012 * z(bat.gap_power) * 3;
   let p3 = 0.012 + 0.030 * line + 0.010 * z(bat.speed) + 0.0016 * (ball.depth - 60);
   p2 = clamp(p2, 0, 0.90); p3 = clamp(p3, 0, 0.14);

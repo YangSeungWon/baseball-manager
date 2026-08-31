@@ -15,11 +15,14 @@ export const MISC = {
   rundown: 0.185, rundownArm: 0.045,      // 과감한 주루가 협살로 끝날 확률
 };
 
+/* 주루. 같은 출루·장타에서 실제보다 0.5점이 덜 났는데, 원인이 여기 있었다.
+   주자가 실제 야구보다 덜 갔다 — 단타에 2루 주자가 홈에 들어오는 비율이
+   51.6% 였다. 실제는 60% 안팎이다. */
 export const ADV = {
-  b1_first_to_third: 0.236, b1_second_scores: 0.516, b2_first_scores: 0.392,
+  b1_first_to_third: 0.275, b1_second_scores: 0.610, b2_first_scores: 0.470,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
-  sacfly_base: 0.425, gb_r3_scores: 0.250, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
+  sacfly_base: 0.500, gb_r3_scores: 0.330, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
   sb_success_base: 0.655, sb_success_speed: 0.055, sb_success_arm: -0.033,
 };

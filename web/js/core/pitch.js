@@ -37,11 +37,11 @@ export const PC = {
   swZThreeBall: -0.165, swZFirst: -0.62673, swZ2nd: 0.68090,   // 2구는 초구 자제의 절반쯤
 
   // 존 밖 스윙률(체이스). 존에서 멀수록 급격히 떨어진다.
-  swOBase: 0.52897, swODecay: 1.05, swODisc: -0.062, swOStuff: 0.024, swOMove: 0.018,
+  swOBase: 0.48826, swODecay: 1.05, swODisc: -0.062, swOStuff: 0.024, swOMove: 0.018,
   swOTwoStrike: 0.205, swOThreeBall: -0.135, swOFirst: -0.38857,
 
   // 컨택률
-  ctZBase: 0.93017, ctOBase: 0.72696, ctDecay: 0.30,
+  ctZBase: 0.90692, ctOBase: 0.70879, ctDecay: 0.30,
   ctContact: 0.030, ctAvoidK: 0.024, ctStuff: -0.040, ctMove: -0.014,
   ctWhiff: -0.115, ctTwoStrike: -0.032,
 
@@ -51,7 +51,8 @@ export const PC = {
   // 파울도 잡히면 아웃이다. 이게 없으면 그 몫을 삼진이 떠안는다.
   foulCatchable: 0.0290, foulCatchBase: 0.760, foulCatchDef: 0.045, foulDropErr: 0.16,
 
-  hbpPerBall: 0.00749, hbpInside: 1.6,
+  // KBO 는 사구가 많다. 팀당 경기 0.59 개 — 리그 특징이지 잡음이 아니다.
+  hbpPerBall: 0.01360, hbpInside: 1.6,
 
   // 타구 질(0~1). 존 한복판에서, 유리한 카운트에서 강하게 맞는다.
   qCenter: 0.150, qEdge: -0.175, qAhead: 0.095, qTwoStrike: -0.115, qSd: 0.175,
