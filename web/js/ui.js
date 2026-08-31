@@ -244,6 +244,20 @@ const cap = (name, size = 44) => {
 /* ── 시작 화면 ── */
 let bootGame = null, bootSel = 1;
 
+addEventListener('resize', () => { if (G) { stickyOffsets(); } });
+
+/* 폰에서 상단바 · 탭 · 바로가기를 다 붙여 두면 화면의 23% 가 사라진다.
+   내려가는 동안에는 상단바를 한 줄로 접는다. 올리면 돌아온다. */
+let shrunk = false;
+addEventListener('scroll', () => {
+  if (!G || window.innerWidth > 760) return;
+  const want = window.scrollY > 240;
+  if (want === shrunk) return;
+  shrunk = want;
+  document.body.classList.toggle('shrink', want);
+  stickyOffsets();
+}, { passive: true });
+
 async function boot() {
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;
@@ -507,11 +521,46 @@ function report(r) {
 }
 
 /* ── 뼈대 ── */
+/* 상단바는 좁은 화면에서 두 줄로 접힌다. 탭과 바로가기 줄이 고정 픽셀로
+   붙어 있으면 그때 서로 겹친다. 실제 높이를 재서 알려 준다. */
+function stickyOffsets() {
+  const tb = document.querySelector('.topbar'), tabs = document.querySelector('.tabs');
+  if (!tb || !tabs) return;
+  const h1 = Math.round(tb.getBoundingClientRect().height);
+  document.documentElement.style.setProperty('--tb-h', h1 + 'px');
+  document.documentElement.style.setProperty('--tabs-h',
+    Math.round(tabs.getBoundingClientRect().height) + 'px');
+}
+
 function render() {
   renderTop();
   const v = $('#view'); v.innerHTML = '';
   ({ inbox:viewInbox, home:viewHome, team:viewTeam, league:viewLeague,
      front:viewFront, history:viewHistory }[tab])(v);
+  jumpBar(v);
+  if (shrunk && window.scrollY <= 240) {
+    shrunk = false; document.body.classList.remove('shrink');
+  }
+  stickyOffsets();
+}
+
+/* 좁은 화면에서 팀 화면은 6,000px 가 넘는다. 접어서 감추면 이 게임이
+   아니게 되니, 다 펼쳐 두고 찾아갈 수 있게만 한다. */
+function jumpBar(v) {
+  if (window.innerWidth > 760) return;
+  const heads = [...v.querySelectorAll('.sect > h3')];
+  if (heads.length < 4) return;
+  const bar = el('nav', 'jump');
+  bar.innerHTML = heads.map((h, i) => {
+    const t = (h.firstChild && h.firstChild.textContent || h.textContent).trim();
+    return `<button data-j="${i}">${esc(t)}</button>`;
+  }).join('');
+  v.insertBefore(bar, v.firstChild);
+  bar.querySelectorAll('button').forEach(b => b.onclick = () => {
+    const el2 = heads[+b.dataset.j];
+    const y = el2.getBoundingClientRect().top + window.scrollY - 96;   // 상단바·탭·이 줄
+    window.scrollTo({ top: y, behavior: 'smooth' });
+  });
 }
 function sect(title, note, body) {
   const s = el('section', 'sect');
