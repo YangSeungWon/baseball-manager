@@ -57,3 +57,12 @@ Python 참조 구현으로 시뮬레이션을 보정했습니다. 60시즌을 �
 
 `proto/` 에서 `python3 validate_games.py`, `validate_seasons.py`, `validate_dev.py`,
 `validate_draft.py`, `validate_market.py` 로 재현할 수 있습니다.
+
+## 라이선스
+
+MIT. 자세한 것은 [LICENSE](LICENSE).
+
+글꼴 IBM Plex Mono 는 SIL Open Font License 1.1 (`web/fonts/OFL.txt`).
+
+구단·선수·기록은 모두 가상입니다. 한국 프로야구의 제도와 리듬을 참고했지만
+실존하는 구단·단체·인물과는 관련이 없고, 어느 곳으로부터도 승인받지 않았습니다.
