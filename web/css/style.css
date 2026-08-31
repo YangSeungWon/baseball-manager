@@ -182,6 +182,8 @@ input:focus{outline:0;border-color:var(--accent)}
 .dhead h2{margin:0;font-size:23px;font-weight:800;line-height:1.1;flex:1}
 .dhead h2 small{display:block;font-size:12px;font-weight:400;color:var(--fg2);margin-top:2px}
 .headline{font-size:19px;line-height:1.4;font-weight:700;margin:0 0 10px;letter-spacing:-.01em}
+.story{margin:0 0 12px;font-size:14px;line-height:1.65;color:var(--fg2);
+  padding-left:11px;border-left:2px solid var(--tc,var(--line))}
 .dlast{margin:0;font-size:14px;color:var(--fg2)}
 .dlast b{font-family:var(--mono);font-size:16px;color:var(--fg);margin:0 4px}
 .dlast span{font-family:var(--mono);font-size:13px;color:var(--fg3);margin-left:6px}

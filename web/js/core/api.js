@@ -5,6 +5,7 @@ import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
 import * as R from './roster.js';
+import * as FR from './names.js';
 import { PITCH, kmh } from './pitch.js';
 import { FEAT } from './feats.js';
 import * as FG from './foreign.js';
@@ -619,6 +620,7 @@ export class Game {
     return {
       id: t.team_id, name: t.name, city: t.name.split(' ')[0], nick: t.name.split(' ')[1],
       market: Math.round(f.market_size*100)/100,
+      story: (FR.franchiseOf(t.name) || {}).story || '',
       budget: r0(f.budget), payroll: r1(C.payroll(t, this.L.year)),
       room: r1(f.budget - C.payroll(t, this.L.year)),
       patience: r0(f.patience), demand: f.demand,

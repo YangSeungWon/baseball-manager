@@ -356,6 +356,7 @@ function drawDossier() {
         <h2>${esc(d.name)}<small>${esc(fr.mascot)}${H ? ` · 창단 ${H.founded}` : ''}</small></h2>
         <span class="chip d${d.difficulty}">${esc(d.difficultyLabel)}</span></div>
       <p class="headline">${esc(d.headline)}</p>
+      ${d.story ? `<p class="story">${d.story.split('\n').map(esc).join('<br>')}</p>` : ''}
       <p class="dlast">${bootGame.state().year - 1} 시즌 <b>${d.last.rank}위</b>
         <span>${d.last.w}승 ${d.last.l}패${d.last.d ? ` ${d.last.d}무` : ''}</span>
         ${d.lastRank ? `<em>득점 ${d.lastRank.rs}위 · 실점 ${d.lastRank.ra}위</em>` : ''}</p>

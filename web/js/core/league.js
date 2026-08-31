@@ -2,6 +2,7 @@
 import { RNG } from './rng.js';
 import * as dev from './development.js';
 import * as R from './roster.js';
+import { franchiseOf } from './names.js';
 import * as C from './contract.js';
 import * as market from './market.js';
 import { ScoutingDept } from './scouting.js';
@@ -44,8 +45,11 @@ export class League {
     this.season = null;
     buildHistory(this.teams, this.rng, startYear - 1);
     for (const t of this.teams) {
-      t.upside_weight = this.rng.uniform(0.55, 0.85);
-      t.finance = new C.Finance(this.rng);
+      // 구단의 성격은 연고를 따라간다. 매 판 새로 뽑으면 이야기가 붙지 않는다.
+      const fr = franchiseOf(t.name);
+      t.upside_weight = Math.max(0.5, Math.min(0.9,
+        this.rng.gauss(fr && fr.bias ? fr.bias : 0.70, 0.05)));
+      t.finance = new C.Finance(this.rng, fr);
       // 오래 무관인 구단의 구단주는 조급하다
       t.finance.patience = Math.max(12, t.finance.patience - droughtPressure(t.history));
       for (const p of [...t.batters, ...t.pitchers]) {

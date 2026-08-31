@@ -67,12 +67,16 @@ export function attendRate(f, winPct, playoffLast, titleLast, rng) {
 }
 
 export class Finance {
-  constructor(rng) {
-    this.market_size = Math.max(0.55, Math.min(1.5, rng.gauss(1.0, 0.24)));
+  /** @param fr 연고 구단의 성격. 없으면 리그 평균으로 뽑는다.
+   *  시장 규모를 매 판 난수로 뽑으면 부산이 어떤 게임에서는 작은 시장이 된다.
+   *  구단에 이야기가 붙으려면 이 값이 구단을 따라다녀야 한다. */
+  constructor(rng, fr = null) {
+    this.market_size = Math.max(0.55, Math.min(1.5,
+      rng.gauss(fr && fr.market ? fr.market : 1.0, fr ? 0.07 : 0.24)));
     this.owner_spending = Math.max(0.6, Math.min(1.4, rng.gauss(1.0, 0.16)));
     // 구단주 인내심 — 큰 시장일수록 짧다. 성적이 곧 압박이 된다.
     this.patience = Math.max(15, Math.min(85,
-      rng.gauss(52 - (this.market_size - 1) * 26, 13)));
+      rng.gauss(52 - (this.market_size - 1) * 26 + (fr ? fr.temper || 0 : 0), 11)));
     this.revenue = 100 * this.market_size;
     this.budget = 100 * this.market_size;
     this.attendance = 0;      // 지난 시즌 홈 총관중
