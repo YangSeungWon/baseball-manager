@@ -931,3 +931,58 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   body.shrink .topbar{padding:6px 12px}
   body.shrink .tb-year{font-size:17px}
 }
+
+/* 새 소식 — 홈 맨 위, 편지함으로 끌려가지 않게 */
+.news{display:flex;flex-direction:column}
+.nrow{display:grid;grid-template-columns:22px 1fr;gap:10px;align-items:baseline;
+  padding:8px 0;border-bottom:1px solid var(--line2)}
+.nrow:last-of-type{border-bottom:0}
+.nic{font-family:var(--mono);color:var(--fg3);text-align:center;font-size:13px}
+.nrow.injury .nic{color:var(--neg)} .nrow.milestone .nic{color:var(--pos)}
+.nrow.owner .nic{color:#e0a03c}
+.ntx b{font-size:15px;font-weight:600;color:var(--fg)}
+.ntx span{display:block;font-size:13px;line-height:1.55;color:var(--fg2);margin-top:2px}
+.nall{align-self:flex-start;margin-top:10px;padding-left:0}
+
+/* 다음 경기 */
+.next{display:flex;flex-direction:column;gap:12px}
+.nx-main{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.nx-side{font-size:12px;font-weight:700;padding:3px 9px;border-radius:2px;
+  background:var(--s2);color:var(--fg2)}
+.nx-side.h{color:var(--fg);background:var(--s3)}
+.nx-op{display:flex;flex-direction:column;min-width:0}
+.nx-op b{font-size:20px;font-weight:700;color:var(--fg);line-height:1.2}
+.nx-op i{font-style:normal;font-size:13px;color:var(--fg3);margin-top:2px;font-family:var(--mono)}
+.nx-form{margin-left:auto}
+.nx-rest{display:flex;gap:8px;flex-wrap:wrap;padding-top:10px;
+  border-top:1px solid var(--line2)}
+.nx-rest span{font-size:13px;color:var(--fg3)}
+.nx-rest b{color:var(--fg2);margin-right:5px}
+@media(max-width:760px){ .nx-form{margin-left:0;width:100%} }
+
+/* 하이라이트 */
+.hl-score{display:flex;align-items:baseline;gap:10px;justify-content:center;
+  font-size:15px;color:var(--fg2);padding:6px 0 14px}
+.hl-score b{font-family:var(--mono);font-size:34px;font-weight:800;color:var(--fg)}
+.hl-score.big b{font-size:52px}
+.hl-score i{font-style:normal;color:var(--fg3)}
+.hl-log{display:flex;flex-direction:column;max-height:46vh;overflow-y:auto;
+  border-top:1px solid var(--line)}
+.hlrow{display:grid;grid-template-columns:58px 1fr auto;gap:10px;align-items:baseline;
+  padding:9px 2px;border-bottom:1px solid var(--line2)}
+.hlrow .hi{font-family:var(--mono);font-size:12px;color:var(--fg3)}
+.hlrow .ht{font-size:15px;line-height:1.5;color:var(--fg2)}
+.hlrow .ht b{color:var(--fg);font-weight:600;margin-right:4px}
+.hlrow .hr2{font-family:var(--mono);font-weight:700;color:var(--pos)}
+.hl-line{display:flex;gap:24px;justify-content:center;padding:0 0 16px;
+  border-bottom:1px solid var(--line);margin-bottom:16px}
+.hl-line div{display:flex;flex-direction:column;align-items:center;gap:3px}
+.hl-line span{font-size:13px;color:var(--fg3)}
+.hl-btn{display:flex;gap:8px}
+.hl-btn button{flex:1;padding:13px}
+.nx-watch{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:10px;
+  border-top:1px solid var(--line2)}
+.nx-watch .lab{margin-right:4px}
+.nx-watch button{background:var(--s2);border:0;color:var(--fg3);border-radius:2px;
+  padding:6px 11px;font-size:13px;font-weight:600}
+.nx-watch button.on{background:var(--accent);color:#fff}

@@ -6,7 +6,14 @@ import * as save from './save.js';
 import * as card from './share.js';
 import * as BIP from './core/bip.js';
 
-const KEY = 'dugout.save.v1';
+const KEY = 'dugout.save.v1', WKEY = 'dugout.watch';
+/* 경기를 어떻게 볼 것인가. 야구는 축구와 달리 장면이 끊어져 있어서
+   85개를 전부 틀어도 ×4 면 24초다 — 전체 재생이 실제로 선택지가 된다.
+   기본은 하이라이트, 고른 것은 기억한다. */
+const WATCH = { result:'결과만', highlight:'하이라이트', full:'전체 재생' };
+let watchMode = 'highlight';
+try { const v = localStorage.getItem(WKEY); if (WATCH[v]) watchMode = v; } catch {}
+function setWatch(v) { watchMode = v; try { localStorage.setItem(WKEY, v); } catch {} }
 const $ = (s, r = document) => r.querySelector(s);
 const el = (t, c, h) => { const e = document.createElement(t);
   if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
@@ -463,7 +470,7 @@ function drawDossier() {
 function start() { $('#boot').hidden = true; $('#app').hidden = false; persist(); render(); }
 
 /* ── 상단 ── */
-const TABS = [['inbox','받은 편지함'],['home','홈'],['team','팀'],['league','리그'],['front','프런트'],['history','역사']];
+const TABS = [['home','홈'],['inbox','받은 편지함'],['team','팀'],['league','리그'],['front','프런트'],['history','역사']];
 function renderTop() {
   const s = G.state();
   if (s.phase !== lastPhase) {
@@ -508,16 +515,89 @@ function renderTop() {
   });
 }
 function act(fn) { const r = fn(); autosave(); render(); return r; }
+/* ── 하이라이트 ─────────────────────────────────────────────
+   하루를 넘기면 결과 한 줄만 뜨고 끝이었다. 야구는 그렇게 보는 게 아니다.
+   점수가 난 장면만 골라 흘려 보내고, 언제든 건너뛸 수 있게 한다.
+   건너뛰어도 결과는 반드시 보인다. */
+function highlightsOf(box) {
+  const P = box.plays || [];
+  const out = P.filter(p => (p.runs || 0) > 0 || /홈런/.test(p.desc || ''));
+  return out.slice(-9);            // 난타전이면 뒤쪽 아홉 장면
+}
+function openHighlights(box, onDone) {
+  const H = highlightsOf(box), aw = box.away, hm = box.home;
+  const scoreLine = (a, h) => `<span>${esc(short(aw.team))}</span><b class="m">${a}</b>
+      <i>:</i><b class="m">${h}</b><span>${esc(short(hm.team))}</span>`;
+  if (!H.length) return finish();
+
+  let i = -1, timer = null;
+  modal(`<div class="mhead"><div><h2>경기 하이라이트</h2>
+      <div class="meta" id="hlMeta">${esc(short(aw.team))} @ ${esc(short(hm.team))}</div></div>
+    <button id="hlSkip" class="quiet">건너뛰기</button></div>
+    <div class="mbody hl">
+      <div class="hl-score" id="hlScore">${scoreLine(0, 0)}</div>
+      <div class="hl-log" id="hlLog"></div>
+    </div>`);
+  const $$ = (id) => document.getElementById(id);
+  const step = () => {
+    i++;
+    if (i >= H.length) { clearInterval(timer); return finish(); }
+    const p = H[i], top = p.half === 'top';
+    $$('hlMeta').textContent = `${p.inning}회${top ? '초' : '말'} · ${p.outs}아웃`;
+    $$('hlScore').innerHTML = scoreLine(top ? p.ro : p.rd, top ? p.rd : p.ro);
+    const row = el('div', 'hlrow');
+    row.innerHTML = `<span class="hi">${p.inning}회${top ? '초' : '말'}</span>
+      <span class="ht"><b>${esc(p.batter || '')}</b> ${esc(p.desc || '')}</span>
+      ${p.runs ? `<span class="hr2">+${p.runs}</span>` : ''}`;
+    $$('hlLog').appendChild(row);
+    row.scrollIntoView({ block: 'nearest' });
+  };
+  function finish() {
+    if (timer) clearInterval(timer);
+    closeModal();
+    lastBox = box;
+    modal(`<div class="mhead"><div><h2>경기 결과</h2>
+        <div class="meta">${aw.runs > hm.runs ? esc(short(aw.team)) : esc(short(hm.team))} 승</div></div>
+      <button id="mx" class="quiet">닫기</button></div>
+      <div class="mbody hl">
+        <div class="hl-score big">${scoreLine(aw.runs, hm.runs)}</div>
+        <div class="hl-line">
+          <div><span>${esc(short(aw.team))}</span><b class="m">${aw.hits}안타</b></div>
+          <div><span>${esc(short(hm.team))}</span><b class="m">${hm.hits}안타</b></div>
+        </div>
+        <div class="hl-btn">
+          <button class="go" id="hlFull">경기 전체 보기</button>
+          <button class="quiet" id="hlClose">넘어가기</button>
+        </div>
+      </div>`);
+    $$('hlFull').onclick = () => { closeModal(); openReplay(box); };
+    $$('hlClose').onclick = () => { closeModal(); if (onDone) onDone(); };
+  }
+  $$('hlSkip').onclick = finish;
+  step();
+  timer = setInterval(step, 1400);
+}
+
 function report(r) {
   if (r && r.games) {
-    for (const g of r.games.slice(-2))
+    const one = r.games.length === 1 && r.games[0].box;
+    if (!one) for (const g of r.games.slice(-2))
       toast(g.result, g.result === '우천취소' ? short(g.opponent) : `${g.score}  ${short(g.opponent)}`);
     const last = r.games.filter(g => g.box).pop();
     if (last) lastBox = last.box;              // 방금 끝난 내 팀 경기. 다시 볼 수 있다.
+    // 하루만 넘겼으면 고른 방식대로 보여 준다. 여러 날은 결과만.
+    if (one && watchMode !== 'result') {
+      if (watchMode === 'full') openReplay(r.games[0].box);
+      else openHighlights(r.games[0].box);
+      return;
+    }
+    if (one) for (const g of r.games)
+      toast(g.result, `${g.score}  ${short(g.opponent)}`);
   }
   const s = G.state();
   for (const n of s.notices) toast(n.kind === 'injury' ? '부상' : '', n.text, n.kind);
-  if (s.new_important > 0) tab = 'inbox';        // 사건이 있으면 편지함으로
+  // 사건이 있어도 편지함으로 끌고 가지 않는다. 홈이 더 중요하다.
+  // 대신 홈 맨 위에 요약을 얹고, 탭에는 숫자만 붙인다.
 }
 
 /* ── 뼈대 ── */
@@ -635,6 +715,50 @@ function viewHome(v) {
   const s = G.state();
   const st = G.standings().rows;
   const me = st.find(r => r.is_user);
+
+  /* 새 소식. 편지함으로 끌고 가는 대신 여기에 굵직한 것만 얹는다.
+     읽으러 갈 사람은 가고, 아닌 사람은 홈에서 흐름을 안 놓친다. */
+  const mail = G.mail(40);
+  const news = mail.rows.filter(m => !m.read)
+    .sort((a, b) => (b.pri - a.pri)).slice(0, 4);
+  if (news.length) {
+    const box = el('div', 'news');
+    box.innerHTML = news.map(m => `<div class="nrow ${m.kind}">
+        <span class="nic">${MAIL_ICON[m.kind] || '·'}</span>
+        <span class="ntx"><b>${esc(m.title)}</b>
+          ${m.body ? `<span>${esc(m.body)}</span>` : ''}</span>
+      </div>`).join('')
+      + `<button class="linky nall">편지함에서 모두 보기${mail.unread > news.length
+          ? ` (${mail.unread})` : ''}</button>`;
+    v.appendChild(sect('새 소식', '', box));
+    box.querySelector('.nall').onclick = () => { tab = 'inbox'; render(); };
+  }
+
+  // 오늘의 경기. 다음에 누구와 붙는지가 이 화면에서 제일 궁금한 것이다.
+  const sch0 = s.phase === 'regular' ? G.schedule(8).rows : [];
+  if (sch0.length) {
+    const n = sch0[0], rest = sch0.slice(1, 5);
+    const opp = st.find(r => r.team === n.opponent);
+    const f0 = G.form(null, 10);
+    v.appendChild(sect('다음 경기', `${n.day}일차`, `<div class="next">
+      <div class="nx-main">
+        <span class="nx-side ${n.is_home ? 'h' : 'a'}">${n.is_home ? '홈' : '원정'}</span>
+        ${cap(n.opponent, 42)}
+        <span class="nx-op"><b>${esc(short(n.opponent))}</b>
+          ${opp ? `<i>${opp.rank}위 · ${opp.w}–${opp.l} · 최근 ${opp.pct}</i>` : ''}</span>
+        <span class="nx-form">${formStrip(f0.recent)}</span>
+      </div>
+      ${rest.length ? `<div class="nx-rest">${rest.map(r =>
+        `<span><b class="m">${r.day}</b> ${r.is_home ? '' : '@'}${esc(short(r.opponent))}</span>`
+      ).join('')}</div>` : ''}
+      <div class="nx-watch"><span class="lab">경기를 볼 때</span>
+        ${Object.entries(WATCH).map(([k, kr]) =>
+          `<button data-w="${k}" class="${k === watchMode ? 'on' : ''}">${kr}</button>`).join('')}
+      </div>
+    </div>`));
+    v.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { setWatch(b.dataset.w); render(); });
+  }
+
   const g = el('div', 'grid g21');
   const left = el('div', 'grid');
 
