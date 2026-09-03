@@ -301,7 +301,10 @@ const TMUL = [0.05, 0.45, 1.00, 1.40, 1.85];   // 안 함 / 적게 / 보통 / �
 const tmul = (v) => TMUL[Math.max(0, Math.min(4, v | 0))];
 
 export const MGR = {
-  buntBase: 0.035, buntPower: -0.075, buntContact: 0.020,
+  // KBO 는 희생번트가 팀-경기당 0.42 다 (2026 10구단 SAC 485 / 팀-경기 1152).
+  // 최적 전략이 아니라 실제 감독이 하는 만큼을 흉내낸다 — 무사 1루의 번트는
+  // 기대득점을 깎지만 한 점 낼 확률은 올린다. 감독들은 그래서 댄다.
+  buntBase: 0.029, buntPower: -0.075, buntContact: 0.020,
   buntLate: 0.055, buntClose: 0.045,
   buntSucceed: 0.760, buntHit: 0.110, buntForce: 0.090,
   pinchBase: 0.240, pinchGap: 0.055, pinchLate: 0.10,
