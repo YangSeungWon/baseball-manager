@@ -1253,3 +1253,6 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   padding:2px 5px;border-radius:2px;background:var(--s3);color:var(--fg3)}
 .gr.gA{background:var(--neg);color:#fff}
 .gr.gB{background:color-mix(in srgb,var(--neg) 45%,var(--s3));color:var(--fg)}
+.pnote p{font-size:13px;line-height:1.65;color:var(--fg3);margin:0 0 10px}
+.pnote b{color:var(--fg2)}
+.kv .big{font-size:22px}

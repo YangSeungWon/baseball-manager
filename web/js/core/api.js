@@ -13,12 +13,13 @@ import * as FG from './foreign.js';
 import * as SF from './staff.js';
 import * as PS from './persona.js';
 import * as ML from './military.js';
+import * as PST from './posting.js';
 import * as dev2 from './development.js';
 import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail, josa } from './mail.js';
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FOREIGN='off_foreign', OFF_FA='off_fa',
-  OFF_TRADE='off_trade', OFF_DRAFT='off_draft', OFF_COMP='off_comp';
+  OFF_TRADE='off_trade', OFF_DRAFT='off_draft', OFF_COMP='off_comp', OFF_POST='off_post';
 export const TACTIC_DEFS = [
   { key:'bunt',  label:'번트',      steps:['안 함','적게','보통','자주','적극'],
     hint:'주자를 한 베이스 보내는 대신 아웃 하나를 준다' },
@@ -37,7 +38,7 @@ export const TACTIC_DEFS = [
 export const PHASE_LABEL = {
   [PRESEASON]:'스프링캠프', [REGULAR]:'정규시즌', [POSTSEASON]:'포스트시즌',
   [OFF_ROLLOVER]:'시즌 정리', [OFF_FOREIGN]:'외국인 시장', [OFF_FA]:'FA 시장',
-  [OFF_COMP]:'보상선수', [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
+  [OFF_POST]:'포스팅', [OFF_COMP]:'보상선수', [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
 };
 const r0 = (v) => Math.round(v);
 const r1 = (v) => Math.round(v*10)/10;
@@ -1105,6 +1106,17 @@ export class Game {
       decline: s.decline.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
     };
     offseasonMail(this, 'retire', out.retired);
+    // 나가 있던 사람들이 돌아온다. 미계약 신분이라 겨울 시장에 선다.
+    out.returned = PST.tick(this.L, this.L.rng)
+      .map(p => ({ name:p.name, age:p.age, mine:p.mlbFrom === me }));
+    // 포스팅. 내 선수의 요청은 사람이 답하고, 남의 팀 건은 알아서 정해진다.
+    const reqs = PST.requests(this.L, this.L.year, this.L.rng);
+    this.postings = reqs.filter(r => r.t.team_id === me)
+      .map(r => ({ pid:r.p.pid, name:r.p.name, age:r.p.age,
+        slot: r.p.kind === 'P' ? r.p.role : r.p.position,
+        fee: r.fee, again: r.p.post_refused || 0 }));
+    for (const r of reqs) if (r.t.team_id !== me) this._aiPosting(r);
+    if (this.postings.length) { this.phase = OFF_POST; return out; }
     this._openForeign();
     out.tournament = s.tournament || null;
     out.honored = s.honored || [];          // 영구결번. 15년을 굴려야 하나 나온다.
@@ -1114,6 +1126,63 @@ export class Game {
       .map(x => ({ name:x.p.name, age:x.p.age }));
     this.phase = OFF_FOREIGN;
     return out;
+  }
+
+  /* ── 포스팅 ──────────────────────────────────────────────
+     자격은 선수의 것이지만 열쇠는 우리가 쥐고 있다. 그래서 결정이다. */
+
+  /** AI 는 돈과 성적을 견준다. 우승을 노리는 해에는 안 보낸다. */
+  _aiPosting(r) {
+    const mode = this.L.modes.get(r.t.team_id);
+    const room = Math.max(0, r.t.finance.budget - C.payroll(r.t, this.L.year + 1));
+    let go = 0.45;
+    if (mode === market.REBUILD) go += 0.30;
+    if (mode === market.CONTENDER) go -= 0.28;
+    if (room < 6) go += 0.20;                 // 돈이 급하면 보낸다
+    if (r.p.post_refused) go += 0.18;         // 두 번 거절하기는 어렵다
+    if (this.L.rng.random() < go) PST.approve(this.L, r.t, r.p, r.fee, this.L.rng);
+    else PST.refuse(r.p, this.L.year);
+  }
+  /** 답을 기다리는 요청들. */
+  postingBoard() {
+    if (this.phase !== OFF_POST) return { rows: [] };
+    const t = this.me, y = this.L.year;
+    return { rows: (this.postings || []).map(x => {
+      const [p] = this.find(x.pid);
+      return { ...x, ...this.brief(p, t),
+        service: p.service ?? 0,
+        fee_text: `${x.fee.toFixed(0)}억`,
+        budget: r0(t.finance.budget),
+        // 이 시점은 재계약 전이라 내년 연봉이 0 으로 잡힌다. 올해 연봉을 보여준다.
+        payroll: r1(C.payroll(t, y)) };
+    }) };
+  }
+  /** 보낸다 / 붙잡는다. */
+  postingAnswer(pid, allow) {
+    if (this.phase !== OFF_POST) return { error:'wrong_phase' };
+    const i = (this.postings || []).findIndex(x => x.pid === pid);
+    if (i < 0) return { error:'not_found' };
+    const x = this.postings[i], [p, t] = this.find(pid);
+    let out;
+    if (allow) { PST.approve(this.L, t, p, x.fee, this.L.rng);
+      this.notice(`${p.name} 메이저리그행 · 이적료 ${x.fee.toFixed(0)}억`, 'transfer');
+      out = { sent:true, name:p.name, fee:x.fee }; }
+    else { PST.refuse(p, this.L.year);
+      this.notice(`${p.name} 포스팅 불허`, 'transfer');
+      out = { sent:false, name:p.name }; }
+    this.postings.splice(i, 1);
+    if (!this.postings.length) { this.phase = OFF_ROLLOVER; this._finishPosting(); }
+    return out;
+  }
+  _finishPosting() { this._openForeign(); this.phase = OFF_FOREIGN; }
+  /** 남은 요청은 전부 붙잡는 것으로 본다. 답하지 않는 것도 답이다. */
+  finishPosting() {
+    if (this.phase !== OFF_POST) return { error:'wrong_phase' };
+    for (const x of this.postings || []) { const [p] = this.find(x.pid);
+      if (p) PST.refuse(p, this.L.year); }
+    this.postings = [];
+    this._finishPosting();
+    return { ok:true };
   }
   /* ── 병역 ────────────────────────────────────────────────
      1군에서 쓴 선수만 대표팀에 뽑히고, 금메달이면 커리어 2년이 돌아온다. */

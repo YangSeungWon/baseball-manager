@@ -523,6 +523,11 @@ function renderTop() {
           : '외국인 계약을 확정한다. 되돌릴 수 없다.';
         if (confirm(msg)) act(() => G.finishForeign());
       }, 'danger'); break;
+    case 'off_post':
+      btn('포스팅 요청', () => openPosting(), 'primary');
+      btn('전부 불허', () => { if (confirm('남은 요청을 모두 불허한다.'))
+        act(() => G.finishPosting()); }, 'quiet');
+      break;
     case 'off_comp': {
       const cb = G.compBoard();
       if (!cb.done) btn(cb.i_sign ? `보호 명단 (${cb.left})` : `보상 선택 (${cb.left})`,
@@ -1794,6 +1799,52 @@ function openComp() {
   };
   ok.onclick = () => done(b.i_sign ? G.compProtect([...compPick]) : G.compTake([...compPick][0]));
   const mb = $('#cpmoney'); if (mb) mb.onclick = () => done(G.compTake(null));
+}
+
+/* 포스팅.
+   자격은 선수의 것이지만 열쇠는 우리가 쥔다. 그래서 이건 결정이다.
+   보내면 돈이 들어오고 자리가 빈다. 붙잡으면 그가 그걸 기억한다. */
+function openPosting() {
+  const b = G.postingBoard();
+  if (!b.rows.length) return;
+  const p = b.rows[0];
+  modal(`
+    <div class="mhead"><div class="mhead-p">${avatar(p, capOf(G.state().user_team.name).color, 46)}
+      <div><h2>${esc(p.name)}</h2>
+      <div class="meta">${p.age} · ${p.slot} · KBO ${p.service}시즌</div></div></div>
+      <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack">
+      <p class="cpsay">${esc(josa(p.name, '이가'))} 메이저리그에 도전하고 싶다고 한다.
+        ${p.again ? `<b>${p.again + 1}번째다.</b>` : ''}
+        일곱 시즌을 채우기 전이라 <b>우리가 동의해야 갈 수 있다.</b></p>
+      <div class="grid g2">
+        <div>
+          <div class="kv"><span>능력</span>${axis(p.ovr, p.pot)}</div>
+          <div class="kv"><span>이적료</span><b class="m big">${esc(p.fee_text)}</b></div>
+          <div class="kv"><span>구단 예산</span><b class="m">${p.budget}억</b></div>
+          <div class="kv"><span>올해 연봉 총액</span><b class="m">${p.payroll}억</b></div>
+        </div>
+        <div class="pnote">
+          <p><b>보내면</b> 이적료가 들어오고 그 자리가 빈다.
+            서너 해 뒤 돌아올 수도 있다 — 그때는 미계약 신분이라 아무 팀에나 간다.</p>
+          <p><b>붙잡으면</b> 공짜가 아니다. 구단에 대한 정이 깎이고,
+            다음 겨울에 더 세게 말을 꺼낸다.</p>
+        </div>
+      </div>
+      <div class="trow">
+        <button id="pyes" class="primary">보낸다 (${esc(p.fee_text)})</button>
+        <button id="pno" class="danger">붙잡는다</button>
+      </div>
+    </div>`);
+  const done = (allow) => {
+    const r = G.postingAnswer(p.pid, allow);
+    closeModal(); autosave(); render();
+    if (r.sent) toast('포스팅 승인', `${r.name} · 이적료 ${r.fee.toFixed(0)}억`);
+    else toast('포스팅 불허', `${r.name}을(를) 붙잡았다`, 'warn');
+    if (G.postingBoard().rows.length) setTimeout(openPosting, 350);
+  };
+  $('#pyes').onclick = () => done(true);
+  $('#pno').onclick = () => done(false);
 }
 
 function viewDraft(v) {

@@ -29,7 +29,7 @@ function dumpPlayer(p) {
   if (ip) { d.throws = p.throws; d.role = p.role; d.ars = p.arsenal; }
   else { d.bats = p.bats; d.position = p.position; }
   if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(f3)];
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter'])
     if (p[o] !== undefined) d[o] = p[o];
   if (p.scout_consensus) {
     const attrs = dev.attrsOf(p);
@@ -45,7 +45,7 @@ function loadPlayer(d) {
   for (const f of (ip ? PF : BF)) p[f] = d[f] ?? 50;   // 예전 저장본에 없던 능력치
   p.pot = { ...d.pot }; p.hidden = { ...d.hid };
   p.contract = d.ct ? new C.Contract(d.ct[0], d.ct[1]) : null;
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter'])
     if (d[o] !== undefined) p[o] = d[o];
   if (d.sc) {
     const attrs = dev.attrsOf(p);
@@ -78,6 +78,7 @@ export function dump(game) {
   const live = {};
   for (const t of L.teams) for (const p of [...t.batters, ...t.pitchers, ...t.farm]) live[p.pid] = dumpPlayer(p);
   for (const p of L.unsigned) live[p.pid] = dumpPlayer(p);
+  for (const p of (L.abroad || [])) live[p.pid] = dumpPlayer(p);
   if (game.draftSession) for (const p of game.draftSession.available) live[p.pid] = dumpPlayer(p);
 
   const ghosts = {};
@@ -132,6 +133,8 @@ export function dump(game) {
           (c.kind==='B'?BAT_LINE:PIT_LINE).map(f => x.line[f] ?? 0), f3(x.war), x.age]),
       e: c.events.map(e => [e.year, e.text]), a: { ...c.awards }, r: c.retired_year })),
     unsigned: L.unsigned.map(p=>p.pid),
+    abroad: (L.abroad || []).map(p=>p.pid),
+    postings: game.postings || null,
     scouts: Object.fromEntries([...L.scouts].map(([tid,s]) => [tid, scoutDump(s)])),
     modes: Object.fromEntries(L.modes), recPct: Object.fromEntries(L.recPct),
     history: L.history.slice(-400), champions: L.champions,
@@ -183,6 +186,7 @@ export function load(data) {
   L.feats = (data.feats || []).map(a =>
     ({ y:a[0], d:a[1], k:a[2], pid:a[3], name:a[4], team:a[5], opp:a[6], v:a[7] }));
   L.unsigned = data.unsigned.map(pid => players.get(pid)).filter(Boolean);
+  L.abroad = (data.abroad || []).map(pid => players.get(pid)).filter(Boolean);
   L.modes = new Map(Object.entries(data.modes).map(([k,v]) => [+k, v]));
   L.recPct = new Map(Object.entries(data.recPct).map(([k,v]) => [+k, v]));
   L.draftLog = []; L.season = null; L.faLog = []; L.awardLog = data.awardLog || [];
@@ -255,6 +259,7 @@ export function load(data) {
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
   g.comps = (data.comps || []).map(c => ({ ...c, to: L.team(c.to), from: L.team(c.from),
     protected: c.prot || null }));
+  g.postings = data.postings || [];
   if (data.nego) {
     g.nego = new Negotiation(L, L.year, [], g.me);
     // 풀은 저장된 로스터에서 다시 세운다 — 계약이 끝난 선수가 곧 FA다
