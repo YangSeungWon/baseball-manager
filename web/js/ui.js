@@ -5,6 +5,7 @@ import { josa } from './core/mail.js';
 import * as save from './save.js';
 import * as card from './share.js';
 import * as BIP from './core/bip.js';
+import { PITCH } from './core/pitch.js';
 
 const KEY = 'dugout.save.v1', WKEY = 'dugout.watch';
 /* 경기를 어떻게 볼 것인가. 야구는 축구와 달리 장면이 끊어져 있어서
@@ -1940,6 +1941,51 @@ function modalSignings(r) {
 
 boot();
 
+/* ── 스트라이크 존 ──────────────────────────────────────────
+   문자중계에서 보던 그 그림. 존은 타자 키에 비례하고(ABS 전제),
+   공은 하나씩 날아와 앉는다. 색은 중계 관례를 따른다 —
+   스트라이크 노랑, 볼 초록. 헛스윙과 파울, 인플레이는 따로 표시한다. */
+// 옆 칸이 좁다. '스트라이크' 는 잘린다 — 중계 자막처럼 줄여 쓴다.
+const PITCH_RES = { S:['strike','스트'], B:['ball','볼'],
+  W:['whiff','헛'], F:['foul','파울'], X:['inplay','타구'] };
+
+function zoneSvg(seq, zh = 1) {
+  if (!seq || !seq.length) return '';
+  const W2 = 120, H2 = 150, CX = W2 / 2, CY = H2 / 2;
+  const HW = 30, HH = 30 * zh;                       // 존 반폭 · 반높이 (화면 단위)
+  const X = (x) => CX + x * HW, Y = (z) => CY - z * HH;
+  const dots = seq.map((q, i) => {
+    const [cls] = PITCH_RES[q.r] || ['ball', ''];
+    const x = X(q.x).toFixed(1), y = Y(q.z).toFixed(1);
+    return `<g class="pz-ball ${cls}" style="animation-delay:${i * 170}ms">
+      <circle class="pz-trail" cx="${x}" cy="${y}" r="9"/>
+      <circle class="pz-dot" cx="${x}" cy="${y}" r="6.5"/>
+      <text x="${x}" y="${(+y + 3.2).toFixed(1)}">${i + 1}</text>
+    </g>`;
+  }).join('');
+  return `<svg class="pz" viewBox="0 0 ${W2} ${H2}">
+    <rect class="pz-zone" x="${CX - HW}" y="${CY - HH}" width="${HW * 2}" height="${HH * 2}"/>
+    <line class="pz-grid" x1="${CX - HW / 3}" y1="${CY - HH}" x2="${CX - HW / 3}" y2="${CY + HH}"/>
+    <line class="pz-grid" x1="${CX + HW / 3}" y1="${CY - HH}" x2="${CX + HW / 3}" y2="${CY + HH}"/>
+    <line class="pz-grid" x1="${CX - HW}" y1="${CY - HH / 3}" x2="${CX + HW}" y2="${CY - HH / 3}"/>
+    <line class="pz-grid" x1="${CX - HW}" y1="${CY + HH / 3}" x2="${CX + HW}" y2="${CY + HH / 3}"/>
+    <path class="pz-plate" d="M${CX - 16} ${CY + HH + 16} L${CX + 16} ${CY + HH + 16}
+      L${CX + 12} ${CY + HH + 23} L${CX} ${CY + HH + 28} L${CX - 12} ${CY + HH + 23} Z"/>
+    ${dots}
+  </svg>`;
+}
+/** 던진 공 목록. 구종과 구속이 붙는다. */
+function zoneList(seq) {
+  if (!seq || !seq.length) return '';
+  return `<div class="pzlist">${seq.map((q, i) => {
+    const [cls, kr] = PITCH_RES[q.r] || ['ball', ''];
+    return `<div class="pzrow ${cls}"><span class="pzn">${i + 1}</span>
+      <span class="pzt">${(PITCH[q.t] && PITCH[q.t].kr) || q.t}</span>
+      <span class="pzv m">${q.v}</span>
+      <span class="pzr">${kr}</span></div>`;
+  }).join('')}</div>`;
+}
+
 /* ── 경기 재생 ────────────────────────────────────────────────
    시뮬레이션은 이미 끝났다. 여기서는 그 결과를 되짚어 보여줄 뿐이다.
    구장은 엔진과 같은 기하로 그린다. 타구는 실제로 간 곳에 떨어진다. */
@@ -2089,6 +2135,7 @@ function openReplay(box) {
             <div class="o"><span>O</span><i id="co0"></i><i id="co1"></i></div>
           </div>
         </div>
+        <div class="pzbox" id="rpZone"></div>
         <div class="rplog" id="rpLog"></div>
       </div>
     </div>
@@ -2107,6 +2154,10 @@ function openReplay(box) {
 
   function paint(p, animate) {
     const top = p.half === 'top';
+    const zb = $$('rpZone');
+    if (zb) zb.innerHTML = p.seq && p.seq.length
+      ? zoneSvg(p.seq, p.zh || 1) + zoneList(p.seq)
+      : '<div class="pzempty">투구 없음</div>';
     $$('rpInn').textContent = `${p.inning}회${top ? '초' : '말'}`;
     // ro는 공격 팀 득점이다. 어느 쪽이 공격인지에 따라 갈라 넣는다.
     $$('rpAwayR').textContent = top ? p.ro : p.rd;

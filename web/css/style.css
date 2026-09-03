@@ -1003,3 +1003,40 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .hl-crowd{text-align:center;font-size:13px;color:var(--fg3);padding-bottom:12px}
 .hl-crowd b{color:var(--fg2);margin:0 3px}
 .hl-crowd span{color:var(--fg3)}
+
+/* 스트라이크 존 — 문자중계에서 보던 그림 */
+.pzbox{display:flex;gap:12px;align-items:flex-start;background:var(--s1);
+  border-radius:2px;padding:10px 12px;margin-bottom:10px}
+.pz{width:120px;height:150px;flex-shrink:0}
+.pz-zone{fill:rgba(255,255,255,.035);stroke:var(--fg3);stroke-width:1.2}
+.pz-grid{stroke:var(--line);stroke-width:.7}
+.pz-plate{fill:none;stroke:var(--fg3);stroke-width:1.1}
+.pz-ball{animation:pzIn .26s cubic-bezier(.2,.8,.3,1) backwards}
+.pz-ball text{fill:#0b1119;font-family:var(--mono);font-size:7px;font-weight:700;
+  text-anchor:middle;pointer-events:none}
+.pz-trail{fill:currentColor;opacity:.18}
+.pz-dot{fill:currentColor}
+.pz-ball.strike{color:#e8c23a}      /* 스트라이크 — 노랑 */
+.pz-ball.ball{color:#4bb37b}        /* 볼 — 초록 */
+.pz-ball.whiff{color:#d85e5e}
+.pz-ball.foul{color:#8b98a6}
+.pz-ball.inplay{color:#f4f8fb}
+/* 공이 날아와 앉는다. 멀리서 크게 들어와 작아진다. */
+@keyframes pzIn{
+  from{opacity:0;transform:scale(2.6) translateY(-6px)}
+  60%{opacity:1}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+.pz-ball{transform-box:fill-box;transform-origin:center}
+.pzlist{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.pzrow{display:grid;grid-template-columns:14px 1fr auto 30px;gap:7px;align-items:baseline;
+  font-size:12px;color:var(--fg3);white-space:nowrap}
+.pzr{text-align:right}
+.pzn{font-family:var(--mono);color:var(--fg3);text-align:center}
+.pzt{color:var(--fg2)}
+.pzv{color:var(--fg2)}
+.pzv::after{content:'km';font-size:10px;color:var(--fg3);margin-left:2px}
+.pzrow.strike .pzr{color:#e8c23a} .pzrow.ball .pzr{color:#4bb37b}
+.pzrow.whiff .pzr{color:var(--neg)} .pzrow.inplay .pzr{color:var(--fg)}
+.pzempty{font-size:12px;color:var(--fg3)}
+@media(max-width:760px){ .pzbox{flex-wrap:wrap} }

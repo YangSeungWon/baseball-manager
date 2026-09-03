@@ -304,8 +304,11 @@ export const MGR = {
   // KBO 는 희생번트가 팀-경기당 0.42 다 (2026 10구단 SAC 485 / 팀-경기 1152).
   // 최적 전략이 아니라 실제 감독이 하는 만큼을 흉내낸다 — 무사 1루의 번트는
   // 기대득점을 깎지만 한 점 낼 확률은 올린다. 감독들은 그래서 댄다.
-  buntBase: 0.029, buntPower: -0.075, buntContact: 0.020,
+  buntBase: 0.036, buntPower: -0.075, buntContact: 0.020,
   buntLate: 0.055, buntClose: 0.045,
+  // 점수차가 벌어지면 번트는 의미를 잃는다. 뒤지면 한 점으로 안 되고,
+  // 앞서면 굳이 아웃을 줄 이유가 없다. 3점차부터 급격히 줄어든다.
+  buntBlowout: 0.42,
   buntSucceed: 0.760, buntHit: 0.110, buntForce: 0.090,
   pinchBase: 0.240, pinchGap: 0.055, pinchLate: 0.10,
   ibbBase: 0.070, ibbGap: 0.055,
@@ -324,8 +327,10 @@ function tryBunt(bases, outs, off, defn, inning, rng) {
   if (!onFirst && !onSecond) return null;
   const b = off.order[off.spot];
   const diff = off.runs - defn.runs;
+  const ad = Math.abs(diff);
   let p = MGR.buntBase + MGR.buntPower * z(b.hr_power) + MGR.buntContact * z(b.contact)
-    + (inning >= 7 ? MGR.buntLate : 0) + (Math.abs(diff) <= 1 ? MGR.buntClose : 0);
+    + (inning >= 7 ? MGR.buntLate : 0) + (ad <= 1 ? MGR.buntClose : 0);
+  if (ad >= 3) p *= Math.pow(MGR.buntBlowout, ad - 2);
   if (outs === 1) p *= 0.55;
   p *= tmul(tac(off.team, 'bunt'));
   if (rng.random() >= Math.max(0, p)) return null;
@@ -669,6 +674,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                  pitcher: pl.p.name, desc, runs, outs, ro: off.runs, rd: defn.runs,
                  b: pc.b, s: pc.s, np: pc.np, pt: pc.type, velo: pc.velo,
                  px: r2(pc.px), pz: r2(pc.pz),
+                 seq: pc.seq, zh: pc.zh,        // 그 타석에 던진 공들. 존 그림이 이걸 쓴다.
                  zone: ball ? ball.zone : null, bbt,
                  ang: ball ? r2(ball.angle) : null, dep: ball ? r2(ball.depth) : null,
                  pos: play ? play.pos : null,

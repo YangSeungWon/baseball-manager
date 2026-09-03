@@ -98,6 +98,11 @@ export function playCount(bat, pit, ctx, rng) {
 
   let b = 0, s = 0, np = 0, f = 0;
   const events = [];                                   // 폭투·포일 등 타석 밖 사건
+  // 공 하나하나의 자리. 존 그림을 그리려면 마지막 공만으로는 안 된다.
+  //   x,z 존 반폭을 1 로 둔 좌표 · t 구종 · v 구속 · r 결과
+  const seq = [];
+  const log = (r, x, z, t) => seq.push({ x: +x.toFixed(2), z: +z.toFixed(2),
+                                         t, v: kmh(pit, t), r });
   for (;;) {
     np++;
     const two = s >= 2, three = b >= 3;
@@ -130,8 +135,9 @@ export function playCount(bat, pit, ctx, rng) {
           + PC.swOFirst * early) * Math.exp(-PC.swODecay * out));
 
     if (rng.random() >= pSwing) {                      // 지켜봤다
-      if (inZone) { TALLY.called++; if (++s >= 3) return done(K); }
+      if (inZone) { TALLY.called++; log('S', px, pz, type); if (++s >= 3) return done(K); }
       else {
+        log('B', px, pz, type);
         TALLY.ball++;
         if (dirt) { TALLY.dirt++; events.push({ e: 'dirt', type, wild: pz < -1.02 }); }
         else if (rng.random() < PC.hbpPerBall * (out > 1.2 ? PC.hbpInside : 1))
@@ -148,7 +154,7 @@ export function playCount(bat, pit, ctx, rng) {
       + PC.ctWhiff * (P.whiff - 1) + (two ? PC.ctTwoStrike : 0))
       * Math.exp(-PC.ctDecay * out));
     if (rng.random() >= pCt) {
-      TALLY.whiff++;
+      TALLY.whiff++; log('W', px, pz, type);                          // 헛스윙
       if (++s >= 3) return done(K, { swinging: true, dirt, wild: pz < -1.02 });
       continue;
     }
@@ -158,7 +164,7 @@ export function playCount(bat, pit, ctx, rng) {
     const pFoul = clamp(PC.foulBase + (two ? PC.foulTwoStrike : 0)
       + (inZone ? 0 : PC.foulOut) + PC.foulContact * zct);
     if (rng.random() < pFoul) {
-      TALLY.foul++; f++;
+      TALLY.foul++; f++; log('F', px, pz, type);
       if (rng.random() < PC.foulCatchable * (ctx.foulTerr ?? 1)) {
         const dir = pickFoul(rng);
         const fd = ctx.byPos && ctx.byPos[dir];
@@ -170,7 +176,7 @@ export function playCount(bat, pit, ctx, rng) {
     }
 
     // 5. 인플레이. 이 공의 코스와 카운트가 타구의 질을 정한다.
-    TALLY.inplay++;
+    TALLY.inplay++; log('X', px, pz, type);                           // 인플레이
     const quality = clamp(0.5 + PC.qCenter * Math.max(0, 1 - mid) + PC.qEdge * out
       + (b - s >= 1 ? PC.qAhead : 0) + (two ? PC.qTwoStrike : 0)
       + cb * 0.035 + rng.gauss(0, PC.qSd), 0.02, 0.98);
@@ -178,7 +184,7 @@ export function playCount(bat, pit, ctx, rng) {
 
     function done(res, extra) {
       return { res, b, s, np, f, events, type, velo: kmh(pit, type),
-               px, pz, inZone, ...extra };
+               px, pz, inZone, zh: zH, seq, ...extra };
     }
   }
 }
