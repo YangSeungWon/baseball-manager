@@ -562,71 +562,72 @@ function highlightsOf(box) {
 }
 function openHighlights(box, onDone) {
   const H = highlightsOf(box), aw = box.away, hm = box.home;
-  const loud = box.crowd && box.cap ? box.crowd / box.cap : 0.6;   // 관중석이 얼마나 찼나
-  const scoreLine = (a, h) => `<span>${esc(short(aw.team))}</span><b class="m">${a}</b>
-      <i>:</i><b class="m">${h}</b><span>${esc(short(hm.team))}</span>`;
-  if (!H.length) return finish();
+  const loud = box.crowd && box.cap ? box.crowd / box.cap : 0.6;
+  if (!gsState) openGameShell(aw.team, hm.team, box.park, box.crowd, box.cap);
+  if (!H.length) return gsResult(box, onDone);
 
   let i = -1, timer = null;
-  modal(`<div class="mhead"><div><h2>경기 하이라이트</h2>
-      <div class="meta" id="hlMeta">${esc(short(aw.team))} @ ${esc(short(hm.team))}</div></div>
-    <button id="hlSkip" class="quiet">건너뛰기</button></div>
-    <div class="mbody hl">
-      <div class="hl-score" id="hlScore">${scoreLine(0, 0)}</div>
+  gsBody(`<div class="hl">
       ${box.crowd ? `<div class="hl-crowd">${esc(short(hm.team))} 홈 ·
         관중 <b class="m">${box.crowd.toLocaleString()}</b>
         <span>${Math.round(loud * 100)}%</span></div>` : ''}
       <div class="hl-log" id="hlLog"></div>
+      <div class="hl-btn"><button class="quiet" id="hlSkip">건너뛰기</button></div>
     </div>`);
-  const $$ = (id) => document.getElementById(id);
   const step = () => {
     i++;
-    if (i >= H.length) { clearInterval(timer); return finish(); }
+    if (i >= H.length) { clearInterval(timer); return gsResult(box, onDone); }
     const p = H[i], top = p.half === 'top';
-    $$('hlMeta').textContent = `${p.inning}회${top ? '초' : '말'} · ${p.outs}아웃`;
-    $$('hlScore').innerHTML = scoreLine(top ? p.ro : p.rd, top ? p.rd : p.ro);
-    // 공격하는 쪽 색으로 물든다. 홈 팀이 치면 관중석이 따라 붙는다.
+    gsScore({ a: top ? p.ro : p.rd, h: top ? p.rd : p.ro,
+              inn: p.inning, half: p.half, outs: p.outs });
     const atk = top ? aw.team : hm.team, cp = capOf(atk);
-    document.querySelector('.hl').style.setProperty('--tc', cp.color);
+    const log = document.getElementById('hlLog');
+    log.style.setProperty('--tc', cp.color);
     const row = el('div', 'hlrow');
     row.innerHTML = `<span class="hi">${p.inning}회${top ? '초' : '말'}</span>
       <span class="ht"><b>${esc(p.batter || '')}</b> ${esc(p.desc || '')}</span>
       ${p.runs ? `<span class="hr2">+${p.runs}</span>` : ''}`;
-    $$('hlLog').appendChild(row);
+    log.appendChild(row);
     // 홈 팀의 득점이면 응원석이 받는다. 사람이 많을수록 진하다.
     if (!top && p.batter && loud > 0.45) {
       const c = el('div', 'chant');
       c.style.setProperty('--tc', cp.color);
       c.style.opacity = (0.45 + loud * 0.55).toFixed(2);
       c.textContent = chantFor(p.batter, p.inning, hm.team);
-      $$('hlLog').appendChild(c);
+      log.appendChild(c);
     }
     row.scrollIntoView({ block: 'nearest' });
   };
-  function finish() {
-    if (timer) clearInterval(timer);
-    closeModal();
-    lastBox = box;
-    modal(`<div class="mhead"><div><h2>경기 결과</h2>
-        <div class="meta">${aw.runs > hm.runs ? esc(short(aw.team)) : esc(short(hm.team))} 승</div></div>
-      <button id="mx" class="quiet">닫기</button></div>
-      <div class="mbody hl">
-        <div class="hl-score big">${scoreLine(aw.runs, hm.runs)}</div>
-        <div class="hl-line">
-          <div><span>${esc(short(aw.team))}</span><b class="m">${aw.hits}안타</b></div>
-          <div><span>${esc(short(hm.team))}</span><b class="m">${hm.hits}안타</b></div>
-        </div>
-        <div class="hl-btn">
-          <button class="go" id="hlFull">경기 전체 보기</button>
-          <button class="quiet" id="hlClose">넘어가기</button>
-        </div>
-      </div>`);
-    $$('hlFull').onclick = () => { closeModal(); openReplay(box); };
-    $$('hlClose').onclick = () => { closeModal(); if (onDone) onDone(); };
-  }
-  $$('hlSkip').onclick = finish;
+  document.getElementById('hlSkip').onclick = () => {
+    clearInterval(timer); gsResult(box, onDone);
+  };
   step();
   timer = setInterval(step, 1400);
+}
+
+/** 경기가 끝났다. 같은 화면 안에서 결과로 바뀐다. */
+function gsResult(box, onDone) {
+  const aw = box.away, hm = box.home;
+  lastBox = box;
+  if (!gsState) openGameShell(aw.team, hm.team, box.park, box.crowd, box.cap);
+  gsScore({ a: aw.runs, h: hm.runs, inn: null, outs: null });
+  document.getElementById('gsInn').textContent = '경기 종료';
+  gsBody(`<div class="gs-res">
+      <div class="gs-final">
+        <span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
+        <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span>
+      </div>
+      <div class="hl-line">
+        <div><span>${esc(short(aw.team))}</span><b class="m">${aw.hits}안타</b></div>
+        <div><span>${esc(short(hm.team))}</span><b class="m">${hm.hits}안타</b></div>
+      </div>
+      <div class="hl-btn">
+        <button class="go" id="gsFull">경기 전체 보기</button>
+        <button class="quiet" id="gsDone">구단으로</button>
+      </div>
+    </div>`);
+  document.getElementById('gsFull').onclick = () => openReplay(box);
+  document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };
 }
 
 function report(r) {
@@ -1716,16 +1717,59 @@ function modalInfo() {
    지켜보기로 한 사람에게 판단을 안 물을 이유도 없다. */
 function nextDay() {
   if (watchMode === 'result') return act(() => report(G.advance(1)));
+  const sch = G.schedule(1).rows[0];
+  if (!sch) return act(() => report(G.advance(1)));
+  const me = G.state().user_team.name;
+  openGameShell(sch.is_home ? sch.opponent : me, sch.is_home ? me : sch.opponent);
+  gsBody('<div class="gs-wait">경기가 시작된다</div>');
   watchDay();
 }
+
+/* ── 경기 화면 ─────────────────────────────────────────────
+   구단을 운영하는 화면과 경기를 보는 화면, 이 게임에는 크게 둘뿐이다.
+   그런데 경기 쪽이 창 넷으로 흩어져 있었다 — 승부처 · 하이라이트 ·
+   결과 · 재생이 각각 열고 닫히며 스코어보드를 세 번 다시 그렸다.
+   껍데기를 하나 두고 그 안에서 상태만 바꾼다. */
+let gsState = null;
+
+function openGameShell(aw, hm, park, crowd, cap) {
+  gsState = { aw, hm, park, crowd, cap };
+  modal(`<div class="gs">
+    <div class="gs-top">
+      <div class="gs-teams">
+        <span class="gs-t away">${jersey(franchiseOf(aw), true, 30)}
+          <b>${esc(short(aw))}</b><em id="gsA">0</em></span>
+        <span class="gs-t home">${jersey(franchiseOf(hm), false, 30)}
+          <b>${esc(short(hm))}</b><em id="gsH">0</em></span>
+      </div>
+      <div class="gs-sit"><span id="gsInn">경기 준비</span>
+        <span class="gs-cnt" id="gsCnt"></span></div>
+      <button id="gsX" class="quiet gs-out"><span>구단으로</span><i>나가기</i></button>
+    </div>
+    <div class="gs-body" id="gsBody"></div>
+  </div>`, true);
+  document.getElementById('gsX').onclick = closeGame;
+}
+function gsScore({ a, h, inn, half, outs, b, s }) {
+  const q = (id) => document.getElementById(id);
+  if (a != null && q('gsA')) q('gsA').textContent = a;
+  if (h != null && q('gsH')) q('gsH').textContent = h;
+  if (inn && q('gsInn')) q('gsInn').textContent = `${inn}회${half === 'top' ? '초' : '말'}`;
+  // 기록의 아웃카운트는 그 플레이 '뒤' 값이라 3 이 나온다. 그때는 이닝이 끝난 것이다.
+  if (q('gsCnt')) q('gsCnt').textContent = outs == null ? ''
+    : (outs >= 3 ? '이닝 종료' : `${b != null ? `${b}B ${s}S ` : ''}${outs}아웃`);
+}
+const gsBody = (html) => { const e = document.getElementById('gsBody');
+  if (e) e.innerHTML = html; return e; };
+function closeGame() { gsState = null; closeModal(); }
 
 /* ── 승부처 ───────────────────────────────────────────────────
    하루를 지켜본다. 감독이 실제로 손을 쓰는 순간에만 멈춰 선다.
    여기서 고른 것은 진짜로 경기 결과를 바꾼다 — 재생이 아니라 진행 중인 경기다. */
 function watchDay() {
   const w = G.watchDay();
-  if (w.error) return;
-  const finish = (r) => { closeModal(); autosave(); render(); report(r.result); };
+  if (w.error) { closeGame(); return; }
+  const finish = (r) => { autosave(); render(); report(r.result); };
   const go = (answer) => {
     const r = w.step(answer);
     if (r.done) return finish(r);
@@ -1765,12 +1809,12 @@ function askMoment(m, go, bail) {
         <button data-a='{"yes":false}'>승부한다</button></div>`,
   }[m.kind])();
 
-  modal(`<div class="mhead"><div><h2>${title}</h2>
-      <div class="meta">${m.inning}회${half} · ${m.outs}아웃</div></div></div>
-    <div class="mbody clutch">
+  // 스코어보드는 껍데기가 들고 있다. 여기서는 물어볼 것만 그린다.
+  gsScore({ a: m.half === 'top' ? m.ours : m.theirs, h: m.half === 'top' ? m.theirs : m.ours,
+            inn: m.inning, half: m.half, outs: m.outs });
+  gsBody(`<div class="clutch">
+      <div class="gs-q">${title}</div>
       <div class="csit">
-        <div class="cscore"><span>${esc(short(m.us))}</span><b>${m.ours}</b>
-          <i>–</i><b>${m.theirs}</b><span>${esc(short(m.them))}</span></div>
         <div class="cbase">${on.length ? on.map(x => `<span>${x}</span>`).join('')
           : '<span class="dim">주자 없음</span>'}</div>
         ${m.pitcher ? `<div class="cpit">투수 ${esc(m.pitcher)}</div>` : ''}
@@ -1785,16 +1829,19 @@ function askMoment(m, go, bail) {
   // 닫기(배경 클릭·Esc)는 취소가 아니라 위임이다
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') bail(); };
   document.onkeydown = (e) => { if (e.key === 'Escape') bail(); };
+  const x = document.getElementById('gsX'); if (x) x.onclick = bail;
 }
 
 
-function modal(html) {
+function modal(html, full = false) {
+  $('#modal').classList.toggle('full', !!full);
   $('#modalBody').innerHTML = html; $('#modal').hidden = false;
   const x = $('#mx'); if (x) x.onclick = closeModal;
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
   document.onkeydown = (e) => { if (e.key === 'Escape') closeModal(); };
 }
-function closeModal() { $('#modal').hidden = true; document.onkeydown = null; }
+function closeModal() { $('#modal').hidden = true; $('#modal').classList.remove('full');
+  document.onkeydown = null; }
 
 const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구안', gap_power:'갭파워',
   hr_power:'파워', speed:'주력', fielding:'수비', stuff:'구위', command:'제구',
@@ -1963,7 +2010,7 @@ function zoneSvg(seq, zh = 1) {
       <text x="${x}" y="${(+y + 3.2).toFixed(1)}">${i + 1}</text>
     </g>`;
   }).join('');
-  return `<svg class="pz" viewBox="0 0 ${W2} ${H2}">
+  return `<svg class="pz" viewBox="0 32 ${W2} 112">
     <rect class="pz-zone" x="${CX - HW}" y="${CY - HH}" width="${HW * 2}" height="${HH * 2}"/>
     <line class="pz-grid" x1="${CX - HW / 3}" y1="${CY - HH}" x2="${CX - HW / 3}" y2="${CY + HH}"/>
     <line class="pz-grid" x1="${CX + HW / 3}" y1="${CY - HH}" x2="${CX + HW / 3}" y2="${CY + HH}"/>
@@ -2100,17 +2147,8 @@ function openReplay(box) {
   if (!P.length) return;
   let i = 0, timer = null, speed = 1;
 
-  modal(`<div class="rp">
-    <div class="rphead">
-      <div class="rpteams">
-        <span class="rpt">${jersey(franchiseOf(box.away.team), true, 34)}
-          <b id="rpAwayN">${esc(short(box.away.team))}</b><em id="rpAwayR">0</em></span>
-        <span class="rpt">${jersey(franchiseOf(box.home.team), false, 34)}
-          <b id="rpHomeN">${esc(short(box.home.team))}</b><em id="rpHomeR">0</em></span>
-      </div>
-      <div class="rpinn" id="rpInn">1회초</div>
-      <button id="mx" class="quiet">닫기</button>
-    </div>
+  if (!gsState) openGameShell(box.away.team, box.home.team, box.park, box.crowd, box.cap);
+  gsBody(`<div class="rp">
     <div class="rpbody">
       <div class="rpfield">${fieldSvg(box.park, capOf(box.home.team).color,
         box.crowd && box.cap ? box.crowd / box.cap : null)}
@@ -2129,11 +2167,6 @@ function openReplay(box) {
             <rect class="db" id="db1" x="44" y="24" width="12" height="12" transform="rotate(45 50 30)"/>
             <rect class="db home" x="24" y="44" width="12" height="12" transform="rotate(45 30 50)"/>
           </svg>
-          <div class="cnt">
-            <div><span>B</span><i id="cb0"></i><i id="cb1"></i><i id="cb2"></i></div>
-            <div><span>S</span><i id="cs0"></i><i id="cs1"></i></div>
-            <div class="o"><span>O</span><i id="co0"></i><i id="co1"></i></div>
-          </div>
         </div>
         <div class="pzbox" id="rpZone"></div>
         <div class="rplog" id="rpLog"></div>
@@ -2158,20 +2191,13 @@ function openReplay(box) {
     if (zb) zb.innerHTML = p.seq && p.seq.length
       ? zoneSvg(p.seq, p.zh || 1) + zoneList(p.seq)
       : '<div class="pzempty">투구 없음</div>';
-    $$('rpInn').textContent = `${p.inning}회${top ? '초' : '말'}`;
-    // ro는 공격 팀 득점이다. 어느 쪽이 공격인지에 따라 갈라 넣는다.
-    $$('rpAwayR').textContent = top ? p.ro : p.rd;
-    $$('rpHomeR').textContent = top ? p.rd : p.ro;
+    // 스코어보드는 껍데기가 들고 있다. ro 는 공격 팀 득점이라 갈라 넣는다.
+    gsScore({ a: top ? p.ro : p.rd, h: top ? p.rd : p.ro,
+              inn: p.inning, half: p.half, outs: p.outs, b: p.b, s: p.s });
     $$('rpPit').textContent = p.pitcher || '—';
     $$('rpBat').textContent = p.batter || '—';
     $$('rpPitch').innerHTML = p.pt
       ? `<b>${PT_KR[p.pt] || p.pt}</b>${p.velo ? `<span>${p.velo}<i>km/h</i></span>` : ''}` : '—';
-    for (let k = 0; k < 3; k++)
-      $$('cb' + k).classList.toggle('on', (p.b ?? 0) > k);
-    for (let k = 0; k < 2; k++)
-      $$('cs' + k).classList.toggle('on', (p.s ?? 0) > k);
-    for (let k = 0; k < 2; k++)
-      $$('co' + k).classList.toggle('on', (p.outs ?? 0) > k);
     const bs = p.base || [null, null, null];
     for (let k = 0; k < 3; k++) $$('db' + (k + 1)).classList.toggle('on', !!bs[k]);
     document.querySelectorAll('.fm').forEach(e =>
@@ -2230,7 +2256,7 @@ function openReplay(box) {
   $$('rpPlay').onclick = () => (timer ? stop() : start());
   $$('rpPrev').onclick = () => { stop(); go(i - 1, false); };
   $$('rpNext').onclick = () => { stop(); go(i + 1); };
-  $$('rpEnd').onclick = () => { stop(); go(P.length - 1, false); };
+  $$('rpEnd').onclick = () => { stop(); gsResult(box); };
   document.querySelectorAll('.rpspd button').forEach(b => b.onclick = () => {
     speed = +b.dataset.s;
     document.querySelectorAll('.rpspd button').forEach(x => x.classList.toggle('on', x === b));
