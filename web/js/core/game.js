@@ -11,6 +11,9 @@ const PC_FATIGUE_S = PACOEF.fatigueStuff, PC_FATIGUE_C = PACOEF.fatigueCommand;
 export const MISC = {
   blockBase: 0.845, blockDef: 0.055,      // 포수가 원바운드를 막을 확률
   d3Reach: 0.60, d3Arm: -0.070, d3Speed: 0.055,   // 낫아웃으로 살아나갈 확률
+  // 구원은 한두 이닝만 던지니 아낄 이유가 없다. 공이 빠르고 힘이 실린다.
+  // 대신 용량이 짧아 금방 지친다 — 그건 relieverCapacity 가 이미 한다.
+  reliefStuff: 0.16, reliefCommand: 0.12, reliefVelo: 2,
   balk: 0.0025,                           // 주자 있을 때 타석당
   // 견제. 1루 주자가 있을 때만. 대부분은 아무 일도 없지만 가끔 잡히고,
   // 가끔은 던진 공이 흘러 주자가 그냥 한 베이스를 간다.
@@ -61,10 +64,15 @@ const pitLine = (p) => ({ p, outs:0,bf:0,h:0,hr:0,bb:0,k:0,r:0,er:0,np:0,hbp:0,w
 
 export const starterCapacity = (p) => 9.0 + 0.15 * p.stamina;
 export const relieverCapacity = (p) => 3.0 + 0.045 * p.stamina;
+/* 피로는 상대한 타자 수가 아니라 던진 공으로 쌓인다.
+   한 이닝을 8구로 막은 투수와 25구로 막은 투수는 같지 않다.
+   그래서 파울로 투구수를 늘리는 것이 실제로 투수를 끌어내린다.
+   평균 타자당 3.75구라 기존 용량을 그대로 환산해 쓴다. */
+const PER_PA = 3.75;
 function fatigueOf(line, isStarter) {
-  const cap = isStarter ? starterCapacity(line.p) : relieverCapacity(line.p);
-  const span = isStarter ? 10.0 : 4.0;
-  return Math.max(0, Math.min(1.5, (line.bf - cap) / span));
+  const cap = (isStarter ? starterCapacity(line.p) : relieverCapacity(line.p)) * PER_PA;
+  const span = (isStarter ? 10.0 : 4.0) * PER_PA;
+  return Math.max(0, Math.min(1.5, (line.np - cap) / span));
 }
 
 class TeamGameState {
@@ -552,8 +560,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     const tto = Math.floor(pl.bf / 9);          // 타순이 한 바퀴 돌 때마다 불리해진다
     // 이닝 중간에 올라온 투수는 처음 세 타자 동안 덜 풀린 값으로 던진다.
     const cold = pl.cold ? COLD.hit * Math.max(0, 1 - pl.bf / COLD.span) : 0;
-    const ctx = { cStuff: PC_FATIGUE_S * fat - 0.13 * tto - cold,
-                  cCommand: PC_FATIGUE_C * fat + 0.06 * tto - cold * 0.8,
+    const relief = pl !== defn.pitchers[0];
+    const ctx = { cStuff: PC_FATIGUE_S * fat - 0.13 * tto - cold
+                    + (relief ? MISC.reliefStuff : 0),
+                  cCommand: PC_FATIGUE_C * fat + 0.06 * tto - cold * 0.8
+                    + (relief ? MISC.reliefCommand : 0),
+                  effort: relief ? MISC.reliefVelo : 0,
                   byPos: defn.byPos };
     // 보크. 주자가 있을 때만.
     if (bases.occupied() && rng.random() < MISC.balk) {

@@ -101,8 +101,9 @@ export function playCount(bat, pit, ctx, rng) {
   // 공 하나하나의 자리. 존 그림을 그리려면 마지막 공만으로는 안 된다.
   //   x,z 존 반폭을 1 로 둔 좌표 · t 구종 · v 구속 · r 결과
   const seq = [];
+  const eff = ctx.effort || 0;                       // 전력투구면 구속이 붙는다
   const log = (r, x, z, t) => seq.push({ x: +x.toFixed(2), z: +z.toFixed(2),
-                                         t, v: kmh(pit, t), r });
+                                         t, v: kmh(pit, t) + eff, r });
   for (;;) {
     np++;
     const two = s >= 2, three = b >= 3;
@@ -183,7 +184,7 @@ export function playCount(bat, pit, ctx, rng) {
     return done(IN_PLAY, { quality, gbBias: P.gb });
 
     function done(res, extra) {
-      return { res, b, s, np, f, events, type, velo: kmh(pit, type),
+      return { res, b, s, np, f, events, type, velo: kmh(pit, type) + eff,
                px, pz, inZone, zh: zH, seq, ...extra };
     }
   }
