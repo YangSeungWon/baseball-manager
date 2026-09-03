@@ -31,6 +31,23 @@ export function makeSchedule(nTeams, gamesPerTeam, rng) {
   return sched;
 }
 
+/* 달력.
+   경기 일수만으로는 한 달을 돌아볼 수 없다. 실제 KBO처럼 3월 마지막 토요일에
+   열고 월요일마다 쉰다 — 그러면 144경기가 24주에 딱 맞는다. */
+export function seasonDates(year, totalDays) {
+  const cur = new Date(Date.UTC(year, 2, 31));
+  while (cur.getUTCDay() !== 6) cur.setUTCDate(cur.getUTCDate() - 1);
+  const out = [], half = Math.round(totalDays * 0.62);   // 7월 한복판에 놓이도록
+  let brk = 0;
+  while (out.length < totalDays) {
+    // 7월 한복판에 올스타 브레이크가 있다
+    if (out.length === half && brk < 4) { brk++; cur.setUTCDate(cur.getUTCDate() + 1); continue; }
+    if (cur.getUTCDay() !== 1) out.push(new Date(cur.getTime()));
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
 export const BAT_LINE = ['g','pa','ab','h','b2','b3','hr','bb','k','rbi','r','sb','cs','hbp','sh'];
 export const PIT_LINE = ['g','gs','outs','bf','h','hr','bb','k','r','er','np','w','l','sv','hld','hbp'];
 
@@ -110,6 +127,12 @@ export class Season {
     this.postponed = []; this.rained = [];   // 연기된 경기와 그 기록
     this.availDay = new Map(); this.lastUsed = new Map(); this.consec = new Map();
     this.att = new Map(teams.map(t => [t.team_id, { games: 0, total: 0 }]));
+  }
+  /** 경기 일차 → 달력 날짜. */
+  get dates() {
+    if (!this._dates || this._dates.length !== this.totalDays)
+      this._dates = seasonDates(this.year, this.totalDays);
+    return this._dates;
   }
   get totalDays() { return this.byDay.size ? Math.max(...this.byDay.keys()) + 1 : 0; }
   get finished() { return this.curDay >= this.totalDays; }

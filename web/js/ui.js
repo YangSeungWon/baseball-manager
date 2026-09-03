@@ -764,6 +764,51 @@ const KIND_KO = (k) => ({ injury:'부상', ret:'복귀', milestone:'기록', own
 const formStrip = (arr) => `<span class="form">${arr.map(r =>
   `<b class="${r === 'W' ? 'w' : r === 'D' ? 'd' : ''}"></b>`).join('')}</span>`;
 
+let calMonth = null;
+/* 한 달치 달력. 날짜·상대·스코어, 그리고 그 달이 무엇이었는지.
+   경기는 흘러가는데 돌아볼 자리가 없으면 시즌이 기억에 남지 않는다. */
+function monthSection(v) {
+  const b = G.monthBoard(calMonth);
+  if (!b.weeks.length) return;
+  const D = ['일','월','화','수','목','금','토'];
+  const cell = (c) => {
+    if (!c) return '<div class="cd off"></div>';
+    if (!c.opp) return `<div class="cd rest"><i>${c.date}</i></div>`;
+    if (c.future) return `<div class="cd fut"><i>${c.date}</i>
+      <b>${esc(c.opp.slice(0, 2))}</b><span class="ha">${c.home ? '홈' : '원정'}</span></div>`;
+    if (c.rained) return `<div class="cd rain"><i>${c.date}</i>
+      <b>${c.home ? '' : '@'}${esc(c.opp.slice(0, 2))}</b><s>우천</s></div>`;
+    return `<div class="cd ${c.result === 'W' ? 'win' : c.result === 'L' ? 'lose' : 'tie'}">
+      <i>${c.date}</i><b>${c.home ? '' : '@'}${esc(c.opp.slice(0, 2))}</b>
+      <s>${c.score}</s></div>`;
+  };
+  const sm = b.summary;
+  const head = `<div class="calbar">${b.months.map(m =>
+    `<button data-mon="${m}" class="${m === b.month ? 'on' : ''}">${m}월</button>`).join('')}</div>`;
+  const grid = `<div class="cal"><div class="calhd">${D.map((d, i) =>
+      `<span class="${i === 0 ? 'sun' : ''}">${d}</span>`).join('')}</div>
+    ${b.weeks.map(wk => `<div class="calrow">${wk.map(cell).join('')}</div>`).join('')}</div>`;
+  const rankMove = sm && sm.rank_from !== sm.rank_to
+    ? ` · ${sm.rank_from}위 → <b>${sm.rank_to}위</b>` : sm ? ` · ${sm.rank_to}위` : '';
+  const tot = sm ? `<div class="monsum">
+      <b class="big">${sm.w}승 ${sm.l}패${sm.t ? ` ${sm.t}무` : ''}</b>
+      <span class="m">${sm.pct.toFixed(3)}</span>${rankMove}
+      <i>홈 ${sm.home} · 원정 ${sm.away} · 득실 ${sm.rf}–${sm.ra}${
+        sm.streak_w >= 3 ? ` · 최다 ${sm.streak_w}연승` : ''}${
+        sm.streak_l >= 3 ? ` · ${sm.streak_l}연패` : ''}</i>
+    </div>` : '';
+  const notes = [
+    ...b.feats.map(f => `<span class="chip good">${f.date}일 ${esc(f.name)} ${esc(f.label)}</span>`),
+    ...b.injuries.map(f => `<span class="chip bad">${f.date}일 ${esc(f.name)} 부상 ${f.days}일</span>`)];
+  const w = sect(`${b.month}월`, `${b.year}`, head + grid + tot
+    + (notes.length ? `<div class="lab" style="margin-top:14px">그 달의 일</div>
+        <div class="chips">${notes.join('')}</div>` : ''));
+  v.appendChild(w);
+  w.querySelectorAll('[data-mon]').forEach(b2 => b2.onclick = () => {
+    calMonth = +b2.dataset.mon; render();
+  });
+}
+
 function viewHome(v) {
   const s = G.state();
   const st = G.standings().rows;
@@ -812,6 +857,8 @@ function viewHome(v) {
     </div>`));
     v.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { setWatch(b.dataset.w); render(); });
   }
+
+  if (s.phase === 'regular' && s.day > 0) monthSection(v);
 
   const g = el('div', 'grid g21');
   const left = el('div', 'grid');
@@ -885,9 +932,15 @@ function viewHome(v) {
   const right = el('div', 'grid');
   let table_st = st, stTitle = '순위';
   if (!table_st.length) { const ls = G.lastStandings(); table_st = ls.rows; stTitle = `${ls.year} 최종 순위`; }
-  if (table_st.length) right.appendChild(sect(stTitle, '', table(['팀','W','L','PCT','GB'],
+  // 하루가 지나면 순위가 움직인다. 그 움직임이 보여야 하루를 넘긴 보람이 있다.
+  const mv = (n) => !n ? '<span class="mv flat">–</span>'
+    : n > 0 ? `<span class="mv up">▲${n}</span>` : `<span class="mv dn">▼${-n}</span>`;
+  const hasMove = table_st.some(r => r.move);
+  if (table_st.length) right.appendChild(sect(stTitle, '',
+    table(['팀', ...(hasMove ? [''] : []), 'W','L','PCT','GB'],
     table_st.map(r => ({ _cls: r.is_user ? 'me' : '', team_id: r.team_id, cells: [
       (r.playoff ? '<span class="mark">★</span> ' : '　') + esc(short(r.team)),
+      ...(hasMove ? [mv(r.move || 0)] : []),
       `<span class="m">${r.w}</span>`, `<span class="m">${r.l}</span>`,
       `<span class="m">${r.pct}</span>`,
       `<span class="m dim">${r.gb ?? '-'}</span>`] })), (row) => openTeam(row.team_id))));

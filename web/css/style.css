@@ -1170,7 +1170,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .nhd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .nhd b{font-size:15px}
 .mood{margin-left:auto;font-size:12px;color:var(--fg3)}
-.mood.bad{color:var(--warn)} .mood.good{color:var(--good)}
+.mood.bad{color:var(--neg)} .mood.good{color:var(--pos)}
 .ndem{margin:10px 0 12px;color:var(--fg);font-size:14px;line-height:1.5}
 .ndem.big{font-size:17px;line-height:1.6;margin:0}
 .nfoot{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1186,3 +1186,43 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .tgl.on{background:var(--accent);color:#fff}
 .trow{display:flex;gap:8px}
 .row.mine{color:var(--accent)}
+
+/* 달력 — 한 달을 한 눈에. 이긴 날과 진 날이 색으로 먼저 읽혀야 한다 */
+.calbar{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:12px}
+.calbar button{background:var(--s2);border:0;color:var(--fg3);border-radius:2px;
+  padding:6px 12px;font-size:13px;font-weight:600}
+.calbar button.on{background:var(--accent);color:#fff}
+.cal{display:grid;gap:3px}
+.calhd,.calrow{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.calhd span{font-size:11px;color:var(--fg3);text-align:center;padding-bottom:2px}
+.calhd .sun{color:var(--neg)}
+.cd{background:var(--s2);border-radius:2px;padding:5px 4px;min-height:52px;
+  display:flex;flex-direction:column;gap:1px;align-items:center;justify-content:flex-start}
+.cd i{font-style:normal;font-size:10px;color:var(--fg3);align-self:flex-start}
+.cd b{font-size:12px;font-weight:600;line-height:1.2}
+.cd s{text-decoration:none;font-size:12px;font-variant-numeric:tabular-nums}
+.cd.off{background:transparent}
+.cd.rest{background:var(--s1)}
+.cd.fut{color:var(--fg3)}
+.cd.rain{color:var(--fg3)} .cd.rain s{font-size:10px}
+.cd.win{background:color-mix(in srgb,var(--pos) 26%,var(--s2));
+  box-shadow:inset 0 2px 0 var(--pos)}
+.cd.lose{background:color-mix(in srgb,var(--neg) 22%,var(--s2));
+  box-shadow:inset 0 2px 0 var(--neg)}
+.cd.tie{background:var(--s3);box-shadow:inset 0 2px 0 var(--fg3)}
+.cd.win s{color:var(--pos)} .cd.lose s{color:var(--neg)}
+/* 예정 경기 — 아직 벌어지지 않은 날은 테두리만 남긴다 */
+.cd.fut{background:transparent;border:1px solid var(--s3)}
+.cd.fut b{color:var(--fg2)}
+.cd .ha{font-size:9px;color:var(--fg3);letter-spacing:.04em}
+.cd.rain{background:var(--s1)}
+.monsum{margin-top:14px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.monsum .big{font-size:20px}
+.monsum i{font-style:normal;font-size:13px;color:var(--fg3);flex-basis:100%}
+@media (max-width:520px){ .cd{min-height:44px;padding:4px 2px} .cd b,.cd s{font-size:11px} }
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:4px 9px;border-radius:2px;background:var(--s2);color:var(--fg2)}
+.chip.good{box-shadow:inset 2px 0 0 var(--pos)}
+.chip.bad{box-shadow:inset 2px 0 0 var(--neg);color:var(--fg3)}
+.mv{font-size:11px;font-variant-numeric:tabular-nums}
+.mv.up{color:var(--pos)} .mv.dn{color:var(--neg)} .mv.flat{color:var(--s3)}

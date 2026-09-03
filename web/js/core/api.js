@@ -120,15 +120,31 @@ export class Game {
       ({ ...r, is_user: r.team_id === this.userId })) };
   }
 
+  /** 그날까지의 순위. 어제와 견주려면 되짚어 세는 수밖에 없다. */
+  _rankAt(upto) {
+    const s = this.season, tab = new Map(s.teams.map(x => [x.team_id, [0, 0]]));
+    for (const [d, hi, ai, hr, ar] of s.results) {
+      if (d > upto || hr === ar) continue;
+      const H = s.teams[hi], A = s.teams[ai];
+      const [wt, lt] = hr > ar ? [H, A] : [A, H];
+      tab.get(wt.team_id)[0]++; tab.get(lt.team_id)[1]++;
+    }
+    const ord = [...tab.entries()].map(([id, [w, l]]) => [id, w + l ? w / (w + l) : 0])
+      .sort((a, b) => b[1] - a[1]);
+    return new Map(ord.map(([id], i) => [id, i + 1]));
+  }
   standings() {
     const s = this.season;
     if (!s) return { rows: [] };
     const st = s.standings(), top = st[0];
+    // 어제 순위와의 차. 하루가 지났다는 걸 이 화살표가 말해준다.
+    const yday = s.curDay >= 2 ? this._rankAt(s.curDay - 2) : null;
     return { rows: st.map((r,i) => {
       const gb = ((top.w-r.w) + (r.l-top.l))/2;
       return { rank:i+1, team_id:r.team.team_id, team:r.team.name, w:r.w, l:r.l, d:r.d,
         pct:r.pct.toFixed(3), gb: gb===0 ? '-' : gb.toFixed(1), rs:r.rs, ra:r.ra,
-        pyth:r.pyth.toFixed(3), playoff:i<5, is_user:r.team.team_id===this.userId };
+        pyth:r.pyth.toFixed(3), playoff:i<5, is_user:r.team.team_id===this.userId,
+        move: yday ? (yday.get(r.team.team_id) ?? (i+1)) - (i+1) : 0 };
     })};
   }
   roster(teamId = null) {
@@ -255,6 +271,95 @@ export class Game {
     }
     return { rows: rows.slice(-n) };
   }
+  /** 한 달을 돌아본다. 달력 한 장과, 그 달이 무엇이었는지.
+   *  나무위키 월간 문서가 하는 일과 같다 — 날짜·상대·스코어, 그리고 총평. */
+  monthBoard(month = null) {
+    const s = this.season;
+    if (!s) return { months: [], weeks: [] };
+    const dates = s.dates, me = this.userId;
+    const months = [...new Set(dates.map(d => d.getUTCMonth() + 1))];
+    const cur = dates[Math.min(s.curDay, dates.length - 1)];
+    const m = month ?? (cur ? cur.getUTCMonth() + 1 : months[0]);
+
+    // 일차 → 내 경기
+    const mine = new Map();
+    for (let d = 0; d < s.totalDays; d++)
+      for (const [hi, ai] of (s.byDay.get(d) ?? [])) {
+        const H = s.teams[hi], A = s.teams[ai];
+        if (H.team_id === me || A.team_id === me)
+          mine.set(d, { home: H.team_id === me, opp: (H.team_id === me ? A : H) });
+      }
+    const res = new Map();
+    for (const [d, hi, ai, hr, ar, , called] of s.results) {
+      const H = s.teams[hi], A = s.teams[ai];
+      if (H.team_id !== me && A.team_id !== me) continue;
+      const us = H.team_id === me ? hr : ar, them = H.team_id === me ? ar : hr;
+      res.set(d, { us, them, called: !!called,
+        r: us > them ? 'W' : us < them ? 'L' : 'T' });
+    }
+
+    // 격자. 일요일에서 시작한다.
+    const inM = [];
+    for (let d = 0; d < dates.length; d++) if (dates[d].getUTCMonth() + 1 === m) inM.push(d);
+    const cells = [];
+    if (inM.length) {
+      const first = dates[inM[0]];
+      const lead = first.getUTCDay();
+      const last = dates[inM[inM.length - 1]].getUTCDate();
+      for (let i = 0; i < lead; i++) cells.push(null);
+      const byDate = new Map(inM.map(d => [dates[d].getUTCDate(), d]));
+      for (let day = 1; day <= last; day++) {
+        const di = byDate.get(day);
+        const g = di !== undefined ? mine.get(di) : null;
+        const r = di !== undefined ? res.get(di) : null;
+        cells.push({ date: day, day: di !== undefined ? di + 1 : null,
+          opp: g ? g.opp.name : null, opp_color: g ? (g.opp.color || null) : null,
+          home: g ? g.home : null,
+          score: r ? `${r.us}:${r.them}` : null, result: r ? r.r : null,
+          called: r ? r.called : false,
+          future: di !== undefined && di >= s.curDay,
+          // 지나갔는데 기록이 없으면 비로 날아간 것이다
+          rained: di !== undefined && di < s.curDay && !r });
+      }
+      while (cells.length % 7) cells.push(null);
+    }
+    const weeks = [];
+    for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+    // 총평
+    let w = 0, l = 0, t = 0, rf = 0, ra = 0, hw = 0, hl = 0, aw = 0, al = 0;
+    let run = 0, bestW = 0, bestL = 0;
+    for (const d of inM) {
+      const r = res.get(d); if (!r) continue;
+      const g = mine.get(d);
+      rf += r.us; ra += r.them;
+      if (r.r === 'W') { w++; run = run > 0 ? run + 1 : 1; bestW = Math.max(bestW, run);
+        g.home ? hw++ : aw++; }
+      else if (r.r === 'L') { l++; run = run < 0 ? run - 1 : -1; bestL = Math.min(bestL, run);
+        g.home ? hl++ : al++; }
+      else { t++; run = 0; }
+    }
+    // 월초·월말 순위
+    const rankAt = (upto) => this._rankAt(upto).get(me) ?? 0;
+    const played = inM.filter(d => res.has(d));
+    const summary = played.length ? {
+      w, l, t, pct: (w + l) ? w / (w + l) : 0, rf, ra,
+      home: `${hw}승 ${hl}패`, away: `${aw}승 ${al}패`,
+      streak_w: bestW, streak_l: -bestL,
+      rank_from: rankAt(inM[0] - 1), rank_to: rankAt(played[played.length - 1]),
+    } : null;
+
+    const inMonth = (d) => inM.includes(d);
+    return { months, month: m, year: this.L.year, weeks, summary,
+      feats: s.feats.filter(f => inMonth(f.d) && f.team === this.me.name)
+        .map(f => ({ day: f.d + 1, date: dates[f.d].getUTCDate(), name: f.name,
+                     label: FEAT[f.k] ? FEAT[f.k].kr : f.k, opp: f.opp })),
+      injuries: s.injuries.filter(x => x.day !== undefined && inMonth(x.day)
+          && x.team && x.team.team_id === me)
+        .map(x => ({ date: dates[x.day].getUTCDate(), name: x.player.name,
+                     days: x.days, label: x.label })) };
+  }
+
   /** 팀별 시즌 집계 + 최근 폼 + 홈/원정. 시즌 중 화면의 재료. */
   leagueTeamStats() {
     const s = this.season;
