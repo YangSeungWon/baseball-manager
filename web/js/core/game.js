@@ -12,12 +12,22 @@ export const MISC = {
   blockBase: 0.845, blockDef: 0.055,      // 포수가 원바운드를 막을 확률
   d3Reach: 0.60, d3Arm: -0.070, d3Speed: 0.055,   // 낫아웃으로 살아나갈 확률
   balk: 0.0025,                           // 주자 있을 때 타석당
+  // 견제. 1루 주자가 있을 때만. 대부분은 아무 일도 없지만 가끔 잡히고,
+  // 가끔은 던진 공이 흘러 주자가 그냥 한 베이스를 간다.
+  pickOut: 0.0048, pickSpeed: -0.34, pickCommand: 0.22,
+  pickErr: 0.0012, pickErrTwo: 0.30,      // 악송구 중 두 베이스까지 가는 비율
   rundown: 0.185, rundownArm: 0.045,      // 과감한 주루가 협살로 끝날 확률
 };
 
 /* 주루. 같은 출루·장타에서 실제보다 0.5점이 덜 났는데, 원인이 여기 있었다.
    주자가 실제 야구보다 덜 갔다 — 단타에 2루 주자가 홈에 들어오는 비율이
    51.6% 였다. 실제는 60% 안팎이다. */
+/* 홈 이점. 엔진에 아예 없었다 — 홈 승률이 49.5% 였다 (KBO 53~54%).
+   관중이 그 자리를 채운다. 기본값이 있고, 관중석이 얼마나 찼는지가 그 위에 얹힌다.
+   다만 순환이 너무 세면 안 된다. 이기면 관중이 늘고 관중이 늘면 또 이기니까,
+   기본을 크게 두고 관중분은 작게 둔다. */
+export const HOME = { base: 0.205, crowd: 0.285, pitch: 0.55 };
+
 export const ADV = {
   b1_first_to_third: 0.275, b1_second_scores: 0.610, b2_first_scores: 0.470,
   speed_coeff: 0.090, of_arm_coeff: -0.055,
@@ -351,6 +361,31 @@ function tryIbb(bases, outs, off, defn, rng) {
   return rng.random() < p;
 }
 
+/** 견제. 잡으면 아웃, 빠뜨리면 주자가 간다.
+ *  득점은 반드시 scoreNow 를 거쳐야 한다 — 책임 투수와 자책 여부가 거기 붙는다.
+ *  던진 것 자체는 기록에 남기지 않는다. 너무 잦다. */
+function tryPickoff(bases, outs, off, defn, rng, scoreNow) {
+  const r1 = bases.r[0];
+  if (!r1 || outs >= 3) return [0, null];
+  const pit = defn.cur;
+  const zs = z(r1.speed), zc = z(pit && pit.p ? pit.p.command : 50);
+  if (rng.random() < MISC.pickOut * Math.exp(MISC.pickSpeed * zs + MISC.pickCommand * zc)) {
+    // 견제사는 도루자가 아니다. 기록에서 별개로 센다 — cs 에 넣으면 도루 성공률이 망가진다.
+    bases.take(0); off.lineFor(r1).po = (off.lineFor(r1).po || 0) + 1;
+    return [1, { desc: `${r1.name} 견제사`, runs: 0 }];
+  }
+  if (rng.random() < MISC.pickErr) {
+    const two = rng.random() < MISC.pickErrTwo;
+    let runs = 0;
+    if (bases.r[2]) { scoreNow(bases.take(2)); runs++; }      // 3루 주자는 들어온다
+    if (bases.r[1]) bases.move(1, 2);
+    bases.move(0, two && !bases.r[1] ? 2 : 1);
+    defn.errors++;
+    return [0, { desc: `견제 악송구${two ? ' — 2루까지' : ''}`, runs, err: true }];
+  }
+  return [0, null];
+}
+
 function trySteal(bases, outs, off, defn, rng) {
   const r1 = bases.r[0];
   if (!r1 || bases.r[1] || outs >= 2) return 0;
@@ -385,7 +420,7 @@ function moment(kind, off, defn, inning, outs, bases, extra = {}) {
     pitcher: defn.cur ? defn.cur.p.name : null, ...extra };
 }
 
-function* playHalf(off, defn, inning, park, rng, walkoff, ask = null) {
+function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) {
   const dims = BIP.parkDims(park);
   let unearnedInning = false;
   // 폭투·보크·낫아웃으로 들어오는 득점. 타점은 붙지 않는다.
@@ -403,6 +438,16 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null) {
   while (outs < 3) {
     const lead = defn.runs - off.runs;
     maybeChangePitcher(defn, inning, lead, outs);
+    const [pkOut, pk] = tryPickoff(bases, outs, off, defn, rng, scoreNow);
+    if (pk) {
+      outs += pkOut;
+      plays.push({ inning, half: off.half, batter: off.order[off.spot].name,
+                   pitcher: defn.cur ? defn.cur.p.name : null,
+                   desc: pk.desc, runs: pk.runs, outs, ro: off.runs, rd: defn.runs,
+                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
+                          bases.r[2]?bases.r[2].name:null] });
+    }
+    if (outs >= 3) break;
     outs += trySteal(bases, outs, off, defn, rng);
     if (outs >= 3) break;
 
@@ -525,6 +570,11 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null) {
       ctx.cCommand += CLUTCH.poise * po * 0.6;
       ctx.cBat = CLUTCH.clutch * cl;
     } else ctx.cBat = 0;
+    // 홈 관중. 치는 쪽이 홈이면 조금 유리하고, 던지는 쪽이 홈이면 제구가 붙는다.
+    if (edge) {
+      if (off.venue === 'H') ctx.cBat += edge;
+      else ctx.cCommand += edge * HOME.pitch;
+    }
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
     // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
@@ -655,7 +705,9 @@ function assignDecisions(H, A) {
 // 포스트시즌은 15회까지 간다 — 호출하는 쪽에서 넘긴다.
 /** 경기를 한 판. 승부처마다 멈춰 서려면 이쪽을 쓴다.
  *  watch 에 구단 id 를 주면 그 구단의 결정 순간에 yield 하고, 받은 답으로 이어간다. */
-export function* playGameGen(home, away, rng, maxInnings = 11, watch = null) {
+export function* playGameGen(home, away, rng, maxInnings = 11, watch = null, fill = null) {
+  // 관중석이 얼마나 찼나 → 홈이 얼마나 유리한가
+  const edge = HOME.base + HOME.crowd * ((fill == null ? 0.6 : fill) - 0.6);
   const H = new TeamGameState(home), A = new TeamGameState(away);
   H.half = 'bottom'; A.half = 'top';
   H.venue = 'H'; A.venue = 'A';
@@ -663,9 +715,9 @@ export function* playGameGen(home, away, rng, maxInnings = 11, watch = null) {
   let inning = 1;
   const plays = [];
   for (;;) {
-    plays.push(...(yield* playHalf(A, H, inning, home.park, rng, false, ask))[1]);
+    plays.push(...(yield* playHalf(A, H, inning, home.park, rng, false, ask, edge))[1]);
     if (inning >= 9 && H.runs > A.runs) break;
-    const [walk, pl] = yield* playHalf(H, A, inning, home.park, rng, inning >= 9, ask);
+    const [walk, pl] = yield* playHalf(H, A, inning, home.park, rng, inning >= 9, ask, edge);
     plays.push(...pl);
     if (walk) break;
     if (inning >= 9 && H.runs !== A.runs) break;
@@ -677,8 +729,8 @@ export function* playGameGen(home, away, rng, maxInnings = 11, watch = null) {
 }
 
 /** 묻지 않고 끝까지 돌린다. 지금까지의 호출부는 이걸 그대로 쓴다. */
-export function playGame(home, away, rng, maxInnings = 11) {
-  const g = playGameGen(home, away, rng, maxInnings, null);
+export function playGame(home, away, rng, maxInnings = 11, fill = null) {
+  const g = playGameGen(home, away, rng, maxInnings, null, fill);
   let r = g.next();
   while (!r.done) r = g.next(null);
   return r.value;

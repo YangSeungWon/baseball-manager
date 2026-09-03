@@ -523,11 +523,13 @@ function act(fn) { const r = fn(); autosave(); render(); return r; }
    KBO 응원은 대개 이름 음절을 두드린다. 실제 응원가는 저작권이 걸린
    개사곡이라 쓸 수 없고, 소리 없이 글자만으로도 분위기는 산다.
    이름에서 규칙으로 뽑아내니 선수마다 자기 구호가 생긴다. */
+// 같은 말도 지역마다 다르다. 경상권 구장에서는 '날려라' 가 아니라 '쌔려라' 다.
+const CHANT_VERB = { hit: { std:'날려라', gs:'쌔려라' } };
 const CHANT_FORMS = [
   (n) => n.split('').join('! ') + '!',                    // 김! 도! 영!
   (n) => `오 오 오~ ${n}`,
   (n) => `${n} ${n} 안타!`,
-  (n) => `날려라 ${n}`,
+  (n, d) => `${CHANT_VERB.hit[d] || CHANT_VERB.hit.std} ${n}`,
   (n) => `${n[n.length - 1]}! ${n}!`,
 ];
 /** 부르는 이름. 한국 선수는 이름(성 뗀 쪽), 외국인은 성을 통째로 부른다.
@@ -539,11 +541,13 @@ function chantName(name) {
   }
   return name.length >= 3 ? name.slice(1) : name;      // 김도영 → 도영
 }
-/** 이름이 같으면 늘 같은 구호가 나온다. 이름과 상황으로 섞는다. */
-function chantFor(name, salt = 0) {
+/** 이름이 같으면 늘 같은 구호가 나온다. 이름과 상황으로 섞는다.
+ *  구호는 응원하는 쪽 — 그러니까 그 구장 — 의 말을 쓴다. */
+function chantFor(name, salt = 0, team = null) {
   const who = chantName(name);
+  const d = team ? (franchiseOf(team).dialect || 'std') : 'std';
   const h = [...name].reduce((a, c) => (a * 31 + c.codePointAt(0)) % 9973, 7) + salt;
-  return CHANT_FORMS[h % CHANT_FORMS.length](who);
+  return CHANT_FORMS[h % CHANT_FORMS.length](who, d);
 }
 
 /* ── 하이라이트 ─────────────────────────────────────────────
@@ -593,7 +597,7 @@ function openHighlights(box, onDone) {
       const c = el('div', 'chant');
       c.style.setProperty('--tc', cp.color);
       c.style.opacity = (0.45 + loud * 0.55).toFixed(2);
-      c.textContent = chantFor(p.batter, p.inning);
+      c.textContent = chantFor(p.batter, p.inning, hm.team);
       $$('hlLog').appendChild(c);
     }
     row.scrollIntoView({ block: 'nearest' });

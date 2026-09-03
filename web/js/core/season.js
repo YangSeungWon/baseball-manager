@@ -232,11 +232,19 @@ export class Season {
     for (const [hi, ai, dh, called] of card) {
       // 더블헤더 2차전. 1차전에 쓴 불펜은 다시 나오지 못한다.
       if (dh) for (const i of [hi, ai]) this._refreshAvail(this.teams[i], day);
+      // 관중을 먼저 정한다. 경기 결과가 아니라 그날 팬이 얼마나 왔느냐가
+      // 홈 이점을 만들기 때문이다.
+      const home0 = this.teams[hi], rec0 = this.rec.get(home0.team_id);
+      const wp0 = rec0.g ? rec0.w / Math.max(1, rec0.w + rec0.l) : 0.5;
+      const cap0 = home0.park.capacity || 18000;
+      const fill = attendRate(home0.finance, wp0,
+        home0.lastPlayoff || false, home0.lastTitle || false, this.rng);
+      const crowd = Math.round(cap0 * fill);
       const mine = watch != null &&
         (this.teams[hi].team_id === watch || this.teams[ai].team_id === watch);
       const [H, A, plays] = mine
-        ? yield* playGameGen(this.teams[hi], this.teams[ai], this.rng, called || 11, watch)
-        : playGame(this.teams[hi], this.teams[ai], this.rng, called || 11);
+        ? yield* playGameGen(this.teams[hi], this.teams[ai], this.rng, called || 11, watch, fill)
+        : playGame(this.teams[hi], this.teams[ai], this.rng, called || 11, fill);
       this._absorb(H, A.runs); this._absorb(A, H.runs);
       this.feats.push(...scanFeats(H, A, this.year, day), ...scanFeats(A, H, this.year, day));
       this._logUsage(H, day); this._logUsage(A, day);
@@ -249,18 +257,12 @@ export class Season {
       }
       this.results.push([day, hi, ai, H.runs, A.runs, dh ? 1 : 0, called ? 1 : 0]);
       // 홈 구단 관중. 성적이 팬을 부르고, 팬이 다음 시즌 예산이 된다.
-      const home = this.teams[hi], rec = this.rec.get(home.team_id);
-      const wp = rec.g ? rec.w / Math.max(1, rec.w + rec.l) : 0.5;
-      const cap = home.park.capacity || 18000;
-      const a = this.att.get(home.team_id);
-      a.games++;
-      const crowd = Math.round(cap * attendRate(home.finance, wp,
-        home.lastPlayoff || false, home.lastTitle || false, this.rng));
-      a.total += crowd;
+      const a = this.att.get(home0.team_id);
+      a.games++; a.total += crowd;
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
       out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh, called: !!called,
-                 box: keep ? { H, A, plays, crowd, cap } : null });
+                 box: keep ? { H, A, plays, crowd, cap: cap0 } : null });
     }
     this.curDay++;
     return out;
