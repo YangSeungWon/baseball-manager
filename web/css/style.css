@@ -1226,3 +1226,5 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .chip.bad{box-shadow:inset 2px 0 0 var(--neg);color:var(--fg3)}
 .mv{font-size:11px;font-variant-numeric:tabular-nums}
 .mv.up{color:var(--pos)} .mv.dn{color:var(--neg)} .mv.flat{color:var(--s3)}
+.mhead-p{display:flex;align-items:center;gap:12px;min-width:0}
+.nhd .av{flex:0 0 auto}

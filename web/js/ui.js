@@ -20,6 +20,12 @@ const WATCH_NOTE = {
 let watchMode = 'highlight';
 try { const v = localStorage.getItem(WKEY); if (WATCH[v]) watchMode = v; } catch {}
 function setWatch(v) { watchMode = v; try { localStorage.setItem(WKEY, v); } catch {} }
+const FACE_KEY = 'dugout.faces';
+let facesOn = (() => { try { return localStorage.getItem(FACE_KEY) !== '0'; }
+                       catch { return true; } })();
+const setFaces = (on) => { facesOn = on;
+  try { localStorage.setItem(FACE_KEY, on ? '1' : '0'); } catch {} };
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const el = (t, c, h) => { const e = document.createElement(t);
@@ -194,11 +200,20 @@ const luma = (hex) => {
 };
 
 function avatar(p, teamColor, size = 38, away = false, fr = null) {
+  if (!facesOn) return '';
   const h = ((p.pid || 0) * 2654435761) >>> 0;
-  const skin = SKIN[h % 4];
-  const hair = (h >> 3) % 5;      // 0 짧음 1 옆머리 2 덥수룩 3 삭발 4 장발
+  // 국내는 피부 폭이 좁다. 외국인은 넓게 잡는다.
+  const skin = p.foreign ? SKIN[h % SKIN.length] : SKIN[h % 2];
+  const age = p.age || 27;
+  let hair = (h >> 3) % 5;        // 0 짧음 1 옆머리 2 덥수룩 3 삭발 4 장발
+  // 나이가 들면 벗겨지기도 한다
+  if (age >= 34 && ((h >> 17) % 100) / 100 < (age - 33) * 0.05) hair = 3;
   const beard = (h >> 7) % 4;     // 0,1 없음 2 콧수염 3 턱수염
-  const hc = HAIRC[(h >> 11) % 3];
+  // 흰머리. 33세부터 섞이기 시작해 45세면 거의 다 센다. 30시즌을 지나면 이게 보인다.
+  const grey = Math.max(0, Math.min(1, (age - 33) / 12));
+  const hc0 = HAIRC[(h >> 11) % 3];
+  const hc = grey <= 0.02 ? hc0
+    : `color-mix(in srgb, #b9b9c2 ${Math.round(grey * 100)}%, ${hc0})`;
   const ht = p.height || 182, wt = p.weight || 88;
   const build = Math.max(0, Math.min(1, (wt / ((ht / 100) ** 2) - 22) / 8));
   const sw = 10.5 + build * 5.2;                 // 어깨 반너비
@@ -1560,7 +1575,9 @@ function viewFA(v) {
     w.innerHTML = `<h3>답을 기다린다 <em>${talking.length}</em></h3>
       <div class="nego">${talking.map(r => `
         <div class="ncard" data-talk="${r.pid}">
-          <div class="nhd"><b>${esc(r.name)}</b>
+          <div class="nhd">${avatar(r, r.former_team && r.former_team !== '미계약'
+            ? capOf(r.former_team).color : '#3b4655', 34, false,
+            r.former_team && r.former_team !== '미계약' ? franchiseOf(r.former_team) : null)}<b>${esc(r.name)}</b>
             <span class="m dim">${r.age} · ${r.slot} · ${esc(r.former_team)}</span>
             <span class="mood m${r.mood < 34 ? ' bad' : r.mood >= 70 ? ' good' : ''}">${r.mood_word}</span></div>
           <p class="ndem">${esc(r.demand.text)}</p>
@@ -1613,9 +1630,11 @@ function viewFA(v) {
 
 /* 요구에 답한다. 무엇을 말하느냐보다 어떻게 말하느냐가 더 클 때가 있다. */
 function openTalk(p, tones) {
+  const col = p.former_team && p.former_team !== '미계약' ? capOf(p.former_team).color : '#3b4655';
   modal(`
-    <div class="mhead"><div><h2>${esc(p.name)}</h2>
-      <div class="meta">${p.age} · ${p.slot} · ${esc(p.former_team)} · ${p.mood_word}</div></div>
+    <div class="mhead"><div class="mhead-p">${avatar(p, col, 46)}
+      <div><h2>${esc(p.name)}</h2>
+      <div class="meta">${p.age} · ${p.slot} · ${esc(p.former_team)} · ${p.mood_word}</div></div></div>
       <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
       <p class="ndem big">${esc(p.demand.text)}</p>
@@ -1873,6 +1892,12 @@ function modalInfo() {
     <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack doc">
       <section>
+        <h3>보기 설정</h3>
+        <div class="tglrow"><button id="fcOn" class="tgl${facesOn ? ' on' : ''}">선수 얼굴</button></div>
+        <p>선수 얼굴은 <b>번호에서 그려냅니다.</b> 사진이 아니고, 실존 인물과 아무 관계가
+          없습니다. 나이가 들면 머리가 셉니다. 끄면 이름과 숫자만 남습니다.</p>
+      </section>
+      <section>
         <h3>가상입니다</h3>
         <p>이 게임에 나오는 구단, 선수, 기록, 사건은 <b>전부 지어낸 것</b>입니다.
           선수 이름은 프로그램이 음절을 조합해 만듭니다. 실존하는 인물과 이름이
@@ -1914,6 +1939,9 @@ function modalInfo() {
         <p>문의와 버그 제보는 <a href="${REPO}" target="_blank" rel="noopener">저장소</a>로.</p>
       </section>
     </div>`);
+  const fb = $('#fcOn'); if (fb) fb.onclick = () => {
+    setFaces(!facesOn); fb.classList.toggle('on', facesOn); render();
+  };
 }
 
 /* 하루를 넘긴다. 관전 방식이 곧 개입 여부다 —
@@ -2095,15 +2123,17 @@ function openPlayer(pid) {
   const awards = p.awards && Object.keys(p.awards).length
     ? Object.entries(p.awards).map(([k, v]) => `<span class="tag hs">${k}×${v}</span>`).join('') : '';
   const bindShare = () => { const b = $('#mshare'); if (b) b.onclick = () => makeCard(p); };
+  const pcol = p.team ? capOf(p.team).color : '#3b4655';
   modal(`
-    <div class="mhead"><div><h2>${esc(p.name)}${awards}</h2>
+    <div class="mhead"><div class="mhead-p">${avatar(p, pcol, 52, false, p.team ? franchiseOf(p.team) : null)}
+      <div><h2>${esc(p.name)}${awards}</h2>
       <div class="meta">${p.number ? `<b class="m">${p.number}번</b> · ` : ''}${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
         ${p.origin ? ' · ' + p.origin : ''}${p.draft ? ` · #${p.draft.overall}` : ''}
         ${p.mil && p.mil.s !== 'done' ? ` · <span class="milt ${p.mil.s}">${p.mil.s === 'serving'
           ? `${p.mil.kind === 'sangmu' ? '상무' : '현역'} ${p.mil.left}년`
           : p.mil.s === 'exempt' ? '병역 면제'
           : p.mil.due === 0 ? '올겨울 입대' : `미필 · ${p.mil.due}년`}</span>` : ''}
-        ${p.injury_days ? ` · <span class="mark">✚${p.injury_days}</span>` : ''}</div></div>
+        ${p.injury_days ? ` · <span class="mark">✚${p.injury_days}</span>` : ''}</div></div></div>
       <span class="mbtns"><button id="mshare" class="quiet">카드 만들기</button>
       <button id="mx" class="quiet">닫기</button></span></div>
     <div class="mbody stack">
