@@ -1092,3 +1092,42 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .gs .rpfield .field{max-height:38vh}
   .gs .rpbody{gap:10px}
 }
+
+/* 전광판 — 이닝별 득점과 R·H·E */
+.lsbox{overflow-x:auto;margin-bottom:12px}
+.ls{border-collapse:collapse;font-family:var(--mono);font-size:13px;width:100%}
+.ls th,.ls td{padding:5px 0;text-align:center;min-width:22px;
+  border-bottom:1px solid var(--line2)}
+.ls thead th{font-size:11px;font-weight:500;color:var(--fg3);border-bottom:1px solid var(--line)}
+.ls thead th.on{color:var(--accent);font-weight:700}
+.ls tbody th{text-align:left;padding-right:12px;font-family:var(--kr);font-size:14px;
+  font-weight:600;color:var(--fg2);white-space:nowrap;min-width:56px}
+.ls td{color:var(--fg3)}
+.ls .ls-run{color:var(--fg);font-weight:700}
+.ls .ls-x{color:var(--line)}
+.ls .ls-t{color:var(--fg);font-weight:700;font-size:15px;
+  background:rgba(255,255,255,.035)}
+.ls thead .ls-t{color:var(--fg2);font-size:11px}
+.ls tbody tr:last-child th,.ls tbody tr:last-child td{border-bottom:0}
+@media(max-width:760px){
+  .ls th,.ls td{min-width:19px;padding:4px 0;font-size:12px}
+  .ls tbody th{min-width:44px;font-size:13px;padding-right:7px}
+}
+
+/* 상단 띠 — 중계 하단 자막처럼 */
+.gs-inn{display:flex;align-items:baseline;gap:3px}
+.gs-arr{font-style:normal;font-size:11px;color:var(--accent)}
+.gs-dia{width:26px;height:26px;flex-shrink:0}
+.gs-dia rect{fill:none;stroke:var(--fg3);stroke-width:1.6}
+.gs-dia rect.on{fill:#e8c23a;stroke:#e8c23a}
+.gs-bso{display:flex;gap:8px;align-items:center}
+.bso{display:flex;gap:3px}
+.bso i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block}
+.bso.b i.on{background:#4bb37b}
+.bso.s i.on{background:#e8c23a}
+.bso.o i.on{background:var(--neg)}
+@media(max-width:760px){
+  .gs-dia{width:22px;height:22px}
+  .bso i{width:6px;height:6px}
+  .gs-bso{gap:6px}
+}

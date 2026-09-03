@@ -579,7 +579,7 @@ function openHighlights(box, onDone) {
     if (i >= H.length) { clearInterval(timer); return gsResult(box, onDone); }
     const p = H[i], top = p.half === 'top';
     gsScore({ a: top ? p.ro : p.rd, h: top ? p.rd : p.ro,
-              inn: p.inning, half: p.half, outs: p.outs });
+              inn: p.inning, half: p.half, outs: p.outs, base: p.base });
     const atk = top ? aw.team : hm.team, cp = capOf(atk);
     const log = document.getElementById('hlLog');
     log.style.setProperty('--tc', cp.color);
@@ -617,10 +617,7 @@ function gsResult(box, onDone) {
         <span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
         <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span>
       </div>
-      <div class="hl-line">
-        <div><span>${esc(short(aw.team))}</span><b class="m">${aw.hits}안타</b></div>
-        <div><span>${esc(short(hm.team))}</span><b class="m">${hm.hits}안타</b></div>
-      </div>
+      ${lineScore(box)}
       <div class="hl-btn">
         <button class="go" id="gsFull">경기 전체 보기</button>
         <button class="quiet" id="gsDone">구단으로</button>
@@ -1742,22 +1739,38 @@ function openGameShell(aw, hm, park, crowd, cap) {
         <span class="gs-t home">${jersey(franchiseOf(hm), false, 30)}
           <b>${esc(short(hm))}</b><em id="gsH">0</em></span>
       </div>
-      <div class="gs-sit"><span id="gsInn">경기 준비</span>
-        <span class="gs-cnt" id="gsCnt"></span></div>
+      <div class="gs-sit">
+        <span class="gs-inn"><i id="gsArr" class="gs-arr"></i><span id="gsInn">경기 준비</span></span>
+        <svg class="gs-dia" viewBox="0 0 34 34" aria-hidden="true">
+          <rect id="gd2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
+          <rect id="gd3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
+          <rect id="gd1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
+        </svg>
+        <span class="gs-bso" id="gsBSO"></span>
+      </div>
       <button id="gsX" class="quiet gs-out"><span>구단으로</span><i>나가기</i></button>
     </div>
     <div class="gs-body" id="gsBody"></div>
   </div>`, true);
   document.getElementById('gsX').onclick = closeGame;
 }
-function gsScore({ a, h, inn, half, outs, b, s }) {
+function gsScore({ a, h, inn, half, outs, b, s, base }) {
   const q = (id) => document.getElementById(id);
   if (a != null && q('gsA')) q('gsA').textContent = a;
   if (h != null && q('gsH')) q('gsH').textContent = h;
-  if (inn && q('gsInn')) q('gsInn').textContent = `${inn}회${half === 'top' ? '초' : '말'}`;
+  if (inn && q('gsInn')) q('gsInn').textContent = `${inn}회`;
+  // 중계처럼 초는 위 화살표, 말은 아래 화살표
+  if (half && q('gsArr')) q('gsArr').textContent = half === 'top' ? '▲' : '▼';
   // 기록의 아웃카운트는 그 플레이 '뒤' 값이라 3 이 나온다. 그때는 이닝이 끝난 것이다.
-  if (q('gsCnt')) q('gsCnt').textContent = outs == null ? ''
-    : (outs >= 3 ? '이닝 종료' : `${b != null ? `${b}B ${s}S ` : ''}${outs}아웃`);
+  const dot = (n, k, cls) => `<i class="${cls}${n > k ? ' on' : ''}"></i>`;
+  if (q('gsBSO')) q('gsBSO').innerHTML = outs == null ? ''
+    : `<span class="bso b">${[0,1,2].map(k => dot(b ?? 0, k, 'b')).join('')}</span>
+       <span class="bso s">${[0,1].map(k => dot(s ?? 0, k, 's')).join('')}</span>
+       <span class="bso o">${[0,1].map(k => dot(Math.min(outs, 2), k, 'o')).join('')}</span>`;
+  const bs = base || [null, null, null];
+  for (let k = 0; k < 3; k++) {
+    const e = q('gd' + (k + 1)); if (e) e.classList.toggle('on', !!bs[k]);
+  }
 }
 const gsBody = (html) => { const e = document.getElementById('gsBody');
   if (e) e.innerHTML = html; return e; };
@@ -1811,7 +1824,7 @@ function askMoment(m, go, bail) {
 
   // 스코어보드는 껍데기가 들고 있다. 여기서는 물어볼 것만 그린다.
   gsScore({ a: m.half === 'top' ? m.ours : m.theirs, h: m.half === 'top' ? m.theirs : m.ours,
-            inn: m.inning, half: m.half, outs: m.outs });
+            inn: m.inning, half: m.half, outs: m.outs, base: m.bases });
   gsBody(`<div class="clutch">
       <div class="gs-q">${title}</div>
       <div class="csit">
@@ -1988,6 +2001,39 @@ function modalSignings(r) {
 
 boot();
 
+/* ── 전광판 ────────────────────────────────────────────────
+   이닝별 득점과 R·H·E. 야구장 전광판이 실제로 보여 주는 그것이다.
+   재생 중에는 그때까지 치른 이닝만 켠다 — 앞을 미리 보여 주면
+   지켜보는 뜻이 없다. */
+function lineScore(box, upto = 99, half = null) {
+  const aw = box.away, hm = box.home;
+  const played = Math.max(aw.line.length, hm.line.length);
+  const n = Math.max(played, 9);
+  const cell = (arr, i, isHome) => {
+    // 아직 안 온 이닝은 비운다. 홈이 칠 필요가 없어 안 친 이닝만 X 다 —
+    // 강우 콜드로 아예 없던 이닝에 X 를 찍으면 안 된다.
+    const done = isHome
+      ? (i + 1 < upto || (i + 1 === upto && half === 'bottom'))
+      : (i + 1 <= upto);
+    if (!done) return '<td class="ls-x">·</td>';
+    if (i >= arr.length)
+      return `<td class="ls-x">${isHome && i < played ? 'X' : '·'}</td>`;
+    const v = arr[i];
+    return `<td class="${v > 0 ? 'ls-run' : ''}">${v}</td>`;
+  };
+  const row = (S, isHome) => `<tr class="${isHome ? 'ls-home' : ''}">
+    <th>${esc(short(S.team))}</th>
+    ${Array.from({ length: n }, (_, i) => cell(S.line, i, isHome)).join('')}
+    <td class="ls-t">${S.runs}</td><td class="ls-t">${S.hits}</td>
+    <td class="ls-t">${S.err ?? 0}</td></tr>`;
+  return `<div class="lsbox"><table class="ls">
+    <thead><tr><th></th>
+      ${Array.from({ length: n }, (_, i) => `<th class="${i + 1 === upto ? 'on' : ''}">${i + 1}</th>`).join('')}
+      <th class="ls-t">R</th><th class="ls-t">H</th><th class="ls-t">E</th></tr></thead>
+    <tbody>${row(aw, false)}${row(hm, true)}</tbody>
+  </table></div>`;
+}
+
 /* ── 스트라이크 존 ──────────────────────────────────────────
    문자중계에서 보던 그 그림. 존은 타자 키에 비례하고(ABS 전제),
    공은 하나씩 날아와 앉는다. 색은 중계 관례를 따른다 —
@@ -2149,6 +2195,7 @@ function openReplay(box) {
 
   if (!gsState) openGameShell(box.away.team, box.home.team, box.park, box.crowd, box.cap);
   gsBody(`<div class="rp">
+    <div id="rpLine"></div>
     <div class="rpbody">
       <div class="rpfield">${fieldSvg(box.park, capOf(box.home.team).color,
         box.crowd && box.cap ? box.crowd / box.cap : null)}
@@ -2193,7 +2240,9 @@ function openReplay(box) {
       : '<div class="pzempty">투구 없음</div>';
     // 스코어보드는 껍데기가 들고 있다. ro 는 공격 팀 득점이라 갈라 넣는다.
     gsScore({ a: top ? p.ro : p.rd, h: top ? p.rd : p.ro,
-              inn: p.inning, half: p.half, outs: p.outs, b: p.b, s: p.s });
+              inn: p.inning, half: p.half, outs: p.outs, b: p.b, s: p.s, base: p.base });
+    const ls = $$('rpLine');
+    if (ls) ls.innerHTML = lineScore(box, p.inning, p.half);
     $$('rpPit').textContent = p.pitcher || '—';
     $$('rpBat').textContent = p.batter || '—';
     $$('rpPitch').innerHTML = p.pt

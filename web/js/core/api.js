@@ -902,6 +902,7 @@ export class Game {
   simToEnd() { return this.advance(this.season.totalDays - this.season.curDay); }
   boxscore(box) {
     const side = (S) => ({ team:S.team.name, runs:S.runs, hits:S.hits, line:S.line,
+      err:S.errors || 0,
       pitchers: S.pitchers.map(pl => ({ name:pl.p.name, ip:`${Math.floor(pl.outs/3)}.${pl.outs%3}`,
         h:pl.h, r:pl.r, k:pl.k, bb:pl.bb, dec: pl.w?'승':pl.l?'패':pl.sv?'세':'' })),
       batters: S.team.lineup.filter(b => S.bat.has(b.pid)).map(b => {
