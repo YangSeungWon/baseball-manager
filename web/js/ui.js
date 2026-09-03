@@ -1013,6 +1013,32 @@ function viewTeam(v) {
       </div>
     </div>`));
 
+  // 투수 운용. 오늘 누가 던질 수 있는지가 보여야 보직을 정하는 뜻이 있다.
+  const ps = G.pitcherStatus();
+  const prow = (p, isRot) => `<div class="prow ${p.ready ? '' : 'off'}" data-pid="${p.pid}">
+    <span class="pr-role ${isRot && p.turn === 0 ? 'next' : ''}">${
+      isRot ? (p.turn === 0 ? '다음 선발' : `${p.turn}일 뒤`) : esc(p.role)}</span>
+    <span class="pr-name">${esc(p.name)}<i>스태미나 ${p.stamina}</i></span>
+    <span class="pr-state">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>`
+      : p.ready ? '<em class="ok">등판 가능</em>'
+      : `<em class="rest">${p.rest_left}일 휴식</em>`}</span>
+    <span class="pr-last">${p.consec ? `<b class="warn">연투 ${p.consec}일</b>` : ''}${
+      p.days_off != null ? `<span>${p.days_off}일 전 등판</span>` : ''}</span>
+  </div>`;
+  g.appendChild(sect('투수 운용',
+    `불펜 ${ps.ready}/${ps.total} 가능${ps.bullpen_day ? ' · 오늘은 불펜데이' : ''}`,
+    `<div class="pstat">
+      <div><div class="lab">선발 로테이션</div>
+        ${ps.rotation.map(p => prow(p, true)).join('')}
+        ${ps.thin ? `<p class="note">${ps.bullpen_day
+          ? '던질 선발이 없다. 롱릴리프가 오프너로 나간다.'
+          : '선발에 빈자리가 있다. 순번이 돌아오면 불펜이 메운다.'}</p>` : ''}</div>
+      <div><div class="lab">불펜</div>
+        ${ps.bullpen.map(p => prow(p, false)).join('')}
+        <p class="note">4타자 이하로 막으면 다음 날 바로 나올 수 있다.
+          길게 던지거나 사흘 연투하면 하루 이상 쉰다.</p></div>
+    </div>`));
+
   // 경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다.
   const tc = G.tactics();
   g.appendChild(sect('감독 지시', '', `<div class="tacs">${tc.rows.map(r => `
@@ -1802,7 +1828,8 @@ function watchDay() {
 function askMoment(m, go, bail) {
   const half = m.half === 'top' ? '초' : '말';
   const on = m.bases.map((b, i) => b ? `${i + 1}루 ${esc(b)}` : null).filter(Boolean);
-  const title = { bunt:'번트를 댈까', pinch:'대타를 쓸까', ibb:'거를까' }[m.kind];
+  const title = { bunt:'번트를 댈까', pinch:'대타를 쓸까', ibb:'거를까',
+                  hook:'투수를 바꿀까' }[m.kind];
   // 세 갈래를 함수로 둔다. 객체 리터럴로 두면 번트 상황에서도 대타 쪽이
   // 함께 평가돼 m.options 를 읽다 터진다.
   const body = ({
@@ -1816,6 +1843,13 @@ function askMoment(m, go, bail) {
         `<button data-a='{"pid":${o.pid}}' class="primary">${esc(o.name)}
           <i>${o.slot}</i></button>`).join('')}
         <button data-a='null'>그대로 간다</button></div>`,
+    hook: () => `<p class="mq">${esc(m.cur)} 가 ${m.np}구를 던졌다.
+        ${m.tired >= 90 ? '한계다.' : m.tired >= 55 ? '지쳐 간다.' : '아직 힘이 남았다.'}
+        ${esc(m.batter)} 타석이다.</p>
+      <div class="mopts">${m.options.map(o =>
+        `<button data-a='{"pid":${o.pid}}' class="primary">${esc(o.name)}
+          <i>${esc(o.slot)}</i></button>`).join('')}
+        <button data-a='null'>계속 간다</button></div>`,
     ibb: () => `<p class="mq">${esc(m.batter)} 타석. 거르면 ${esc(m.next)} 와 승부한다.</p>
       <div class="mopts">
         <button data-a='{"yes":true}' class="primary">거른다</button>

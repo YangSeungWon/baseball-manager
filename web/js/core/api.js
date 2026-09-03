@@ -1244,6 +1244,39 @@ export class Game {
     return this._pinLineup();
   }
 
+  /** 투수 운용. 누가 오늘 던질 수 있고, 누가 연투 중이고, 다음 선발이 누구인가.
+   *  이 값들은 지금까지 season 안에만 있어서 화면에서 볼 수 없었다. */
+  pitcherStatus() {
+    const t = this.me, s = this.season;
+    const day = s ? s.curDay : 0;
+    const row = (p, kind) => {
+      const back = (s ? (s.availDay.get(p.pid) ?? 0) : 0) - day;   // 며칠 더 쉬어야 하나
+      const last = s ? s.lastUsed.get(p.pid) : null;
+      const con = s ? (s.consec.get(p.pid) ?? 0) : 0;
+      return { ...this.brief(p, t), kind,
+        role: p.pen_role ? R.PEN_LABEL[p.pen_role] : (p.role === 'SP' ? '선발' : '불펜'),
+        ready: p.injury_days <= 0 && back <= 0,
+        rest_left: Math.max(0, back),
+        days_off: last != null && day > 0 ? day - last : null,
+        // 연투는 이틀 이상 이어졌을 때만 연투다. 하루 등판을 연투라 부르지 않는다.
+        consec: last === day - 1 && con >= 2 ? con : 0,
+        hurt: p.injury_days || 0, stamina: Math.round(p.stamina) };
+    };
+    // 선발은 _logUsage 가 등판을 남기지 않는다 (로테이션 순번이 대신한다).
+    // '등판 없음' 을 띄우면 거짓이라, 순번만 보여 준다.
+    const n = t.rotation.length;
+    const rot = t.rotation.map((p, i) => ({ ...row(p, 'SP'), days_off: null, consec: 0,
+      turn: ((i - (t.rot_index % n)) + n) % n })).sort((a, b) => a.turn - b.turn);
+    const order = { '마무리':0, '필승조':1, '추격조':2, '롱릴리프':3 };
+    const pen = t.bullpen.map(p => row(p, 'RP'))
+      .sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9));
+    const healthy = t.rotation.filter(p => p.injury_days <= 0).length;
+    return { day, rotation: rot, bullpen: pen,
+      ready: pen.filter(p => p.ready).length, total: pen.length,
+      // 선발이 하나도 없으면 그날은 불펜데이 — 롱릴리프가 오프너로 나간다
+      bullpen_day: healthy === 0, thin: healthy < n };
+  }
+
   setPenRole(pid, role) {
     const t = this.me;
     const p = t.bullpen.find(x => x.pid === pid);

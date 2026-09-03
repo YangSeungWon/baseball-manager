@@ -4,6 +4,7 @@ import { z, K, BB, HBP, OUT, S1B, D2B, T3B, HR, ERR } from './pa.js';
 import { playCount, FOUL_OUT, PITCH } from './pitch.js';
 import * as BIP from './bip.js';
 import * as dev from './development.js';
+import * as R from './roster.js';
 import { C as PACOEF } from './pa.js';
 const PC_FATIGUE_S = PACOEF.fatigueStuff, PC_FATIGUE_C = PACOEF.fatigueCommand;
 
@@ -421,7 +422,7 @@ function trySteal(bases, outs, off, defn, rng) {
 /* ── 승부처 ────────────────────────────────────────────────
    감독이 실제로 손을 쓰는 순간에만 멈춘다. 매 타석 붙잡으면 게임이 아니라 일이다.
    늦은 이닝 · 한두 점 차 · 그 결정이 실제로 걸린 상황. 한 경기 세 번까지. */
-export const CLUTCH_MAX = 3;
+export const CLUTCH_MAX = 4;
 function lateClose(inning, off, defn) {
   const diff = off.runs - defn.runs;
   return inning >= 7 && Math.abs(diff) <= 2;
@@ -529,6 +530,37 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                           bases.r[2]?bases.r[2].name:null] });
       if (outs >= 3) break;
       continue;
+    }
+
+    // 투수 교체. 승부처에서 감독이 가장 자주 쓰는 손이 이것인데
+    // 지금까지 물어보지 않았다. 이것도 수비하는 쪽 결정이다.
+    // 막 올라온 투수를 두고 '바꿀까' 를 묻는 것은 질문이 아니다.
+    // 지쳤거나 · 맞고 있거나 · 투구수가 찼을 때만 묻는다.
+    const cw = defn.cur;
+    if (askDef && askDef.left > 0 && lateClose(inning, off, defn)
+        && defn.bullpenLeft.length && cw && cw.bf >= 3
+        && ((cw.fatigue || 0) >= 0.35 || cw.r >= 3 || cw.np >= 70)) {
+      askDef.left--;
+      const cur = cw, cands = defn.bullpenLeft.slice(0, 3);
+      const pick = yield moment('hook', defn, off, inning, outs, bases,
+        { half: off.half, batter: off.order[off.spot].name,
+          tired: Math.round((cur.fatigue || 0) * 100), np: cur.np,
+          cur: cur.p.name,
+          options: cands.map(p => ({ pid: p.pid, name: p.name,
+            slot: R.PEN_LABEL[p.pen_role] || '불펜' })) });
+      if (pick && pick.pid) {
+        const i = defn.bullpenLeft.findIndex(p => p.pid === pick.pid);
+        if (i >= 0) {
+          const nx = defn.bullpenLeft.splice(i, 1)[0];
+          defn.pitchers.push(pitLine(nx));
+          defn.cur.entered_inning = inning;
+          plays.push({ inning, half: off.half, batter: off.order[off.spot].name,
+            desc: `투수 교체 — ${nx.name}`, runs: 0, outs, ro: off.runs, rd: defn.runs,
+            pitcher: nx.name, sub: true,
+            base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
+                   bases.r[2]?bases.r[2].name:null] });
+        }
+      }
     }
 
     // 고의사구 — 이건 수비하는 쪽의 결정이다
