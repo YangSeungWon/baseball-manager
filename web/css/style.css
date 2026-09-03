@@ -1228,3 +1228,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .mv.up{color:var(--pos)} .mv.dn{color:var(--neg)} .mv.flat{color:var(--s3)}
 .mhead-p{display:flex;align-items:center;gap:12px;min-width:0}
 .nhd .av{flex:0 0 auto}
+/* 주자 — 구장 위에 서 있어야 상황이 한 눈에 읽힌다 */
+.field .rn{fill:#f6f9fc;stroke:#0a1119;stroke-width:1.4;opacity:0;
+  transition:opacity .18s ease}
+.field .rn.on{opacity:1}

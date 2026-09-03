@@ -2423,6 +2423,11 @@ function fieldSvg(park, color = '#4c8ed9', fill = null) {
       width="7" height="7"/>`).join('')}
     <rect class="bag home" x="${HX-3.5}" y="${HY-3.5}" width="7" height="7"/>
     ${men}
+    ${[[45, 27.4, 1], [0, 38.8, 2], [-45, 27.4, 3]].map(([a, d, n]) => {
+      const [x, y] = pt(a, d);
+      return `<circle class="rn" id="rn${n}" cx="${(x + (n === 1 ? -9 : n === 3 ? 9 : 0)).toFixed(1)}"
+        cy="${(y + (n === 2 ? 9 : 6)).toFixed(1)}" r="5.5"/>`;
+    }).join('')}
     <path id="trail" class="trail" d=""/>
     <circle id="ball" class="ball" cx="${HX}" cy="${HY}" r="4" opacity="0"/>
   </svg>`;
@@ -2494,7 +2499,11 @@ function openReplay(box) {
     $$('rpPitch').innerHTML = p.pt
       ? `<b>${PT_KR[p.pt] || p.pt}</b>${p.velo ? `<span>${p.velo}<i>km/h</i></span>` : ''}` : '—';
     const bs = p.base || [null, null, null];
-    for (let k = 0; k < 3; k++) $$('db' + (k + 1)).classList.toggle('on', !!bs[k]);
+    for (let k = 0; k < 3; k++) {
+      $$('db' + (k + 1)).classList.toggle('on', !!bs[k]);
+      // 작은 마름모만으로는 상황이 안 읽힌다. 구장 위에도 주자를 세운다.
+      const r = $$('rn' + (k + 1)); if (r) r.classList.toggle('on', !!bs[k]);
+    }
     document.querySelectorAll('.fm').forEach(e =>
       e.classList.toggle('on', p.pos === e.dataset.pos));
     drawBall(p, animate);
