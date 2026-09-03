@@ -21,6 +21,7 @@ let watchMode = 'highlight';
 try { const v = localStorage.getItem(WKEY); if (WATCH[v]) watchMode = v; } catch {}
 function setWatch(v) { watchMode = v; try { localStorage.setItem(WKEY, v); } catch {} }
 const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const el = (t, c, h) => { const e = document.createElement(t);
   if (c) e.className = c; if (h !== undefined) e.innerHTML = h; return e; };
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -507,8 +508,11 @@ function renderTop() {
           : '외국인 계약을 확정한다. 되돌릴 수 없다.';
         if (confirm(msg)) act(() => G.finishForeign());
       }, 'danger'); break;
-    case 'off_fa': btn('시장 마감', () => { if (confirm('FA 시장을 마감한다. 되돌릴 수 없다.'))
-        act(() => modalSignings(G.resolveFA())); }, 'danger'); break;
+    case 'off_fa': {
+      const f = G.freeAgents();
+      if (!f.closed) btn(`하루 보낸다 (${f.day}/${f.days})`, () => act(() => G.faAdvance()), 'primary');
+      btn('시장 마감', () => { if (confirm('남은 협상을 모두 끝내고 시장을 닫는다. 되돌릴 수 없다.'))
+        act(() => modalSignings(G.resolveFA())); }, 'danger'); break; }
     case 'off_trade': btn('트레이드 마감', () => act(() => G.resolveTrades()), 'danger'); break;
   }
   const tb = $('#tabs'); tb.innerHTML = '';
@@ -1491,28 +1495,105 @@ function viewForeign(v) {
 
 function viewFA(v) {
   const fa = G.freeAgents();
-  const mine = fa.rows.filter(r => r.offer);
-  const spend = mine.reduce((s, r) => s + r.offer[1], 0);
+  const live = fa.rows.filter(r => !r.signed && !r.walked && !r.unsigned);
+  const mine = live.filter(r => r.offer);
+  const spend = mine.reduce((s, r) => s + r.offer.aav, 0);
+  const done = fa.rows.filter(r => r.signed);
+  const talking = live.filter(r => r.demand);
+
+  // 오늘 답을 기다리는 사람이 먼저다. 나머지는 그다음이다.
+  if (talking.length) {
+    const w = el('div', 'sect');
+    w.innerHTML = `<h3>답을 기다린다 <em>${talking.length}</em></h3>
+      <div class="nego">${talking.map(r => `
+        <div class="ncard" data-talk="${r.pid}">
+          <div class="nhd"><b>${esc(r.name)}</b>
+            <span class="m dim">${r.age} · ${r.slot} · ${esc(r.former_team)}</span>
+            <span class="mood m${r.mood < 34 ? ' bad' : r.mood >= 70 ? ' good' : ''}">${r.mood_word}</span></div>
+          <p class="ndem">${esc(r.demand.text)}</p>
+          <div class="nfoot"><span class="m dim">내 제시 ${r.offer.years}년 ${r.offer.total}억</span>
+            <button class="primary">답한다</button></div>
+        </div>`).join('')}</div>`;
+    v.appendChild(w);
+  }
+
+  // 좁은 화면에서는 협상에 필요한 칸만 남긴다. 요구와 내 제시가 핵심이다.
+  const narrow = window.innerWidth < 620;
   const g = el('div', 'grid g21');
-  g.appendChild(sect('FA 시장', `${fa.rows.length} · ${AXIS_KEY}`, table(
-    ['선수','','나이','능력','요구','예상 낙찰','내 오퍼'],
-    fa.rows.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-      `<span class="m">${p.age}</span>`, axis(p.ovr),
-      `<span class="m">${p.ask.years}×${p.ask.aav}</span>`,
-      `<span class="m dim">${p.est.low}–${p.est.high}</span>`,
-      p.offer ? `<b class="m mark">${p.offer[0]}×${p.offer[1].toFixed(1)}</b>` : '<span class="dim">—</span>'] })),
+  g.appendChild(sect('FA 시장', `${fa.day}/${fa.days}일`, table(
+    narrow ? ['선수','나이','요구','내 제시']
+           : ['선수','','나이','능력','요구','시장','기분','내 제시'],
+    live.map(p => {
+      const ask = `<span class="m">${p.ask.years}년 ${p.ask.total}억</span>`;
+      const off = p.offer ? `<b class="m mark">${p.offer.years}년 ${p.offer.total}억</b>`
+                          : '<span class="dim">—</span>';
+      return { p, cells: narrow
+        ? [nameCell(p), `<span class="m">${p.age}</span>`, ask, off]
+        : [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+           `<span class="m">${p.age}</span>`, axis(p.ovr), ask,
+           `<span class="dim">${p.heat}</span>`,
+           `<span class="${p.mood < 34 ? 'warn' : ''}">${p.offer ? p.mood_word : '—'}</span>`,
+           off] };
+    }),
     (row) => openOffer(row.p))));
-  g.appendChild(sect('내 오퍼', `${mine.length}`, `
-    <div class="kv"><span>여력</span><b class="m">${fa.room}억</b></div>
-    <div class="kv"><span>오퍼 합계</span><b class="m ${spend > fa.room ? 'mark' : ''}">${spend.toFixed(1)}억</b></div>
-    <div style="margin-top:14px">${mine.length ? mine.map(r =>
+
+  const side = el('div', 'stack');
+  side.appendChild(sect('겨울 예산', '', `
+    <div class="kv"><span>연 지출 여력</span><b class="m">${fa.room}억</b></div>
+    <div class="kv"><span>제시 합계 (연)</span><b class="m ${spend > fa.room ? 'mark' : ''}">${spend.toFixed(1)}억</b></div>
+    <p class="note">한 해에 쓸 수 있는 돈이다. 넘겨서 부를 수는 없다 —
+      자리를 비우려면 방출이나 트레이드를 먼저 해야 한다.</p>
+    <div style="margin-top:12px">${mine.length ? mine.map(r =>
       `<div class="row"><span>${esc(r.name)}</span>
-       <b class="m">${r.offer[0]}년 ${(r.offer[0] * r.offer[1]).toFixed(1)}억</b></div>`).join('')
-      : '<div class="empty">—</div>'}</div>`));
+       <b class="m">${r.offer.years}년 ${r.offer.total}억</b></div>`).join('')
+      : '<div class="empty">아직 제시한 곳이 없다</div>'}</div>`));
+  if (done.length) side.appendChild(sect('계약 완료', `${done.length}`,
+    `<div class="stack">${done.slice(0, 14).map(r =>
+      `<div class="row ${r.signed.mine ? 'mine' : ''}"><span>${esc(r.name)}</span>
+       <b class="m">${esc(r.signed.team)} ${esc(r.signed.text)}</b></div>`).join('')}</div>`));
+  g.appendChild(side);
   v.appendChild(g);
+
+  v.querySelectorAll('[data-talk]').forEach(c => c.onclick = () =>
+    openTalk(fa.rows.find(r => r.pid === +c.dataset.talk), fa.tones));
+}
+
+/* 요구에 답한다. 무엇을 말하느냐보다 어떻게 말하느냐가 더 클 때가 있다. */
+function openTalk(p, tones) {
+  modal(`
+    <div class="mhead"><div><h2>${esc(p.name)}</h2>
+      <div class="meta">${p.age} · ${p.slot} · ${esc(p.former_team)} · ${p.mood_word}</div></div>
+      <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack">
+      <p class="ndem big">${esc(p.demand.text)}</p>
+      <div>
+        <div class="lab" style="margin-bottom:8px">어떻게 말하는가</div>
+        <div class="tones">${tones.map((t, i) =>
+          `<button data-tone="${t.key}" class="${i === 0 ? 'on' : ''}">
+             <b>${esc(t.label)}</b><i>${esc(t.hint)}</i></button>`).join('')}</div>
+        <p class="note">무엇이 먹히는지는 그 사람에 달렸다. 겪어봐야 안다.</p>
+      </div>
+      <div class="trow">
+        <button id="yes" class="primary">받아들인다</button>
+        <button id="no" class="danger">자른다</button>
+      </div>
+    </div>`);
+  let tone = tones[0].key;
+  $$('[data-tone]').forEach(b => b.onclick = () => {
+    tone = b.dataset.tone;
+    $$('[data-tone]').forEach(x => x.classList.toggle('on', x === b));
+  });
+  const answer = (ok) => {
+    const r = G.faRespond(p.pid, ok, tone);
+    closeModal(); autosave(); render();
+    if (r && r.msg) toast(`${r.tone} ${ok ? '수용' : '거절'}`, r.msg, r.walked ? 'warn' : '');
+  };
+  $('#yes').onclick = () => answer(true);
+  $('#no').onclick = () => answer(false);
 }
 
 function openOffer(p) {
+  const cap = G.freeAgents().room;
   modal(`
     <div class="mhead"><div><h2>${esc(p.name)}</h2>
       <div class="meta">${p.age} · ${p.slot} · ${esc(p.former_team)}</div></div>
@@ -1520,20 +1601,38 @@ function openOffer(p) {
     <div class="mbody stack">
       <div>
         <div class="kv"><span>능력</span>${axis(p.ovr)}</div>
-        <div class="kv"><span>요구</span><b class="m">${p.ask.years}년 · 연 ${p.ask.aav}억</b></div>
-        <div class="kv"><span>예상 낙찰</span><b class="m dim">연 ${p.est.low}–${p.est.high}억</b></div>
+        <div class="kv"><span>요구</span><b class="m">${p.ask.years}년 · 총 ${p.ask.total}억</b></div>
+        <div class="kv"><span>시장</span><b class="m dim">${esc(p.heat)}</b></div>
+        ${p.offer ? `<div class="kv"><span>그의 기분</span><b class="m">${p.mood_word}</b></div>` : ''}
       </div>
+      ${p.news && p.news.length ? `<div><div class="lab">들리는 이야기</div>
+        ${p.news.map(n => `<p class="note">${esc(n)}</p>`).join('')}</div>` : ''}
       <div>
-        <div class="lab" style="margin-bottom:10px">오퍼</div>
+        <div class="lab" style="margin-bottom:10px">제시 — 연 ${cap}억까지</div>
         <div style="display:flex;gap:20px;align-items:baseline;flex-wrap:wrap">
-          <label class="lab">기간 <input id="oy" type="number" min="1" max="6" value="${p.ask.years}"></label>
-          <label class="lab">연평균 <input id="oa" type="number" min="0.3" step="0.5" value="${p.est.high}"></label>
-          <button id="ok" class="primary">등록</button>
-          ${p.offer ? '<button id="del" class="quiet">취소</button>' : ''}
+          <label class="lab">기간 <input id="oy" type="number" min="1" max="7" value="${
+            p.offer ? p.offer.years : p.ask.years}"></label>
+          <label class="lab">연평균 <input id="oa" type="number" min="0.3" step="0.5" value="${
+            p.offer ? p.offer.aav : Math.min(p.ask.aav, cap)}"></label>
+        </div>
+        <div class="tglrow">
+          <button id="tst" class="tgl${p.offer && p.offer.starter ? ' on' : ''}">주전 보장</button>
+          <button id="tso" class="tgl${p.offer && p.offer.optout ? ' on' : ''}">옵트아웃</button>
         </div>
       </div>
+      <div class="trow">
+        <button id="ok" class="primary">제시한다</button>
+        ${p.offer ? '<button id="del" class="quiet">거둬들인다</button>' : ''}
+      </div>
     </div>`);
-  $('#ok').onclick = () => { G.offer(p.pid, +$('#oy').value, +$('#oa').value); closeModal(); autosave(); render(); };
+  const t1 = $('#tst'), t2 = $('#tso');
+  [t1, t2].forEach(b => b.onclick = () => b.classList.toggle('on'));
+  $('#ok').onclick = () => {
+    const r = G.offer(p.pid, +$('#oy').value, +$('#oa').value,
+      { starter: t1.classList.contains('on'), optout: t2.classList.contains('on') });
+    if (r.error === 'budget') { toast('', `연 ${r.room}억까지만 쓸 수 있다`, 'warn'); return; }
+    closeModal(); autosave(); render();
+  };
   if ($('#del')) $('#del').onclick = () => { G.cancelOffer(p.pid); closeModal(); autosave(); render(); };
 }
 

@@ -1,5 +1,6 @@
 // 자동저장 단일 슬롯. 불러오기 UI 는 없고, 백업용 내보내기/가져오기만 남긴다.
 import { Game } from './core/api.js';
+import { Negotiation } from './core/nego.js';
 import { League, Career } from './core/league.js';
 import { Season, SeasonBat, SeasonPit, TeamRecord, BAT_LINE, PIT_LINE } from './core/season.js';
 import { RNG } from './core/rng.js';
@@ -141,6 +142,11 @@ export function dump(game) {
     nextPid: R.getPidCounter(),
     season: dumpSeason(game.season),
     faOffers: Object.fromEntries(game.faOffers),
+    // 협상은 겨울 한철이라 통째로 담지 않는다. 오간 말과 기분만 남긴다.
+    nego: game.nego ? { day: game.nego.day, closed: game.nego.closed,
+      rows: game.nego.list().filter(r => !r.signed).map(r => ({
+        pid: r.pid, mood: r.mood, offer: r.offer, demand: r.demand,
+        tones: r.tones, walked: r.walked, unsigned: !!r.unsigned })) } : null,
     champion: game.champion,
     lastTable: game.lastTable || null,
     lastPlayoffs: game.lastPlayoffs || null,
@@ -243,6 +249,20 @@ export function load(data) {
   g.lastTable = data.lastTable || null;
   g.lastPlayoffs = data.lastPlayoffs || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
+  if (data.nego) {
+    g.nego = new Negotiation(L, L.year, [], g.me);
+    // 풀은 저장된 로스터에서 다시 세운다 — 계약이 끝난 선수가 곧 FA다
+    const pool = [];
+    for (const t of L.teams) for (const p of [...t.batters, ...t.pitchers])
+      if (!p.contract) { p.former_team = t; pool.push(p); }
+    for (const p of L.unsigned) pool.push(p);
+    const fresh = new Negotiation(L, L.year, pool, g.me);
+    fresh.day = data.nego.day; fresh.closed = data.nego.closed;
+    for (const r of data.nego.rows) { const row = fresh.row(r.pid); if (!row) continue;
+      Object.assign(row, { mood:r.mood, offer:r.offer, demand:r.demand,
+        tones:r.tones || {}, walked:r.walked, unsigned:r.unsigned }); }
+    g.nego = fresh;
+  }
   g._prev = { rank: 0, run: 0 };
   g.draftSession = null;
 

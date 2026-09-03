@@ -4,6 +4,7 @@ import { League, Season, postseason, syncHistory } from './league.js';
 import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
+import { Negotiation, TONES, DAYS as FA_DAYS } from './nego.js';
 import * as R from './roster.js';
 import * as FR from './names.js';
 import { PITCH, kmh } from './pitch.js';
@@ -1573,44 +1574,59 @@ export class Game {
     this._aiForeign();
     this.foreignPool = [];
     this.phase = OFF_FA; this.faOffers = new Map();
+    this.nego = new Negotiation(this.L, this.L.year,
+      market.openMarket(this.L, this.L.year), this.me);
     return { state:this.state() };
   }
 
   freeAgents() {
-    if (this.phase !== OFF_FA) return { rows: [] };
-    const me = this.me, year = this.L.year;
-    const cands = [];
-    for (const t of this.L.teams)
-      for (const p of [...t.batters, ...t.pitchers]) {
-        if (p.contract && p.contract.end_year > year) continue;
-        if (C.isFreeAgent(p, year)) cands.push([p, t]);
-      }
-    for (const p of this.L.unsigned) cands.push([p, null]);
-    const rows = cands.map(([p,t]) => {
-      const ip = p.kind === 'P';
-      const r = this.L.see(me, p);
-      const askAav = C.marketValue(r.ovr, p.age, ip);
-      const askYrs = C.demandYears(p.age, r.ovr);
-      return { ...this.brief(p, t), former_team: t ? t.name : '미계약',
-        ask: { years:askYrs, aav:r1(askAav), total:r1(askAav*askYrs) },
-        // 다른 팀들이 경쟁적으로 지르므로 실제 낙찰가는 요구액보다 높은 경우가 많다
-        est: { low:r1(askAav*0.95), high:r1(askAav*1.75) },
-        offer: this.faOffers.get(p.pid) ?? null };
-    }).sort((a,b) => b.ask.total - a.ask.total);
-    return { rows, budget:r0(me.finance.budget),
-             room:r1(me.finance.budget - C.payroll(me, year+1)) };
+    if (this.phase !== OFF_FA || !this.nego) return { rows: [] };
+    const me = this.me, n = this.nego;
+    const rows = n.list().map(row => {
+      const p = row.p;
+      const heat = row.heat >= 4 ? '뜨겁다' : row.heat >= 2 ? '경쟁이 있다'
+                 : row.heat >= 1 ? '한 곳 정도' : '조용하다';
+      return { ...this.brief(p, row.from), former_team: row.from ? row.from.name : '미계약',
+        ask: row.ask, want_years: row.wantYears, heat, heat_n: row.heat,
+        mood: Math.round(row.mood),
+        mood_word: row.walked ? '결렬' : row.unsigned ? '미계약'
+          : row.mood >= 70 ? '호의적' : row.mood >= 50 ? '무난'
+          : row.mood >= 34 ? '떨떠름' : row.mood >= 18 ? '불쾌' : '분노',
+        offer: row.offer, demand: row.demand, news: row.news.slice(-3),
+        signed: row.signed ? { team: row.signed.team.name, text: String(row.signed.contract),
+                               mine: row.signed.mine } : null,
+        walked: row.walked, unsigned: !!row.unsigned };
+    }).sort((a,b) => (a.signed||a.walked?1:0)-(b.signed||b.walked?1:0) || b.ask.total - a.ask.total);
+    return { rows, day: n.day, days: FA_DAYS, closed: n.closed, tones: TONES,
+      budget:r0(me.finance.budget),
+      room:r1(me.finance.budget - C.payroll(me, this.L.year+1)) };
   }
-  offer(pid, years, aav) {
-    // 협상 자리에서 사람이 드러난다
-    { const [p] = this.find(pid); if (p) p.talks = (p.talks || 0) + 1; }
-    if (this.phase !== OFF_FA) return { error:'wrong_phase' };
-    this.faOffers.set(pid, [Math.max(1,+years), Math.max(C.MIN_SALARY,+aav)]);
-    return { ok:true };
+  offer(pid, years, aav, opts = {}) {
+    if (this.phase !== OFF_FA || !this.nego) return { error:'wrong_phase' };
+    return this.nego.offer(pid, years, aav, opts);
   }
-  cancelOffer(pid) { this.faOffers.delete(pid); return { ok:true }; }
+  cancelOffer(pid) { return this.nego ? this.nego.cancel(pid) : { ok:true }; }
+  /** 요구에 답한다. accept=수용 여부, tone=어조. */
+  faRespond(pid, accept, tone = 'plain') {
+    if (this.phase !== OFF_FA || !this.nego) return { error:'wrong_phase' };
+    return this.nego.respond(pid, !!accept, tone);
+  }
+  /** 하루를 보낸다. */
+  faAdvance() {
+    if (this.phase !== OFF_FA || !this.nego) return { error:'wrong_phase' };
+    const r = this.nego.advance();
+    const mine = this.nego.list().filter(x => x.signed && x.signed.mine
+      && !x._told).map(x => { x._told = true;
+        return `${x.p.name} 계약 — ${String(x.signed.contract)}`; });
+    for (const m of mine) this.notice(m, 'transfer');
+    return { ...r, board: this.freeAgents() };
+  }
   resolveFA() {
     if (this.phase !== OFF_FA) return { error:'wrong_phase' };
-    const log = this.L.offFA(this.faOffers, this.me);
+    while (this.nego && !this.nego.closed) this.nego.advance();
+    const log = this.nego ? this.nego.finish() : [];
+    for (const line of (this.nego ? this.nego.log : [])) this.L.log(line);
+    this.nego = null;
     this.phase = OFF_TRADE;
     const out = { signings: log.map(s => ({ name:s.player.name, age:s.player.age,
       slot: s.player.kind==='P' ? s.player.role : s.player.position,

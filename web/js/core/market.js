@@ -37,7 +37,7 @@ export function tradeValue(L, t, p, year, mode, inFarm = false) {
   return v;
 }
 
-function faUtility(p, offer, bestTotal, team, curTeam, winPct, playChance) {
+export function faUtility(p, offer, bestTotal, team, curTeam, winPct, playChance) {
   const h = p.hidden;
   const wm=h.w_money??1, ww=h.w_winning??0.55, wp=h.w_playtime??0.45, wl=h.w_loyalty??0.18;
   const s = wm+ww+wp+wl;
@@ -46,7 +46,7 @@ function faUtility(p, offer, bestTotal, team, curTeam, winPct, playChance) {
     + wl*(team === curTeam ? 1 : 0)) / s;
 }
 
-function needScore(L, t, p, ovr) {
+export function needScore(L, t, p, ovr) {
   const ip = isP(p);
   const pool = ip ? t.pitchers : t.batters;
   if (!pool.length) return 1;
@@ -61,7 +61,7 @@ function needScore(L, t, p, ovr) {
   return Math.max(0, Math.min(1, 0.18 + gain/12));
 }
 
-function playChance(L, t, p) {
+export function playChance(L, t, p) {
   const pool = isP(p) ? t.pitchers : t.batters;
   if (!pool.length) return 1;
   const ovr = L.see(t,p).ovr;
@@ -69,9 +69,9 @@ function playChance(L, t, p) {
   return Math.max(0, Math.min(1, 1 - better/(isP(p) ? 8 : 9)));
 }
 
-export function runFreeAgency(L, year, extra = [], userOffers = null, userTeam = null, log = null) {
-  const rng = L.rng;
-  const signings = [];
+/** 시장을 연다. 재계약 대상은 갱신하고, 자격을 채운 선수만 풀에 남긴다.
+ *  협상이 여기 끼어들어야 해서 낙찰 로직과 떼어 놓았다. */
+export function openMarket(L, year, extra = []) {
   const pool = [];
   for (const t of L.teams) {
     for (const group of ['batters','pitchers']) {
@@ -90,9 +90,20 @@ export function runFreeAgency(L, year, extra = [], userOffers = null, userTeam =
   }
   for (const p of extra) pool.push(p);
   L.unsigned = [];
+  return pool;
+}
+
+/** 팀별 남은 돈. */
+export const faRoom = (L, year) =>
+  new Map(L.teams.map(t => [t.team_id, Math.max(0, t.finance.budget - C.payroll(t, year+1))]));
+
+export function runFreeAgency(L, year, extra = [], userOffers = null, userTeam = null, log = null) {
+  const rng = L.rng;
+  const signings = [];
+  const pool = openMarket(L, year, extra);
   if (!pool.length) return signings;
 
-  const room = new Map(L.teams.map(t => [t.team_id, Math.max(0, t.finance.budget - C.payroll(t, year+1))]));
+  const room = faRoom(L, year);
   const mv = (p) => {
     const best = Math.max(...L.teams.map(t => L.see(t,p).ovr));
     return C.marketValue(best, p.age, isP(p));
