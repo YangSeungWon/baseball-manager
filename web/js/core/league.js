@@ -77,7 +77,7 @@ export class League {
 
   /** 예전 저장본에는 코치진이 없다. 없으면 만들어 준다. */
   ensureStaff() {
-    for (const t of this.teams) if (!t.staff) t.staff = staff.makeStaff(this.rng);
+    for (const t of this.teams) if (!t.staff) t.staff = staff.makeStaff(this.rng, 0, this.year);
   }
 
   /** 창단 시점의 병역. 스물다섯이 넘었으면 이미 겪은 사람들이다.

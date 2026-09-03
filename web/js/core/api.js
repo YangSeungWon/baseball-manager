@@ -1126,7 +1126,7 @@ export class Game {
 
   staff() {
     const t = this.me;
-    if (!this.coachMarket) this.coachMarket = SF.makeMarket(this.L.rng, 3);
+    if (!this.coachMarket) this.coachMarket = SF.makeMarket(this.L.rng, 3, this.L.year);
     const eff = {
       bat: `타자 성장 ×${SF.devMult(t, 'B').toFixed(2)}`,
       pit: `투수 성장 ×${SF.devMult(t, 'P').toFixed(2)}`,

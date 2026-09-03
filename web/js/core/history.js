@@ -57,7 +57,8 @@ function makeLegend(rng, h, upToYear) {
   const span = rng.randint(13, 20);
   const pitcher = rng.random() < 0.38;
   return {
-    name: personName(rng),
+    // 1980년대에 데뷔한 레전드가 요즘 이름을 갖고 있으면 안 된다. 데뷔 22년 전 출생.
+    name: personName(rng, debut - 22),
     pos: pitcher ? 'SP' : rng.choice(POS),
     from: debut, to: Math.min(upToYear - 1, debut + span),
     number: rng.randint(1, 68),

@@ -67,7 +67,7 @@ function finish(p, pot, rng, year) {
   return p;
 }
 
-export function makeProspectBatter(rng, pos, talent = null, year = 0) {
+export function makeProspectBatter(rng, pos, talent = null, year = 0, birth = null) {
   const t = talent === null ? rng.gauss(0,1) : talent;
   const [hit, fld, spd, arm] = POS[pos];
   const pot = {
@@ -77,7 +77,7 @@ export function makeProspectBatter(rng, pos, talent = null, year = 0) {
     fielding: attr(t,rng,0.15,fld), arm: attr(t,rng,0.10,arm),
   };
   const b = newBatter({ gb_tendency: attr(0,rng,0), bats: rng.random()<0.33?'L':'R',
-    position: pos, pid: newPid(), name: personName(rng) });
+    position: pos, pid: newPid(), name: personName(rng, birth ?? (year || 2023) - 18) });
   return finish(b, pot, rng, year);
 }
 
@@ -95,7 +95,7 @@ export function makeArsenal(rng, role) {
   return [fast, ...off];
 }
 
-export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0) {
+export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0, birth = null) {
   let t = talent === null ? rng.gauss(0,1) : talent;
   let stamShift = 0.60;
   if (role !== 'SP') { stamShift = -1.10; t += 0.15; }
@@ -106,7 +106,8 @@ export function makeProspectPitcher(rng, role = 'SP', talent = null, year = 0) {
     velo: attr(t,rng,0.30, role !== 'SP' ? 0.30 : 0),
   };
   const p = newPitcher({ gb_tendency: attr(0,rng,0), throws: rng.random()<0.28?'L':'R',
-    role, pid: newPid(), name: personName(rng), arsenal: makeArsenal(rng, role) });
+    role, pid: newPid(), name: personName(rng, birth ?? (year || 2023) - 18),
+    arsenal: makeArsenal(rng, role) });
   return finish(p, pot, rng, year);
 }
 
@@ -118,9 +119,11 @@ export function ageTo(p, target, rng, pt = 1.0) {
 function makeAged(rng, kind, targetAge, year, bestOf, opts) {
   const cands = [];
   for (let i = 0; i < bestOf; i++) {
+    // 이 선수는 지금 targetAge 살이다 — 이름도 그때 태어난 사람의 이름이어야 한다.
+    const birth = year - targetAge;
     const p = kind === 'B'
-      ? makeProspectBatter(rng, opts.pos, opts.talent, year)
-      : makeProspectPitcher(rng, opts.role, opts.talent, year);
+      ? makeProspectBatter(rng, opts.pos, opts.talent, year, birth)
+      : makeProspectPitcher(rng, opts.role, opts.talent, year, birth);
     ageTo(p, targetAge, rng);
     cands.push(p);
   }

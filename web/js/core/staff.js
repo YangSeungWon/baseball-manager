@@ -18,25 +18,28 @@ const clamp = (v) => Math.max(20, Math.min(80, v));
 
 /** 코치 한 명. 능력은 20~80 눈금 위에 있고, 여기엔 오차가 없다.
  *  코치는 뽑기 전에 이력이 보인다 — 선수와 다른 점이다. */
-export function makeCoach(rng, role, level = 0) {
+export function makeCoach(rng, role, level = 0, year = 2026) {
   const rating = clamp(rng.gauss(48 + level * 9, 9));
-  return { id: Math.floor(rng.random() * 1e9), role, name: personName(rng),
-    rating: Math.round(rating), age: Math.round(rng.gauss(52, 8)),
+  const age = Math.round(rng.gauss(52, 8));
+  return { id: Math.floor(rng.random() * 1e9), role,
+    // 쉰 살 코치는 쉰 살에 흔했던 이름을 갖는다
+    name: personName(rng, year - age),
+    rating: Math.round(rating), age,
     salary: Math.round(price(rating) * 10) / 10, years: Math.round(rng.gauss(9, 5)) };
 }
 const price = (r) => Math.max(0.6, 0.6 + Math.pow(Math.max(0, r - 34) / 10, 2.1) * 0.72);
 
-export function makeStaff(rng, level = 0) {
+export function makeStaff(rng, level = 0, year = 2026) {
   const s = {};
-  for (const r of ROLES) s[r.key] = makeCoach(rng, r.key, level);
+  for (const r of ROLES) s[r.key] = makeCoach(rng, r.key, level, year);
   return s;
 }
 
 /** 뽑을 수 있는 사람들. 겨울마다 새로 채워진다. */
-export function makeMarket(rng, n = 3) {
+export function makeMarket(rng, n = 3, year = 2026) {
   const out = {};
   for (const r of ROLES)
-    out[r.key] = Array.from({ length: n }, () => makeCoach(rng, r.key, rng.gauss(0, 0.6)));
+    out[r.key] = Array.from({ length: n }, () => makeCoach(rng, r.key, rng.gauss(0, 0.6), year));
   return out;
 }
 
