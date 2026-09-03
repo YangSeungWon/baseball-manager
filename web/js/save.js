@@ -142,6 +142,10 @@ export function dump(game) {
     nextPid: R.getPidCounter(),
     season: dumpSeason(game.season),
     faOffers: Object.fromEntries(game.faOffers),
+    // 보상은 팀 id 와 pid 로만 적는다. 객체를 통째로 담으면 참조가 꼬인다.
+    comps: (game.comps || []).map(c => ({ pid:c.pid, name:c.name, grade:c.grade,
+      to:c.to.team_id, from:c.from.team_id, salary:c.salary,
+      prot: c.protected || null })),
     // 협상은 겨울 한철이라 통째로 담지 않는다. 오간 말과 기분만 남긴다.
     nego: game.nego ? { day: game.nego.day, closed: game.nego.closed,
       rows: game.nego.list().filter(r => !r.signed).map(r => ({
@@ -249,6 +253,8 @@ export function load(data) {
   g.lastTable = data.lastTable || null;
   g.lastPlayoffs = data.lastPlayoffs || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
+  g.comps = (data.comps || []).map(c => ({ ...c, to: L.team(c.to), from: L.team(c.from),
+    protected: c.prot || null }));
   if (data.nego) {
     g.nego = new Negotiation(L, L.year, [], g.me);
     // 풀은 저장된 로스터에서 다시 세운다 — 계약이 끝난 선수가 곧 FA다

@@ -4,7 +4,7 @@ import { League, Season, postseason, syncHistory } from './league.js';
 import * as dev from './development.js';
 import * as C from './contract.js';
 import * as market from './market.js';
-import { Negotiation, TONES, DAYS as FA_DAYS } from './nego.js';
+import { Negotiation, TONES, DAYS as FA_DAYS, GRADE } from './nego.js';
 import * as R from './roster.js';
 import * as FR from './names.js';
 import { PITCH, kmh } from './pitch.js';
@@ -18,7 +18,7 @@ import { Mailbox, scanDay, scanState, scanForeign, offseasonMail, seasonEndMail,
 
 export const PRESEASON='preseason', REGULAR='regular', POSTSEASON='postseason',
   OFF_ROLLOVER='off_rollover', OFF_FOREIGN='off_foreign', OFF_FA='off_fa',
-  OFF_TRADE='off_trade', OFF_DRAFT='off_draft';
+  OFF_TRADE='off_trade', OFF_DRAFT='off_draft', OFF_COMP='off_comp';
 export const TACTIC_DEFS = [
   { key:'bunt',  label:'번트',      steps:['안 함','적게','보통','자주','적극'],
     hint:'주자를 한 베이스 보내는 대신 아웃 하나를 준다' },
@@ -37,7 +37,7 @@ export const TACTIC_DEFS = [
 export const PHASE_LABEL = {
   [PRESEASON]:'스프링캠프', [REGULAR]:'정규시즌', [POSTSEASON]:'포스트시즌',
   [OFF_ROLLOVER]:'시즌 정리', [OFF_FOREIGN]:'외국인 시장', [OFF_FA]:'FA 시장',
-  [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
+  [OFF_COMP]:'보상선수', [OFF_TRADE]:'트레이드', [OFF_DRAFT]:'신인 드래프트',
 };
 const r0 = (v) => Math.round(v);
 const r1 = (v) => Math.round(v*10)/10;
@@ -1693,7 +1693,9 @@ export class Game {
                  : row.heat >= 1 ? '한 곳 정도' : '조용하다';
       return { ...this.brief(p, row.from), former_team: row.from ? row.from.name : '미계약',
         ask: row.ask, want_years: row.wantYears, heat, heat_n: row.heat,
-        mood: Math.round(row.mood),
+        mood: Math.round(row.mood), grade: row.grade,
+        grade_cost: row.grade === 'C' ? '보상 없음'
+          : `보상선수 + ${Math.round(row.salary * GRADE[row.grade].pay)}억`,
         mood_word: row.walked ? '결렬' : row.unsigned ? '미계약'
           : row.mood >= 70 ? '호의적' : row.mood >= 50 ? '무난'
           : row.mood >= 34 ? '떨떠름' : row.mood >= 18 ? '불쾌' : '분노',
@@ -1731,14 +1733,149 @@ export class Game {
     while (this.nego && !this.nego.closed) this.nego.advance();
     const log = this.nego ? this.nego.finish() : [];
     for (const line of (this.nego ? this.nego.log : [])) this.L.log(line);
+    const comps = this.nego ? this.nego.comps : [];
     this.nego = null;
-    this.phase = OFF_TRADE;
     const out = { signings: log.map(s => ({ name:s.player.name, age:s.player.age,
       slot: s.player.kind==='P' ? s.player.role : s.player.position,
       team:s.team.name, text:String(s.contract), mine:s.team.team_id===this.userId,
       moved: s.team !== s.from })).sort((a,b) => (b.mine?1:0)-(a.mine?1:0)) };
     offseasonMail(this, 'fa', out.signings);
+
+    // 보상. 내가 낀 건은 사람이 정하고, 나머지는 알아서 굴러간다.
+    this.comps = comps.filter(c => c.to.team_id === this.userId
+                                || c.from.team_id === this.userId);
+    for (const c of comps) if (!this.comps.includes(c)) this._autoComp(c);
+    if (this.comps.length) { this.phase = OFF_COMP; out.comps = this.comps.length; }
+    else this.phase = OFF_TRADE;
     return out;
+  }
+
+  /* ── 보상선수 ────────────────────────────────────────────────
+     실제 KBO 규정을 한 문장으로 줄이면 이렇다 —
+     큰 FA 를 데려오려면 내 선수 한 명을 내준다. 누구를 지킬지는 내가 고른다. */
+
+  /** 보상선수로 지명될 수 있는 사람. 외국인과 군복무 중은 빠진다. */
+  _compPool(t, signedPid) {
+    const yr = this.L.year;
+    return [...t.batters, ...t.pitchers, ...t.farm].filter(p =>
+      p.pid !== signedPid && !p.foreign && p.mil !== 'serving'
+      // 그해 데려온 FA 는 보상선수로 내줄 수 없다
+      && !(p.contract && p.contract.start_year === yr + 1 && p.fa_signed === yr));
+  }
+  _compValue(t, p) {
+    const r = this.L.see(t, p);
+    const young = Math.max(0, Math.min(1, (27 - p.age) / 7));
+    return r.ovr * (1 - young * 0.45) + r.pot * young * 0.55;
+  }
+  /** 이 건에서 실제로 지킬 수 있는 인원. 명단이 얇으면 그만큼 줄인다. */
+  _protectN(c) {
+    const g = GRADE[c.grade];
+    const n = this._compPool(c.to, c.pid).length;
+    return Math.max(0, Math.min(g.protect, n - g.expose));
+  }
+  /** AI 가 지킬 인원. 가치 순으로 자른다. */
+  _autoProtect(t, n, signedPid) {
+    const pool = this._compPool(t, signedPid);
+    return pool.sort((a, b) => this._compValue(t, b) - this._compValue(t, a))
+      .slice(0, n).map(p => p.pid);
+  }
+  /** 보상을 실제로 집행한다. take 가 null 이면 돈만 받는다. */
+  _applyComp(c, protectedIds, takePid) {
+    const g = GRADE[c.grade];
+    const money = r1(c.salary * (takePid ? g.pay : g.payOnly));
+    c.to.finance.budget = Math.max(0, c.to.finance.budget - money);
+    c.from.finance.budget += money;
+    let moved = null;
+    if (takePid) {
+      const pool = this._compPool(c.to, c.pid).filter(p => !protectedIds.includes(p.pid));
+      const p = pool.find(x => x.pid === takePid);
+      if (p) { market.movePlayer(c.to, p, c.to.farm.includes(p), c.from); moved = p; }
+    }
+    this.L.log(`[보상] ${c.name}(${c.grade}) ${c.from.name} → ${c.to.name}`
+      + ` · ${moved ? `보상선수 ${moved.name} + ` : ''}${money.toFixed(1)}억`);
+    return { money, moved };
+  }
+  _autoComp(c) {
+    const g = GRADE[c.grade];
+    const prot = this._autoProtect(c.to, this._protectN(c), c.pid);
+    const pool = this._compPool(c.to, c.pid).filter(p => !prot.includes(p.pid));
+    const best = pool.length
+      ? pool.reduce((a, b) => this._compValue(c.from, b) > this._compValue(c.from, a) ? b : a)
+      : null;
+    // 사람 하나가 연봉 몇 배보다 나은가. 원소속 구단이 정한다.
+    const worth = best ? this._compValue(c.from, best) : 0;
+    const takeIt = best && worth >= 46;
+    return this._applyComp(c, prot, takeIt ? best.pid : null);
+  }
+
+  /** 지금 처리해야 할 보상 한 건. */
+  compBoard() {
+    if (this.phase !== OFF_COMP || !this.comps || !this.comps.length) return { done:true };
+    const c = this.comps[0], g = GRADE[c.grade];
+    const iSign = c.to.team_id === this.userId;
+    const t = c.to;                      // 명단을 내는 쪽은 언제나 영입 구단
+    const pool = this._compPool(t, c.pid);
+    const rows = pool.map(p => ({ ...this.brief(p, t),
+      farm: t.farm.includes(p), value: r1(this._compValue(t, p)) }))
+      .sort((a, b) => b.value - a.value);
+    const out = { done:false, left: this.comps.length,
+      player: c.name, grade: c.grade, salary: c.salary,
+      rule: c.grade === 'C' ? g.say
+        : `보호 ${this._protectN(c)}인 외 1명 + 연봉 ${Math.round(g.pay*100)}%`
+          + ` · 또는 연봉 ${Math.round(g.payOnly*100)}%`,
+      from: c.from.name, to: c.to.name, i_sign: iSign,
+      protect_n: this._protectN(c),
+      money_with: r1(c.salary * g.pay), money_only: r1(c.salary * g.payOnly),
+      rows };
+    if (!iSign) {
+      // 내가 내주는 쪽이면 상대는 이미 명단을 냈다. 나는 남은 데서 고른다.
+      const prot = c.protected || (c.protected = this._autoProtect(t, this._protectN(c), c.pid));
+      out.rows = rows.filter(r => !prot.includes(r.pid));
+    }
+    return out;
+  }
+  /** 영입 구단으로서 보호 명단을 낸다. */
+  compProtect(pids) {
+    if (this.phase !== OFF_COMP || !this.comps.length) return { error:'wrong_phase' };
+    const c = this.comps[0], n = this._protectN(c);
+    const pool = this._compPool(c.to, c.pid).map(p => p.pid);
+    const list = [...new Set((pids || []).filter(x => pool.includes(x)))];
+    if (list.length > n) return { error:'too_many', max:n };
+    // 남는 자리는 가치 순으로 채운다. 덜 고른 건 손해일 뿐 반칙이 아니다.
+    if (list.length < n)
+      for (const pid of this._autoProtect(c.to, n, c.pid))
+        if (list.length < n && !list.includes(pid)) list.push(pid);
+    const r = this._autoCompFrom(c, list);
+    this.comps.shift();
+    if (!this.comps.length) this.phase = OFF_TRADE;
+    return { ok:true, ...r };
+  }
+  /** 원소속 구단(AI)이 남은 데서 고른다. */
+  _autoCompFrom(c, prot) {
+    const pool = this._compPool(c.to, c.pid).filter(p => !prot.includes(p.pid));
+    const best = pool.length
+      ? pool.reduce((a, b) => this._compValue(c.from, b) > this._compValue(c.from, a) ? b : a)
+      : null;
+    const take = best && this._compValue(c.from, best) >= 46 ? best.pid : null;
+    const res = this._applyComp(c, prot, take);
+    return { taken: res.moved ? res.moved.name : null, money: res.money };
+  }
+  /** 원소속 구단으로서 보상을 고른다. pid 가 null 이면 돈만 받는다. */
+  compTake(pid) {
+    if (this.phase !== OFF_COMP || !this.comps.length) return { error:'wrong_phase' };
+    const c = this.comps[0];
+    const prot = c.protected || this._autoProtect(c.to, this._protectN(c), c.pid);
+    const res = this._applyComp(c, prot, pid || null);
+    this.comps.shift();
+    if (!this.comps.length) this.phase = OFF_TRADE;
+    return { ok:true, taken: res.moved ? res.moved.name : null, money: res.money };
+  }
+  /** 남은 건을 전부 자동으로 넘긴다. */
+  finishComps() {
+    if (this.phase !== OFF_COMP) return { error:'wrong_phase' };
+    for (const c of this.comps) this._autoComp(c);
+    this.comps = []; this.phase = OFF_TRADE;
+    return { ok:true };
   }
   tradeAssets(teamId) {
     const t = this.L.team(teamId);

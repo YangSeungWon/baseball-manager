@@ -28,7 +28,7 @@ export class Career {
 }
 
 export class League {
-  static FARM_CAP = 18;
+  static FARM_CAP = 50;      // 실제 구단의 소속선수는 정식 65 + 육성 15 안팎이다
 
   constructor(nTeams = 8, startYear = 2030, games = 84, seed = 1) {
     this.rng = new RNG(seed);

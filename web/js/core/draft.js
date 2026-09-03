@@ -2,7 +2,9 @@
 import * as R from './roster.js';
 import * as dev from './development.js';
 
-export const CLASS_SIZE = 78, ROUNDS = 4, HS_RATIO = 0.60;
+// 실제 KBO 신인 드래프트는 11라운드다. 4라운드로 돌리면 소속선수가 마흔에서
+// 멈춰서 2군도, 보호선수 명단도 실제와 다른 물건이 된다.
+export const CLASS_SIZE = 242, ROUNDS = 11, HS_RATIO = 0.60;
 const POS_PREMIUM = { C:2.2, SS:1.8, CF:1.0, '2B':0.5, '3B':0.3, RF:-0.4, LF:-0.8, '1B':-1.6, DH:-2.6 };
 
 export function makeClass(rng, year) {

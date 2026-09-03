@@ -8,6 +8,49 @@ import * as M from './market.js';
 import * as persona from './persona.js';
 
 export const DAYS = 5;
+
+/* 등급.
+   실제 KBO 는 직전 시즌 연봉 순위로 A·B·C 를 나눈다. 규정은 복잡해 보이지만
+   한 문장이다 — 큰 FA 를 데려오려면 내 선수 한 명을 내준다. */
+// KBO 규정 그대로다. 구단이 일흔 명 넘게 데리고 있어야 성립하는 숫자라
+// 드래프트를 11라운드로, 2군 상한을 쉰으로 올리고 나서야 쓸 수 있게 됐다.
+// 명단이 얇은 판(초창기·대량 방출 뒤)에서는 expose 만큼은 반드시 열어 둔다.
+export const GRADE = {
+  A: { protect: 20, expose: 8, pay: 2.0, payOnly: 3.0,
+       say: '보호 20인 외 1명 + 연봉 200% · 또는 연봉 300%' },
+  B: { protect: 25, expose: 5, pay: 1.0, payOnly: 2.0,
+       say: '보호 25인 외 1명 + 연봉 100% · 또는 연봉 200%' },
+  C: { protect: 0,  expose: 0, pay: 0,   payOnly: 1.5,
+       say: '보상선수 없음 · 연봉 150%' },
+};
+
+/** 리그 전체 연봉 순위로 등급을 매긴다. 팀 안에서도 높아야 A 다. */
+export function gradeFA(L, pool) {
+  const sal = (p) => (p.contract ? p.contract.aav : 0);
+  const league = [...pool].sort((a, b) => sal(b) - sal(a));
+  const rankIn = new Map(league.map((p, i) => [p.pid, i + 1]));
+  // 팀 내 순위는 그 팀 전체 연봉과 견준다.
+  // FA 는 이미 로스터에서 빠져 있으므로 원소속으로 되돌려 놓고 센다.
+  const byTeam = new Map(L.teams.map(t => [t.team_id, [...t.batters, ...t.pitchers]]));
+  for (const p of pool) if (p.former_team) {
+    const arr = byTeam.get(p.former_team.team_id); if (arr) arr.push(p);
+  }
+  const teamRank = new Map();
+  for (const [, all] of byTeam) {
+    all.sort((a, b) => sal(b) - sal(a));
+    all.forEach((p, i) => teamRank.set(p.pid, { r: i + 1, n: all.length }));
+  }
+  const out = new Map();
+  for (const p of pool) {
+    const tr = teamRank.get(p.pid);
+    const lr = rankIn.get(p.pid) ?? 999;
+    // 등급은 '얼마나 받았나' 지 '얼마나 잘하나' 가 아니다. 그래서 가끔 어긋난다.
+    if (tr && tr.r <= 3 && lr <= 12) out.set(p.pid, 'A');
+    else if (tr && tr.r <= Math.max(3, Math.ceil(tr.n * 0.3)) && lr <= 40) out.set(p.pid, 'B');
+    else out.set(p.pid, 'C');
+  }
+  return out;
+}
 const isP = (p) => p.kind === 'P';
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -73,9 +116,10 @@ function askDemand(row, rng) {
 export class Negotiation {
   constructor(L, year, pool, userTeam) {
     this.L = L; this.year = year; this.me = userTeam;
-    this.day = 0; this.closed = false; this.log = [];
+    this.day = 0; this.closed = false; this.log = []; this.comps = [];
     this.room = M.faRoom(L, year);
     this.rows = new Map();
+    this.grades = gradeFA(L, pool);
     for (const p of pool) {
       const r = L.see(this.me, p);
       const aav = C.marketValue(r.ovr, p.age, isP(p));
@@ -85,7 +129,8 @@ export class Negotiation {
         ask: { years: yrs, aav: r1(aav), total: r1(aav * yrs) },
         wantYears: yrs, offer: null, demand: null, mood: 50,
         heat: this._heat(p), talked: 0, tones: {}, signed: null, walked: false,
-        news: [],
+        news: [], grade: this.grades.get(p.pid) || 'C',
+        salary: r1(p.contract ? p.contract.aav : 0),
       });
     }
   }
@@ -238,9 +283,14 @@ export class Negotiation {
     if (deal.optout) ct.optout = true;
     p.contract = ct;
     if (deal.starter) p.promised_starter = this.year + 1;
+    p.fa_signed = this.year;   // 그해 영입한 FA 는 보상선수로 내줄 수 없다
     (isP(p) ? team.pitchers : team.batters).push(p);
     this.room.set(team.team_id, Math.max(0, (this.room.get(team.team_id) ?? 0) - ct.aav));
     row.signed = { team, contract: ct, mine: team === this.me };
+    // 팀을 옮겼고 C등급이 아니면 보상이 따라붙는다
+    if (row.from && team !== row.from && row.grade !== 'C')
+      this.comps.push({ pid: p.pid, name: p.name, grade: row.grade,
+        to: team, from: row.from, salary: row.salary });
     this.log.push(`[FA] ${p.name}(${p.age}세) ${team.name} ${ct.years}년 ${ct.total.toFixed(0)}억`
       + ` (${team === row.from ? '잔류' : '이적'})`);
   }

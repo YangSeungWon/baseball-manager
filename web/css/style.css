@@ -1232,3 +1232,24 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .field .rn{fill:#f6f9fc;stroke:#0a1119;stroke-width:1.4;opacity:0;
   transition:opacity .18s ease}
 .field .rn.on{opacity:1}
+
+/* 보상선수 — 스무 명을 지키고 나머지를 연다. 지킨 쪽이 눈에 띄어야 한다 */
+.cpsay{font-size:15px;line-height:1.6;color:var(--fg2);margin:0}
+.cpbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  position:sticky;top:0;background:var(--s1);padding:8px 0;z-index:2}
+.cpbar #cpn{font-size:14px;color:var(--fg3);margin-right:auto}
+.cpbar #cpn.warn{color:var(--neg)}
+.cplist{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:4px}
+.cprow{display:grid;grid-template-columns:minmax(0,1fr) 150px;align-items:center;gap:10px;
+  padding:7px 10px;background:var(--s2);border-radius:2px;cursor:pointer;
+  box-shadow:inset 2px 0 0 transparent}
+.cprow:hover{background:var(--s3)}
+.cprow.keep{box-shadow:inset 2px 0 0 var(--accent);
+  background:color-mix(in srgb,var(--accent) 12%,var(--s2))}
+.cpn{display:flex;flex-direction:column;min-width:0}
+.cpn i{font-style:normal;font-size:11px;color:var(--fg3)}
+.cprow b{text-align:right;font-size:12px;color:var(--fg3)}
+.gr{display:inline-block;min-width:18px;text-align:center;font-size:11px;font-weight:700;
+  padding:2px 5px;border-radius:2px;background:var(--s3);color:var(--fg3)}
+.gr.gA{background:var(--neg);color:#fff}
+.gr.gB{background:color-mix(in srgb,var(--neg) 45%,var(--s3));color:var(--fg)}

@@ -523,6 +523,13 @@ function renderTop() {
           : '외국인 계약을 확정한다. 되돌릴 수 없다.';
         if (confirm(msg)) act(() => G.finishForeign());
       }, 'danger'); break;
+    case 'off_comp': {
+      const cb = G.compBoard();
+      if (!cb.done) btn(cb.i_sign ? `보호 명단 (${cb.left})` : `보상 선택 (${cb.left})`,
+        () => openComp(), 'primary');
+      btn('나머지 자동', () => { if (confirm('남은 보상을 전부 자동으로 넘긴다.'))
+        act(() => G.finishComps()); }, 'quiet');
+      break; }
     case 'off_fa': {
       const f = G.freeAgents();
       if (!f.closed) btn(`하루 보낸다 (${f.day}/${f.days})`, () => act(() => G.faAdvance()), 'primary');
@@ -1591,16 +1598,17 @@ function viewFA(v) {
   const narrow = window.innerWidth < 620;
   const g = el('div', 'grid g21');
   g.appendChild(sect('FA 시장', `${fa.day}/${fa.days}일`, table(
-    narrow ? ['선수','나이','요구','내 제시']
-           : ['선수','','나이','능력','요구','시장','기분','내 제시'],
+    narrow ? ['선수','등급','요구','내 제시']
+           : ['선수','','나이','등급','능력','요구','시장','기분','내 제시'],
     live.map(p => {
       const ask = `<span class="m">${p.ask.years}년 ${p.ask.total}억</span>`;
       const off = p.offer ? `<b class="m mark">${p.offer.years}년 ${p.offer.total}억</b>`
                           : '<span class="dim">—</span>';
+      const gr = `<span class="gr g${p.grade}">${p.grade}</span>`;
       return { p, cells: narrow
-        ? [nameCell(p), `<span class="m">${p.age}</span>`, ask, off]
+        ? [nameCell(p), gr, ask, off]
         : [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-           `<span class="m">${p.age}</span>`, axis(p.ovr), ask,
+           `<span class="m">${p.age}</span>`, gr, axis(p.ovr), ask,
            `<span class="dim">${p.heat}</span>`,
            `<span class="${p.mood < 34 ? 'warn' : ''}">${p.offer ? p.mood_word : '—'}</span>`,
            off] };
@@ -1675,6 +1683,8 @@ function openOffer(p) {
         <div class="kv"><span>능력</span>${axis(p.ovr)}</div>
         <div class="kv"><span>요구</span><b class="m">${p.ask.years}년 · 총 ${p.ask.total}억</b></div>
         <div class="kv"><span>시장</span><b class="m dim">${esc(p.heat)}</b></div>
+        <div class="kv"><span>등급</span><b><span class="gr g${p.grade}">${p.grade}</span>
+          <span class="m dim" style="margin-left:6px">${esc(p.grade_cost)}</span></b></div>
         ${p.offer ? `<div class="kv"><span>그의 기분</span><b class="m">${p.mood_word}</b></div>` : ''}
       </div>
       ${p.news && p.news.length ? `<div><div class="lab">들리는 이야기</div>
@@ -1706,6 +1716,84 @@ function openOffer(p) {
     closeModal(); autosave(); render();
   };
   if ($('#del')) $('#del').onclick = () => { G.cancelOffer(p.pid); closeModal(); autosave(); render(); };
+}
+
+/* 보상선수.
+   규칙은 복잡해 보이지만 한 문장이다 — 큰 FA 를 데려오면 내 선수 하나를 내준다.
+   그 하나를 누가 고르느냐가 전부다. 내 명단에서 스무 명을 지키고, 나머지는 열린다.
+   그리고 내가 저평가한 선수가 상대 눈에는 최고일 수 있다. */
+let compPick = new Set();
+function openComp() {
+  const b = G.compBoard();
+  if (b.done) return;
+  if (b.i_sign) compPick = new Set(b.rows.slice(0, b.protect_n).map(r => r.pid));
+
+  const row = (r) => `<div class="cprow ${b.i_sign && compPick.has(r.pid) ? 'keep' : ''}"
+      data-cp="${r.pid}">
+    <span class="cpn">${esc(r.name)}<i>${r.age}세 · ${r.slot}${r.farm ? ' · 2군' : ''}</i></span>
+    ${axis(r.ovr, r.pot)}</div>`;
+
+  const head = b.i_sign
+    ? `<p class="cpsay">${b.grade}급 FA <b>${esc(josa(b.player, '을를'))}</b> 데려왔다.
+        ${esc(josa(b.from, '이가'))} 우리 명단에서 한 명을 데려간다.
+        <b>${b.protect_n}명을 지킬 수 있다.</b> 나머지는 열린다.</p>`
+    : `<p class="cpsay">${b.grade}급 FA <b>${esc(josa(b.player, '이가'))}</b>
+        ${esc(josa(b.to, '으로'))} 갔다. 상대가 ${b.protect_n}명을 지켰다.
+        <b>남은 데서 하나를 데려오거나, 돈만 받는다.</b></p>`;
+
+  modal(`
+    <div class="mhead"><div><h2>보상선수</h2>
+      <div class="meta">${esc(b.from)} → ${esc(b.to)} · 연봉 ${b.salary}억 · ${esc(b.rule)}</div></div>
+      <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack">
+      ${head}
+      <div class="cpbar">
+        <span id="cpn" class="m"></span>
+        ${b.i_sign
+          ? `<button id="cpok" class="primary">명단 제출</button>`
+          : `<button id="cpok" class="primary" disabled>데려온다</button>
+             <button id="cpmoney" class="quiet">돈만 받는다 (${b.money_only}억)</button>`}
+      </div>
+      <div class="cplist">${b.rows.map(row).join('')}</div>
+    </div>`);
+
+  const cnt = $('#cpn'), ok = $('#cpok');
+  const sync = () => {
+    if (b.i_sign) {
+      cnt.textContent = `${compPick.size} / ${b.protect_n} 보호`;
+      cnt.classList.toggle('warn', compPick.size > b.protect_n);
+      ok.disabled = compPick.size > b.protect_n;
+    } else {
+      const one = [...compPick][0];
+      const r = b.rows.find(x => x.pid === one);
+      cnt.textContent = r ? `${r.name} 지명` : '고르지 않음';
+      ok.disabled = !r;
+    }
+  };
+  if (!b.i_sign) compPick = new Set();
+  sync();
+
+  $$('[data-cp]').forEach(e => e.onclick = () => {
+    const pid = +e.dataset.cp;
+    if (b.i_sign) {
+      compPick.has(pid) ? compPick.delete(pid) : compPick.add(pid);
+      e.classList.toggle('keep', compPick.has(pid));
+    } else {
+      compPick = new Set([pid]);
+      $$('[data-cp]').forEach(x => x.classList.toggle('keep', +x.dataset.cp === pid));
+    }
+    sync();
+  });
+
+  const done = (r) => {
+    closeModal(); compPick = new Set(); autosave(); render();
+    if (r.taken) toast('보상선수', `${r.taken} · ${r.money}억`);
+    else toast('보상', `${r.money}억`);
+    const nb = G.compBoard();
+    if (!nb.done) setTimeout(openComp, 350);
+  };
+  ok.onclick = () => done(b.i_sign ? G.compProtect([...compPick]) : G.compTake([...compPick][0]));
+  const mb = $('#cpmoney'); if (mb) mb.onclick = () => done(G.compTake(null));
 }
 
 function viewDraft(v) {
