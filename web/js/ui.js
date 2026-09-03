@@ -11,6 +11,11 @@ const KEY = 'dugout.save.v1', WKEY = 'dugout.watch';
    85개를 전부 틀어도 ×4 면 24초다 — 전체 재생이 실제로 선택지가 된다.
    기본은 하이라이트, 고른 것은 기억한다. */
 const WATCH = { result:'결과만', highlight:'하이라이트', full:'전체 재생' };
+const WATCH_NOTE = {
+  result:'승부처를 감독에게 맡기고 결과만 본다',
+  highlight:'승부처에서 묻고, 득점 장면을 본다',
+  full:'승부처에서 묻고, 모든 타석을 본다',
+};
 let watchMode = 'highlight';
 try { const v = localStorage.getItem(WKEY); if (WATCH[v]) watchMode = v; } catch {}
 function setWatch(v) { watchMode = v; try { localStorage.setItem(WKEY, v); } catch {} }
@@ -488,8 +493,7 @@ function renderTop() {
   switch (s.phase) {
     case 'preseason': btn('시즌 시작', () => act(() => G.startSeason()), 'primary'); break;
     case 'regular':
-      btn('다음 날', () => act(() => report(G.advance(1))), 'primary');
-      btn('지켜보기', () => watchDay());
+      btn('다음 날', () => nextDay(), 'primary');
       btn('7일', () => act(() => report(G.advance(7))));
       btn('끝까지', () => act(() => report(G.simToEnd())));
       break;
@@ -515,6 +519,33 @@ function renderTop() {
   });
 }
 function act(fn) { const r = fn(); autosave(); render(); return r; }
+/* ── 응원 ──────────────────────────────────────────────────
+   KBO 응원은 대개 이름 음절을 두드린다. 실제 응원가는 저작권이 걸린
+   개사곡이라 쓸 수 없고, 소리 없이 글자만으로도 분위기는 산다.
+   이름에서 규칙으로 뽑아내니 선수마다 자기 구호가 생긴다. */
+const CHANT_FORMS = [
+  (n) => n.split('').join('! ') + '!',                    // 김! 도! 영!
+  (n) => `오 오 오~ ${n}`,
+  (n) => `${n} ${n} 안타!`,
+  (n) => `날려라 ${n}`,
+  (n) => `${n[n.length - 1]}! ${n}!`,
+];
+/** 부르는 이름. 한국 선수는 이름(성 뗀 쪽), 외국인은 성을 통째로 부른다.
+ *  '하비에르 콜린스' 를 '린스' 라고 부르지는 않는다. */
+function chantName(name) {
+  if (name.includes(' ')) {
+    const sur = name.split(' ').pop();
+    return sur.length <= 4 ? sur : sur.slice(-3);
+  }
+  return name.length >= 3 ? name.slice(1) : name;      // 김도영 → 도영
+}
+/** 이름이 같으면 늘 같은 구호가 나온다. 이름과 상황으로 섞는다. */
+function chantFor(name, salt = 0) {
+  const who = chantName(name);
+  const h = [...name].reduce((a, c) => (a * 31 + c.codePointAt(0)) % 9973, 7) + salt;
+  return CHANT_FORMS[h % CHANT_FORMS.length](who);
+}
+
 /* ── 하이라이트 ─────────────────────────────────────────────
    하루를 넘기면 결과 한 줄만 뜨고 끝이었다. 야구는 그렇게 보는 게 아니다.
    점수가 난 장면만 골라 흘려 보내고, 언제든 건너뛸 수 있게 한다.
@@ -526,6 +557,7 @@ function highlightsOf(box) {
 }
 function openHighlights(box, onDone) {
   const H = highlightsOf(box), aw = box.away, hm = box.home;
+  const loud = box.crowd && box.cap ? box.crowd / box.cap : 0.6;   // 관중석이 얼마나 찼나
   const scoreLine = (a, h) => `<span>${esc(short(aw.team))}</span><b class="m">${a}</b>
       <i>:</i><b class="m">${h}</b><span>${esc(short(hm.team))}</span>`;
   if (!H.length) return finish();
@@ -536,6 +568,9 @@ function openHighlights(box, onDone) {
     <button id="hlSkip" class="quiet">건너뛰기</button></div>
     <div class="mbody hl">
       <div class="hl-score" id="hlScore">${scoreLine(0, 0)}</div>
+      ${box.crowd ? `<div class="hl-crowd">${esc(short(hm.team))} 홈 ·
+        관중 <b class="m">${box.crowd.toLocaleString()}</b>
+        <span>${Math.round(loud * 100)}%</span></div>` : ''}
       <div class="hl-log" id="hlLog"></div>
     </div>`);
   const $$ = (id) => document.getElementById(id);
@@ -545,11 +580,22 @@ function openHighlights(box, onDone) {
     const p = H[i], top = p.half === 'top';
     $$('hlMeta').textContent = `${p.inning}회${top ? '초' : '말'} · ${p.outs}아웃`;
     $$('hlScore').innerHTML = scoreLine(top ? p.ro : p.rd, top ? p.rd : p.ro);
+    // 공격하는 쪽 색으로 물든다. 홈 팀이 치면 관중석이 따라 붙는다.
+    const atk = top ? aw.team : hm.team, cp = capOf(atk);
+    document.querySelector('.hl').style.setProperty('--tc', cp.color);
     const row = el('div', 'hlrow');
     row.innerHTML = `<span class="hi">${p.inning}회${top ? '초' : '말'}</span>
       <span class="ht"><b>${esc(p.batter || '')}</b> ${esc(p.desc || '')}</span>
       ${p.runs ? `<span class="hr2">+${p.runs}</span>` : ''}`;
     $$('hlLog').appendChild(row);
+    // 홈 팀의 득점이면 응원석이 받는다. 사람이 많을수록 진하다.
+    if (!top && p.batter && loud > 0.45) {
+      const c = el('div', 'chant');
+      c.style.setProperty('--tc', cp.color);
+      c.style.opacity = (0.45 + loud * 0.55).toFixed(2);
+      c.textContent = chantFor(p.batter, p.inning);
+      $$('hlLog').appendChild(c);
+    }
     row.scrollIntoView({ block: 'nearest' });
   };
   function finish() {
@@ -754,6 +800,7 @@ function viewHome(v) {
       <div class="nx-watch"><span class="lab">경기를 볼 때</span>
         ${Object.entries(WATCH).map(([k, kr]) =>
           `<button data-w="${k}" class="${k === watchMode ? 'on' : ''}">${kr}</button>`).join('')}
+        <i class="nx-note">${WATCH_NOTE[watchMode]}</i>
       </div>
     </div>`));
     v.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { setWatch(b.dataset.w); render(); });
@@ -1658,6 +1705,15 @@ function modalInfo() {
     </div>`);
 }
 
+/* 하루를 넘긴다. 관전 방식이 곧 개입 여부다 —
+   결과만 고르면 감독에게 맡기고 넘어가고, 보기로 했으면 승부처에서 묻는다.
+   지켜볼 생각이 없는 사람에게 판단을 물을 이유가 없고,
+   지켜보기로 한 사람에게 판단을 안 물을 이유도 없다. */
+function nextDay() {
+  if (watchMode === 'result') return act(() => report(G.advance(1)));
+  watchDay();
+}
+
 /* ── 승부처 ───────────────────────────────────────────────────
    하루를 지켜본다. 감독이 실제로 손을 쓰는 순간에만 멈춰 선다.
    여기서 고른 것은 진짜로 경기 결과를 바꾼다 — 재생이 아니라 진행 중인 경기다. */
@@ -1896,7 +1952,7 @@ const pt = (ang, dep) => {
   return [HX + r * Math.sin(a), HY - r * Math.cos(a)];
 };
 
-function fieldSvg(park, color = '#4c8ed9') {
+function fieldSvg(park, color = '#4c8ed9', fill = null) {
   const dims = BIP.parkDims(park);
   const real = dims.real || { fL:99, fC:121, fR:99, fH:3 };
   const seed = [...(park && park.name ? park.name : '구장')]
@@ -1943,9 +1999,27 @@ function fieldSvg(park, color = '#4c8ed9') {
       text-anchor="${a < -10 ? 'start' : a > 10 ? 'end' : 'middle'}"
       dy="${a === 0 ? 4 : 0}">${v}</text>`; };
 
+  /* 관중. 텅 빈 회색 띠로 두면 야구장이 아니라 도형이다.
+     좌석 격자를 깔고 그 위에 사람을 앉힌다. 앉은 정도는 그날 관중 수다.
+     2만 명을 점으로 찍을 수는 없으니 패턴으로 민다 — 멀리서 본 관중석은
+     실제로도 그렇게 보인다. */
+  const uid = 'f' + Math.random().toString(36).slice(2, 8);
+  const rate = fill == null ? 0.62 : Math.max(0.08, Math.min(1, fill));
+  const seats = `
+    <pattern id="seat${uid}" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="4" fill="none"/>
+      <rect x="0" y="0" width="3" height="3" rx="0.6" class="seat"/>
+    </pattern>
+    <pattern id="crowd${uid}" width="4" height="4" patternUnits="userSpaceOnUse">
+      <circle cx="1.5" cy="1.5" r="1.15" class="head a"/>
+      <circle cx="3.5" cy="3.5" r="1.15" class="head b"/>
+    </pattern>`;
   return `<svg class="field ${dims.turf ? 'turf' : ''}" viewBox="0 0 ${FW} ${FH}"
       style="--pc:${color}">
+    <defs>${seats}</defs>
     <path class="stands" d="${stands}"/>
+    <path class="seats" d="${stands}" fill="url(#seat${uid})"/>
+    <path class="crowd" d="${stands}" fill="url(#crowd${uid})" opacity="${rate.toFixed(2)}"/>
     ${dome}
     <path class="grass" d="${grass}"/>
     ${mow.map(d => `<path class="mow" d="${d}"/>`).join('')}
@@ -1988,7 +2062,10 @@ function openReplay(box) {
       <button id="mx" class="quiet">닫기</button>
     </div>
     <div class="rpbody">
-      <div class="rpfield">${fieldSvg(box.park, capOf(box.home.team).color)}</div>
+      <div class="rpfield">${fieldSvg(box.park, capOf(box.home.team).color,
+        box.crowd && box.cap ? box.crowd / box.cap : null)}
+        ${box.crowd ? `<div class="rpcrowd">관중 <b class="m">${box.crowd.toLocaleString()}</b>
+          <span>${Math.round(box.crowd / box.cap * 100)}%</span></div>` : ''}</div>
       <div class="rpside">
         <div class="rpmatch">
           <div class="rprow"><span>투수</span><b id="rpPit">—</b></div>

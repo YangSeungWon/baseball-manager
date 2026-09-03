@@ -909,7 +909,7 @@ export class Game {
         return { name:b.name, slot:b.position, ab:L.ab, h:L.h, hr:L.hr, rbi:L.rbi, bb:L.bb, k:L.k };
       })});
     return { home:side(box.H), away:side(box.A), park: box.H.team.park,
-             plays: box.plays };
+             crowd: box.crowd ?? null, cap: box.cap ?? null, plays: box.plays };
   }
   runPostseason() {
     if (this.phase !== POSTSEASON) return { error:'wrong_phase' };

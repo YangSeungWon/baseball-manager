@@ -254,12 +254,13 @@ export class Season {
       const cap = home.park.capacity || 18000;
       const a = this.att.get(home.team_id);
       a.games++;
-      a.total += Math.round(cap * attendRate(home.finance, wp,
+      const crowd = Math.round(cap * attendRate(home.finance, wp,
         home.lastPlayoff || false, home.lastTitle || false, this.rng));
+      a.total += crowd;
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
       out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh, called: !!called,
-                 box: keep ? { H, A, plays } : null });
+                 box: keep ? { H, A, plays, crowd, cap } : null });
     }
     this.curDay++;
     return out;
