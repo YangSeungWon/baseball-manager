@@ -38,7 +38,7 @@ export const ADV = {
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
   sacfly_base: 0.500, gb_r3_scores: 0.330, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
   sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
-  sb_success_base: 0.655, sb_success_speed: 0.055, sb_success_arm: -0.033,
+  sb_success_base: 0.688, sb_success_speed: 0.055, sb_success_arm: -0.033,
 };
 
 // 주자마다 책임 투수와 자책 여부를 함께 들고 다닌다.

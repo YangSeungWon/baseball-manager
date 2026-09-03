@@ -1138,6 +1138,14 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   padding:8px 4px;border-bottom:1px solid var(--line2);cursor:pointer}
 .prow:hover{background:var(--hover)}
 .prow.off{opacity:.55}
+.prow.pick{background:color-mix(in srgb,var(--accent) 14%,transparent);
+  box-shadow:inset 2px 0 0 var(--accent)}
+.prow[data-sp]{cursor:pointer}
+.spbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.spbar button{background:var(--s2);border:0;color:var(--fg2);border-radius:2px;
+  padding:7px 12px;font-size:13px;font-weight:600}
+.spbar button.on{background:var(--accent);color:#fff}
+.spbar i{font-style:normal;font-size:13px;color:var(--fg3);flex-basis:100%}
 .pr-role{font-size:12px;font-weight:700;color:var(--fg3);white-space:nowrap}
 .pr-role.next{color:var(--accent)}
 .pr-name{font-size:15px;font-weight:600;color:var(--fg);white-space:nowrap;

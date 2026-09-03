@@ -1015,9 +1015,15 @@ function viewTeam(v) {
 
   // 투수 운용. 오늘 누가 던질 수 있는지가 보여야 보직을 정하는 뜻이 있다.
   const ps = G.pitcherStatus();
-  const prow = (p, isRot) => `<div class="prow ${p.ready ? '' : 'off'}" data-pid="${p.pid}">
-    <span class="pr-role ${isRot && p.turn === 0 ? 'next' : ''}">${
-      isRot ? (p.turn === 0 ? '다음 선발' : `${p.turn}일 뒤`) : esc(p.role)}</span>
+  const forcedPid = ps.forced_pid;
+  const prow = (p, isRot) => `<div class="prow ${p.ready ? '' : 'off'}${
+      isRot && p.pid === forcedPid ? ' pick' : ''}" data-pid="${p.pid}"${
+      isRot && p.ready ? ` data-sp="${p.pid}"` : ''}>
+    <span class="pr-role ${isRot && ((forcedPid ? p.pid === forcedPid
+      : p.turn === 0 && !ps.pen_day_next)) ? 'next' : ''}">${
+      isRot ? (p.pid === forcedPid ? '다음 선발' :
+        (!forcedPid && !ps.pen_day_next && p.turn === 0 ? '다음 선발' : `${p.turn}일 뒤`))
+      : esc(p.role)}</span>
     <span class="pr-name">${esc(p.name)}<i>스태미나 ${p.stamina}</i></span>
     <span class="pr-state">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>`
       : p.ready ? '<em class="ok">등판 가능</em>'
@@ -1030,6 +1036,13 @@ function viewTeam(v) {
     `<div class="pstat">
       <div><div class="lab">선발 로테이션</div>
         ${ps.rotation.map(p => prow(p, true)).join('')}
+        <div class="spbar">
+          <button id="spPen" class="${ps.pen_day_next ? 'on' : ''}">불펜데이로 간다</button>
+          ${(ps.forced || ps.pen_day_next) ? '<button id="spClr" class="quiet">순번대로</button>' : ''}
+          <i>${ps.pen_day_next ? '다음 경기는 오프너가 나간다. 순번은 그대로 밀린다.'
+            : ps.forced ? `다음 경기 선발은 ${esc(ps.forced)}.`
+            : '선발을 눌러 다음 경기에 앞세울 수 있다.'}</i>
+        </div>
         ${ps.thin ? `<p class="note">${ps.bullpen_day
           ? '던질 선발이 없다. 롱릴리프가 오프너로 나간다.'
           : '선발에 빈자리가 있다. 순번이 돌아오면 불펜이 메운다.'}</p>` : ''}</div>
@@ -1175,6 +1188,23 @@ function viewTeam(v) {
   v.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => {
     G.setTactic(b.dataset.tk, +b.dataset.tv); autosave(); render();
   });
+  // 선발 한 번 누르면 다음 경기 선발. 다시 누르면 순번대로.
+  v.querySelectorAll('[data-sp]').forEach(e => e.onclick = (ev) => {
+    ev.stopPropagation();
+    const pid = +e.dataset.sp;
+    const r = pid === ps.forced_pid ? G.clearNextStarter() : G.setNextStarter(pid);
+    if (r.error === 'hurt') toast('', `부상 중이다 — ${r.days}일 남았다`, 'warn');
+    else if (r.name) toast('다음 선발', r.name);
+    autosave(); render();
+  });
+  const sp1 = $('#spPen'); if (sp1) sp1.onclick = () => {
+    const r = G.setBullpenDay(!ps.pen_day_next);
+    toast(r.on ? '불펜데이' : '', r.on ? '다음 경기는 오프너로 간다' : '순번대로 돌아간다');
+    autosave(); render();
+  };
+  const sp2 = $('#spClr'); if (sp2) sp2.onclick = () => {
+    G.clearNextStarter(); autosave(); render();
+  };
   v.querySelectorAll('.dpos.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 

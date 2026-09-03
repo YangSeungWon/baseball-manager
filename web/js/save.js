@@ -122,7 +122,8 @@ export function dump(game) {
            f3(t.finance.budget), f3(t.finance.patience), t.finance.attendance || 0,
            t.finance.homeGames || 0, t.finance.income || null],
       up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null,
-      tac:t.tactics || null, man:t.manual || null, stf:t.staff || null })),
+      tac:t.tactics || null, man:t.manual || null, stf:t.staff || null,
+      fs:t.forcedStarter ?? null, pd:t.penDayNext ? 1 : 0 })),
     players: live, ghosts,
     careers: [...L.careers.values()].filter(c => c.seasons.length || live[c.p.pid]).map(c => ({
       pid:c.p.pid, k:c.kind,
@@ -194,8 +195,8 @@ export function load(data) {
       unavailable:new Set(),
       lineup:[], bench:[], rotation:[], bullpen:[],
       defense:{ infield:50, outfield:50, catcherFraming:50 },
-      nextStarter() { const p = this.rotation[this.rot_index % this.rotation.length];
-                      this.rot_index++; return p; } };
+      forcedStarter: td.fs ?? null, penDayNext: !!td.pd,
+      nextStarter: R.nextStarterFn };
     const f = Object.create(C.Finance.prototype);
     [f.market_size, f.owner_spending, f.revenue, f.budget, f.patience,
      f.attendance, f.homeGames, f.income] = td.fin;

@@ -179,6 +179,27 @@ export function assignPen(t) {
 }
 export const PEN_LABEL = { CL:'마무리', SU:'필승조', MR:'추격조', LR:'롱릴리프' };
 
+/* 다음 경기 선발. 이 함수가 두 벌 있었다 — 여기와 save.js 에.
+   세이브에서 복원한 쪽은 부상자를 거르지 않아서, 불러온 게임에서는
+   다친 선발이 그대로 마운드에 올랐고 불펜데이는 영영 오지 않았다.
+   프리베이크도 세이브라 사실상 모든 게임이 그쪽이었다. 정본은 하나다. */
+export function nextStarterFn() {
+  // 감독이 오늘은 불펜으로 가겠다고 했으면 순번은 건드리지 않는다.
+  // 건너뛴 선발이 다음 경기에 나온다 — 하루 밀어 주는 셈이다.
+  if (this.penDayNext) { this.penDayNext = false; return null; }
+  const n = this.rotation.length;
+  if (this.forcedStarter) {                       // 감독이 콕 집었다
+    const i = this.rotation.findIndex(p => p.pid === this.forcedStarter && p.injury_days <= 0);
+    this.forcedStarter = null;
+    if (i >= 0) { this.rot_index = i + 1; return this.rotation[i]; }
+  }
+  for (let i = 0; i < n; i++) {
+    const p = this.rotation[(this.rot_index + i) % n];
+    if (p && p.injury_days <= 0) { this.rot_index += i + 1; return p; }
+  }
+  this.rot_index++; return null;                  // 던질 선발이 없다 — 불펜데이
+}
+
 /** 감독이 짜 둔 편성. 다친 선수는 자동으로 메운다. */
 function applyManual(t, pool) {
   const m = t.manual;
@@ -367,14 +388,7 @@ export function makeTeam(rng, teamId, name, year = 2030, teamTalent = 0) {
             name: null, capacity: 18000, opened: null },
     defense: { infield:50, outfield:50, catcherFraming:50 },
     /** 로테이션 순번. 부상자는 건너뛰고, 전원 이탈이면 null → 불펜데이. */
-    nextStarter() {
-      const n = this.rotation.length;
-      for (let i = 0; i < n; i++) {
-        const p = this.rotation[(this.rot_index + i) % n];
-        if (p && p.injury_days <= 0) { this.rot_index += i + 1; return p; }
-      }
-      this.rot_index++; return null;
-    },
+    nextStarter: nextStarterFn,
   };
   for (let i = 0; i < 6; i++) {
     const b = makeProspectBatter(rng, rng.choice(LINEUP_POS), rng.gauss(teamTalent,0.9), year);

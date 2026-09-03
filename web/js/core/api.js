@@ -1271,10 +1271,37 @@ export class Game {
     const pen = t.bullpen.map(p => row(p, 'RP'))
       .sort((a, b) => (order[a.role] ?? 9) - (order[b.role] ?? 9));
     const healthy = t.rotation.filter(p => p.injury_days <= 0).length;
+    const forced = t.forcedStarter
+      ? (t.rotation.find(p => p.pid === t.forcedStarter) || {}).name || null : null;
     return { day, rotation: rot, bullpen: pen,
+      forced, forced_pid: t.forcedStarter ?? null, pen_day_next: !!t.penDayNext,
       ready: pen.filter(p => p.ready).length, total: pen.length,
       // 선발이 하나도 없으면 그날은 불펜데이 — 롱릴리프가 오프너로 나간다
       bullpen_day: healthy === 0, thin: healthy < n };
+  }
+
+  /** 다음 경기 선발을 콕 집는다. 한 경기만 적용되고 그 뒤로는 다시 순번대로.
+   *  매일 강제로 정하게 하면 144번의 숙제가 된다 — 자동이 기본이고 이건 개입이다. */
+  setNextStarter(pid) {
+    const t = this.me;
+    const p = t.rotation.find(x => x.pid === pid);
+    if (!p) return { error:'not_found' };
+    if (p.injury_days > 0) return { error:'hurt', days:p.injury_days };
+    t.forcedStarter = pid; t.penDayNext = false;
+    return { ok:true, name:p.name };
+  }
+  /** 오늘은 선발 없이 간다. 롱릴리프가 오프너로 나가고 순번은 그대로 —
+   *  건너뛴 선발이 다음 경기에 나온다. */
+  setBullpenDay(on = true) {
+    const t = this.me;
+    t.penDayNext = !!on;
+    if (on) t.forcedStarter = null;
+    return { ok:true, on: !!on };
+  }
+  clearNextStarter() {
+    const t = this.me;
+    t.forcedStarter = null; t.penDayNext = false;
+    return { ok:true };
   }
 
   setPenRole(pid, role) {
