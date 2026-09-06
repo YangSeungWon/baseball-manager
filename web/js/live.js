@@ -325,7 +325,7 @@ export class LiveView {
 
   _score(delta, rec) {
     // 득점은 주자가 홈을 밟는 그 순간 올라간다. 홈 팀이면 함성, 아니면 정적.
-    if (rec && rec.half === 'bottom') this.sfx.cheer(0.7); else this.sfx.hush();
+    if (rec && rec.half === 'bottom') this.sfx.cheer(0.85); else this.sfx.hush();
     this._runs = (this._runs || 0) + delta;
     this._emitScore(rec, this._runs);
   }
@@ -538,7 +538,7 @@ export class LiveView {
     if (res === 'K') {
       const label = rec.sw ? '헛스윙 삼진' : '루킹 삼진';
       tl.at(tArr, () => { this._cap(`${rec.batter}  ${label}`, `${seq.length}구 ${PT_KR[rec.pt] || ''} ${rec.velo || ''}`); this._flash('삼진', 'k'); this._outs(rec, 1);
-        if (rec.half === 'top') this.sfx.cheer(0.35); });
+        if (rec.half === 'top') this.sfx.cheer(0.4); });
       // 타자가 사라진다 — 더그아웃으로.
       tl.add(tArr + 0.5, 0.9, (k) => { if (S.batter) S.batter.alpha = 1 - k; }, () => { S.batter = null; });
       this._tally(rec); tl.add(tl.end, 0.9, null); return;
@@ -609,7 +609,7 @@ export class LiveView {
     const fence = BIP.fence(rec.ang, this.dims);
 
     tl.at(tC, () => { S.batter = null; this._cap(rec.desc, gb ? '' : (rec.zone || '')); });
-    if (hit && rec.half === 'bottom') tl.at(tC + T * 0.9, () => this.sfx.cheer(0.3));
+    if (hit && rec.half === 'bottom') tl.at(tC + T * 0.9, () => this.sfx.cheer(0.45));
     if (out && rec.half === 'top') tl.at(tC + T, () => this.sfx.cheer(0.15));
 
     // 1. 야수. 엔진이 정한 자리에서, 엔진이 정한 속도로.
