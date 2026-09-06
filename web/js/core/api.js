@@ -949,13 +949,15 @@ export class Game {
     return r.value;
   }
 
-  /** 내 경기를 지켜본다. 승부처마다 멈춰 서고, 고른 답으로 이어간다.
-   *  step(답) 이 { ask } 를 주면 사람 차례, { done } 이면 그날이 끝난 것. */
+  /** 내 경기를 지켜본다. 플레이마다 멈춰 서서 보여 주고, 승부처에서는 답을 기다린다.
+   *  step(답) 이 { play } 를 주면 그릴 것, { ask } 면 사람 차례, { done } 이면 그날이 끝난 것.
+   *  play 에 답을 보낼 필요는 없다 — 무시된다. */
   watchDay() {
     if (this.phase !== REGULAR) return { error:'wrong_phase' };
     const it = this.advanceGen(1, this.userId);
     return { step: (answer) => { const r = it.next(answer);
-      return r.done ? { done:true, result:r.value } : { ask:r.value }; } };
+      if (r.done) return { done:true, result:r.value };
+      return r.value && r.value.play ? { play:r.value.play } : { ask:r.value }; } };
   }
 
   *advanceGen(days = 1, watch = null) {

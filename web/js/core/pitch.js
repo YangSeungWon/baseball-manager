@@ -141,8 +141,10 @@ export function playCount(bat, pit, ctx, rng) {
         log('B', px, pz, type);
         TALLY.ball++;
         if (dirt) { TALLY.dirt++; events.push({ e: 'dirt', type, wild: pz < -1.02 }); }
-        else if (rng.random() < PC.hbpPerBall * (out > 1.2 ? PC.hbpInside : 1))
+        else if (rng.random() < PC.hbpPerBall * (out > 1.2 ? PC.hbpInside : 1)) {
+          seq.pop(); log('H', px, pz, type);           // 볼이 아니라 몸에 맞았다
           return done(HBP);
+        }
         if (++b >= 4) return done(BB);
       }
       continue;

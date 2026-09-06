@@ -24,6 +24,7 @@ web/            정적 배포본 (GitHub Pages 가 이 폴더를 서빙한다)
     league.js     다년 리그 루프
     api.js        JSON API — UI 가 소비하는 유일한 경계면
   js/ui.js      화면
+  js/live.js    경기 중계 — 투구 · 타구 · 수비 · 주루를 실제 시간으로 그린다
   js/save.js    자동저장 직렬화
 
 proto/          Python 참조 구현 + 검증 하네스 + 설계 문서

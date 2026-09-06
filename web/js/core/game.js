@@ -291,7 +291,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     if (!ue && !unearnedInning) rp.er++;
   }
   bl.rbi += scored.length;
-  return [addedOuts, scored.length, desc];
+  return [addedOuts, scored.length, desc, scored.map(x => x[0])];
 }
 
 /* ── 감독의 결정 ──────────────────────────────────────────
@@ -405,17 +405,19 @@ function tryPickoff(bases, outs, off, defn, rng, scoreNow) {
 
 function trySteal(bases, outs, off, defn, rng) {
   const r1 = bases.r[0];
-  if (!r1 || bases.r[1] || outs >= 2) return 0;
+  if (!r1 || bases.r[1] || outs >= 2) return [0, null];
   const zs = z(r1.speed);
   // ABS 아래에서 포수의 값어치는 프레이밍이 아니라 어깨와 블로킹으로 간다.
   const c = defn && defn.byPos ? defn.byPos.C : null;
   const za = z(c ? (c.arm ?? c.fielding) : 50);
   if (rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
-      + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return 0;
+      + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return [0, null];
   if (rng.random() < ADV.sb_success_base + ADV.sb_success_speed*zs + ADV.sb_success_arm*za) {
-    bases.move(0, 1); off.lineFor(r1).sb++; return 0;
+    bases.move(0, 1); off.lineFor(r1).sb++;
+    return [0, { desc: `${r1.name} 2루 도루`, runs: 0, steal: true }];
   }
-  bases.take(0); off.lineFor(r1).cs++; return 1;
+  bases.take(0); off.lineFor(r1).cs++;
+  return [1, { desc: `${r1.name} 도루 실패`, runs: 0, steal: true }];
 }
 
 
@@ -437,35 +439,85 @@ function moment(kind, off, defn, inning, outs, bases, extra = {}) {
     pitcher: defn.cur ? defn.cur.p.name : null, ...extra };
 }
 
+/** 주자의 달리는 속도 (m/s). 화면이 주루를 그릴 때 쓴다. 기록에도 남는다. */
+const runSpeed = (r) => +(6.6 + 0.4 * z(r && r.speed ? r.speed : 50)).toFixed(2);
+const names = (bases) => [bases.r[0] ? bases.r[0].name : null,
+                          bases.r[1] ? bases.r[1].name : null,
+                          bases.r[2] ? bases.r[2].name : null];
+/** 이 플레이에서 누가 어디서 어디로 갔는가.
+ *  f 는 출발 (0 타자 · 1~3 루), t 는 도착 (1~3 루 · 4 득점 · 0 아웃). */
+function advOf(before, batter, bases, scored) {
+  const out = [];
+  const to = (r) => { const j = bases.r.indexOf(r);
+    return j >= 0 ? j + 1 : (scored.includes(r) ? 4 : 0); };
+  for (let i = 0; i < 3; i++) {
+    const r = before[i]; if (!r) continue;
+    const t = to(r);
+    if (t === i + 1) continue;                     // 제자리
+    out.push({ n: r.name, f: i + 1, t, v: runSpeed(r) });
+  }
+  if (batter) out.push({ n: batter.name, f: 0, t: to(batter), v: runSpeed(batter) });
+  return out;
+}
+
 function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) {
   const dims = BIP.parkDims(park);
   let unearnedInning = false;
   // 폭투·보크·낫아웃으로 들어오는 득점. 타점은 붙지 않는다.
+  let scoredNow = [];
   const scoreNow = ([runner, resp, ue]) => {
     off.runs++; off.lineFor(runner).run++;
     const rp = resp || defn.cur; rp.r++; if (!ue && !unearnedInning) rp.er++;
+    scoredNow.push(runner);
   };
   const bases = new Bases();
   let outs = 0;
   // 이 반 이닝에서 물어볼 수 있는가 — 공격이 내 팀일 때 번트·대타, 수비일 때 고의사구.
   const askOff = ask && ask.team === off.team.team_id ? ask : null;
   const askDef = ask && ask.team === defn.team.team_id ? ask : null;
+  // 지켜보는 사람이 있다. 플레이마다 멈춰 서서 보여 주고 이어간다.
+  const live = !!ask;
   const startRuns = off.runs;
   const plays = [];
+  // 기록에 남기고, 보는 사람이 있으면 그 자리에서 보여 준다.
+  function* emit(rec) { plays.push(rec); if (live) yield { play: rec }; }
+  const common = () => ({ inning, half: off.half, outs, ro: off.runs, rd: defn.runs,
+                          pitcher: defn.cur ? defn.cur.p.name : null, base: names(bases) });
+  const sideRec = () => ({ evt: 'side', inning, half: off.half,
+    off: off.team.name, def: defn.team.name,
+    pos: Object.fromEntries(['C','1B','2B','3B','SS','LF','CF','RF']
+      .map(k => [k, defn.byPos[k] ? defn.byPos[k].name : null])
+      .concat([['P', defn.cur ? defn.cur.p.name : null]])) });
+  if (live) yield { play: sideRec() };
+  let before, batter0;
+  const begin = () => { before = bases.r.slice(); scoredNow = []; };
+  const adv = (batter) => advOf(before, batter, bases, scoredNow);
+
   while (outs < 3) {
     const lead = defn.runs - off.runs;
+    const pit0 = defn.cur;
     maybeChangePitcher(defn, inning, lead, outs);
+    if (defn.cur !== pit0) {
+      // 감독이 알아서 바꿨다. 화면에는 누가 올라왔는지 보여야 한다.
+      yield* emit({ ...common(), batter: off.order[off.spot].name,
+        desc: `투수 교체 — ${defn.cur.p.name}`, runs: 0, sub: true, pitcher: defn.cur.p.name });
+      if (live) yield { play: sideRec() };
+    }
+    begin();
     const [pkOut, pk] = tryPickoff(bases, outs, off, defn, rng, scoreNow);
     if (pk) {
       outs += pkOut;
-      plays.push({ inning, half: off.half, batter: off.order[off.spot].name,
-                   pitcher: defn.cur ? defn.cur.p.name : null,
-                   desc: pk.desc, runs: pk.runs, outs, ro: off.runs, rd: defn.runs,
-                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                          bases.r[2]?bases.r[2].name:null] });
+      yield* emit({ ...common(), batter: off.order[off.spot].name,
+                    desc: pk.desc, runs: pk.runs, pick: true, adv: adv(null) });
     }
     if (outs >= 3) break;
-    outs += trySteal(bases, outs, off, defn, rng);
+    begin();
+    const [stOut, st] = trySteal(bases, outs, off, defn, rng);
+    if (st) {
+      outs += stOut;
+      yield* emit({ ...common(), batter: off.order[off.spot].name,
+                    desc: st.desc, runs: 0, steal: true, adv: adv(null) });
+    }
     if (outs >= 3) break;
 
     // 대타. 한 번 나가면 원래 타자는 그날 끝이다.
@@ -486,10 +538,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       off.usedBench.add(ph.pid);
       off.bench = off.bench.filter(b => b.pid !== ph.pid);
       for (const k in off.byPos) if (off.byPos[k] === old) off.byPos[k] = ph;
-      plays.push({ inning, half: off.half, batter: ph.name, desc: `대타 ${ph.name}`,
-                   runs: 0, outs, ro: off.runs, rd: defn.runs, sub: true,
-                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                          bases.r[2]?bases.r[2].name:null] });
+      yield* emit({ ...common(), batter: ph.name, desc: `대타 ${ph.name}`, runs: 0, sub: true });
     }
 
     // 희생번트 (또는 시프트를 뚫는 기습번트)
@@ -502,6 +551,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       buntKind = pick && pick.yes ? 'sac' : null;
     }
     if (buntKind) {
+      begin();
       const b = off.batterUp(), bl2 = off.lineFor(b), pl2 = defn.cur;
       bl2.pa++; pl2.bf++; pl2.np += 2 + Math.floor(rng.random() * 3);
       const lead0 = bases.r[2] ? 2 : (bases.r[1] ? 1 : 0);
@@ -524,10 +574,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
         ao = 1; desc2 = '희생번트';
       }
       outs += ao; pl2.outs += ao;
-      plays.push({ inning, half: off.half, batter: b.name, pitcher: pl2.p.name,
-                   desc: desc2, runs: runs2, outs, ro: off.runs, rd: defn.runs,
-                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                          bases.r[2]?bases.r[2].name:null] });
+      // 번트는 3루 쪽 아니면 1루 쪽으로 굴린다. 어느 쪽인지는 타자 손에 따른다.
+      const bang = (b.bats === 'L' ? 1 : -1) * (12 + rng.random() * 16);
+      yield* emit({ ...common(), batter: b.name, bat: b.pid, bh: b.bats, th: pl2.p.throws,
+                    desc: desc2, runs: runs2, bunt: true, bbt: 'GB',
+                    ang: r2(bang), dep: r2(9 + rng.random() * 9), ev: 9,
+                    pos: bang < 0 ? '3B' : '1B', adv: adv(b), pnp: pl2.np });
       if (outs >= 3) break;
       continue;
     }
@@ -545,7 +597,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       const pick = yield moment('hook', defn, off, inning, outs, bases,
         { half: off.half, batter: off.order[off.spot].name,
           tired: Math.round((cur.fatigue || 0) * 100), np: cur.np,
-          cur: cur.p.name,
+          cur: cur.p.name, pitcher: cur.p.name,
           options: cands.map(p => ({ pid: p.pid, name: p.name,
             slot: R.PEN_LABEL[p.pen_role] || '불펜' })) });
       if (pick && pick.pid) {
@@ -554,11 +606,9 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
           const nx = defn.bullpenLeft.splice(i, 1)[0];
           defn.pitchers.push(pitLine(nx));
           defn.cur.entered_inning = inning;
-          plays.push({ inning, half: off.half, batter: off.order[off.spot].name,
-            desc: `투수 교체 — ${nx.name}`, runs: 0, outs, ro: off.runs, rd: defn.runs,
-            pitcher: nx.name, sub: true,
-            base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                   bases.r[2]?bases.r[2].name:null] });
+          yield* emit({ ...common(), batter: off.order[off.spot].name,
+            desc: `투수 교체 — ${nx.name}`, runs: 0, pitcher: nx.name, sub: true });
+          if (live) yield { play: sideRec() };
         }
       }
     }
@@ -570,18 +620,18 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       askDef.left--;
       const pick = yield moment('ibb', defn, off, inning, outs, bases,
         { half: off.half, batter: off.order[off.spot].name,
+          pitcher: defn.cur ? defn.cur.p.name : null,
           next: off.order[(off.spot + 1) % 9].name });
       ibb = !!(pick && pick.yes);
     }
     if (ibb) {
+      begin();
       const b = off.batterUp(), bl2 = off.lineFor(b), pl2 = defn.cur;
       bl2.pa++; bl2.bb++; pl2.bf++; pl2.bb++; pl2.br++; pl2.np += 4;
       const s = forceAdvance(bases, b, pl2);
       let runs2 = 0; if (s) { scoreNow(s); runs2 = 1; }
-      plays.push({ inning, half: off.half, batter: b.name, pitcher: pl2.p.name,
-                   desc: '고의사구', runs: runs2, outs, ro: off.runs, rd: defn.runs,
-                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                          bases.r[2]?bases.r[2].name:null] });
+      yield* emit({ ...common(), batter: b.name, bat: b.pid, bh: b.bats, th: pl2.p.throws,
+                    desc: '고의사구', runs: runs2, ibb: true, adv: adv(b), pnp: pl2.np });
       continue;
     }
     const prevDiff = off.runs - defn.runs;
@@ -601,14 +651,13 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                   byPos: defn.byPos };
     // 보크. 주자가 있을 때만.
     if (bases.occupied() && rng.random() < MISC.balk) {
+      begin();
       pl.bk++;
       for (const i of [2,1,0]) if (bases.r[i]) {
         if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
       }
-      plays.push({ inning, half: off.half, batter: batter.name, desc: '보크', runs: 1,
-                   outs, ro: off.runs, rd: defn.runs, pitcher: pl.p.name,
-                   base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                          bases.r[2]?bases.r[2].name:null] });
+      yield* emit({ ...common(), batter: batter.name, desc: '보크', runs: scoredNow.length,
+                    balk: true, adv: adv(null) });
     }
     // 수비 시프트. 이 타자에게 얼마나 옮겨 설 것인가.
     const shift = BIP.shiftDeg(batter, tac(defn.team, 'shift'));
@@ -627,9 +676,11 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       if (off.venue === 'H') ctx.cBat += edge;
       else ctx.cCommand += edge * HOME.pitch;
     }
+    begin();
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
     // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
+    // 타석 도중의 사건이라 타석 기록보다 먼저 남는다. 화면은 순서대로 그린다.
     if (pc.events.length && bases.occupied()) {
       const c = defn.byPos.C;
       for (const ev of pc.events) {
@@ -639,11 +690,11 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
         for (const i of [2,1,0]) if (bases.r[i]) {
           if (i === 2) scoreNow(bases.take(2)); else bases.move(i, i + 1);
         }
-        plays.push({ inning, half: off.half, batter: batter.name,
-                     desc: wild ? '폭투' : '포일', runs: 0, outs, ro: off.runs, rd: defn.runs,
-                     pitcher: pl.p.name, pt: ev.type,
-                     base: [bases.r[0]?bases.r[0].name:null, bases.r[1]?bases.r[1].name:null,
-                            bases.r[2]?bases.r[2].name:null] });
+        yield* emit({ ...common(), batter: batter.name, bat: batter.pid, bh: batter.bats,
+                      th: pl.p.throws,
+                      desc: wild ? '폭투' : '포일', runs: scoredNow.length,
+                      pt: ev.type, wild: true, adv: adv(null) });
+        begin();
       }
     }
     let res, bbt = null, desc0 = '', ball = null, play = null;
@@ -669,7 +720,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
         res = OUT; desc0 = '인필드플라이';
       }
     } else if (pc.res === FOUL_OUT) {
-      res = OUT; bbt = 'PU'; play = { pos: pc.dir };
+      res = OUT; bbt = 'PU'; play = { pos: pc.dir, foul: true };
       desc0 = (BIP.POS_KR_OF(pc.dir)) + ' 파울플라이';
     } else res = pc.res;
     const bl = off.lineFor(batter);
@@ -698,7 +749,8 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
-    const [ao, runs, desc] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140);
+    const [ao, runs, desc, scoredR] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140);
+    scoredNow.push(...scoredR);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
     const isAb = (res !== BB && res !== HBP);
@@ -714,19 +766,29 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     const pa2 = pl.sp[defn.venue];
     pa2[0] += ao; pa2[1]++; if (isH) pa2[2]++; if (res === HR) pa2[3]++;
     if (res === BB) pa2[4]++; if (res === K) pa2[5]++; pa2[6] += runs;
-    plays.push({ inning, half: off.half, batter: batter.name, bat: batter.pid,
-                 pitcher: pl.p.name, desc, runs, outs, ro: off.runs, rd: defn.runs,
+    yield* emit({ ...common(), batter: batter.name, bat: batter.pid, bh: batter.bats,
+                 pit: pl.p.pid, th: pl.p.throws,
+                 desc, runs, res,
                  b: pc.b, s: pc.s, np: pc.np, pt: pc.type, velo: pc.velo,
                  px: r2(pc.px), pz: r2(pc.pz),
                  seq: pc.seq, zh: pc.zh,        // 그 타석에 던진 공들. 존 그림이 이걸 쓴다.
+                 sw: !!pc.swinging,             // 헛스윙 삼진인가
                  zone: ball ? ball.zone : null, bbt,
                  ang: ball ? r2(ball.angle) : null, dep: ball ? r2(ball.depth) : null,
+                 // 타구의 물리. 체공(초) · 땅볼 속도(m/s) · 야수의 출발점과 속도.
+                 hang: ball ? r2(ball.bbt === 'GB' ? ball.depth / ball.ev : ball.hang) : null,
+                 ev: ball && ball.ev ? r2(ball.ev) : null,
                  pos: play ? play.pos : null,
                  fld: play && play.fielder ? play.fielder.name : null,
                  hard: play ? r2(1 - play.difficulty) : null,
-                 base: [bases.r[0] ? bases.r[0].name : null,
-                        bases.r[1] ? bases.r[1].name : null,
-                        bases.r[2] ? bases.r[2].name : null] });
+                 reach: play ? play.slack >= 0 : null,
+                 fpa: play && play.pa != null ? r2(play.pa) : null,
+                 fpd: play && play.pd != null ? play.pd : null,
+                 fv: play && play.v ? r2(play.v) : null,
+                 fre: play && play.react ? r2(play.react) : null,
+                 sh: r2(shift),
+                 adv: adv(batter),
+                 pnp: pl.np, tired: Math.round(Math.min(1.5, fatigueOf(pl, isStarter)) * 100) });
     if (off.runs > defn.runs && prevDiff <= 0) { off.por = off.cur; defn.lp = defn.cur; }
     if (walkoff && off.runs > defn.runs) {
       off.lob += bases.occupied(); off.line.push(off.runs - startRuns);

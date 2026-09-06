@@ -11,10 +11,10 @@ import { z, LG, C } from './pa.js';
 
 // 각도: -45 좌익선, 0 중견, +45 우익선. 깊이: 홈플레이트에서 미터.
 // 실제 수비 위치. 코너 내야수는 선상에 붙고, 유격수·2루수는 그 사이 구멍을 메운다.
-const POS_ANGLE = { C: 0, P: 0, '1B': 33, '2B': 17, '3B': -33, SS: -17,
-                    LF: -30, CF: 0, RF: 30 };
-const POS_DEPTH = { C: 3, P: 17, '1B': 33, '2B': 41, '3B': 33, SS: 41,
-                    LF: 82, CF: 90, RF: 82 };
+export const POS_ANGLE = { C: 0, P: 0, '1B': 33, '2B': 17, '3B': -33, SS: -17,
+                           LF: -30, CF: 0, RF: 30 };
+export const POS_DEPTH = { C: 3, P: 17, '1B': 33, '2B': 41, '3B': 33, SS: 41,
+                           LF: 82, CF: 90, RF: 82 };
 const INFIELD = ['P', '1B', '2B', '3B', 'SS'];
 const OUTFIELD = ['LF', 'CF', 'RF'];
 
@@ -159,6 +159,25 @@ export function shiftDeg(bat, dial = 2) {
   return hand * BC.shiftBase * Math.min(2.4, pull) * m;
 }
 
+/** 시프트를 건 뒤 이 야수가 실제로 서 있는 자리. 화면도 이 좌표로 그린다.
+ *  시프트는 야수를 통째로 미는 게 아니다. 반대편 야수가 건너오고,
+ *  당긴 쪽 코너는 선을 지킨다. 투수와 포수는 움직이지 않는다. */
+export function fielderSpot(pos, shift = 0) {
+  const sh = (pos === 'P' || pos === 'C' || !shift) ? 0
+    : shift * (OUTFIELD.includes(pos) ? BC.shiftOf : shiftWeight(pos, shift));
+  return { angle: POS_ANGLE[pos] + sh, depth: POS_DEPTH[pos] };
+}
+
+/** 야수의 이동 속도(m/s)와 반응 시간(초). 판정과 화면이 같은 값을 쓴다. */
+export function fielderMotion(pos, f) {
+  const fld = num(f && f.fielding, pos === 'P' ? 45 : 50);
+  const spd = num(f && f.speed, pos === 'P' ? 45 : 50);
+  let v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
+  let react = BC.react;
+  if (pos === 'P') { v *= BC.pRange; react += BC.pReact; }
+  return { v, react };
+}
+
 /** 그 타구에 누가 먼저 닿는가. 표가 아니라 경합으로 정한다. */
 export function assign(ball, byPos, shift = 0) {
   const ground = ball.bbt === 'GB';
@@ -167,17 +186,9 @@ export function assign(ball, byPos, shift = 0) {
   for (const pos of pool) {
     const f = byPos && byPos[pos];
     // 투수에게는 수비 능력치가 없다. 자리 기본값으로 메운다.
-    const fld = num(f && f.fielding, pos === 'P' ? 45 : 50);
-    const spd = num(f && f.speed, pos === 'P' ? 45 : 50);
-    let v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
-    let react = BC.react;
-    if (pos === 'P') { v *= BC.pRange; react += BC.pReact; }
+    const { v, react } = fielderMotion(pos, f);
     let dist, avail;
-    // 시프트는 야수를 통째로 미는 게 아니다. 반대편 야수가 건너오고,
-    // 당긴 쪽 코너는 선을 지킨다. 투수와 포수는 움직이지 않는다.
-    const sh = (pos === 'P' || pos === 'C') ? 0
-      : shift * (OUTFIELD.includes(pos) ? BC.shiftOf : shiftWeight(pos, shift));
-    const pa = POS_ANGLE[pos] + sh;
+    const { angle: pa } = fielderSpot(pos, shift);
     if (ground) {
       // 땅볼은 야수 쪽으로 굴러온다. 옆으로만 움직이면 되고,
       // 쓸 수 있는 시간은 공이 그 깊이까지 오는 시간이다.
@@ -189,7 +200,8 @@ export function assign(ball, byPos, shift = 0) {
       avail = ball.hang;
     }
     const slack = (avail - react) - dist / v;
-    if (!best || slack > best.slack) best = { pos, fielder: f, slack, dist };
+    if (!best || slack > best.slack)
+      best = { pos, fielder: f, slack, dist, v, react, avail, pa, pd: POS_DEPTH[pos] };
   }
   // 여유가 클수록 쉬운 타구. 0 근처면 전력질주해야 닿는다.
   best.difficulty = clamp(Math.exp(-Math.max(0, best.slack) / BC.tau), 0, 1);

@@ -988,13 +988,6 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .hl-line span{font-size:13px;color:var(--fg3)}
 .hl-btn{display:flex;gap:8px}
 .hl-btn button{flex:1;padding:13px}
-.nx-watch{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:10px;
-  border-top:1px solid var(--line2)}
-.nx-watch .lab{margin-right:4px}
-.nx-watch button{background:var(--s2);border:0;color:var(--fg3);border-radius:2px;
-  padding:6px 11px;font-size:13px;font-weight:600}
-.nx-watch button.on{background:var(--accent);color:#fff}
-.nx-note{flex-basis:100%;font-style:normal;font-size:13px;color:var(--fg3);margin-top:2px}
 
 /* 응원 — 소리는 없지만 글자는 남는다 */
 .chant{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.08em;
@@ -1256,3 +1249,89 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .pnote p{font-size:13px;line-height:1.65;color:var(--fg3);margin:0 0 10px}
 .pnote b{color:var(--fg2)}
 .kv .big{font-size:22px}
+
+/* ── 경기 중계 — 공 하나하나 ───────────────────────────────
+   왼쪽은 구장, 오른쪽은 중계 자막이 보여 주는 것들: 투수·타자, 구종·구속,
+   투구수와 구속 추이, 존, 문자중계. 폰에서는 위아래로 쌓인다. */
+.lv{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:100%;min-height:0;align-content:start}
+.lv-main{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+.lv-stage{position:relative;background:#0a1017;border-radius:2px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px var(--line2)}
+.lv-stage canvas{display:block;margin:0 auto}
+.lv-cap{position:absolute;left:10px;bottom:10px;display:flex;flex-direction:column;gap:2px;
+  padding:8px 12px;background:rgba(8,13,19,.72);border-left:3px solid var(--accent);
+  border-radius:2px;max-width:min(70%,420px);pointer-events:none}
+.lv-cap-main{font-size:15px;font-weight:700;color:var(--fg);line-height:1.3}
+.lv-cap-sub{font-size:12px;color:var(--fg2);font-family:var(--mono)}
+.lv-cap-main:empty+.lv-cap-sub:empty{display:none}
+.lv-cap:has(.lv-cap-main:empty){display:none}
+.lv-flash{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);
+  font-size:46px;font-weight:900;letter-spacing:-.02em;color:#fff;pointer-events:none;
+  opacity:0;text-shadow:0 2px 18px rgba(0,0,0,.6);font-family:var(--kr)}
+.lv-flash.on{animation:lvFlash 1.6s cubic-bezier(.2,.8,.3,1) forwards}
+.lv-flash.k{color:#ffd45e} .lv-flash.hr{color:#ff8a5b;font-size:58px}
+.lv-flash.out{color:#ff6b6b} .lv-flash.run{color:#53b987;font-size:54px}
+.lv-flash.err{color:#e8c23a} .lv-flash.safe{color:#53b987} .lv-flash.hbp{color:#d85e5e}
+@keyframes lvFlash{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}
+  12%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}
+  70%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-56%) scale(1)}}
+.lv-tools{position:absolute;right:8px;top:8px;display:flex;gap:6px}
+.lv-seg{display:flex;background:rgba(8,13,19,.72);border-radius:2px;padding:2px}
+.lv-seg button{background:transparent;border:0;color:var(--fg3);font-size:12px;
+  padding:4px 8px;border-radius:2px;font-family:var(--mono)}
+.lv-view button{font-family:var(--kr)}
+.lv-seg button.on{background:var(--accent);color:#fff}
+.lv-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lv-bar .lv-sp{flex:1}
+.lv-bar button{padding:9px 14px}
+/* 승부처 — 구장 위에 얹힌다 */
+.lv-ask{position:absolute;inset:0;background:rgba(6,10,14,.66);display:grid;place-items:center;
+  padding:16px;overflow-y:auto;backdrop-filter:blur(1px)}
+.lv-ask .clutch{background:var(--s1);border:1px solid var(--line);border-radius:2px;
+  padding:18px 20px;max-width:520px;width:100%;max-height:100%;overflow-y:auto}
+.lv-ask .gs-q{font-size:20px;margin-bottom:10px}
+/* 옆 칸 */
+.lv-side{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.lv-match{background:var(--s1);border-radius:2px;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
+.lv-who{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:baseline}
+.lv-who .lab{grid-column:1}
+.lv-who>b{font-size:18px;font-weight:700;color:var(--fg);grid-column:2}
+.lv-who>i{font-style:normal;font-size:12px;color:var(--fg3);grid-column:3}
+.lv-who>div,.lv-who>svg{grid-column:1/-1}
+.lv-who.bat{padding-top:10px;border-top:1px solid var(--line2)}
+.lv-pitch{display:flex;align-items:baseline;gap:8px;margin-top:2px}
+.lv-pitch em{font-style:normal;font-size:14px;font-weight:600;color:var(--accent)}
+.lv-pitch span{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--fg)}
+.lv-pitch span i{font-style:normal;font-size:11px;color:var(--fg3);margin-left:2px}
+.lv-pstat{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--fg3);margin-top:4px}
+.lv-pstat b{color:var(--fg2);margin-left:2px}
+.lv-tired{flex:1;height:5px;border-radius:2px;overflow:hidden;position:relative;
+  background:linear-gradient(90deg,#53b987 0%,#e8c23a 55%,#d85e5e 100%)}
+.lv-tired i{position:absolute;right:0;top:0;bottom:0;width:100%;background:var(--line2);transition:width .6s}
+.lv-tired::after{content:'피로';position:absolute;right:0;top:-15px;font-size:10px;color:var(--fg3)}
+.lv-spark{width:100%;height:28px;margin-top:8px;display:block}
+.lv-spark polyline{fill:none;stroke:var(--accent);stroke-width:1.6;vector-effect:non-scaling-stroke}
+.lv-spark text{fill:var(--fg3);font-size:7px;font-family:var(--mono)}
+.lv-spark:empty{display:none}
+.lv-today{font-size:13px;color:var(--fg2);margin-top:2px}
+.lv-bits{margin-top:4px}
+.lv-bits .ax.sm{width:100%}
+.lv-bits:empty{display:none}
+.lv-zone{flex-shrink:0}
+.lv-log{flex:1;min-height:120px;max-height:none}
+@media(max-width:900px){
+  .lv{grid-template-columns:1fr;gap:12px;height:auto}
+  .lv-side{flex-direction:column}
+  .lv-log{max-height:200px;min-height:100px}
+  .lv-flash{font-size:34px} .lv-flash.hr,.lv-flash.run{font-size:42px}
+  .lv-cap{left:6px;bottom:6px;padding:6px 9px;max-width:80%}
+  .lv-cap-main{font-size:13px}
+  .lv-tools{right:4px;top:4px}
+  .lv-seg button{padding:3px 6px;font-size:11px}
+  .lv-bar button{padding:8px 10px;font-size:13px}
+  .lv-who>b{font-size:16px}
+}
+.gs .lv{padding:0}
+.gs-body:has(.lv){display:flex;flex-direction:column}
+.gs-body:has(.lv)>.lv{flex:1}
