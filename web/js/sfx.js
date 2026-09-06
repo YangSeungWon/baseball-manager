@@ -107,45 +107,75 @@ export class Sfx {
   /** 베이스를 밟는 발. 작게. */
   step() { if (this.live) this._burst(0.03, { f: 400, q: 0.6, gain: 0.08, type: 'lowpass' }); }
 
-  /** 관중석. level 0~1 이 그날의 관중 비율이다. 낮게 계속 웅성거린다. */
+  /** 관중석. level 0~1 이 그날의 관중 비율이다.
+   *  걸러 낸 노이즈는 바람 소리다. 관중은 목소리다 — 톱니파 열두 개를 저마다 다른
+   *  음높이로 내고, 사람 목소리의 포먼트 대역 셋으로 거른다. 천천히 흔들리는
+   *  음량이 웅성거림을 만들고, 함성은 그 목소리들이 같이 높아지는 것이다. */
   crowd(level) {
     this.crowdLevel = level;
     if (!this.on || !this.ctx) return;
     if (!this.crowdG) {
       const c = this.ctx;
-      const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
-      const flt = c.createBiquadFilter(); flt.type = 'lowpass'; flt.frequency.value = 900; flt.Q.value = 0.5;
       const g = c.createGain(); g.gain.value = 0;
-      src.connect(flt); flt.connect(g); g.connect(this.master); src.start();
-      this.crowdG = g; this.crowdSrc = src; this.crowdF = flt;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800; lp.Q.value = 0.4;
+      lp.connect(g); g.connect(this.master);
+      // 포먼트 셋 — '아' 에 가까운 열린 소리
+      const forms = [[420, 2.2, 1.0], [900, 2.6, 0.55], [2200, 3, 0.18]].map(([f, q, w]) => {
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+        const wg = c.createGain(); wg.gain.value = w; bp.connect(wg); wg.connect(lp); return bp; });
+      this.crowdVoices = [];
+      for (let i = 0; i < 12; i++) {
+        const o = c.createOscillator(); o.type = 'sawtooth';
+        const f0 = 150 + Math.random() * 260; o.frequency.value = f0;
+        // 저마다 천천히 흔들린다 — 한 사람의 소리가 아니라 무리의 소리
+        const lfo = c.createOscillator(); lfo.frequency.value = 0.15 + Math.random() * 0.5;
+        const lg = c.createGain(); lg.gain.value = f0 * 0.03; lfo.connect(lg); lg.connect(o.frequency);
+        const vg = c.createGain(); vg.gain.value = 0.06 + Math.random() * 0.05;
+        const am = c.createOscillator(); am.frequency.value = 0.3 + Math.random() * 1.2;
+        const ag = c.createGain(); ag.gain.value = 0.03; am.connect(ag); ag.connect(vg.gain);
+        o.connect(vg); for (const bp of forms) vg.connect(bp);
+        o.start(); lfo.start(); am.start();
+        this.crowdVoices.push({ o, f0, lfo, am });
+      }
+      // 낮은 웅성거림 — 노이즈는 바닥에만 조금
+      const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+      const nf = c.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 500;
+      const ng = c.createGain(); ng.gain.value = 0.35; src.connect(nf); nf.connect(ng); ng.connect(g); src.start();
+      this.crowdG = g; this.crowdSrc = src; this.crowdF = lp;
     }
-    this.crowdBase = 0.02 + level * 0.06;
+    this.crowdBase = 0.03 + level * 0.09;
     this.crowdG.gain.setTargetAtTime(this.crowdBase, this.ctx.currentTime, 0.8);
   }
-  _stopCrowd() { if (this.crowdSrc) { try { this.crowdSrc.stop(); } catch {} } this.crowdG = null; this.crowdSrc = null; }
-  /** 함성. k 0~1 — 안타면 잠깐, 홈런이면 폭발한다.
-   *  낮은 웅성거림이 솟는 것만으로는 부족하다. 위에 비명 층을 얹는다 —
-   *  높게 걸러 낸 노이즈가 확 올라왔다가 몇 초에 걸쳐 잦아든다. */
+  _stopCrowd() {
+    if (this.crowdSrc) { try { this.crowdSrc.stop(); } catch {} }
+    if (this.crowdVoices) for (const v of this.crowdVoices) { try { v.o.stop(); v.lfo.stop(); v.am.stop(); } catch {} }
+    this.crowdG = null; this.crowdSrc = null; this.crowdVoices = null;
+  }
+  /** 함성. k 0~1 — 안타면 잠깐, 홈런이면 폭발한다. 목소리들이 같이 높아지고 밝아진다. */
   cheer(k = 0.5) {
     if (!this.live || !this.crowdG) return;
     const c = this.ctx, t = c.currentTime, lv = 0.4 + this.crowdLevel * 0.6;
-    const peak = this.crowdBase + (0.25 + k * 0.9) * lv;
+    const peak = this.crowdBase + (0.30 + k * 1.1) * lv;
     const hold = 0.8 + k * 3.5, tail = 1.2 + k * 2.5;
     this.crowdG.gain.cancelScheduledValues(t);
-    this.crowdG.gain.setTargetAtTime(peak, t, 0.08);
+    this.crowdG.gain.setTargetAtTime(peak, t, 0.09);
     this.crowdG.gain.setTargetAtTime(this.crowdBase, t + hold, tail);
-    this.crowdF.frequency.setTargetAtTime(2400, t, 0.08); this.crowdF.frequency.setTargetAtTime(900, t + hold, tail);
-    // 비명 층. 두 대역을 겹치면 사람 목소리처럼 들린다.
-    for (const [f, q, g] of [[1900, 1.2, 0.55], [3200, 1.6, 0.3]]) {
-      const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
-      const fl = c.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
-      fl.frequency.setValueAtTime(f * 0.85, t); fl.frequency.exponentialRampToValueAtTime(f, t + 0.3);
-      const gn = c.createGain(); gn.gain.setValueAtTime(0.001, t);
-      gn.gain.exponentialRampToValueAtTime(g * (0.2 + k * 0.8) * lv, t + 0.25);
-      gn.gain.setValueAtTime(g * (0.2 + k * 0.8) * lv, t + hold * 0.6);
-      gn.gain.exponentialRampToValueAtTime(0.001, t + hold + tail);
-      src.connect(fl); fl.connect(gn); gn.connect(this.master);
-      src.start(t, Math.random() * 1.5); src.stop(t + hold + tail + 0.1);
+    this.crowdF.frequency.setTargetAtTime(4200, t, 0.08); this.crowdF.frequency.setTargetAtTime(1800, t + hold, tail);
+    // 목소리가 올라간다 — 함성은 소리가 아니라 사람들이 지르는 것
+    for (const v of this.crowdVoices || []) {
+      const up = v.f0 * (1.25 + k * 0.35 + Math.random() * 0.15);
+      v.o.frequency.cancelScheduledValues(t);
+      v.o.frequency.setTargetAtTime(up, t, 0.12 + Math.random() * 0.1);
+      v.o.frequency.setTargetAtTime(v.f0, t + hold * (0.7 + Math.random() * 0.5), tail);
+    }
+    // 그 위에 짧은 비명 층 — 높은 목소리 몇
+    for (let i = 0; i < 4; i++) {
+      const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = 500 + Math.random() * 500;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1400 + Math.random() * 800; bp.Q.value = 1.5;
+      const g = c.createGain(); g.gain.setValueAtTime(0.001, t);
+      g.gain.exponentialRampToValueAtTime(0.06 * (0.3 + k) * lv, t + 0.3 + i * 0.05);
+      g.gain.exponentialRampToValueAtTime(0.001, t + hold * 0.8 + tail * 0.6);
+      o.connect(bp); bp.connect(g); g.connect(this.master); o.start(t); o.stop(t + hold + tail);
     }
   }
   /** 조용해진다. 원정팀이 점수를 냈다. */
