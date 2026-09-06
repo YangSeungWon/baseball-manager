@@ -34,6 +34,7 @@ const MOUND = [0, 18.44];
 const POS_KR = { P:'투', C:'포', '1B':'1', '2B':'2', '3B':'3', SS:'유', LF:'좌', CF:'중', RF:'우' };
 const PT_KR = { FF:'포심', SI:'투심', FC:'커터', SL:'슬라이더', CU:'커브',
                 CH:'체인지업', FS:'포크', KN:'너클볼' };
+const AP_KR = { power:'강공', line:'끊어치기', oppo:'밀어치기', contact:'컨택' };
 const RES_KR = { S:'스트라이크', B:'볼', W:'헛스윙', F:'파울', X:'타격', H:'몸에 맞는 공' };
 
 // 그라운드 색. 스타일시트의 구장 색과 같은 값이다.
@@ -187,6 +188,7 @@ export class LiveView {
             <div class="lv-who bat"><span class="lab">타자</span>
               <b class="lv-bn">—</b><i class="lv-bh"></i>
               <div class="lv-today">—</div>
+              <div class="lv-ap"></div>
               <div class="lv-bits lv-bbits"></div>
             </div>
             <div class="pzbox lv-zone"><div class="pzempty">투구 없음</div></div>
@@ -220,7 +222,7 @@ export class LiveView {
       ask: q('.lv-ask'), pn: q('.lv-pn'), ph: q('.lv-ph'), pt: q('.lv-pt'), pv: q('.lv-pv'),
       np: q('.lv-np'), vmax: q('.lv-vmax'), tired: q('.lv-tired i'), spark: q('.lv-spark'), pbits: q('.lv-pbits'),
       bn: q('.lv-bn'), bh: q('.lv-bh'), today: q('.lv-today'), bbits: q('.lv-bbits'),
-      zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause'),
+      zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause'), ap: q('.lv-ap'),
       bugPn: q('.lv-bug-pn'), bugPc: q('.lv-bug-pc'), bugBn: q('.lv-bug-bn'), bugBl: q('.lv-bug-bl'),
       mgr: q('.lv-mgr') };
     this.pending = {};                          // 감독 패널에 걸어 둔 명령
@@ -592,6 +594,8 @@ export class LiveView {
     this.pnp0 = (rec.pnp || 0) - (rec.np || 0);
     this.el.np.textContent = this.pnp0; this.el.bugPc.textContent = `${this.pnp0}구`;
     this._mgrConsumed();
+    // 접근. 타자가 고른 것인지 감독이 시킨 것인지도.
+    this.el.ap.innerHTML = rec.ap ? `<span class="lab">접근</span><b>${AP_KR[rec.ap] || rec.ap}</b>${rec.apBy === 'mgr' ? '<i>감독 지시</i>' : ''}` : '';
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
     this._flash(null);
@@ -1435,12 +1439,14 @@ export class LiveView {
     const pend = (k, label) => P[k] ? `<div class="lv-pend"><span>다음 타석 · ${label}</span><button data-cancel="${k}" class="quiet">취소</button></div>` : '';
     if (off) {
       el.innerHTML = `<div class="lv-mgr-h">감독 · 공격</div>
-        ${pend('pinch', `대타 ${P.pinch && P.pinch.name || ''}`)}${pend('bunt', '번트')}${pend('steal', '도루')}
+        ${pend('pinch', `대타 ${P.pinch && P.pinch.name || ''}`)}${pend('bunt', '번트')}${pend('steal', '도루')}${pend('approach', `타격 ${P.approach ? AP_KR[P.approach.mode] : ''}`)}
         <div class="lv-mgr-row">
           <button data-open="pinch" ${sd.bench.length ? '' : 'disabled'}>대타</button>
           <button data-cmd="bunt" class="${P.bunt ? 'on' : ''}">번트 지시</button>
           <button data-cmd="steal" class="${P.steal ? 'on' : ''}">도루 지시</button>
         </div>
+        <div class="lv-mgr-row lv-shift"><span class="lab">타격</span>${['power','line','oppo','contact'].map(m =>
+          `<button data-ap="${m}" class="${P.approach && P.approach.mode === m ? 'on' : ''}">${AP_KR[m]}</button>`).join('')}</div>
         <div class="lv-mgr-list" hidden>${sd.bench.map(b => `<button data-pinch="${b.pid}">${b.name}<i>${b.slot}</i></button>`).join('')}</div>`;
     } else {
       const cur = sd.cur;
@@ -1461,6 +1467,7 @@ export class LiveView {
     el.querySelectorAll('[data-hook]').forEach(b => b.onclick = () => this._cmd('hook', { pid: +b.dataset.hook, name: b.firstChild.textContent }));
     el.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => P[b.dataset.cmd] ? this._uncmd(b.dataset.cmd) : this._cmd(b.dataset.cmd, {}));
     el.querySelectorAll('[data-shift]').forEach(b => b.onclick = () => this._cmd('shift', { dial: +b.dataset.shift }));
+    el.querySelectorAll('[data-ap]').forEach(b => b.onclick = () => P.approach && P.approach.mode === b.dataset.ap ? this._uncmd('approach') : this._cmd('approach', { mode: b.dataset.ap }));
     el.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => this._uncmd(b.dataset.cancel));
   }
   _cmd(kind, a) { this.pending[kind] = a; this.o.command({ kind, ...a }); this._mgr(); }

@@ -31,6 +31,8 @@ export function makeHidden(rng) {
     consistency: clamp(rng.gauss(50,13)), injury_prone: clamp(rng.gauss(50,15)),
     // 승부처에서의 기질. 아무도 모르고, 몇 해치 기록이 쌓여야 겨우 보인다.
     clutch: rng.gauss(0, 1), poise: rng.gauss(0, 1),
+    // 타석의 접근. 초구부터 덤비는가(aggro) · 노림수가 맞는가(guess) · 2스트라이크에 버티는가(protect).
+    aggro: rng.gauss(0, 1), guess: rng.gauss(0, 1), protect: rng.gauss(0, 1),
     ambition: clamp(rng.gauss(50,15)),
     aging_profile: rng.choices(PROFILE_KEYS, PROFILE_W),
     decline_rate: Math.max(0.45, rng.gauss(1.0,0.22)),

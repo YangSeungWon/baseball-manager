@@ -2457,7 +2457,7 @@ function zoneList(seq) {
   return `<div class="pzlist">${seq.map((q, i) => {
     const [cls, kr] = PITCH_RES[q.r] || ['ball', ''];
     return `<div class="pzrow ${cls}"><span class="pzn">${i + 1}</span>
-      <span class="pzt">${(PITCH[q.t] && PITCH[q.t].kr) || q.t}</span>
+      <span class="pzt">${(PITCH[q.t] && PITCH[q.t].kr) || q.t}${q.g ? `<em class="pzg ${q.g}" title="노림수">${q.g === 'o' ? '●' : '○'}</em>` : ''}</span>
       <span class="pzv m">${q.v}</span>
       <span class="pzr">${kr}</span></div>`;
   }).join('')}</div>`;

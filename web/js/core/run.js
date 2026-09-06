@@ -25,7 +25,7 @@ export const RT = {
   runMotion: 1.12,          // 이미 뛰고 있는 주자는 타자보다 빠르다 (출발 가속이 없다)
   batterDelay: 0.25,        // 스윙 뒤 첫 발까지
   lead: 4.2,                // 타구가 나갈 때 이미 나가 있는 거리 (m) — 리드와 2차 리드
-  stealLead: 3.2, stealReact: 0.41,
+  stealLead: 3.2, stealReact: 0.36,
   tagDelay: 0.15,           // 포구를 보고 출발하기까지
   // 송구. m/s. 어깨가 좋으면 빠르다. 외야는 높게 던지느라 실효 속도가 낮다.
   throwIF: 31.0, throwOF: 33.0, throwArm: 1.6,

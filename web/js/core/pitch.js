@@ -61,6 +61,27 @@ export const PC = {
   dirtBase: 0.760, dirtLow: 0.85,
 };
 
+/* ── 타자의 접근 ───────────────────────────────────────────
+   같은 공이라도 무엇을 노리고 어떻게 치려 했느냐가 다르다.
+   mode: power 강공(어퍼) · line 끊어치기 · oppo 밀어치기 · contact 컨택.
+   노림수: 이른 카운트에 직구/변화구를 찍는다. 맞으면 잘 맞고 틀리면 헛돈다.
+   2스트라이크: 보호 — 커트가 늘고 타구는 약해진다. */
+export const AP = {
+  aggroFirst: 0.16,                   // 초구 스윙 성향, z 당
+  sitEarly: 0.58, sitLate: 0.38,      // 노림수를 거는 비율 (2스트라이크 전)
+  read: 0.12,                         // 노림 정확도 z 당 '읽어내는' 확률
+  hitCt: 0.065, hitQ: 0.03, hitChase: -0.03,     // 노림 적중
+  missCt: -0.03, missQ: -0.03, missChase: 0.02,  // 노림 실패 — 맞출 때 얻는 것이 틀릴 때 잃는 것보다 크다
+  protCt: 0.02, protFoul: 0.02, protQ: -0.025,   // 2스트라이크 보호, (1 + .5z) 배. 파울이 늘면 타석이 길어져 K·BB 가 같이 는다
+  mode: {  // 컨택 · 타구질 · 파울 · 체이스 · 땅볼비 · 당김각 · 헛스윙
+    power:   { ct: -0.01, q: 0.0, foul: 0, chase: 0.02, gb: 0.94, pull: 6, whiff: 0.015 },
+    line:    { ct: 0, q: 0, foul: 0, chase: 0, gb: 1.0, pull: 0, whiff: 0 },
+    oppo:    { ct: 0.02, q: -0.02, foul: 0.02, chase: -0.005, gb: 1.08, pull: -14, whiff: -0.02 },
+    contact: { ct: 0.035, q: -0.03, foul: 0.04, chase: -0.01, gb: 1.12, pull: -3, whiff: -0.03 },
+  },
+};
+const OFF = new Set(['SL', 'CU', 'CH', 'FS', 'KN']);
+
 export const TALLY = { pitches:0, zone:0, swing:0, contact:0, ball:0, called:0,
                        whiff:0, foul:0, inplay:0, foulout:0, dirt:0 };
 
@@ -92,6 +113,10 @@ export function playCount(bat, pit, ctx, rng) {
   const cb = ctx.cBat || 0;                 // 승부처에서의 기질
   const zd = z(bat.discipline) + cb * 0.5, zk = z(bat.avoid_k) + cb, zct = z(bat.contact) + cb;
   const arsenal = pit.arsenal;
+  const plan = ctx.plan || {};
+  const M = AP.mode[plan.mode] || AP.mode.line;
+  const hid = bat.hidden || {};
+  const aggro = plan.aggro ?? (hid.aggro || 0), guess = plan.guess ?? (hid.guess || 0), prot = hid.protect || 0;
   // ABS 존 높이는 신장에 비례한다 (상단 56.35%, 하단 27.64%).
   // 리그 평균 키를 1로 두고 그 비율만 쓴다.
   const zH = Math.max(0.86, Math.min(1.14, (bat.height || 182) / 182));
@@ -105,8 +130,9 @@ export function playCount(bat, pit, ctx, rng) {
   // 같은 투수의 같은 구종도 공마다 다르다. 1~2km/h 씩 흔들리고, 지치면 내려간다.
   const fatV = -(ctx.fatigue || 0) * 2.2;
   let lastV = kmh(pit, arsenal && arsenal.length ? arsenal[0] : 'FF') + eff;
+  let g = null;                                      // 이 공의 노림 — 'o' 적중 · 'x' 실패 · null 없음
   const log = (r, x, z, t) => { lastV = Math.round(kmh(pit, t) + eff + fatV + rng.gauss(0, 1.3));
-    seq.push({ x: +x.toFixed(2), z: +z.toFixed(2), t, v: lastV, r }); };
+    seq.push({ x: +x.toFixed(2), z: +z.toFixed(2), t, v: lastV, r, g }); };
   for (;;) {
     np++;
     const two = s >= 2, three = b >= 3;
@@ -114,6 +140,19 @@ export function playCount(bat, pit, ctx, rng) {
     const early = np === 1 ? 1 : (np === 2 ? PC.swZ2nd : 0);
     const type = choosePitch(arsenal, b, s, rng);
     const P = PITCH[type];
+    // 노림수. 2스트라이크 전에만 건다. 읽어내는 타자는 맞출 확률이 높다.
+    g = null; let gCt = 0, gQ = 0, gChase = 0;
+    if (!two && rng.random() < (np <= 2 ? AP.sitEarly : AP.sitLate)) {
+      const sitOff = rng.random() < (b >= 3 ? 0.25 : 0.42);
+      const read = rng.random() < Math.max(0, AP.read * guess);
+      const right = read || (sitOff === OFF.has(type));
+      g = right ? 'o' : 'x';
+      if (right) { gCt = AP.hitCt * (1 + 0.3 * guess); gQ = AP.hitQ; gChase = AP.hitChase; }
+      else { gCt = AP.missCt; gQ = AP.missQ; gChase = AP.missChase; }
+    }
+    // 2스트라이크 보호. 커트로 버틴다.
+    const pk = two ? 1 + 0.5 * prot : 0;
+    const protCt = pk * AP.protCt, protFoul = pk * AP.protFoul, protQ = pk * AP.protQ;
 
     // 1. 겨냥과 제구. 존 반폭을 1로 둔 좌표계.
     const aim = PC.aimEdge * (two ? PC.aimTwoK : three ? PC.aimThreeK : 1);
@@ -133,10 +172,10 @@ export function playCount(bat, pit, ctx, rng) {
     // 2. 타자 — 칠 것인가. 존 밖은 멀수록 급격히 참는다.
     const pSwing = inZone
       ? clamp(PC.swZBase + PC.swZDisc * zd + (two ? PC.swZTwoStrike : 0)
-          + (three ? PC.swZThreeBall : 0) + PC.swZFirst * early)
+          + (three ? PC.swZThreeBall : 0) + (PC.swZFirst - AP.aggroFirst * aggro) * early)
       : clamp((PC.swOBase + PC.swODisc * zd + PC.swOStuff * zs + PC.swOMove * zm
           + (two ? PC.swOTwoStrike : 0) + (three ? PC.swOThreeBall : 0)
-          + PC.swOFirst * early) * Math.exp(-PC.swODecay * out));
+          + (PC.swOFirst - AP.aggroFirst * 0.6 * aggro) * early + M.chase + gChase) * Math.exp(-PC.swODecay * out));
 
     if (rng.random() >= pSwing) {                      // 지켜봤다
       if (inZone) { TALLY.called++; log('S', px, pz, type); if (++s >= 3) return done(K); }
@@ -157,7 +196,8 @@ export function playCount(bat, pit, ctx, rng) {
     TALLY.swing++;
     const pCt = clamp(((inZone ? PC.ctZBase : PC.ctOBase)
       + PC.ctContact * zct + PC.ctAvoidK * zk + PC.ctStuff * zs + PC.ctMove * zm
-      + PC.ctWhiff * (P.whiff - 1) + (two ? PC.ctTwoStrike : 0))
+      + PC.ctWhiff * (P.whiff - 1) + (two ? PC.ctTwoStrike : 0)
+      + M.ct - M.whiff + gCt + protCt)
       * Math.exp(-PC.ctDecay * out));
     if (rng.random() >= pCt) {
       TALLY.whiff++; log('W', px, pz, type);                          // 헛스윙
@@ -168,7 +208,7 @@ export function playCount(bat, pit, ctx, rng) {
     // 4. 파울인가 인플레이인가
     TALLY.contact++;
     const pFoul = clamp(PC.foulBase + (two ? PC.foulTwoStrike : 0)
-      + (inZone ? 0 : PC.foulOut) + PC.foulContact * zct);
+      + (inZone ? 0 : PC.foulOut) + PC.foulContact * zct + M.foul + protFoul);
     if (rng.random() < pFoul) {
       TALLY.foul++; f++; log('F', px, pz, type);
       if (rng.random() < PC.foulCatchable * (ctx.foulTerr ?? 1)) {
@@ -185,8 +225,8 @@ export function playCount(bat, pit, ctx, rng) {
     TALLY.inplay++; log('X', px, pz, type);                           // 인플레이
     const quality = clamp(0.5 + PC.qCenter * Math.max(0, 1 - mid) + PC.qEdge * out
       + (b - s >= 1 ? PC.qAhead : 0) + (two ? PC.qTwoStrike : 0)
-      + cb * 0.035 + rng.gauss(0, PC.qSd), 0.02, 0.98);
-    return done(IN_PLAY, { quality, gbBias: P.gb });
+      + cb * 0.035 + M.q + gQ + protQ + rng.gauss(0, PC.qSd), 0.02, 0.98);
+    return done(IN_PLAY, { quality, gbBias: P.gb, mode: plan.mode || 'line', guessed: g });
 
     function done(res, extra) {
       return { res, b, s, np, f, events, type, velo: lastV,

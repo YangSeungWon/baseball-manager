@@ -77,9 +77,11 @@ const num = (x, d) => (Number.isFinite(x) ? x : d);
 const rad = Math.PI / 180;
 
 /** 타구 유형. 약하게 맞으면 굴러가고, 잘 맞으면 뜬다. */
-export function battedType(bat, pit, quality, rng) {
+export function battedType(bat, pit, quality, rng, mode = null) {
   const q = quality - 0.5;
-  const gbShift = C.gbBat * z(bat.gb_tendency) + C.gbPit * z(pit.gb_tendency) - BC.qGb * q;
+  // 접근. 어퍼스윙은 띄우고, 컨택 스윙은 굴린다.
+  const gbM = mode && MODE_GB[mode] ? Math.log(MODE_GB[mode]) : 0;
+  const gbShift = C.gbBat * z(bat.gb_tendency) + C.gbPit * z(pit.gb_tendency) - BC.qGb * q + gbM;
   const ldShift = C.ldContact * z(bat.contact) + BC.qLd * q;
   const wGb = LG.gb * Math.exp(gbShift);
   const wFb = LG.fb * Math.exp(-gbShift * 0.8);
@@ -112,9 +114,13 @@ export function overFence(ball, park) {
 }
 
 /** 타구의 물리적 서술. 어디로, 얼마나 깊게, 얼마나 오래 떠 있는가. */
-export function battedBall(bbt, bat, quality, rng, park = null) {
+const MODE_GB = { power: 0.93, line: 1.0, oppo: 1.08, contact: 1.12 };
+const MODE_PULL = { power: 6, line: 0, oppo: -14, contact: -3 };
+export function battedBall(bbt, bat, quality, rng, park = null, mode = null) {
   const hand = bat.bats === 'L' ? -1 : 1;
-  const pull = BC.pullDeg + BC.pullPower * z(bat.hr_power) + BC.pullContact * z(bat.contact);
+  // 밀어치기는 반대쪽으로, 강공은 더 당긴다.
+  const pull = BC.pullDeg + BC.pullPower * z(bat.hr_power) + BC.pullContact * z(bat.contact)
+    + (mode && MODE_PULL[mode] ? MODE_PULL[mode] : 0);
   const angle = clamp(rng.gauss(-hand * pull, BC.spraySdBy[bbt] ?? BC.spraySd), -45, 45);
 
   const [dm, ds] = BC.depth[bbt];

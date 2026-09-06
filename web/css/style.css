@@ -1434,3 +1434,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .lv-flash.inn{font-size:30px;padding:12px 22px}
   .lv-bug-strip{gap:8px;padding:4px 8px;font-size:11px}
 }
+
+.lv-ap{display:flex;align-items:baseline;gap:6px;font-size:12px;margin-top:3px}
+.lv-ap b{color:var(--fg);font-weight:700} .lv-ap i{font-style:normal;color:#ffd45e;font-size:11px}
+.pzg{font-style:normal;margin-left:4px;font-size:9px} .pzg.o{color:#53b987} .pzg.x{color:var(--fg3)}

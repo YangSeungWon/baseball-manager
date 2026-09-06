@@ -38,7 +38,7 @@ export const ADV = {
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
   sacfly_base: 0.500, gb_r3_scores: 0.330, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
-  sb_attempt_base: 0.110, sb_attempt_speed: 0.075,   // 시도. 성공은 run.js 의 시간표가 정한다
+  sb_attempt_base: 0.125, sb_attempt_speed: 0.075,   // 시도. 성공은 run.js 의 시간표가 정한다
   sb_success_base: 0.688, sb_success_speed: 0.055, sb_success_arm: -0.033,
 };
 
@@ -356,6 +356,22 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
   }
   bl.rbi += scored.length;
   return [addedOuts, scored.length, desc, scored.map(x => x[0]), thr];
+}
+
+/* ── 타자의 접근 ──────────────────────────────────────────
+   거포는 강공, 교타자는 끊어치기가 기본이다. 2루 주자를 보내야 하면 밀어치고,
+   3루 주자를 불러들여야 하면 컨택으로 간다. 뒤지는 늦은 이닝에 거포는 큰 것을 노린다. */
+export const APPROACH_KR = { power:'강공', line:'끊어치기', oppo:'밀어치기', contact:'컨택' };
+function planFor(b, bases, outs, inning, diff, rng, order) {
+  const hid = b.hidden || {};
+  const base = { aggro: hid.aggro || 0, guess: hid.guess || 0 };
+  if (order && APPROACH_KR[order.mode]) return { ...base, mode: order.mode, by: 'mgr' };
+  const zp = z(b.hr_power), zc = z(b.contact);
+  let mode = zp >= 0.7 ? 'power' : 'line';
+  if (bases.r[1] && !bases.r[2] && outs < 2 && Math.abs(diff) <= 2 && mode !== 'power' && rng.random() < 0.55) mode = 'oppo';
+  else if (bases.r[2] && outs < 2 && mode === 'line' && zc >= 0 && rng.random() < 0.35) mode = 'contact';
+  else if (inning >= 7 && diff <= -1 && diff >= -3 && zp >= 0.2 && rng.random() < 0.5) mode = 'power';
+  return { ...base, mode, by: 'self' };
 }
 
 /* ── 감독의 결정 ──────────────────────────────────────────
@@ -771,6 +787,8 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       else ctx.cCommand += edge * HOME.pitch;
     }
     begin();
+    // 타자의 접근. 성향과 상황이 정하고, 감독이 덮어쓸 수 있다.
+    ctx.plan = planFor(batter, bases, outs, inning, off.runs - defn.runs, rng, cmd('approach', 'off'));
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
     // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
@@ -794,8 +812,8 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     let res, bbt = null, desc0 = '', ball = null, play = null;
     if (pc.res === 'IP') {
       // 볼카운트 -> 타구 질 -> 유형 -> 방향 -> 담당 야수 -> 수비 판정
-      bbt = BIP.battedType(batter, pl.p, pc.quality, rng);
-      ball = BIP.battedBall(bbt, batter, pc.quality, rng, dims);
+      bbt = BIP.battedType(batter, pl.p, pc.quality, rng, pc.mode);
+      ball = BIP.battedBall(bbt, batter, pc.quality, rng, dims, pc.mode);
       if (BIP.overFence(ball, dims)) { res = HR; desc0 = BIP.describe(ball, {}, 'HR'); }
       else {
         defn.byPos.P = pl.p;
@@ -867,6 +885,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                  px: r2(pc.px), pz: r2(pc.pz),
                  seq: pc.seq, zh: pc.zh,        // 그 타석에 던진 공들. 존 그림이 이걸 쓴다.
                  sw: !!pc.swinging,             // 헛스윙 삼진인가
+                 ap: ctx.plan.mode, apBy: ctx.plan.by,   // 접근과 누가 정했나 (self · mgr)
                  zone: ball ? ball.zone : null, bbt,
                  ang: ball ? r2(ball.angle) : null, dep: ball ? r2(ball.depth) : null,
                  // 타구의 물리. 체공(초) · 땅볼 속도(m/s) · 야수의 출발점과 속도.
