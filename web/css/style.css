@@ -1438,3 +1438,38 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-ap{display:flex;align-items:baseline;gap:6px;font-size:12px;margin-top:3px}
 .lv-ap b{color:var(--fg);font-weight:700} .lv-ap i{font-style:normal;color:#ffd45e;font-size:11px}
 .pzg{font-style:normal;margin-left:4px;font-size:9px} .pzg.o{color:#53b987} .pzg.x{color:var(--fg3)}
+
+/* 감독 지시 적용 */
+.lv-flash.cmd{color:#ffd45e;font-size:26px;display:flex;flex-direction:column;align-items:center;gap:2px;
+  background:rgba(8,13,19,.78);padding:12px 26px;border-radius:4px;border-left:4px solid #ffd45e}
+.lv-flash.cmd small{font-size:18px;font-weight:700;color:#fff;letter-spacing:0}
+.lv-flash.cmd.on{animation:lvInn 2s ease forwards}
+
+/* ── 경기 화면 글씨 — 연하고 작은 글씨를 없앤다. 읽히지 않는 정보는 정보가 아니다 ── */
+.lv .lab{font-size:13px;color:var(--fg2)}
+.lv-bug-t span{font-size:16px} .lv-bug-t b{font-size:26px}
+.lv-bug-inn b{font-size:17px} .lv-bug-inn em{font-size:13px}
+.lv-bug-cnt .bso u{font-size:12px;color:var(--fg2)}
+.lv-bug-strip{font-size:13px;color:var(--fg)}
+.lv-bug-strip u{font-size:11px;color:var(--fg2)} .lv-bug-strip i{font-size:12.5px;color:var(--fg2)}
+.lv-cap-main{font-size:16px} .lv-cap-sub{font-size:13px;color:var(--fg)}
+.lv-seg button{font-size:13px;color:var(--fg2);padding:5px 9px}
+.lv-bar button{font-size:15px;padding:10px 16px}
+.lv-panel .lv-who>b{font-size:18px} .lv-panel .lv-who>i{font-size:13px;color:var(--fg2)}
+.lv-panel .lv-pitch em{font-size:14px} .lv-panel .lv-pitch span{font-size:18px}
+.lv-panel .lv-pitch span i{font-size:12px;color:var(--fg2)}
+.lv-pstat{font-size:13px;color:var(--fg2)} .lv-pstat b{color:var(--fg)}
+.lv-tired::after{font-size:11px;color:var(--fg2)}
+.lv-panel .lv-today{font-size:14px;color:var(--fg)}
+.lv-ap{font-size:13px} .lv-ap .lab{font-size:13px}
+.lv-panel .pzrow{font-size:12.5px} .lv-panel .pzn{color:var(--fg2)} .pzv::after{font-size:11px;color:var(--fg2)}
+.pzempty{font-size:13px;color:var(--fg2)}
+.lv-mgr-h{font-size:13px;color:var(--fg2)}
+.lv-mgr-row button{font-size:14px;padding:8px 12px}
+.lv-shift button{font-size:13px;padding:5px 9px}
+.lv-mgr-list button{font-size:14px} .lv-mgr-list button i{font-size:12px;color:var(--fg2)}
+.lv-mgr-cur{font-size:14px}
+.lv-pend{font-size:13px}
+.lv-log .rpl{font-size:14px} .lv-log .rpl .ri{font-size:13px;color:var(--fg2)}
+.lv-log .rpl .rd{color:var(--fg)}
+.gs-out{font-size:14px}

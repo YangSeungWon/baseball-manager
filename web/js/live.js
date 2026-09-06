@@ -391,7 +391,7 @@ export class LiveView {
   _offColor() { return this.S.half === 'top' ? this.o.colors.away : this.o.colors.home; }
 
   _flash(text, cls = '', sub = '') {
-    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : 1.6;
+    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : cls === 'cmd' ? 2.0 : 1.6;
     this.el.flash.innerHTML = text ? `<b>${text}</b>${sub ? `<small>${sub}</small>` : ''}` : '';
     this.el.flash.className = 'lv-flash' + (text ? ' on ' + cls : '');
   }
@@ -420,6 +420,12 @@ export class LiveView {
   _script(tl, rec) {
     const S = this.S;
     if (rec.evt === 'pick') { this._syncRunners(rec); return this._pickoff(tl, rec); }
+    if (rec.evt === 'cmd') {
+      // 감독 지시가 지금 적용됐다. 크게 알린다.
+      this._flash('감독 지시', 'cmd', rec.text);
+      this._cap(`감독 지시 · ${rec.text}`, '');
+      tl.add(0, 1.3, null); return;
+    }
     if (rec.evt === 'start') { this._cap(`${rec.away} vs ${rec.home}`, rec.crowd ? `관중 ${rec.crowd.toLocaleString()}` : ''); tl.add(0, 1.2, null); return; }
     if (rec.evt === 'side') {
       const newHalf = S.half !== rec.half || S.inning !== rec.inning;
@@ -1192,7 +1198,7 @@ export class LiveView {
     const standD = 14 + ((this.o.park && this.o.park.capacity ? this.o.park.capacity : 18000) - 13000) / 13500 * 12;
     const fh = dims.real ? dims.real.fH || 3 : 3;
     const p = persp ? V.proj(0, fc, fh) : V.proj(0, fc + standD + 2);
-    const x0 = p.x - w / 2 + (persp ? 34 : 0), y0 = persp ? Math.max(2, p.y - h - 4) : Math.max(3, p.y - h - 3);
+    const x0 = p.x - w / 2 + (persp ? 14 : 0), y0 = persp ? Math.max(2, p.y - h - 4) : Math.max(3, p.y - h - 3);
     // 판. 밤의 전광판은 검고, 숫자는 주황 LED 다.
     ctx.fillStyle = '#070b10'; rr(ctx, x0, y0, w, h, 2); ctx.fill();
     ctx.strokeStyle = '#2b3a4b'; ctx.lineWidth = 1; rr(ctx, x0 + 0.5, y0 + 0.5, w - 1, h - 1, 2); ctx.stroke();

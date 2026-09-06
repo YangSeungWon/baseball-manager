@@ -609,7 +609,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     pen: defn.bullpenLeft.map(p => ({ pid: p.pid, name: p.name, slot: R.PEN_LABEL[p.pen_role] || '불펜' })),
     cur: defn.cur ? { name: defn.cur.p.name, np: defn.cur.np, tired: Math.round((defn.cur.fatigue || 0) * 100) } : null,
     shift: tac(defn.team, 'shift') });
-  // 감독의 명령. 한 번 꺼내면 사라진다.
+  // 감독의 명령. 한 번 꺼내면 사라진다. 꺼내 쓴 순간을 화면에 알린다.
+  const CMD_KR = { pinch:'대타', bunt:'번트', steal:'도루', hook:'투수 교체', ibb:'고의사구', shift:'시프트', approach:'타격 지시' };
+  function* ack(c, extra = '') {
+    if (c && live) yield { play: { evt: 'cmd', kind: c.kind, text: `${CMD_KR[c.kind] || c.kind}${extra ? ' — ' + extra : ''}` } };
+    return c;
+  }
   const cmd = (kind, side) => {
     const a = side === 'off' ? askOff : askDef;
     if (!a || !a.cmds) return null;
@@ -655,7 +660,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     }
     if (outs >= 3) break;
     begin();
-    if (cmd('steal', 'off')) off.forceSteal = true;
+    { const c = cmd('steal', 'off'); if (c) { off.forceSteal = true; yield* ack(c); } }
     const [stOut, st] = trySteal(bases, outs, off, defn, rng);
     off.forceSteal = false;
     if (st) {
@@ -666,11 +671,11 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     if (outs >= 3) break;
 
     // 감독의 명령 — 투수 교체 · 시프트 (수비), 대타 · 번트 · 고의사구는 아래에서.
-    { const c = cmd('hook', 'def'); if (c && c.pid) yield* changePitcher(c.pid); }
-    { const c = cmd('shift', 'def'); if (c && c.dial != null) defn.shiftDial = Math.max(0, Math.min(4, c.dial | 0)); }
+    { const c = cmd('hook', 'def'); if (c && c.pid) { yield* ack(c); yield* changePitcher(c.pid); } }
+    { const c = cmd('shift', 'def'); if (c && c.dial != null) { defn.shiftDial = Math.max(0, Math.min(4, c.dial | 0)); yield* ack(c, ['없음','약간','보통','자주','적극'][defn.shiftDial]); } }
     // 대타. 한 번 나가면 원래 타자는 그날 끝이다.
     let ph = tryPinch(off, defn, inning, outs, bases, rng);
-    { const c = cmd('pinch', 'off'); if (c && c.pid) ph = off.bench.find(b => b.pid === c.pid) || ph; }
+    { const c = cmd('pinch', 'off'); if (c && c.pid) { ph = off.bench.find(b => b.pid === c.pid) || ph; yield* ack(c, ph ? ph.name : ''); } }
     if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
         && off.bench.length && (bases.r[0] || bases.r[1] || bases.r[2])) {
       const up = off.order[off.spot], cand = off.bench.slice(0, 3);
@@ -692,7 +697,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
 
     // 희생번트 (또는 시프트를 뚫는 기습번트)
     let buntKind = tryBunt(bases, outs, off, defn, inning, rng);
-    if (cmd('bunt', 'off') && outs < 2 && (bases.r[0] || bases.r[1])) buntKind = 'sac';
+    { const c = cmd('bunt', 'off'); if (c && outs < 2 && (bases.r[0] || bases.r[1])) { buntKind = 'sac'; yield* ack(c); } }
     if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
         && outs < 2 && bases.r[0] && !bases.r[2]) {
       askOff.left--;
@@ -757,7 +762,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
 
     // 고의사구 — 이건 수비하는 쪽의 결정이다
     let ibb = tryIbb(bases, outs, off, defn, rng);
-    if (cmd('ibb', 'def')) ibb = true;
+    { const c = cmd('ibb', 'def'); if (c) { ibb = true; yield* ack(c); } }
     if (askDef && askDef.left > 0 && lateClose(inning, off, defn)
         && !bases.r[0] && (bases.r[1] || bases.r[2]) && outs < 2) {
       askDef.left--;
@@ -823,7 +828,8 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     begin();
     const lead1 = bases.r[0] ? r2(RUNT.leadOf(bases.r[0], pl.p)) : null;   // 1루 주자의 리드
     // 타자의 접근. 성향과 상황이 정하고, 감독이 덮어쓸 수 있다.
-    ctx.plan = planFor(batter, bases, outs, inning, off.runs - defn.runs, rng, cmd('approach', 'off'));
+    { const c = cmd('approach', 'off'); if (c) yield* ack(c, APPROACH_KR[c.mode] || '');
+      ctx.plan = planFor(batter, bases, outs, inning, off.runs - defn.runs, rng, c); }
     const pc = playCount(batter, pl.p, ctx, rng);
     pl.np += pc.np;
     // 포수 뒤로 빠진 공. 막지 못하면 폭투나 포일이다.
