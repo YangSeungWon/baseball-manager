@@ -1,5 +1,6 @@
 // 스카우팅: 팀에게 틀린 정보를 준다. 오차의 72%는 리그 전체가 공유한다.
 import * as dev from './development.js';
+import { RNG } from './rng.js';
 
 export const SIGMA_CUR_AMATEUR = 6.5, SIGMA_POT_AMATEUR = 16.0;
 export const SIGMA_CUR_PRO = 2.2, SIGMA_POT_PRO = 7.0;
@@ -23,15 +24,22 @@ export class ScoutingDept {
     this.memory = new Map();
     this.looks = new Map();
   }
+  /* 처음 보는 선수의 오차는 선수 고유 시드에서 뽑는다. 리그 난수를 쓰면
+     '누구 페이지를 먼저 열었는가' 가 다음 경기 결과를 바꾼다 — 화면이 세계를
+     건드리면 안 된다. 넘어오는 rng 는 호환을 위해 받기만 하고 쓰지 않는다. */
   _seed(p, rng) {
+    void rng;
     if (!p.scout_consensus) {
+      const r = new RNG((p.pid * 2654435761 + 12345) >>> 0);
       p.scout_consensus = {}; p.scout_consensus_pot = {};
-      for (const a of dev.attrsOf(p)) { p.scout_consensus[a] = rng.gauss(0,1);
-                                        p.scout_consensus_pot[a] = rng.gauss(0,1); }
+      for (const a of dev.attrsOf(p)) { p.scout_consensus[a] = r.gauss(0,1);
+                                        p.scout_consensus_pot[a] = r.gauss(0,1); }
     }
     if (!this.memory.has(p.pid)) {
+      const sid = Math.round(this.eval_current * 977 + this.eval_potential * 131 + this.hitting * 17);
+      const r = new RNG((p.pid * 40503 + sid * 7919 + 99991) >>> 0);
       const cur = {}, pot = {};
-      for (const a of dev.attrsOf(p)) { cur[a] = rng.gauss(0,1); pot[a] = rng.gauss(0,1); }
+      for (const a of dev.attrsOf(p)) { cur[a] = r.gauss(0,1); pot[a] = r.gauss(0,1); }
       this.memory.set(p.pid, { cur, pot });
     }
     return this.memory.get(p.pid);

@@ -335,7 +335,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm + m1;
         if (rng.random() < p) scored.push([r2, rp2, ue2]);
         else if (outs < 2 && rng.random() < MISC.rundown + MISC.rundownArm * zarm) {
-          addedOuts++; desc = '주루사';            // 협살에 걸렸다
+          addedOuts++; desc = `${desc || '안타'} — ${r2.name} 주루사`;   // 협살에 걸렸다. 안타는 안타다.
         } else bases.put(2, r2, rp2, ue2);
       }
       if (r1) {
@@ -343,7 +343,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         if (!bases.r[2] && rng.random() < p) bases.put(2, r1, rp1, ue1);
         else if (!bases.r[2] && outs + addedOuts < 2
                  && rng.random() < (MISC.rundown + MISC.rundownArm * zarm) * 0.6) {
-          addedOuts++; desc = '주루사';
+          addedOuts++; desc = `${desc || '안타'} — ${r1.name} 주루사`;
         } else bases.put(1, r1, rp1, ue1);
       }
       bases.put(0, batter, me); if (!desc) desc = '안타';
