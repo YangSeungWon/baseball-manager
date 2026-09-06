@@ -774,7 +774,9 @@ export class LiveView {
     const diff = rec.hard != null ? 1 - rec.hard : 0;
     const zAt = gb ? 0.3 : 0.9 + peak * 4 * 0.98 * 0.02;      // 잡는 순간 공 높이 (거의 땅 · 낙하 직전)
     const late = tF - (tC + Ti);                              // 못 닿았으면 얼마나 늦었나
-    if (F && !hr && ((reach && diff > 0.55) || (!reach && late < 0.7))) {
+    // 엔진이 '던졌다' 고 했으면 던지고, 아니면 아슬아슬할 때만.
+    const dove = rec.dive === 'catch' || rec.dive === 'miss';
+    if (F && !hr && (dove || (!rec.dive && ((reach && diff > 0.55) || (!reach && late < 0.7))))) {
       const dir = rec.ang > (rec.fpa ?? 0) ? 1 : -1;
       tl.add(tC + Ti - 0.25, 1.0, (k) => { F.pose = 'dive'; F.dir = dir; }, () => { F.pose = null; });
     } else if (F && !gb && !hr && rec.bbt === 'LD' && diff > 0.35) {
@@ -783,7 +785,11 @@ export class LiveView {
     void zAt;
 
     let pickup = null, pickT = 0, thrower = F;
-    if (reach && !err && hit && !gb) {
+    if (rec.dive === 'catch') {
+      // 다이빙 캐치. 그 자리에서 잡는다.
+      pickup = icpt; pickT = tC + Ti + 0.5;
+      tl.at(tC + Ti, () => { this._hold(F); this.sfx.pop(0.7); this._flash('다이빙 캐치', 'out'); });
+    } else if (reach && !err && hit && !gb) {
       // 닿았는데 떨어졌다. 공이 앞에서 튀고, 야수가 집어 든다.
       pickup = [icpt[0], icpt[1] + 2.5]; pickT = tC + T + 0.7;
       tl.add(tC + T, 0.6, (k) => { S.ball = { x: lerp(icpt[0], pickup[0], k), y: lerp(icpt[1], pickup[1], k), z: 1.2 * Math.sin(Math.PI * k) * (1 - k * 0.5), vis: true }; this._trail(); });

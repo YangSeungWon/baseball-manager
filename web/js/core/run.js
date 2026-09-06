@@ -75,7 +75,8 @@ export function ballClock(ball, play, dims) {
   }
   // 빠졌다. 굴러가 멎은 곳에서 외야수가 줍는다.
   const fence = BIP.fence(ball.angle, dims);
-  const stopD = Math.min(fence - 2.5, gb ? ball.depth + RT.gbRoll : ball.depth + RT.flyRoll + ball.depth * RT.flyRollDep);
+  const dove = play.dive === 'miss' ? 12 : 0;              // 다이빙을 놓쳤다 — 더 흐른다
+  const stopD = Math.min(fence - 2.5, (gb ? ball.depth + RT.gbRoll : ball.depth + RT.flyRoll + ball.depth * RT.flyRollDep) + dove);
   const Tr = gb ? 2.2 : RT.flyRollT;
   const at = W2(ball.angle, stopD);
   // 누가 줍나. 땅볼이면 가장 가까운 외야수, 뜬공이면 담당 외야수.

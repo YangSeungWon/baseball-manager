@@ -44,7 +44,7 @@ export const BC = {
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
   hangK: { GB: 1.319, LD: 1.294, FB: 1.099, PU: 1.249 },
   // 야수 이동 속도 (m/s)
-  rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.365,
+  rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.38,
   // 첫 발(순발력)은 반응 시간을, 자리(위치 선정)는 가야 할 거리를 줄인다.
   // 직선타는 체공이 1~2초라 반응이 전부고, 깊은 뜬공은 거리가 전부다.
   reactZ: 0.125, posZ: 0.040,
@@ -70,6 +70,10 @@ export const BC = {
   shiftBase: 4.4, shiftOf: 0.35, shiftMin: 0.35,
   // 실책
   errField: 0.0732, errFieldDef: -0.34, errThrow: 0.0299, errThrowArm: -0.36,
+  // 몸을 던진다. 살짝 못 닿는 타구(여유 −.45s 까지)에 다이빙할 수 있다.
+  // 잡으면 아웃, 놓치면 공이 빠져 한 베이스를 더 준다. 던질지는 상황과 담력이 정한다.
+  diveWindow: 0.30, diveBase: 0.25, diveBold: 0.15, diveTwoOut: 0.20, diveRisp: -0.18,
+  diveCatch: 0.18, diveCatchNear: 0.32, diveCatchDef: 0.06, diveMissRoll: 12,
 };
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -223,14 +227,29 @@ export function assign(ball, byPos, shift = 0) {
 }
 
 /** 수비 판정. 아웃인가, 안타인가, 실책인가. */
-export function fieldIt(ball, play, bat, rng) {
+export function fieldIt(ball, play, bat, rng, sit = {}) {
   const f = play.fielder;
   const isP = play.pos === 'P';
   const zf = z(num(f && f.fielding, isP ? 45 : 50));
   const za = z(num(f && (f.arm ?? f.fielding), isP ? 48 : 50));
   const reached = play.slack >= 0;
 
-  if (!reached) return { ...play, result: 'HIT' };       // 못 따라갔다
+  if (!reached) {
+    // 못 따라갔다. 살짝이면 몸을 던질 수 있다 — 던질 것인가.
+    const near = -play.slack;
+    if (near <= BC.diveWindow && !isP && play.pos !== 'C') {
+      const bold = (f && f.hidden && f.hidden.bold) || 0;
+      const pTry = BC.diveBase + BC.diveBold * bold + (sit.outs === 2 ? BC.diveTwoOut : 0)
+        + (sit.risp && sit.outs < 2 ? BC.diveRisp : 0);
+      if (rng.random() < pTry) {
+        const pCatch = clamp(BC.diveCatch + BC.diveCatchNear * (1 - near / BC.diveWindow) + BC.diveCatchDef * zf, 0.05, 0.9);
+        if (rng.random() < pCatch) return { ...play, result: 'OUT', dive: 'catch', slack: 0.01, difficulty: 1 };
+        return { ...play, result: 'HIT', dive: 'miss' };   // 빠졌다 — 공이 뒤로 흐른다
+      }
+      return { ...play, result: 'HIT', dive: 'safe' };     // 안전하게 앞에서 잡는다
+    }
+    return { ...play, result: 'HIT' };
+  }
 
   if (ball.bbt === 'GB' || ball.depth < 52) {
     // 내야 타구 — 잡는 것과 던지는 것이 따로다.
@@ -253,8 +272,11 @@ export function fieldIt(ball, play, bat, rng) {
 }
 
 /** 안타의 등급. 선상과 갭으로 빠질수록, 깊을수록 길어진다. */
-export function hitBases(ball, bat, rng) {
+export function hitBases(ball, bat, rng, play = null) {
   if (ball.depth < 52) return 1;                          // 내야 안타
+  // 다이빙을 놓친 공은 뒤로 흐른다 — 한 베이스 더. 안전하게 잡은 공은 단타로 막는다.
+  if (play && play.dive === 'miss') { const b = hitBases({ ...ball, depth: ball.depth + BC.diveMissRoll, angle: ball.angle }, bat, rng); return Math.max(2, b); }
+  if (play && play.dive === 'safe' && ball.bbt !== 'GB' && ball.depth < 80) return 1;
   const gap = Math.min(Math.abs(Math.abs(ball.angle) - 15) < 7 ? 1 : 0,
                        ball.bbt === 'GB' ? 0 : 1);
   const line = Math.abs(ball.angle) > 34 ? 1 : 0;
@@ -296,6 +318,7 @@ export function describe(ball, play, kind, bases) {
   if (kind === 'HR') return ball.zone + ' 홈런';
   if (kind === 'ERR') return pos + (play.kind === 'throw' ? ' 송구 실책' : ' 실책');
   if (kind === 'OUT') {
+    if (play.dive === 'catch') return pos + (ball.bbt === 'GB' ? ' 다이빙 캐치 — 땅볼' : ' 다이빙 캐치');
     if (ball.bbt === 'GB') return pos + ' 땅볼';
     if (ball.bbt === 'LD') return pos + ' 직선타';
     if (ball.bbt === 'PU') return pos + ' 뜬공';

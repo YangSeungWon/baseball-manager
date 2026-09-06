@@ -829,11 +829,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       if (BIP.overFence(ball, dims)) { res = HR; desc0 = BIP.describe(ball, {}, 'HR'); }
       else {
         defn.byPos.P = pl.p;
-        play = BIP.fieldIt(ball, BIP.assign(ball, defn.byPos, shift), batter, rng);
+        play = BIP.fieldIt(ball, BIP.assign(ball, defn.byPos, shift), batter, rng,
+          { outs, risp, close: Math.abs(off.runs - defn.runs) <= 2 });
         if (play.result === 'ERR') { res = ERR; desc0 = BIP.describe(ball, play, 'ERR'); defn.errors++; }
         else if (play.result === 'OUT') { res = OUT; desc0 = BIP.describe(ball, play, 'OUT'); }
         else {
-          const nb = BIP.hitBases(ball, batter, rng);
+          const nb = BIP.hitBases(ball, batter, rng, play);
           res = nb === 3 ? T3B : (nb === 2 ? D2B : S1B);
           desc0 = BIP.describe(ball, play, 'HIT', nb);
         }
@@ -908,6 +909,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                  fld: play && play.fielder ? play.fielder.name : null,
                  hard: play ? r2(1 - play.difficulty) : null,
                  reach: play ? play.slack >= 0 : null,
+                 dive: play ? play.dive || null : null,   // 몸을 던졌나 — catch · miss · safe
                  fpa: play && play.pa != null ? r2(play.pa) : null,
                  fpd: play && play.pd != null ? play.pd : null,
                  fv: play && play.v ? r2(play.v) : null,

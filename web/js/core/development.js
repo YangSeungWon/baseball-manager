@@ -35,6 +35,7 @@ export function makeHidden(rng) {
     aggro: rng.gauss(0, 1), guess: rng.gauss(0, 1), protect: rng.gauss(0, 1),
     // 주루. 무리해서 뛰는가(daring) · 정확히 읽는가(read). 투수에게는 주자를 묶는 견제(hold).
     daring: rng.gauss(0, 1), read: rng.gauss(0, 1), hold: rng.gauss(0, 1),
+    bold: rng.gauss(0, 1),          // 수비의 담력. 몸을 던지는가, 안전하게 잡는가
     ambition: clamp(rng.gauss(50,15)),
     aging_profile: rng.choices(PROFILE_KEYS, PROFILE_W),
     decline_rate: Math.max(0.45, rng.gauss(1.0,0.22)),
