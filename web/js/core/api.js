@@ -796,42 +796,42 @@ export class Game {
     const strong = (r) => r <= Math.ceil(n * 0.3), weak = (r) => r >= Math.floor(n * 0.7) + 1;
     const h = t.history;
     if (h && h.drought === 0 && strong(R.str))
-      return '왕좌를 지킬 것인가. 여기서부터는 내려갈 일만 남았다.';
+      return '디펜딩 챔피언. 전력은 여전히 우승권이다.';
     if (h && h.drought === 0 && weak(R.str))
-      return '우승 직후 전력이 무너졌다. 반지를 지킬 방법을 찾아야 한다.';
+      return '디펜딩 챔피언이지만 전력이 약해졌다. 재편이 필요하다.';
     if (h && h.drought === 0)
-      return '작년의 반지는 이미 과거다. 두 번 연속은 훨씬 어렵다.';
+      return '디펜딩 챔피언. 전력은 중위권이다.';
     if (strong(R.pit) && weak(R.bat))
-      return '마운드는 이미 우승권. 방망이 하나만 구하면 된다.';
+      return '투수진은 상위권, 타선은 하위권이다.';
     if (strong(R.bat) && weak(R.pit))
-      return '점수는 낸다. 문제는 지켜낼 투수가 없다는 것.';
+      return '타선은 상위권, 투수진은 하위권이다.';
     if (weak(R.str) && strong(R.farm))
-      return '리그 최고의 유망주진. 문제는 기다릴 시간이 있느냐다.';
+      return '전력은 약하지만 유망주가 많다. 구단주의 인내는 짧다.';
     if (weak(R.str) && strong(R.bud))
-      return '금고는 가득 찼고 로스터는 비었다. 사올 수 있는 만큼 사와야 한다.';
+      return '예산은 넉넉하고 전력은 약하다. 영입으로 채울 수 있다.';
     if (strong(R.str) && weak(R.bud))
-      return '우승권 전력, 얇은 지갑. 지키는 것만으로도 싸움이다.';
+      return '전력은 우승권이지만 예산이 적다. 주축을 지키기 어렵다.';
     if (strong(R.str) && f.patience < 40)
-      return '이길 전력은 갖췄다. 구단주가 기다려 주지 않을 뿐.';
+      return '전력은 우승권이다. 구단주의 인내는 짧다.';
     if (weak(R.str) && weak(R.farm) && f.patience >= 55)
-      return '바닥에서 시작한다. 대신 아무도 재촉하지 않는다.';
+      return '전력도 유망주도 약하다. 구단주는 시간을 준다.';
     if (weak(R.str) && weak(R.farm))
-      return '전력도 유망주도 없다. 그런데 시간까지 없다.';
+      return '전력도 유망주도 약하고, 구단주의 인내도 짧다.';
     if (h && h.titles.length >= 6 && h.drought >= 15)
-      return `${h.titles.length}번 우승한 구단이 ${h.drought}년째 조용하다. 끝낼 사람이 필요하다.`;
+      return `우승 ${h.titles.length}회. 마지막 우승은 ${h.drought}년 전이다.`;
     if (strong(R.farm) && !strong(R.str) && !weak(R.str))
-      return '리그 최고의 유망주진. 몇 년만 버티면 판이 뒤집힌다.';
+      return '유망주가 리그 최상위. 몇 년 안에 주축이 된다.';
     if (Math.abs(gap) >= Math.ceil(n * 0.5))
-      return gap > 0 ? '마운드가 혼자 팀을 끌고 간다. 타선을 채워라.'
-                     : '타선이 혼자 팀을 끌고 간다. 마운드를 채워라.';
-    if (strong(R.str)) return '약점이 없다. 지금 걸지 않으면 언제 거는가.';
-    if (nWeak >= 3 && !nStrong) return '성한 곳이 없다. 어디부터 손댈지가 첫 질문이다.';
-    if (nWeak >= 2 && !nStrong) return '구멍이 둘. 하나를 메우면 다른 하나가 드러난다.';
+      return gap > 0 ? '투수진에 비해 타선이 크게 처진다.'
+                     : '타선에 비해 투수진이 크게 처진다.';
+    if (strong(R.str)) return '뚜렷한 약점이 없다. 우승에 도전할 전력이다.';
+    if (nWeak >= 3 && !nStrong) return '약점이 셋 이상이다. 전면 재건이 필요하다.';
+    if (nWeak >= 2 && !nStrong) return '약점이 둘이다. 한 시즌에 다 메우기는 어렵다.';
     if (!nStrong && !nWeak && f.patience < 40)
-      return '평범한 전력에 성마른 구단주. 가장 나쁜 조합이다.';
+      return '전력은 중위권, 구단주의 인내는 짧다.';
     if (nStrong && nWeak)
-      return `${con.strong[0].k}${con.strong[0].r}위로 버티고 ${con.weak[0].k}${con.weak[0].r}위를 메운다. 그게 이 팀의 시즌이다.`;
-    return '어느 쪽으로도 갈 수 있다. 방향은 당신이 정한다.';
+      return `${con.strong[0].k} ${con.strong[0].r}위, ${con.weak[0].k} ${con.weak[0].r}위. 강점 하나, 약점 하나.`;
+    return '뚜렷한 강점도 약점도 없는 중위권이다.';
   }
 
   /** 리스크 — 이 팀을 맡으면 무엇이 아픈가.
