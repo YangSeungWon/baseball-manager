@@ -514,10 +514,12 @@ export class LiveView {
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
     this._flash(null);
-    // 공격하는 쪽의 응원가가 돈다. 원정 응원석은 작다.
+    // 타자마다 자기 응원가가 있다. 이름이 멜로디를 정한다. 원정 응원석은 작다.
     const home = rec.half === 'bottom';
-    if (this.fill > 0.2) this.sfx.song(hashOf(home ? this.o.home : this.o.away), home ? this.fill : this.fill * 0.35);
+    if (this.fill > 0.2) this.sfx.song(hashOf(rec.batter), home ? this.fill : this.fill * 0.35);
     else this.sfx.stopSong();
+    // 구호도 같이. 응원석이 부르는 그 이름.
+    if (home && this.o.chant && this.fill > 0.4) this.el.capSub.textContent += `  ·  ${this.o.chant(rec.batter, rec.inning)}`;
     this._cap(`${rec.batter}${rec.bh ? (rec.bh === 'L' ? ' · 좌타' : ' · 우타') : ''}`, this._todayLine(rec.batter));
     this._resetDefense(tl, rec.sh);
     this._zone(rec);

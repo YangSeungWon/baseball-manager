@@ -142,7 +142,8 @@ export class Sfx {
     const mel = []; let deg = 2;
     for (let i = 0; i < 8; i++) { deg = Math.max(0, Math.min(6, deg + Math.floor(rnd() * 5) - 2)); mel.push(base * Math.pow(2, scale[deg] / 12)); }
     mel[7] = base * Math.pow(2, scale[deg > 3 ? 5 : 0] / 12);
-    const bpm = 124 + Math.floor(rnd() * 16), beat = 60 / bpm;
+    const bpm = 118 + Math.floor(rnd() * 24), beat = 60 / bpm;
+    const groove = Math.floor(rnd() * 3);              // 0 북-박수 / 1 북북-박수 / 2 박수 셋
     const c = this.ctx, lv = 0.35 + level * 0.65;
     const bus = c.createGain(); bus.gain.value = 0.55 * lv; bus.connect(this.master); this.songBus = bus;
     let next = c.currentTime + 0.1, step = 0;
@@ -159,8 +160,9 @@ export class Sfx {
       if (!this.ctx || this.songOn !== seed) return;
       while (next < c.currentTime + 0.35) {
         const e = step % 16, bar = Math.floor(step / 16) % 4;   // 8분음표 16개 = 2마디, 4바퀴 주기
-        if (e % 4 === 0) kick(next);
-        if (e % 8 === 4) clap(next);
+        if (groove === 0) { if (e % 4 === 0) kick(next); if (e % 8 === 4) clap(next); }
+        else if (groove === 1) { if (e % 4 === 0 || e % 8 === 3) kick(next); if (e % 8 === 4) clap(next); }
+        else { if (e % 8 === 0) kick(next); if (e % 8 === 2 || e % 8 === 4 || e % 8 === 5) clap(next); }
         if (bar < 2) { if (e % 2 === 0) horn(next, mel[(e / 2) | 0], beat * 0.9); }
         else if (e % 2 === 0 && e !== 14) oh(next, beat * 0.8, 380 + (e % 6) * 40);   // 나팔 두 마디, 떼창 두 마디
         next += beat / 2; step++;
