@@ -12,6 +12,7 @@
 
 import * as BIP from './core/bip.js';
 import { Sfx } from './sfx.js';
+import { RT } from './core/run.js';
 
 const rad = Math.PI / 180;
 const short = (s) => String(s || '').split(' ')[0];
@@ -751,18 +752,27 @@ export class LiveView {
     }
     // 땅볼 아웃 · 병살 · 야수선택 · 안타 · 실책
     // 송구 목표: 아웃될 주자가 향하는 베이스, 먼 베이스부터. 없으면 선두 주자 앞 베이스.
-    let targets = outsHere.map(a => ({ a, base: a.f + 1 })).sort((p, q) => q.base - p.base);
-    if (!targets.length) {
-      const lead = adv.filter(a => a.t >= 1 && a.t <= 3).sort((p, q) => q.t - p.t)[0];
-      targets = [{ a: null, base: lead ? Math.min(3, lead.t + (lead.t < 3 ? 1 : 0)) : 2 }];
+    // 송구가 향한 베이스. 엔진이 시간표로 정했으면(thr) 그대로, 없으면 아웃될 주자 쪽.
+    let targets;
+    if (rec.thr && rec.thr.length) targets = rec.thr.map(b => ({ a: outsHere.find(a => a.f + 1 === b || (b === 4 && a.f === 3)) || null, base: b }));
+    else {
+      targets = outsHere.map(a => ({ a, base: a.f + 1 })).sort((p, q) => q.base - p.base);
+      if (!targets.length) {
+        const lead = adv.filter(a => a.t >= 1 && a.t <= 3).sort((p, q) => q.t - p.t)[0];
+        targets = [{ a: null, base: lead ? Math.min(3, lead.t + (lead.t < 3 ? 1 : 0)) : 2 }];
+      }
     }
-    let tRel = pickT + (gb ? 0.45 : 0.35), from = pickup || ballAt;
-    const speedIF = 33, speedOF = 29;
+    const ofThrow = thrower && ['LF', 'CF', 'RF'].includes(thrower.pos);
+    let tRel = pickT + (ofThrow ? RT.releaseOF : RT.releaseIF), from = pickup || ballAt;
+    const speedIF = RT.throwIF, speedOF = RT.throwOF;
     const runnerArr = (a) => runStart + (a.f === 0 ? 0.2 : 0) + 27.4 * Math.max(1, (a.t || a.f + 1) - a.f) / a.v;
     const clips = new Map();
     targets.forEach((tg, i) => {
       const to = baseAt(tg.base);
-      const Fl = dist2(from, to) / (thrower && ['LF', 'CF', 'RF'].includes(thrower.pos) ? speedOF : speedIF) + 0.1;
+      // 먼 외야 송구는 중계수를 거친다 — 엔진과 같은 규칙, 화면에서는 두 번 날아간다.
+      const dTh = dist2(from, to);
+      const viaCut = i === 0 && ofThrow && !reach && dTh > RT.cutoff && tg.base === 4;
+      const Fl = dTh / (i === 0 && ofThrow ? speedOF : speedIF) + 0.1 + (viaCut ? RT.cutoffRelay : 0);
       // 받을 사람이 베이스에 닿기 전에는 던지지 않는다. 투수가 1루 커버를 가는 번트가 그렇다.
       if (cover[tg.base] != null) tRel = Math.max(tRel, cover[tg.base] + 0.05 - Fl);
       if (tg.a) {
@@ -781,13 +791,13 @@ export class LiveView {
         const bat = adv.find(a => a.f === 0 && a.t === 1);
         if (bat && gb && reach) tRel = Math.max(pickT + 0.3, runnerArr(bat) + 0.18 - Fl);
       }
-      const tArr = this._throw(tl, from, to, tRel, Fl);
+      const tArr = viaCut ? this._relayThrow(tl, from, to, tRel, Fl) : this._throw(tl, from, to, tRel, Fl);
       if (tg.a) {
         const a = tg.a, c = clips.get(a) || {};
         this._runnerClip(tl, a, runStart, { ...c, outAt: tArr, fadeAt: tArr + 0.25, out: true });
         tl.at(tArr, () => { this._flash(i === 0 && targets.length > 1 ? '하나' : '아웃', 'out'); this._outs(rec, 1); });
       }
-      from = to; tRel = tArr + 0.35;
+      from = to; tRel = tArr + RT.relay;
     });
     for (const a of adv) if (a.t !== 0) this._runnerClip(tl, a, runStart, {});
     // 3아웃이 되는 땅볼. 밀려야 하는 주자는 기록에 갈 곳이 없어도 뛴다 — 야구는 그렇게 끝난다.
@@ -836,6 +846,20 @@ export class LiveView {
     // 다른 외야수들은 공 쪽으로 몇 걸음 백업
     for (const p of ['LF', 'CF', 'RF']) go(p, L, t0, 5.5, 0.28);
     return cover;
+  }
+
+  /** 중계 송구. 외야수 → 중계수 → 베이스. 중계수는 둘 사이 40% 지점의 내야수다. */
+  _relayThrow(tl, from, to, t0, Fl) {
+    const cut = [lerp(from[0], to[0], 0.55), lerp(from[1], to[1], 0.55)];
+    const d1 = dist2(from, cut), d2 = dist2(cut, to);
+    const f1 = (Fl - RT.cutoffRelay - 0.1) * d1 / (d1 + d2) + 0.05, f2 = Fl - RT.cutoffRelay - f1;
+    // 가장 가까운 내야수가 그 자리로 간다
+    let best = null;
+    for (const p of ['SS', '2B', '1B', '3B']) { const f = this.S.fielders[p]; if (!f) continue;
+      const d = dist2([f.x, f.y], cut); if (!best || d < best.d) best = { f, d }; }
+    if (best) { const fr = [best.f.x, best.f.y]; tl.add(t0 - 0.5, Math.max(0.2, f1 + 0.3), (k) => { best.f.x = lerp(fr[0], cut[0], k); best.f.y = lerp(fr[1], cut[1], k); }); }
+    const t1 = this._throw(tl, from, cut, t0, f1);
+    return this._throw(tl, cut, to, t1 + RT.cutoffRelay, f2);
   }
 
   /** 송구. 도착 시각을 돌려준다. */

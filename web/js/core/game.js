@@ -1,8 +1,9 @@
 // 경기 엔진: 진루 모델 + 이닝 루프 + 투수 교체 AI + 박스스코어.
 const r2 = (v) => (v === null || v === undefined ? null : Math.round(v * 10) / 10);
 import { z, K, BB, HBP, OUT, S1B, D2B, T3B, HR, ERR } from './pa.js';
-import { playCount, FOUL_OUT, PITCH } from './pitch.js';
+import { playCount, FOUL_OUT, PITCH, kmh } from './pitch.js';
 import * as BIP from './bip.js';
+import * as RUNT from './run.js';
 import * as dev from './development.js';
 import * as R from './roster.js';
 import { C as PACOEF } from './pa.js';
@@ -37,7 +38,7 @@ export const ADV = {
   speed_coeff: 0.090, of_arm_coeff: -0.055,
   gidp_base: 0.400, gidp_speed: -0.055, gidp_infield: 0.030,
   sacfly_base: 0.500, gb_r3_scores: 0.330, gb_r2_to_third: 0.346, fb_r2_to_third: 0.100,
-  sb_attempt_base: 0.165, sb_attempt_speed: 0.075,
+  sb_attempt_base: 0.110, sb_attempt_speed: 0.075,   // 시도. 성공은 run.js 의 시간표가 정한다
   sb_success_base: 0.688, sb_success_speed: 0.055, sb_success_arm: -0.033,
 };
 
@@ -182,41 +183,12 @@ function forceAdvance(bases, batter, resp) {
   return scored;
 }
 
-/* ── 진루는 타구를 따라간다 ──────────────────────────────
-   같은 단타라도 내야를 뚫고 나간 땅볼과 외야수 앞에 뚝 떨어진 직선타는 다르다.
-   깊이 · 방향 · 잡은 야수의 어깨가 주자의 판단을 정한다. 표의 기본 확률은
-   리그 평균 타구에서 그 값이 나오도록 두고, 그 주변으로만 움직인다. */
-export const RUN = {
-  depth1: 0.0045,      // 단타: 깊이 1m 당 (평균 55m 기준)
-  depth2: 0.0040,      // 2루타: 깊이 1m 당 (평균 80m 기준)
-  sfDepth: 0.0060,     // 희생플라이: 깊이 1m 당 (평균 80m 기준)
-  side: 0.10,          // 우익 쪽 타구면 3루 송구가 멀다 · 좌익 쪽이면 가깝다
-  through: 0.07,       // 내야를 뚫고 나간 땅볼은 외야수가 앞으로 나와 잡는다 — 시간이 더 걸린다
-  gbRight: 0.14,       // 땅볼이 우측(1루·2루수)으로 가면 2루 주자가 3루로 간다
-  gbLeft: -0.10,       // 좌측(유격·3루수)으로 가면 그 앞에서 잡힌다
-  armMax: 0.9,         // 실제 야수의 어깨 z 를 팀 평균 대신 쓴다 (한계)
-  ofSingle: 0.06,      // 외야로 빠진 단타. 내야 안타가 주자를 못 보내게 된 몫을 여기서 돌려받는다
-};
-function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null) {
+function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null, dims = null) {
   const bl = off.lineFor(batter);
-  const zs = z(batter.speed);
-  // 잡은 야수의 어깨. 없으면 (홈런·삼진) 팀 평균.
-  const fld = play && play.fielder;
-  const zarm = fld ? Math.max(-RUN.armMax, Math.min(RUN.armMax, z(fld.arm ?? fld.fielding ?? 50)))
-                   : z(defn.team.defense.outfield);
-  // 타구 보정. 깊이·방향·유형이 주자에게 주는 시간.
-  const dep = ball ? ball.depth : null, ang = ball ? ball.angle : 0;
-  const side = ang > 15 ? 1 : ang < -15 ? -1 : 0;        // +1 우익 쪽
-  const thru = ball && ball.bbt === 'GB' ? RUN.through : 0;
-  const m1 = dep != null ? RUN.depth1 * (dep - 55) + thru : 0;   // 단타 공통
-  const toThird = m1 + RUN.side * side;                          // 1루 → 3루: 우익 쪽이면 유리
-  const m2 = dep != null ? RUN.depth2 * (dep - 80) : 0;          // 2루타
-  const sf = dep != null ? RUN.sfDepth * (dep - 80) : 0;         // 희생플라이
-  const gbSide = ball && ball.bbt === 'GB' ? (ang > 5 ? RUN.gbRight : ang < -5 ? RUN.gbLeft : 0) : 0;
   const me = defn.cur;
   const scored = [];
   const bases0 = bases.occupied();          // 타석 시작 시점의 주자
-  let addedOuts = 0, desc = desc0;
+  let addedOuts = 0, desc = desc0, thr = null;   // thr: 송구가 향한 베이스들 (화면이 쓴다)
 
   if (res === K) { addedOuts = 1; desc = '삼진'; }
   else if (res === 'D3') {          // 낫아웃 — 삼진이되 아웃은 없다
@@ -244,68 +216,93 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     }
   } else if (res === OUT) {
     addedOuts = 1;
-    if (bbt === 'GB') {
-      // 땅볼 아웃. 진루 의무가 있다 — 타자가 1루로 가니 1루 주자는 2루로,
-      // 그 뒤도 줄줄이 밀린다. 야수는 그 중 잡기 쉬운 아웃을 고른다.
-      const pos = play ? play.pos : null;
+    const clock = ball && play && play.pos ? RUNT.ballClock(ball, { ...play, byPos: defn.byPos }, dims) : null;
+    if (bbt === 'GB' && clock) {
+      /* 땅볼 아웃 — 시간표로 정한다. 타자는 아웃이다 (수비 판정이 이미 그렇게 정했다).
+         야수가 그 아웃을 어디서 잡느냐, 다른 주자는 어디까지 가느냐가 여기서 정해진다. */
       const f1 = !!bases.r[0], f2 = f1 && !!bases.r[1], f3 = f2 && !!bases.r[2];
-      // 강제 진루 주자를 한 칸씩 민다. 3루 주자가 밀리면 득점이다.
-      const pushForced = () => {
-        if (f3) scored.push(bases.take(2));
-        if (f2) bases.move(1, 2);
-        if (f1) bases.move(0, 1);
-      };
+      const noise = () => RUNT.execNoise(clock, rng);
+      const tB = RUNT.runArrive(batter, 0, 1);
+      const t1 = RUNT.throwArrive(clock, 1) + noise();
+      const pushForced = () => { if (f3) scored.push(bases.take(2)); if (f2) bases.move(1, 2); if (f1) bases.move(0, 1); };
       if (outs === 2) {
-        // 3아웃. 결과는 같지만 화면은 다르다 — 가장 가까운 포스를 잡는다.
-        // 밀려 들어오는 주자는 빈 베이스로만 간다. 홈을 밟아도 득점이 아니라 그 자리에 둔다.
+        // 3아웃. 가장 가까운 포스. 화면에서만 다르다.
+        const pos = play.pos;
         const slide = () => { if (bases.r[1] && !bases.r[2]) bases.move(1, 2); if (bases.r[0] && !bases.r[1]) bases.move(0, 1); };
-        if (f2 && pos === '3B')       { bases.take(1); slide(); bases.put(0, batter, me); }
+        if (f2 && pos === '3B') { bases.take(1); slide(); bases.put(0, batter, me); }
         else if (f1 && (pos === 'SS' || pos === '2B')) { bases.take(0); slide(); bases.put(0, batter, me); }
         else slide();
         if (!desc) desc = '땅볼 아웃';
       } else if (f1) {
-        const pdp = ADV.gidp_base + ADV.gidp_speed*zs + ADV.gidp_infield*z(defn.team.defense.infield);
-        // 병살이 안 되면: 선행 주자 포스아웃(타자 세이프)인가, 타자 1루 아웃인가.
-        // 1루수·투수는 1루가 가깝고, 유격수·3루수는 2루가 가깝다.
-        let pFirst = 0.55 + (pos === '1B' || pos === 'P' ? 0.25 : pos === 'SS' || pos === '3B' ? -0.15 : 0);
-        const r = rng.random();
-        if (r < pdp) {
+        const r1 = bases.r[0];
+        const tR1 = RUNT.runArrive(r1, 1, 2);
+        const t2 = RUNT.throwArrive(clock, 2) + noise();
+        const forceOK = t2 < tR1 - 0.08;
+        // 병살 — 2루 포스 뒤 1루 중계가 타자보다 빠른가
+        const t1relay = forceOK ? t2 + RUNT.RT.relay + 27.43 / 31 + 0.1 + noise() : 99;
+        const dpOK = forceOK && t1relay < tB - RUNT.RT.dpMargin;
+        // 3루 주자 — 홈에서 잡을 수 있으면 홈으로 던진다 (2아웃 미만, 점수가 걸렸으니)
+        const r3 = bases.r[2];
+        const tH = r3 ? RUNT.throwArrive(clock, 4) + noise() : 99;
+        const tR3 = r3 ? RUNT.runArrive(r3, 3, 4) : 0;
+        if (r3 && !f3 && !dpOK && tH < tR3 - 0.12 && RUNT.dares(tR3, RUNT.throwArrive(clock, 4), rng)) {
+          // 뛰었고, 잡혔다
+          bases.take(2); if (bases.r[1]) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
+          desc = '홈 송구 아웃'; thr = [4];
+        } else if (dpOK) {
           addedOuts = 2; bases.take(0);
-          if (outs === 0 && bases.r[2]) scored.push(bases.take(2));
+          if (bases.r[2] && outs === 0) scored.push(bases.take(2));      // 병살 사이에 3루 주자는 들어온다
           if (bases.r[1] && !bases.r[2]) bases.move(1, 2);
-          desc = '병살타';
-        } else if (rng.random() < pFirst) {
-          // 타자 1루 아웃. 주자들은 한 칸씩 간다. 3루 주자는 홈에 던지지 않으면 들어온다.
-          if (f3 && rng.random() >= ADV.gb_r3_scores + 0.25 + gbSide * 0.5) {
-            // 홈에서 잡았다 — 3루 주자 아웃, 타자는 살았다
-            bases.take(2); if (f2) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
-            desc = '홈 송구 아웃';
-          } else pushForced();
-          if (!desc) desc = desc0 || '땅볼 아웃';
-        } else {
-          // 선행 주자를 잡고 타자는 살았다
+          desc = '병살타'; thr = [2, 1];
+        } else if (forceOK && (t2 - tR1) < (t1 - tB) - 0.05 + (f3 ? 0.3 : 0)) {
+          // 선행 주자를 잡는 쪽이 더 확실하다. 타자는 산다.
           bases.take(0);
-          if (bases.r[2] && rng.random() < ADV.gb_r3_scores + 0.25) scored.push(bases.take(2));
-          if (bases.r[1] && !bases.r[2] && rng.random() < 0.35 + gbSide) bases.move(1, 2);
+          if (bases.r[2]) { if (RUNT.dares(RUNT.runArrive(bases.r[2], 3, 4), t2 + 1.2, rng)) scored.push(bases.take(2)); }
+          if (bases.r[1] && !bases.r[2]) bases.move(1, 2);
           bases.put(0, batter, me);
-          desc = '야수선택';
+          desc = '야수선택'; thr = [2];
+        } else {
+          // 타자를 1루에서. 나머지는 밀린다.
+          if (f3 && RUNT.wildThrow(clock, rng)) {
+            // 1루 악송구 — 타자도 산다
+            addedOuts = 0; pushForced(); bases.put(0, batter, me); defn.errors++;
+            desc = `${BIP.POS_KR_OF(play.pos)} 송구 실책`; thr = [1];
+          } else { pushForced(); thr = [1]; if (!desc) desc = desc0 || '땅볼 아웃'; }
         }
       } else {
-        // 1루가 비었다. 강제 진루는 없고, 판단으로 간다.
-        if (bases.r[2] && rng.random() < ADV.gb_r3_scores + gbSide * 0.5
-            + (dep != null ? 0.006 * (dep - 30) : 0)) scored.push(bases.take(2));
-        if (bases.r[1] && !bases.r[2] && rng.random() < ADV.gb_r2_to_third + gbSide) bases.move(1, 2);
+        // 1루가 비었다. 3루 주자는 홈으로 뛸지 판단하고, 2루 주자는 3루로.
+        const r3 = bases.r[2], r2 = bases.r[1];
+        thr = [1];
+        if (r3) {
+          const tR3 = RUNT.runArrive(r3, 3, 4), tH = RUNT.throwArrive(clock, 4);
+          if (RUNT.dares(tR3, tH, rng)) {
+            if (tH + noise() < tR3 - 0.1 && !RUNT.wildThrow(clock, rng)) { bases.take(2); bases.put(0, batter, me); desc = '홈 송구 아웃'; thr = [4]; }
+            else scored.push(bases.take(2));
+          }
+        }
+        if (r2 && !bases.r[2] && RUNT.dares(RUNT.runArrive(r2, 2, 3), RUNT.throwArrive(clock, 3), rng)) bases.move(1, 2);
         if (!desc) desc = '땅볼 아웃';
       }
+    } else if (bbt === 'GB') {
+      if (!desc) desc = '땅볼 아웃';
     } else {
-      if (bbt === 'FB' && outs < 2) {
-        // 태그업. 3루 주자의 득점과 2루 주자의 3루행은 따로 판단한다 —
-        // 깊은 뜬공이면 둘이 같이 간다.
-        if (bases.r[2] && rng.random() < ADV.sacfly_base + ADV.of_arm_coeff*zarm + sf) {
-          scored.push(bases.take(2)); desc = '희생플라이';
+      /* 뜬공 아웃. 잡힌 뒤 태그업 — 주자는 송구보다 먼저 닿을 것 같으면 뛴다.
+         직선타와 내야 뜬공에서는 뛰지 않는다. */
+      if (bbt === 'FB' && outs < 2 && clock) {
+        let drawn = false;                      // 송구는 선두 주자에게 간다
+        for (const i of [2, 1, 0]) {
+          const r = bases.r[i]; if (!r || bases.r[i + 1]) continue;
+          const to = i + 2;
+          const tRun = RUNT.runArrive(r, i + 1, to, { tag: clock.t });
+          const tThrow = RUNT.throwArrive(clock, to) + (drawn ? 1.0 : 0);
+          if (!RUNT.dares(tRun, tThrow, rng, RUNT.RT.tagBias)) continue;
+          const exec = tThrow + RUNT.execNoise(clock, rng);
+          if (!drawn) { drawn = true; thr = [to]; }
+          if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng)) {
+            addedOuts++; bases.take(i); desc = `${desc || '뜬공 아웃'} — ${r.name} 태그업 아웃`;
+          } else if (to === 4) { scored.push(bases.take(2)); desc = '희생플라이'; }
+          else bases.move(i, i + 1);
         }
-        if (bases.r[1] && !bases.r[2] && rng.random() < ADV.fb_r2_to_third + sf * 0.6
-            + RUN.side * 0.5 * side) bases.move(1, 2);
       }
       if (!desc) desc = {FB:'뜬공 아웃', LD:'직선타 아웃', PU:'내야 뜬공'}[bbt];
     }
@@ -316,46 +313,40 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       for (const i of [2,1,0]) if (bases.r[i]) scored.push(bases.take(i));
       if (bases0 === 3) { bl.gsl++; desc = '만루 홈런'; }
       scored.push([batter, me]); if (!desc) desc = '홈런';
-    } else if (res === T3B) {
-      for (const i of [2,1,0]) if (bases.r[i]) scored.push(bases.take(i));
-      bases.put(2, batter, me); if (!desc) desc = '3루타';
-    } else if (res === D2B) {
-      if (bases.r[2]) scored.push(bases.take(2));
-      if (bases.r[1]) scored.push(bases.take(1));
-      if (bases.r[0]) {
-        const [r1, rp1, ue1] = bases.take(0);
-        const p = ADV.b2_first_scores + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm + m2;
-        if (rng.random() < p) scored.push([r1, rp1, ue1]); else bases.put(2, r1, rp1, ue1);
-      }
-      bases.put(1, batter, me); if (!desc) desc = '2루타';
-    } else if (ball && (ball.depth < 52 || (ball.bbt === 'GB' && play && play.slack >= 0))) {
-      // 내야 안타. 공이 내야에 있다 — 주자는 밀리는 만큼만 간다.
-      // 2루 주자가 홈까지 오거나 협살에 걸릴 공이 아니다.
-      const f1 = !!bases.r[0], f2 = f1 && !!bases.r[1], f3 = f2 && !!bases.r[2];
-      if (bases.r[2] && (f3 || rng.random() < 0.35)) scored.push(bases.take(2));
-      if (bases.r[1] && !bases.r[2] && (f2 || rng.random() < 0.30)) bases.move(1, 2);
-      if (bases.r[0]) bases.move(0, 1);
-      bases.put(0, batter, me); if (!desc) desc = '내야 안타';
     } else {
-      if (bases.r[2]) scored.push(bases.take(2));
-      const [r2, rp2, ue2] = bases.take(1);
-      const [r1, rp1, ue1] = bases.take(0);
-      if (r2) {
-        const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm + m1 + RUN.ofSingle;
-        if (rng.random() < p) scored.push([r2, rp2, ue2]);
-        else if (outs < 2 && rng.random() < MISC.rundown + MISC.rundownArm * zarm) {
-          addedOuts++; desc = `${desc || '안타'} — ${r2.name} 주루사`;   // 협살에 걸렸다. 안타는 안타다.
-        } else bases.put(2, r2, rp2, ue2);
+      /* 안타. 타자의 베이스는 타구가 정했다(hitBases). 주자는 시간표를 본다 —
+         최소한 타자만큼은 밀려 가고, 그 이상은 송구보다 먼저 닿을 것 같을 때만. */
+      const nb = res === T3B ? 3 : res === D2B ? 2 : 1;
+      const clock = ball && play && play.pos ? RUNT.ballClock(ball, { ...play, byPos: defn.byPos }, dims) : null;
+      const infield = ball && (ball.depth < 52 || (ball.bbt === 'GB' && play && play.slack >= 0));
+      const snapshot = [bases.take(2), bases.take(1), bases.take(0)];   // [R3, R2, R1]
+      let drawn = false;
+      const settle = (i, rec, dest) => { if (dest >= 4) scored.push(rec); else bases.put(dest - 1, rec[0], rec[1], rec[2]); };
+      for (let k = 0; k < 3; k++) {
+        const rec2 = snapshot[k]; if (!rec2[0]) continue;
+        const from = 3 - k;                                  // 3, 2, 1
+        let dest = Math.min(4, from + nb);
+        // 그 위로 한 베이스 더 — 앞 베이스가 비었고, 시간이 된다면
+        const ahead = dest + 1;
+        if (dest < 4 && clock && !infield && !bases.r[dest] /* 앞 주자 */ ) {
+          const tRun = RUNT.runArrive(rec2[0], from, ahead);
+          const tThrow = RUNT.throwArrive(clock, ahead) + (drawn ? 1.0 : 0);
+          if (RUNT.dares(tRun, tThrow, rng)) {
+            const exec = tThrow + RUNT.execNoise(clock, rng);
+            if (!drawn) { drawn = true; thr = [ahead]; }
+            if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng) && outs + addedOuts < 2) {
+              addedOuts++; desc = `${desc || '안타'} — ${rec2[0].name} 주루사`; continue;
+            }
+            dest = ahead;
+          }
+        }
+        // 앞 베이스에 주자가 서 있으면 그 뒤에 선다
+        while (dest < 4 && bases.r[dest - 1]) dest--;
+        settle(k, rec2, dest);
       }
-      if (r1) {
-        const p = ADV.b1_first_to_third + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm + toThird;
-        if (!bases.r[2] && rng.random() < p) bases.put(2, r1, rp1, ue1);
-        else if (!bases.r[2] && outs + addedOuts < 2
-                 && rng.random() < (MISC.rundown + MISC.rundownArm * zarm) * 0.6) {
-          addedOuts++; desc = `${desc || '안타'} — ${r1.name} 주루사`;
-        } else bases.put(1, r1, rp1, ue1);
-      }
-      bases.put(0, batter, me); if (!desc) desc = '안타';
+      bases.put(nb - 1, batter, me);
+      if (!desc) desc = nb === 3 ? '3루타' : nb === 2 ? '2루타' : '안타';
+      if (!thr) thr = [Math.min(3, nb + 1)];
     }
   }
   for (const [runner, resp, ue] of scored) {
@@ -364,7 +355,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     if (!ue && !unearnedInning) rp.er++;
   }
   bl.rbi += scored.length;
-  return [addedOuts, scored.length, desc, scored.map(x => x[0])];
+  return [addedOuts, scored.length, desc, scored.map(x => x[0]), thr];
 }
 
 /* ── 감독의 결정 ──────────────────────────────────────────
@@ -476,7 +467,9 @@ function tryPickoff(bases, outs, off, defn, rng, scoreNow) {
   return [0, null];
 }
 
+const kmhOf = (p) => kmh(p, 'FF');
 function trySteal(bases, outs, off, defn, rng) {
+  const pit = defn.cur;
   const r1 = bases.r[0];
   if (!r1 || bases.r[1] || outs >= 2) return [0, null];
   const zs = z(r1.speed);
@@ -485,7 +478,9 @@ function trySteal(bases, outs, off, defn, rng) {
   const za = z(c ? (c.arm ?? c.fielding) : 50);
   if (rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
       + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return [0, null];
-  if (rng.random() < ADV.sb_success_base + ADV.sb_success_speed*zs + ADV.sb_success_arm*za) {
+  // 성공은 시간이 정한다 — 투구 시간, 포수의 팝, 송구, 주자의 발.
+  const race = RUNT.stealRace(r1, c, pit && pit.p ? kmhOf(pit.p) : 142, rng);
+  if (race.safe) {
     bases.move(0, 1); off.lineFor(r1).sb++;
     return [0, { desc: `${r1.name} 2루 도루`, runs: 0, steal: true }];
   }
@@ -823,7 +818,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
-    const [ao, runs, desc, scoredR] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140, ball, play);
+    const [ao, runs, desc, scoredR, thr] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140, ball, play, dims);
     scoredNow.push(...scoredR);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
@@ -861,7 +856,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                  fv: play && play.v ? r2(play.v) : null,
                  fre: play && play.react ? r2(play.react) : null,
                  sh: r2(shift),
-                 adv: adv(batter),
+                 adv: adv(batter), thr,
                  pnp: pl.np, tired: Math.round(Math.min(1.5, fatigueOf(pl, isStarter)) * 100) });
     if (off.runs > defn.runs && prevDiff <= 0) { off.por = off.cur; defn.lp = defn.cur; }
     if (walkoff && off.runs > defn.runs) {
