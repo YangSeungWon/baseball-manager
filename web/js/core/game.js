@@ -183,7 +183,7 @@ function forceAdvance(bases, batter, resp) {
   return scored;
 }
 
-function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null, dims = null) {
+function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null, dims = null, inning = 1) {
   const bl = off.lineFor(batter);
   const me = defn.cur;
   const scored = [];
@@ -245,10 +245,22 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         const r3 = bases.r[2];
         const tH = r3 ? RUNT.throwArrive(clock, 4) + noise() : 99;
         const tR3 = r3 ? RUNT.runArrive(r3, 3, 4) : 0;
-        if (r3 && !f3 && !dpOK && tH < tR3 - 0.12 && RUNT.dares(tR3, RUNT.throwArrive(clock, 4), rng, 0, r3)) {
-          // 뛰었고, 잡혔다
-          bases.take(2); if (bases.r[1]) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
-          desc = '홈 송구 아웃'; thr = [4];
+        // 홈으로 던질 것인가. 점수가 걸린 늦은 이닝이면 아슬아슬해도 던진다 — 늦으면 다 산다.
+        const lead = defn.runs - off.runs;
+        const crit = inning >= 7 && lead >= -1 && lead <= 1;
+        const homeMargin = crit ? -0.35 : 0.12;   // 걸린 점수면 늦을 것 같아도 던진다
+        const r3Goes = r3 && !f3 && !dpOK && RUNT.dares(tR3, RUNT.throwArrive(clock, 4), rng, 0, r3);
+        if (r3Goes && tH < tR3 - homeMargin) {
+          const late = tH + noise() * 0.5 >= tR3 - 0.03 || RUNT.wildThrow(clock, rng);
+          if (!late) {
+            // 뛰었고, 잡혔다
+            bases.take(2); if (bases.r[1]) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
+            desc = '홈 송구 아웃'; thr = [4];
+          } else {
+            // 홈에 던졌는데 늦었다 — 득점, 타자도 산다
+            addedOuts = 0; scored.push(bases.take(2)); if (bases.r[1]) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
+            desc = '홈 송구 — 세이프'; thr = [4];
+          }
         } else if (dpOK) {
           addedOuts = 2; bases.take(0);
           if (bases.r[2] && outs === 0) scored.push(bases.take(2));      // 병살 사이에 3루 주자는 들어온다
@@ -320,7 +332,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       const clock = ball && play && play.pos ? RUNT.ballClock(ball, { ...play, byPos: defn.byPos }, dims) : null;
       const infield = ball && (ball.depth < 52 || (ball.bbt === 'GB' && play && play.slack >= 0));
       const snapshot = [bases.take(2), bases.take(1), bases.take(0)];   // [R3, R2, R1]
-      let drawn = false;
+      let drawn = false, held = false;
       const settle = (i, rec, dest) => { if (dest >= 4) scored.push(rec); else bases.put(dest - 1, rec[0], rec[1], rec[2]); };
       for (let k = 0; k < 3; k++) {
         const rec2 = snapshot[k]; if (!rec2[0]) continue;
@@ -328,18 +340,25 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         let dest = Math.min(4, from + nb);
         // 그 위로 한 베이스 더 — 앞 베이스가 비었고, 시간이 된다면
         const ahead = dest + 1;
-        if (dest < 4 && clock && !infield && !bases.r[dest] /* 앞 주자 */ ) {
+        if (dest < 4 && clock && !infield && !held && !bases.r[dest] /* 앞 주자 */ ) {
           const tRun = RUNT.runArrive(rec2[0], from, ahead);
-          const tThrow = RUNT.throwArrive(clock, ahead) + (drawn ? 1.0 : 0);
+          const tThrow0 = RUNT.throwArrive(clock, ahead);
+          const tThrow = tThrow0 + (drawn ? 1.0 : 0);
           if (RUNT.dares(tRun, tThrow, rng, 0, rec2[0])) {
-            const exec = tThrow + RUNT.execNoise(clock, rng);
-            if (!drawn) { drawn = true; thr = [ahead]; }
-            if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng) && outs + addedOuts < 2) {
-              addedOuts++; desc = `${desc || '안타'} — ${rec2[0].name} 주루사`; continue;
+            if (!drawn && tRun + 0.5 < tThrow0) {
+              // 가망이 없다. 외야수는 홈을 포기하고 중계로 던져 뒤 주자를 묶는다.
+              drawn = true; held = true; thr = [Math.min(3, nb + 1)];
+              dest = ahead;
+            } else {
+              const exec = tThrow + RUNT.execNoise(clock, rng);
+              if (!drawn) { drawn = true; thr = [ahead]; }
+              if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng) && outs + addedOuts < 2) {
+                addedOuts++; desc = `${desc || '안타'} — ${rec2[0].name} 주루사`; continue;
+              }
+              dest = ahead;
             }
-            dest = ahead;
           }
-        }
+        } else if (held) { /* 중계가 들어와 있다 — 더 못 간다 */ }
         // 앞 베이스에 주자가 서 있으면 그 뒤에 선다
         while (dest < 4 && bases.r[dest - 1]) dest--;
         settle(k, rec2, dest);
@@ -874,7 +893,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
-    const [ao, runs, desc, scoredR, thr] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140, ball, play, dims);
+    const [ao, runs, desc, scoredR, thr] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140, ball, play, dims, inning);
     scoredNow.push(...scoredR);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
