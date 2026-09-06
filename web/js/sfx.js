@@ -16,7 +16,7 @@ export class Sfx {
   /** 켠다. 반드시 사용자 제스처 안에서 처음 불러야 한다. */
   enable(on) {
     this.on = on;
-    if (!on) { this._stopCrowd(); return; }
+    if (!on) { this.stopSong(); this._stopCrowd(); return; }
     if (!this.ctx) {
       try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.on = false; return; }
       this.master = this.ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(this.ctx.destination);
@@ -112,5 +112,58 @@ export class Sfx {
     this.crowdG.gain.setTargetAtTime(this.crowdBase * 0.35, t, 0.3);
     this.crowdG.gain.setTargetAtTime(this.crowdBase, t + 3, 1.5);
   }
-  destroy() { this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
+  /* ── 응원 ──────────────────────────────────────────────
+     KBO 응원은 북 · 박수 · 나팔 · 떼창이다. 실제 응원가는 쓸 수 없으니 멜로디는
+     구단 이름에서 뽑은 고유한 모티프다. 홈팀 타석 동안 돌고, 타석이 끝나면 멈춘다.
+     떼창은 말이 아니라 모음 소리다 — 멀리서 들리는 관중석이 실제로 그렇다. */
+  song(seed, level = 0.6) {
+    if (!this.on || !this.ctx || this.songOn === seed) return;
+    this.stopSong();
+    this.songOn = seed;
+    // 이름 해시로 멜로디를 정한다. 5음계 위 8음, 마디 둘.
+    let h = seed >>> 0; const rnd = () => { h = (Math.imul(h, 1664525) + 1013904223) >>> 0; return h / 4294967296; };
+    const scale = [0, 2, 4, 7, 9, 12, 14], base = 262 * Math.pow(2, Math.floor(rnd() * 5) / 12);
+    const mel = []; let deg = 2;
+    for (let i = 0; i < 8; i++) { deg = Math.max(0, Math.min(6, deg + Math.floor(rnd() * 5) - 2)); mel.push(base * Math.pow(2, scale[deg] / 12)); }
+    mel[7] = base * Math.pow(2, scale[deg > 3 ? 5 : 0] / 12);
+    const bpm = 124 + Math.floor(rnd() * 16), beat = 60 / bpm;
+    const c = this.ctx, lv = 0.35 + level * 0.65;
+    const bus = c.createGain(); bus.gain.value = 0.55 * lv; bus.connect(this.master); this.songBus = bus;
+    let next = c.currentTime + 0.1, step = 0;
+    const kick = (t) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.12);
+      g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.25); };
+    const clap = (t) => { for (let i = 0; i < 3; i++) this._burstTo(bus, 0.04, { f: 1800, q: 0.9, gain: 0.35, at: t - c.currentTime + i * 0.012 }); };
+    const oh = (t, dur, f) => {                          // 떼창 — 포먼트 두 개 얹은 노이즈
+      for (const [ff, q, g] of [[f, 6, 0.5], [f * 2.4, 5, 0.25]]) this._burstTo(bus, dur, { f: ff, q, gain: g * 0.5, at: t - c.currentTime, attack: 0.05 }); };
+    const horn = (t, f, dur) => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
+      const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1800; const g = c.createGain();
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + 0.03); g.gain.setValueAtTime(0.16, t + dur - 0.05); g.gain.linearRampToValueAtTime(0, t + dur);
+      o.connect(fl); fl.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 0.02); };
+    const tick = () => {
+      if (!this.ctx || this.songOn !== seed) return;
+      while (next < c.currentTime + 0.35) {
+        const e = step % 16, bar = Math.floor(step / 16) % 4;   // 8분음표 16개 = 2마디, 4바퀴 주기
+        if (e % 4 === 0) kick(next);
+        if (e % 8 === 4) clap(next);
+        if (bar < 2) { if (e % 2 === 0) horn(next, mel[(e / 2) | 0], beat * 0.9); }
+        else if (e % 2 === 0 && e !== 14) oh(next, beat * 0.8, 380 + (e % 6) * 40);   // 나팔 두 마디, 떼창 두 마디
+        next += beat / 2; step++;
+      }
+    };
+    this.songTimer = setInterval(tick, 90); tick();
+  }
+  stopSong() {
+    if (this.songTimer) clearInterval(this.songTimer); this.songTimer = null; this.songOn = null;
+    if (this.songBus && this.ctx) { const b = this.songBus, t = this.ctx.currentTime; b.gain.setTargetAtTime(0, t, 0.25); setTimeout(() => { try { b.disconnect(); } catch {} }, 1500); }
+    this.songBus = null;
+  }
+  _burstTo(dest, dur, { f = 1500, q = 1, gain = 0.5, type = 'bandpass', at = 0, attack = 0.003 } = {}) {
+    const c = this.ctx, t = c.currentTime + Math.max(0, at);
+    const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
+    const flt = c.createBiquadFilter(); flt.type = type; flt.frequency.value = f; flt.Q.value = q;
+    const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + attack); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(flt); flt.connect(g); g.connect(dest); src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.02);
+  }
+
+  destroy() { this.stopSong(); this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
 }

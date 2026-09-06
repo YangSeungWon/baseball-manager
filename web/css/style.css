@@ -1283,8 +1283,10 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-seg button{background:transparent;border:0;color:var(--fg3);font-size:12px;
   padding:4px 8px;border-radius:2px;font-family:var(--mono)}
 .lv-view button{font-family:var(--kr)}
-.lv-sndb{font-size:13px;padding:3px 7px}
-.lv-seg .lv-sndb.on{background:var(--s3);color:#fff}
+.lv-sndb{padding:4px 7px;display:flex;align-items:center}
+.lv-sndb svg .sp{fill:currentColor} .lv-sndb svg .wv,.lv-sndb svg .mx{stroke:currentColor}
+.lv-sndb svg .wv{display:none} .lv-sndb.on svg .wv{display:block} .lv-sndb.on svg .mx{display:none}
+.lv-seg .lv-sndb.on{background:var(--accent);color:#fff}
 .lv-seg button.on{background:var(--accent);color:#fff}
 .lv-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .lv-bar .lv-sp{flex:1}

@@ -15,6 +15,12 @@ import { Sfx } from './sfx.js';
 
 const rad = Math.PI / 180;
 const short = (s) => String(s || '').split(' ')[0];
+// 스피커 아이콘. 켜지면 파형이, 꺼지면 빗금이 보인다 — CSS 가 고른다.
+const SND_ICON = `<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
+  <path class="sp" d="M3 7.5v5h3l4 3.5v-12l-4 3.5z"/>
+  <path class="wv" d="M12.5 7.2a4 4 0 0 1 0 5.6M14.6 5a7 7 0 0 1 0 10" fill="none" stroke-width="1.6" stroke-linecap="round"/>
+  <path class="mx" d="M12.5 7.5l5 5m0-5l-5 5" fill="none" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const hashOf = (s) => [...String(s || '')].reduce((a, c) => (Math.imul(a, 31) + c.codePointAt(0)) >>> 0, 7);
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const lerp = (a, b, k) => a + (b - a) * k;
 const W2 = (ang, dep) => [dep * Math.sin(ang * rad), dep * Math.cos(ang * rad)];
@@ -166,7 +172,7 @@ export class LiveView {
               <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">탑다운</button></span>
             <span class="lv-seg lv-spd">${[1, 2, 4, 8].map(s =>
               `<button data-s="${s}" class="${s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
-            <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리">${this.o.sound ? '🔊' : '🔇'}</button></span>
+            <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리" aria-pressed="${!!this.o.sound}">${SND_ICON}</button></span>
           </div>
           <div class="lv-ask" hidden></div>
         </div>
@@ -222,7 +228,7 @@ export class LiveView {
   setSound(on) {
     this.sfx.enable(on);
     on = this.sfx.on;
-    const b = this.root.querySelector('.lv-sndb'); if (b) { b.classList.toggle('on', on); b.textContent = on ? '🔊' : '🔇'; }
+    const b = this.root.querySelector('.lv-sndb'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); }
     try { localStorage.setItem('dugout.sfx', on ? '1' : '0'); } catch {}
     if (on) { this.sfx.crowd(this.fill); this.sfx.mute(this.speed > 2); }
   }
@@ -508,6 +514,10 @@ export class LiveView {
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
     this._flash(null);
+    // 공격하는 쪽의 응원가가 돈다. 원정 응원석은 작다.
+    const home = rec.half === 'bottom';
+    if (this.fill > 0.2) this.sfx.song(hashOf(home ? this.o.home : this.o.away), home ? this.fill : this.fill * 0.35);
+    else this.sfx.stopSong();
     this._cap(`${rec.batter}${rec.bh ? (rec.bh === 'L' ? ' · 좌타' : ' · 우타') : ''}`, this._todayLine(rec.batter));
     this._resetDefense(tl, rec.sh);
     this._zone(rec);
@@ -564,6 +574,7 @@ export class LiveView {
     this._emitScore(rec, rec.ro ?? this._runs);
     if (rec.pnp != null) this.el.np.textContent = rec.pnp;
     if (this.o.onLog) this.o.onLog(rec, true);
+    this.sfx.stopSong();
   }
   /** 다음 타석 전에 야수들을 제자리로 돌려보낸다. 시프트가 있으면 그 자리로. */
   _resetDefense(tl, sh) {
