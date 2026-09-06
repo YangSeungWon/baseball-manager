@@ -691,7 +691,7 @@ export class LiveView {
 
     // 2b. 나머지 야수. 공을 쫓는 사람만 움직이면 야구가 아니다.
     //     베이스 커버 · 컷오프 · 백업. 누가 어디로 가는지는 타구 방향이 정한다.
-    this._coverage(tl, rec, pos, thrower, tC, gb, L);
+    const cover = this._coverage(tl, rec, pos, thrower, tC, gb, L);   // 베이스마다 커버 도착 시각
 
     // 3. 주루와 송구. 기록이 누가 살았는지 정했다. 화면은 그 결과가 아슬아슬하게 나오게 맞춘다.
     const adv = rec.adv || [];
@@ -731,6 +731,8 @@ export class LiveView {
     targets.forEach((tg, i) => {
       const to = baseAt(tg.base);
       const Fl = dist2(from, to) / (thrower && ['LF', 'CF', 'RF'].includes(thrower.pos) ? speedOF : speedIF) + 0.1;
+      // 받을 사람이 베이스에 닿기 전에는 던지지 않는다. 투수가 1루 커버를 가는 번트가 그렇다.
+      if (cover[tg.base] != null) tRel = Math.max(tRel, cover[tg.base] + 0.05 - Fl);
       if (tg.a) {
         // 아웃. 야수는 잡자마자 던진다 — 일부러 기다렸다 던지는 야수는 없다.
         // 공이 주자보다 0.25초 이상 먼저 못 가는 때만 주자를 그만큼 늦춘다.
@@ -769,23 +771,26 @@ export class LiveView {
   /** 공 없는 야수들의 움직임. 타구를 쫓는 야수(pos)와 주우러 가는 야수(thrower)는 뺀다. */
   _coverage(tl, rec, pos, thrower, tC, gb, L) {
     const S = this.S, busy = new Set([pos, thrower && thrower.pos]);
-    const go = (p, to, t0, v = 6.0, frac = 1) => {
+    const cover = {};                                   // 베이스 번호 → 커버가 닿는 시각
+    const go = (p, to, t0, v = 6.0, frac = 1, base = null) => {
       const f = S.fielders[p]; if (!f || busy.has(p)) return;
       const from = [f.x, f.y], tgt = [lerp(from[0], to[0], frac), lerp(from[1], to[1], frac)];
-      const d = dist2(from, tgt); if (d < 0.5) return;
+      const d = dist2(from, tgt);
+      if (base) cover[base] = d < 0.5 ? tC : t0 + d / v;
+      if (d < 0.5) return;
       tl.add(t0, d / v, (k) => { f.x = lerp(from[0], tgt[0], k); f.y = lerp(from[1], tgt[1], k); });
     };
     const t0 = tC + 0.35, right = rec.ang > 0;
     const runnersOn = S.runners.some(r => !r.gone && !r.wait);
     // 1루 — 1루수가 잡으러 갔으면 투수가 커버한다
-    if (busy.has('1B')) go('P', BASE[1], t0, 6.0); else go('1B', BASE[1], t0);
+    if (busy.has('1B')) go('P', BASE[1], t0, 6.0, 1, 1); else go('1B', BASE[1], t0, 6.0, 1, 1);
     // 2루 — 유격수와 2루수 중 공 반대편이 베이스로, 같은 편은 공 쪽으로 (백업·컷오프)
     const midCover = right ? 'SS' : '2B', midHelp = right ? '2B' : 'SS';
-    go(midCover, BASE[2], t0);
+    go(midCover, BASE[2], t0, 6.0, 1, 2);
     if (gb) go(midHelp, L, t0 + 0.1, 6.0, 0.35);
     else go(midHelp, L, t0 + 0.1, 6.0, 0.45);             // 컷오프 자리로
     // 3루 — 주자가 있거나 좌측 타구면 3루수는 베이스를 지킨다
-    if (runnersOn || !right) go('3B', BASE[3], t0);
+    if (runnersOn || !right) go('3B', BASE[3], t0, 6.0, 1, 3);
     // 투수 — 외야로 간 공이면 송구가 올 베이스 뒤를 백업한다
     if (!gb && !busy.has('P')) {
       const back = runnersOn ? BASE[3] : BASE[2];
@@ -793,6 +798,7 @@ export class LiveView {
     }
     // 다른 외야수들은 공 쪽으로 몇 걸음 백업
     for (const p of ['LF', 'CF', 'RF']) go(p, L, t0, 5.5, 0.28);
+    return cover;
   }
 
   /** 송구. 도착 시각을 돌려준다. */
