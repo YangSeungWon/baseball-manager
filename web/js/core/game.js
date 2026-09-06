@@ -712,6 +712,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                   cCommand: PC_FATIGUE_C * fat + 0.06 * tto - cold * 0.8
                     + (relief ? MISC.reliefCommand : 0),
                   effort: relief ? MISC.reliefVelo : 0,
+                  fatigue: fat,                 // 구속이 내려간다
                   byPos: defn.byPos };
     // 보크. 주자가 있을 때만.
     if (bases.occupied() && rng.random() < MISC.balk) {

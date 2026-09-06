@@ -102,8 +102,11 @@ export function playCount(bat, pit, ctx, rng) {
   //   x,z 존 반폭을 1 로 둔 좌표 · t 구종 · v 구속 · r 결과
   const seq = [];
   const eff = ctx.effort || 0;                       // 전력투구면 구속이 붙는다
-  const log = (r, x, z, t) => seq.push({ x: +x.toFixed(2), z: +z.toFixed(2),
-                                         t, v: kmh(pit, t) + eff, r });
+  // 같은 투수의 같은 구종도 공마다 다르다. 1~2km/h 씩 흔들리고, 지치면 내려간다.
+  const fatV = -(ctx.fatigue || 0) * 2.2;
+  let lastV = kmh(pit, arsenal && arsenal.length ? arsenal[0] : 'FF') + eff;
+  const log = (r, x, z, t) => { lastV = Math.round(kmh(pit, t) + eff + fatV + rng.gauss(0, 1.3));
+    seq.push({ x: +x.toFixed(2), z: +z.toFixed(2), t, v: lastV, r }); };
   for (;;) {
     np++;
     const two = s >= 2, three = b >= 3;
@@ -186,7 +189,7 @@ export function playCount(bat, pit, ctx, rng) {
     return done(IN_PLAY, { quality, gbBias: P.gb });
 
     function done(res, extra) {
-      return { res, b, s, np, f, events, type, velo: kmh(pit, type) + eff,
+      return { res, b, s, np, f, events, type, velo: lastV,
                px, pz, inZone, zh: zH, seq, ...extra };
     }
   }
