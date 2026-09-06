@@ -85,13 +85,37 @@ export class Sfx {
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
   }
 
-  /** 배트에 맞았다. s 0~1 — 잘 맞을수록 낮고 굵고 길다. foul 이면 얇게. */
+  /** 짧은 톤. 심판 콜 대신 — 스트라이크는 높게 두 번, 볼은 낮게 한 번, 아웃은 딱 끊고, 세이프는 밝게. */
+  _tone(f, dur, gain = 0.2, type = 'square', at = 0, slide = null) {
+    const c = this.ctx, t = c.currentTime + at;
+    const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 3200;
+    const g = c.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + 0.008);
+    g.gain.setValueAtTime(gain, t + dur - 0.03); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(fl); fl.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
+  }
+  call(kind) {
+    if (!this.live) return;
+    if (kind === 'strike') { this._tone(1180, 0.07, 0.16); this._tone(1560, 0.09, 0.16, 'square', 0.08); }
+    else if (kind === 'strike3') { this._tone(1180, 0.07, 0.2); this._tone(1560, 0.07, 0.2, 'square', 0.08); this._tone(2080, 0.16, 0.22, 'square', 0.16); }
+    else if (kind === 'ball') this._tone(520, 0.11, 0.13, 'triangle');
+    else if (kind === 'foul') this._tone(880, 0.05, 0.1, 'triangle');
+    else if (kind === 'out') { this._tone(300, 0.12, 0.22, 'square', 0, 180); this._burst(0.05, { f: 900, q: 1.2, gain: 0.25, at: 0.0 }); }
+    else if (kind === 'safe') { this._tone(1040, 0.08, 0.16, 'triangle'); this._tone(1380, 0.14, 0.16, 'triangle', 0.09); }
+  }
+
+  /** 배트에 맞았다. s 0~1 — 잘 맞을수록 낮고 굵고 길다. foul 이면 얇게.
+   *  나무 배트 소리는 셋이 겹친다 — 순간의 딱(클릭), 배트의 울림(1.2k · 3.4k), 몸통의 퍽. */
   crack(s = 0.5, foul = false) {
     if (!this.live) return;
     s = clamp(s, 0, 1);
-    if (foul) { this._burst(0.05, { f: 2600, q: 1.2, gain: 0.35 }); this._thump(320, 160, 0.04, 0.15); return; }
-    this._burst(0.035 + s * 0.05, { f: 2200 - s * 900, q: 0.9, gain: 0.45 + s * 0.4 });
-    this._thump(220 - s * 60, 70, 0.05 + s * 0.09, 0.25 + s * 0.55);
+    if (foul) { this._burst(0.03, { f: 3400, q: 1.6, gain: 0.3 }); this._tone(1900, 0.04, 0.12, 'triangle', 0, 900); this._thump(320, 160, 0.04, 0.12); return; }
+    this._burst(0.012, { f: 4500, q: 0.7, gain: 0.5 + s * 0.3 });                 // 클릭
+    this._tone(1250 - s * 250, 0.05 + s * 0.05, 0.16 + s * 0.16, 'triangle', 0, 700);   // 배트 울림
+    this._tone(3400 - s * 600, 0.03 + s * 0.02, 0.07 + s * 0.06, 'sine', 0, 2200);
+    this._burst(0.04 + s * 0.05, { f: 1500 - s * 500, q: 0.8, gain: 0.3 + s * 0.35 });
+    this._thump(200 - s * 60, 60, 0.06 + s * 0.1, 0.3 + s * 0.6);                  // 몸통
   }
   /** 미트에 꽂혔다. v 0~1 — 빠를수록 크다. */
   pop(v = 0.6) {

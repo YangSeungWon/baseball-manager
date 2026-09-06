@@ -430,6 +430,7 @@ export class LiveView {
   _offColor() { return this.S.half === 'top' ? this.o.colors.away : this.o.colors.home; }
 
   _flash(text, cls = '', sub = '') {
+    if (cls === 'out') this.sfx.call('out'); else if (cls === 'safe') this.sfx.call('safe'); else if (cls === 'k') this.sfx.call('strike3');
     this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : cls === 'cmd' ? 2.0 : cls === 'score' ? 2.6 : 1.6;
     this.el.flash.innerHTML = text ? `<b>${text}</b>${sub ? `<small>${sub}</small>` : ''}` : '';
     this.el.flash.className = 'lv-flash' + (text ? ' on ' + cls : '');
@@ -589,6 +590,10 @@ export class LiveView {
     tl.at(tArr, () => {
       if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
       else if (q.r === 'F') this.sfx.crack(0.3, true);
+      // 판정 소리. 스트라이크는 높게 두 번, 볼은 낮게 한 번 — 소리만으로 갈린다.
+      if (q.r === 'S' || q.r === 'W') { if (!(opts.last && S.s >= 3)) setTimeout(() => this.sfx.call('strike'), 120); }
+      else if (q.r === 'B') setTimeout(() => this.sfx.call('ball'), 120);
+      else if (q.r === 'F') setTimeout(() => this.sfx.call('foul'), 200);
       else if (q.r === 'H') this.sfx.thud();
       else if (q.r === 'X') this.sfx.crack(opts.hit ?? 0.5);
     });
