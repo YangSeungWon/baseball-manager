@@ -2187,8 +2187,15 @@ function liveOpts(home, away, park, crowd, cap) {
     onScore: gsScore,
     zoneHtml: (seq, zh) => zoneSvg(seq, zh) + zoneList(seq),
     chant: (name, salt) => chantFor(name, salt, home),
-    playerBits: (pid) => { const p = G.player(pid);
-      return p && p.ovr ? axis(p.ovr, p.pot, 'sm') : ''; } };
+    // 경기 중에는 능력치·잠재력이 아니라 시즌 성적이다. 잠재력은 프런트의 일이다.
+    playerBits: (pid) => {
+      const p = G.player(pid); if (!p || !p.team_id) return '';
+      const r = G.roster(p.team_id);
+      const row = [...r.lineup, ...r.bench, ...r.rotation, ...r.bullpen].find(x => x.pid === pid);
+      const s = row && row.stat; if (!s || !(s.g > 0)) return '<span class="lv-season">시즌 첫 출장</span>';
+      return p.kind === 'P'
+        ? `<span class="lv-season">시즌 <b class="m">${s.era ?? '—'}</b> ERA · <b class="m">${s.ip ?? '—'}</b>이닝 · <b class="m">${s.w ?? 0}승 ${s.l ?? 0}패${s.sv ? ` ${s.sv}세` : ''}</b></span>`
+        : `<span class="lv-season">시즌 <b class="m">${s.avg ?? '—'}</b> · OPS <b class="m">${s.ops ?? '—'}</b> · <b class="m">${s.hr ?? 0}</b>홈런 <b class="m">${s.rbi ?? 0}</b>타점</span>`; } };
 }
 /** 경기 안의 문자중계. 최근 40 플레이.
  *  진행 중인 타석은 결과 없이 '…' 로 서 있다가, 장면이 끝나면 결과로 바뀐다.

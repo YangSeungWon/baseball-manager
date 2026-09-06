@@ -1538,3 +1538,14 @@ button .ic+span{margin-left:6px}
 
 .lv-spark text{fill:var(--fg2);font-size:8px;font-family:var(--kr)}
 .lv-spark{height:34px}
+
+.lv-season{font-size:14px;color:var(--fg2)} .lv-season b{color:var(--fg);font-weight:700}
+
+/* 득점 — 몇 대 몇이 됐는지 */
+.lv-flash.score{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:40px;color:var(--fg);
+  background:rgba(8,13,19,.8);padding:14px 30px;border-radius:4px;border-left:4px solid #53b987}
+.lv-flash.score b{display:flex;align-items:baseline;gap:12px;font-family:var(--mono);font-weight:800}
+.lv-flash.score b i{font-style:normal;color:var(--fg2);font-size:28px}
+.lv-flash.score b .lit{color:#53b987}
+.lv-flash.score small{font-size:16px;font-weight:600;color:var(--fg2);letter-spacing:0}
+.lv-flash.score.on{animation:lvInn 2.6s ease forwards}

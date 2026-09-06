@@ -430,7 +430,7 @@ export class LiveView {
   _offColor() { return this.S.half === 'top' ? this.o.colors.away : this.o.colors.home; }
 
   _flash(text, cls = '', sub = '') {
-    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : cls === 'cmd' ? 2.0 : 1.6;
+    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : cls === 'cmd' ? 2.0 : cls === 'score' ? 2.6 : 1.6;
     this.el.flash.innerHTML = text ? `<b>${text}</b>${sub ? `<small>${sub}</small>` : ''}` : '';
     this.el.flash.className = 'lv-flash' + (text ? ' on ' + cls : '');
   }
@@ -1066,7 +1066,11 @@ export class LiveView {
       r.base = to;
       if (a.t === 4 && o.cosmetic) { r.gone = true; return; }     // 뛰기는 했지만 득점은 아니다
       if (a.t === 4) {
-        r.gone = true; this._score(1, this._rec); this._flash('+1', 'run');
+        r.gone = true; this._score(1, this._rec);
+        // 점수가 났다 — 이닝 카드처럼 크게. 몇 대 몇이 됐는지.
+        const rec = this._rec, top = rec && rec.half === 'top';
+        const A = top ? this._runs : rec.rd, H = top ? rec.rd : this._runs;
+        this._flash(`<span class="${top ? 'lit' : ''}">${short(this.o.away)} ${A}</span><i>:</i><span class="${top ? '' : 'lit'}">${H} ${short(this.o.home)}</span>`, 'score', `${a.n} 득점`);
         // 홈 팀이 점수를 내면 응원석이 받는다
         if (this.o.chant && this._rec && this._rec.half === 'bottom' && this.fill > 0.45)
           this.el.capSub.textContent = this.o.chant(a.n, this._rec.inning);
