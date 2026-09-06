@@ -635,11 +635,11 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 .rplog{flex:1;min-height:150px;max-height:230px;overflow-y:auto;background:var(--s1);
   border-radius:2px;padding:6px 4px}
-.rpl{display:grid;grid-template-columns:34px 62px 1fr auto;gap:8px;align-items:baseline;
+.rpl{display:grid;grid-template-columns:38px minmax(64px,auto) 1fr auto;gap:8px;align-items:baseline;
   padding:5px 10px;font-size:14px;color:var(--fg2)}
 .rpl.cur{background:var(--sel);color:var(--fg);border-radius:2px}
 .rpl .ri{font-family:var(--mono);font-size:14px;color:var(--fg3)}
-.rpl .rb{font-weight:600;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rpl .rb{font-weight:600;color:var(--fg);white-space:nowrap}
 .rpl em{font-style:normal;font-family:var(--mono);font-weight:700;color:var(--pos)}
 
 .rpbar{display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
@@ -1508,7 +1508,7 @@ button .ic+span{margin-left:6px}
 .lv-inn-pen i{font-style:normal;color:var(--fg2);font-size:14px;margin-left:6px}
 /* 결과 — 오늘의 장면 */
 .gs-hl{display:flex;flex-direction:column;gap:4px;margin:6px 0 16px;background:var(--s1);border-radius:2px;padding:10px 12px}
-.gs-hlrow{display:grid;grid-template-columns:44px 80px 1fr auto;gap:8px;align-items:baseline;font-size:16px}
+.gs-hlrow{display:grid;grid-template-columns:44px auto 1fr auto;gap:8px;align-items:baseline;font-size:16px}
 .gs-hlrow .m{color:var(--fg2)} .gs-hlrow em{font-style:normal;font-family:var(--mono);font-weight:700;color:var(--pos)}
 @media(max-width:760px){
   .lv-pre{padding:12px 14px} .lv-pre-grid{grid-template-columns:1fr;gap:10px} .lv-pre-vs{display:none}
@@ -1535,3 +1535,6 @@ button .ic+span{margin-left:6px}
 .wk-why{font-size:16px;margin-top:4px}
 .wk-dec{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:14px;color:var(--fg)}
 .wk-dec .m{color:var(--fg2);margin-right:8px} .wk-dec .then{color:var(--fg2)}
+
+.lv-spark text{fill:var(--fg2);font-size:8px;font-family:var(--kr)}
+.lv-spark{height:34px}

@@ -594,7 +594,9 @@ export class LiveView {
     });
     tl.at(tArr, () => {
       this.seq.push(q); this._zone(rec);
-      this.velos.push(v); this._spark(); this.el.vmax.textContent = Math.max(...this.velos);
+      // 구속 추이는 직구 계열만 그린다. 변화구를 섞으면 톱니가 될 뿐이다.
+      if (q.t === 'FF' || q.t === 'SI' || q.t === 'FC') { this.velos.push(v); this._spark(); }
+      this.el.vmax.textContent = this.velos.length ? Math.max(...this.velos) : '—';
       this.el.pt.textContent = PT_KR[q.t] || q.t; this.el.pv.innerHTML = `${v}<i>km/h</i>`;
       this.el.np.textContent = this.pnp0 + i + 1;
       this.el.bugPc.textContent = `${this.pnp0 + i + 1}구 · ${PT_KR[q.t] || q.t} ${v}`;
@@ -639,9 +641,12 @@ export class LiveView {
     const vs = this.velos.slice(-40);
     if (vs.length < 2) { this.el.spark.innerHTML = ''; return; }
     const lo = Math.min(...vs) - 2, hi = Math.max(...vs) + 2;
-    const pts = vs.map((v, i) => `${(i / (vs.length - 1) * 118 + 1).toFixed(1)},${(25 - (v - lo) / (hi - lo) * 22).toFixed(1)}`);
-    this.el.spark.innerHTML = `<polyline points="${pts.join(' ')}"/>`;
-    this.el.spark.title = `구속 추이 · 최고 ${Math.max(...this.velos)} · 최저 ${Math.min(...this.velos)}`;
+    const pts = vs.map((v, i) => `${(i / (vs.length - 1) * 118 + 1).toFixed(1)},${(27 - (v - lo) / (hi - lo) * 15).toFixed(1)}`);
+    const last = vs[vs.length - 1], first5 = vs.slice(0, 5), avg0 = first5.reduce((a, b) => a + b, 0) / first5.length;
+    const d = Math.round(last - avg0);
+    this.el.spark.innerHTML = `<polyline points="${pts.join(' ')}"/>
+      <text x="1" y="8">직구 구속</text><text x="119" y="8" text-anchor="end">${d === 0 ? '변화 없음' : (d > 0 ? '+' : '') + d + ' km/h'}</text>`;
+    this.el.spark.title = `직구 구속 추이 · 처음 ${Math.round(avg0)} → 지금 ${last}`;
   }
 
   /* ── 타석 ── */
