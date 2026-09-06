@@ -696,7 +696,13 @@ export class LiveView {
       from = to; tRel = tArr + 0.35;
     });
     for (const a of adv) if (a.t !== 0) this._runnerClip(tl, a, runStart, {});
-    if (targets.length === 1 && !targets[0].a && err) tl.at(tC + T + 0.2, () => {});
+    // 3아웃이 되는 땅볼. 밀려야 하는 주자는 기록에 갈 곳이 없어도 뛴다 — 야구는 그렇게 끝난다.
+    if (gb && rec.outs >= 3 && adv.some(a => a.f === 0)) {
+      const names = new Set(adv.map(a => a.n));
+      const on = [1, 2, 3].map(b => S.runners.find(r => r.base === b && !r.gone && !r.wait && !names.has(r.name)));
+      for (let b = 1; b <= 3 && on[b - 1] && (b === 1 || on[b - 2] || names.has((S.runners.find(r => r.base === b - 1) || {}).name)); b++)
+        this._runnerClip(tl, { n: on[b - 1].name, f: b, t: b + 1, v: 6.8 }, runStart, { cosmetic: true });
+    }
     tl.add(tl.end, 0.9, null);
   }
 
@@ -763,6 +769,7 @@ export class LiveView {
     }, () => {
       if (r.out) return;
       r.base = to;
+      if (a.t === 4 && o.cosmetic) { r.gone = true; return; }     // 뛰기는 했지만 득점은 아니다
       if (a.t === 4) {
         r.gone = true; this._score(1, this._rec); this._flash('+1', 'run');
         // 홈 팀이 점수를 내면 응원석이 받는다
