@@ -35,6 +35,7 @@ const POS_KR = { P:'투', C:'포', '1B':'1', '2B':'2', '3B':'3', SS:'유', LF:'�
 const PT_KR = { FF:'포심', SI:'투심', FC:'커터', SL:'슬라이더', CU:'커브',
                 CH:'체인지업', FS:'포크', KN:'너클볼' };
 const AP_KR = { power:'강공', line:'끊어치기', oppo:'밀어치기', contact:'컨택' };
+const POS_FULL = { P:'투수', C:'포수', '1B':'1루수', '2B':'2루수', '3B':'3루수', SS:'유격수', LF:'좌익수', CF:'중견수', RF:'우익수' };
 const RES_KR = { S:'스트라이크', B:'볼', W:'헛스윙', F:'파울', X:'타격', H:'몸에 맞는 공' };
 
 // 그라운드 색. 스타일시트의 구장 색과 같은 값이다.
@@ -717,7 +718,9 @@ export class LiveView {
     const peak = gb ? 0 : clamp(9.81 * T * T / 8 * 0.45, 1.5, 24);
     const fence = BIP.fence(rec.ang, this.dims);
 
-    tl.at(tC, () => { S.batter = null; this._cap(rec.desc, gb ? '' : (rec.zone || '')); });
+    // 맞는 순간에는 타구만 말한다. 결과는 아직 모른다 — 잡을 수도, 놓칠 수도 있다.
+    const where = gb ? `${POS_FULL[rec.pos] || ''} 쪽 땅볼` : `${rec.zone || ''} ${rec.bbt === 'LD' ? '직선타' : rec.bbt === 'PU' ? '높이 뜬 공' : '뜬공'}`;
+    tl.at(tC, () => { S.batter = null; this._cap(hr && rec.dep > 125 ? '큰 타구' : where, ''); });
     if (hit && rec.half === 'bottom') tl.at(tC + T * 0.9, () => this.sfx.cheer(0.45));
     if (out && rec.half === 'top') tl.at(tC + T, () => this.sfx.cheer(0.15));
 
@@ -766,7 +769,7 @@ export class LiveView {
         () => { S.ball = null; S.trail = []; });
       tl.at(tC + T * 0.85, () => { this._flash('홈런', 'hr'); if (rec.half === 'bottom') this.sfx.cheer(1); else this.sfx.hush(); });
       this._runnersGo(tl, rec, tC + 0.3, { trot: true });
-      tl.add(tl.end, 1.0, null); return;
+      this._final(tl, rec); tl.add(tl.end, 1.0, null); return;
     }
     if (F) move(F, fstart, icpt, tC + fre, tF);
     // 아슬아슬한 타구 — 몸을 던진다. 닿았으면 잡고, 못 닿았으면 공이 옆으로 빠져나간다.
@@ -853,7 +856,7 @@ export class LiveView {
         if (tag.t === 4) tl.at(tArr, () => this._flash('세이프', 'safe'));
       } else this._throw(tl, icpt, BASE[2], pickT + 0.6, 1);
       move(F, icpt, home, tl.end + 0.3, tl.end + 0.3 + dist2(icpt, home) / 4.5);
-      tl.add(tl.end, 0.9, null); return;
+      this._final(tl, rec); tl.add(tl.end, 0.9, null); return;
     }
     // 땅볼 아웃 · 병살 · 야수선택 · 안타 · 실책
     // 송구 목표: 아웃될 주자가 향하는 베이스, 먼 베이스부터. 없으면 선두 주자 앞 베이스.
@@ -917,8 +920,11 @@ export class LiveView {
         if (r.name && !names.has(r.name)) this._runnerClip(tl, { n: r.name, f: b, t: b + 1, v: 6.8 }, runStart, { cosmetic: true });
       }
     }
+    this._final(tl, rec);
     tl.add(tl.end, 0.9, null);
   }
+  /** 결과가 정해진 뒤에야 결과를 말한다. */
+  _final(tl, rec) { tl.at(tl.end, () => this._cap(rec.desc, rec.bbt === 'GB' ? '' : (rec.zone || ''))); }
 
   /** 공 없는 야수들의 움직임. 타구를 쫓는 야수(pos)와 주우러 가는 야수(thrower)는 뺀다. */
   _coverage(tl, rec, pos, thrower, tC, gb, L) {
