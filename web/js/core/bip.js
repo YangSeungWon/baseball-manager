@@ -44,12 +44,14 @@ export const BC = {
   // 수비가 실제로 쓸 수 있는 시간의 보정. 기하 단순화를 흡수한다.
   hangK: { GB: 1.319, LD: 1.294, FB: 1.099, PU: 1.249 },
   // 야수 이동 속도 (m/s)
-  rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.38,
+  rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.44,
   // 첫 발(순발력)은 반응 시간을, 자리(위치 선정)는 가야 할 거리를 줄인다.
   // 직선타는 체공이 1~2초라 반응이 전부고, 깊은 뜬공은 거리가 전부다.
   reactZ: 0.125, posZ: 0.040,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
   pReact: 0.28, pRange: 0.55,
+  // 얕은 외야 경합 구간(m), 달려 들어올 때 · 내야수가 등지고 물러날 때의 속도 배율
+  shallowLo: 45, shallowHi: 68, chargeK: 1.12, backK: 0.88,
   // 여유(초)가 클수록 쉬운 타구
   tau: 0.62,
   // 땅볼은 잡아도 던져야 아웃이다
@@ -197,12 +199,16 @@ export function fielderMotion(pos, f) {
 /** 그 타구에 누가 먼저 닿는가. 표가 아니라 경합으로 정한다. */
 export function assign(ball, byPos, shift = 0) {
   const ground = ball.bbt === 'GB';
-  const pool = ground ? INFIELD : (ball.depth < 52 ? INFIELD : OUTFIELD);
+  // 얕은 외야(45~68m)는 내야수가 물러나며 잡을 수도, 외야수가 달려 들어와 잡을 수도 있다.
+  // 한쪽만 보면 그 사이가 빈 땅이 된다.
+  const pool = ground ? INFIELD
+    : ball.depth < BC.shallowLo ? INFIELD
+    : ball.depth < BC.shallowHi ? INFIELD.concat(OUTFIELD) : OUTFIELD;
   let best = null;
   for (const pos of pool) {
     const f = byPos && byPos[pos];
     // 투수에게는 수비 능력치가 없다. 자리 기본값으로 메운다.
-    const { v, react, posK } = fielderMotion(pos, f);
+    let { v, react, posK } = fielderMotion(pos, f);
     let dist, avail;
     const { angle: pa } = fielderSpot(pos, shift);
     if (ground) {
@@ -214,6 +220,9 @@ export function assign(ball, byPos, shift = 0) {
       dist = Math.hypot((ball.angle - pa) * rad * ball.depth,
                         ball.depth - POS_DEPTH[pos]);
       avail = ball.hang;
+      // 앞으로 달려 들어오는 것이 뒤로 물러나는 것보다 빠르다.
+      if (ball.depth < POS_DEPTH[pos] - 3) v *= BC.chargeK;
+      else if (ball.depth > POS_DEPTH[pos] + 3 && !OUTFIELD.includes(pos)) v *= BC.backK;
     }
     // 자리를 잘 잡는 야수는 처음부터 공 쪽에 서 있었다 — 갈 거리가 짧다.
     dist *= pos === 'P' || pos === 'C' ? 1 : posK;
