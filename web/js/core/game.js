@@ -287,9 +287,13 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         thr = [1];
         if (r3) {
           const tR3 = RUNT.runArrive(r3, 3, 4), tH = RUNT.throwArrive(clock, 4);
+          const lead = defn.runs - off.runs;
+          const crit = inning >= 7 && lead >= -1 && lead <= 1;
           if (RUNT.dares(tR3, tH, rng, 0, r3)) {
-            if (tH + noise() < tR3 - 0.1 && !RUNT.wildThrow(clock, rng)) { bases.take(2); bases.put(0, batter, me); desc = '홈 송구 아웃'; thr = [4]; }
-            else scored.push(bases.take(2));
+            const tryHome = tH < tR3 - 0.12 || (crit && tH < tR3 + 0.35);   // 걸린 점수면 늦을 것 같아도 던진다
+            if (tryHome && tH + noise() < tR3 - 0.03 && !RUNT.wildThrow(clock, rng)) { bases.take(2); bases.put(0, batter, me); desc = '홈 송구 아웃'; thr = [4]; }
+            else if (tryHome) { addedOuts = 0; scored.push(bases.take(2)); bases.put(0, batter, me); desc = '홈 송구 — 세이프'; thr = [4]; }
+            else scored.push(bases.take(2));                       // 확실한 1루를 잡는다. 점수는 준다.
           }
         }
         if (r2 && !bases.r[2] && RUNT.dares(RUNT.runArrive(r2, 2, 3), RUNT.throwArrive(clock, 3), rng, 0, r2)) bases.move(1, 2);
