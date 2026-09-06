@@ -11,6 +11,7 @@
 // 같은 장면을 다르게 투영할 뿐이다.
 
 import * as BIP from './core/bip.js';
+import { Sfx } from './sfx.js';
 
 const rad = Math.PI / 180;
 const short = (s) => String(s || '').split(' ')[0];
@@ -123,7 +124,9 @@ export class LiveView {
     this.pitName = null;
     this.seq = []; this.zh = 1;
     this.pnp0 = 0;
+    this.sfx = new Sfx();
     this._build();
+    if (opts.sound) this.setSound(true);          // 클릭 안에서 만들어졌으니 지금 열 수 있다
     this._last = performance.now();
     this._raf = requestAnimationFrame(() => this._frame());
   }
@@ -163,6 +166,7 @@ export class LiveView {
               <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">탑다운</button></span>
             <span class="lv-seg lv-spd">${[1, 2, 4, 8].map(s =>
               `<button data-s="${s}" class="${s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
+            <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리">${this.o.sound ? '🔊' : '🔇'}</button></span>
           </div>
           <div class="lv-ask" hidden></div>
         </div>
@@ -205,6 +209,7 @@ export class LiveView {
     this.root.querySelectorAll('[data-v]').forEach(b => b.onclick = () => this.setView(b.dataset.v));
     this.root.querySelectorAll('[data-s]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.s));
     q('.lv-skip').onclick = () => this.skip();
+    q('.lv-sndb').onclick = () => this.setSound(!this.sfx.on);
     q('.lv-end').onclick = () => this.o.onEnd && this.o.onEnd();
     this.el.pause.onclick = () => this.togglePause();
     this.ro = new ResizeObserver(() => this._size());
@@ -212,7 +217,15 @@ export class LiveView {
     this._size();
   }
 
-  destroy() { cancelAnimationFrame(this._raf); this.ro.disconnect(); this._dead = true; }
+  destroy() { cancelAnimationFrame(this._raf); this.ro.disconnect(); this._dead = true; this.sfx.destroy(); }
+
+  setSound(on) {
+    this.sfx.enable(on);
+    on = this.sfx.on;
+    const b = this.root.querySelector('.lv-sndb'); if (b) { b.classList.toggle('on', on); b.textContent = on ? '🔊' : '🔇'; }
+    try { localStorage.setItem('dugout.sfx', on ? '1' : '0'); } catch {}
+    if (on) { this.sfx.crowd(this.fill); this.sfx.mute(this.speed > 2); }
+  }
 
   setView(v) {
     this.view = v; this.stage.classList.toggle('top', v === 'top'); this.stage.classList.toggle('persp', v !== 'top');
@@ -222,6 +235,7 @@ export class LiveView {
   }
   setSpeed(s) {
     this.speed = s;
+    this.sfx.mute(s > 2);                            // ×4 부터는 소리가 뭉개진다
     this.root.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', +b.dataset.s === s));
     try { localStorage.setItem('dugout.speed', s); } catch {}
   }
@@ -304,7 +318,8 @@ export class LiveView {
   _cap(main, sub = '') { this.el.cap.textContent = main || ''; this.el.capSub.textContent = sub || ''; }
 
   _score(delta, rec) {
-    // 득점은 주자가 홈을 밟는 그 순간 올라간다
+    // 득점은 주자가 홈을 밟는 그 순간 올라간다. 홈 팀이면 함성, 아니면 정적.
+    if (rec && rec.half === 'bottom') this.sfx.cheer(0.7); else this.sfx.hush();
     this._runs = (this._runs || 0) + delta;
     this._emitScore(rec, this._runs);
   }
@@ -426,6 +441,13 @@ export class LiveView {
     });
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.
     if (q.r === 'W' || q.r === 'F' || q.r === 'X') tl.add(tArr - 0.16, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
+    if (q.r === 'W') tl.at(tArr - 0.12, () => this.sfx.whiff());
+    tl.at(tArr, () => {
+      if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
+      else if (q.r === 'F') this.sfx.crack(0.3, true);
+      else if (q.r === 'H') this.sfx.thud();
+      else if (q.r === 'X') this.sfx.crack(opts.hit ?? 0.5);
+    });
     tl.at(tArr, () => {
       this.seq.push(q); this._zone(rec);
       this.velos.push(v); this._spark(); this.el.vmax.textContent = Math.max(...this.velos);
@@ -492,15 +514,21 @@ export class LiveView {
     if (this.o.onCount) this.o.onCount(0, 0);
     const seq = rec.seq && rec.seq.length ? rec.seq : [{ x: 0, z: 0, t: rec.pt || 'FF', v: rec.velo || 140, r: 'X' }];
     let t = 0.4, tArr = 0;
+    // 타구 소리의 세기. 담장을 넘기면 1, 빗맞은 땅볼은 0.2 근처.
+    const hit = rec.res === 'HR' ? 1
+      : rec.bbt === 'GB' ? clamp(0.15 + ((rec.ev || 26) - 18) / 30, 0.1, 0.7)
+      : rec.bbt === 'PU' ? 0.3
+      : clamp(0.25 + ((rec.dep || 60) - 40) / 90, 0.2, 0.95);
     seq.forEach((q, i) => {
       const last = i === seq.length - 1;
-      tArr = this._pitch(tl, q, i, t, rec, { last });
+      tArr = this._pitch(tl, q, i, t, rec, { last, hit });
       t = tArr + (q.r === 'F' ? 1.7 : q.r === 'X' ? 0 : 1.1);
     });
     const res = rec.res;
     if (res === 'K') {
       const label = rec.sw ? '헛스윙 삼진' : '루킹 삼진';
-      tl.at(tArr, () => { this._cap(`${rec.batter}  ${label}`, `${seq.length}구 ${PT_KR[rec.pt] || ''} ${rec.velo || ''}`); this._flash('삼진', 'k'); this._outs(rec, 1); });
+      tl.at(tArr, () => { this._cap(`${rec.batter}  ${label}`, `${seq.length}구 ${PT_KR[rec.pt] || ''} ${rec.velo || ''}`); this._flash('삼진', 'k'); this._outs(rec, 1);
+        if (rec.half === 'top') this.sfx.cheer(0.35); });
       // 타자가 사라진다 — 더그아웃으로.
       tl.add(tArr + 0.5, 0.9, (k) => { if (S.batter) S.batter.alpha = 1 - k; }, () => { S.batter = null; });
       this._tally(rec); tl.add(tl.end, 0.9, null); return;
@@ -557,7 +585,10 @@ export class LiveView {
     const L = W2(rec.ang, rec.dep);
     // 땅볼은 엔진이 쓰는 그 시간표대로 굴러간다 (hangK 보정 포함).
     const gbK = 1.319, ev = rec.ev || 26;
-    const T = Math.max(0.35, gb ? rec.dep / ev * gbK : (rec.hang || 2.5));
+    // 엔진의 체공 시간은 수비 판정용이라 여유가 얹혀 있다 (hangK). 화면에서는
+    // 뜬공을 조금 짧게, 홈런은 실제 타구처럼 3~5초 안에 넘긴다.
+    let T = Math.max(0.35, gb ? rec.dep / ev * gbK : (rec.hang || 2.5) * (rec.bbt === 'FB' ? 0.88 : 1));
+    if (rec.res === 'HR') T = Math.min(T, clamp(3.3 + ((rec.dep || 120) - 100) * 0.022, 2.4, 4.8));
     const hr = rec.res === 'HR';
     const out = rec.res === 'OUT', err = rec.res === 'E';
     const hit = !out && !err && !hr;
@@ -567,6 +598,8 @@ export class LiveView {
     const fence = BIP.fence(rec.ang, this.dims);
 
     tl.at(tC, () => { S.batter = null; this._cap(rec.desc, gb ? '' : (rec.zone || '')); });
+    if (hit && rec.half === 'bottom') tl.at(tC + T * 0.9, () => this.sfx.cheer(0.3));
+    if (out && rec.half === 'top') tl.at(tC + T, () => this.sfx.cheer(0.15));
 
     // 1. 야수. 엔진이 정한 자리에서, 엔진이 정한 속도로.
     const pos = rec.pos || 'CF';
@@ -611,7 +644,7 @@ export class LiveView {
       move(F, fstart, wall, tC + fre, Math.max(tw, tC + T * 0.9));
       tl.add(tC + T, 0.8, (k) => { S.ball = { x: L[0] + (L[0] - wall[0]) * 0.2 * k, y: L[1] + 6 * k, z: Math.max(0, 5 - 12 * k * k), vis: true }; },
         () => { S.ball = null; S.trail = []; });
-      tl.at(tC + T * 0.85, () => { this._flash('홈런', 'hr'); });
+      tl.at(tC + T * 0.85, () => { this._flash('홈런', 'hr'); if (rec.half === 'bottom') this.sfx.cheer(1); else this.sfx.hush(); });
       this._runnersGo(tl, rec, tC + 0.3, { trot: true });
       tl.add(tl.end, 1.0, null); return;
     }
@@ -625,7 +658,7 @@ export class LiveView {
       tl.at(pickT, () => this._hold(F));
     } else if (reach && !err) {
       pickup = icpt; pickT = tC + Ti;
-      tl.at(pickT, () => { this._hold(F); if (out && !gb) this._flash('아웃', 'out'); });
+      tl.at(pickT, () => { this._hold(F); this.sfx.pop(gb ? 0.3 : 0.55); if (out && !gb) this._flash('아웃', 'out'); });
     } else if (err) {
       // 닿았는데 놓쳤다. 공이 튀어 달아난다.
       const tE = tC + Ti;
@@ -771,7 +804,7 @@ export class LiveView {
         // 받는 사람 — 그 베이스에 가장 가까운 야수. 없으면 공은 그냥 사라진다.
         let best = null;
         for (const f of Object.values(S.fielders)) { const dd = dist2([f.x, f.y], to); if (dd < 4 && (!best || dd < best.dd)) best = { f, dd }; }
-        this._hold(best ? best.f : null);
+        this._hold(best ? best.f : null); this.sfx.pop(0.5);
       });
     return t0 + Fl;
   }

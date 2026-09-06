@@ -13,10 +13,11 @@ const KEY = 'dugout.save.v1';
    장면이다. 미리 고르게 하지 않는다 — 일단 띄우고, 언제든 건너뛸 수 있게 한다.
    배속과 시점은 기억한다. */
 const livePrefs = () => {
-  let speed = 1, view = 'persp';
+  let speed = 1, view = 'persp', sound = false;
   try { speed = +localStorage.getItem('dugout.speed') || 1;
-        view = localStorage.getItem('dugout.view') || 'persp'; } catch {}
-  return { speed: [1, 2, 4, 8].includes(speed) ? speed : 1, view };
+        view = localStorage.getItem('dugout.view') || 'persp';
+        sound = localStorage.getItem('dugout.sfx') === '1'; } catch {}
+  return { speed: [1, 2, 4, 8].includes(speed) ? speed : 1, view, sound };
 };
 const FACE_KEY = 'dugout.faces';
 let facesOn = (() => { try { return localStorage.getItem(FACE_KEY) !== '0'; }
@@ -2096,7 +2097,7 @@ function liveOpts(home, away, park, crowd, cap) {
   const pref = livePrefs();
   return { home, away, park, crowd, cap,
     colors: { home: capOf(home).color, away: capOf(away).color },
-    speed: pref.speed, view: pref.view,
+    speed: pref.speed, view: pref.view, sound: pref.sound,
     onScore: gsScore,
     zoneHtml: (seq, zh) => zoneSvg(seq, zh) + zoneList(seq),
     chant: (name, salt) => chantFor(name, salt, home),
