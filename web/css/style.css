@@ -1298,7 +1298,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   padding:18px 20px;max-width:520px;width:100%;max-height:100%;overflow-y:auto}
 .lv-ask .gs-q{font-size:20px;margin-bottom:10px}
 /* 옆 칸 */
-.lv-side{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0}
+.lv-side{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:0;max-height:calc(100vh - 92px);overflow:hidden}
 .lv-match{background:var(--s1);border-radius:2px;padding:12px 14px;display:flex;flex-direction:column;gap:12px}
 .lv-who{display:grid;grid-template-columns:auto 1fr auto;gap:2px 8px;align-items:baseline}
 .lv-who .lab{grid-column:1}
@@ -1325,7 +1325,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-bits .ax.sm{width:100%}
 .lv-bits:empty{display:none}
 .lv-zone{flex-shrink:0}
-.lv-log{flex:1;min-height:120px;max-height:none}
+.lv-log{flex:1;min-height:120px;max-height:none;overflow-y:auto}
 .rpl.pend .rd{color:var(--fg3);letter-spacing:.1em}
 @media(max-width:900px){
   .lv{grid-template-columns:minmax(0,1fr);gap:12px;height:auto}

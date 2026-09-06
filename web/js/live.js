@@ -126,6 +126,7 @@ export class LiveView {
     this.S = this._blank();
     this.tl = null; this.resolve = null;
     this.hist = new Map();               // 오늘 타자 성적
+    this.line = { top: [], bottom: [], hits: { top: 0, bottom: 0 }, err: { top: 0, bottom: 0 } };   // 전광판
     this.velos = [];                     // 이 투수의 구속 추이
     this.pitName = null;
     this.seq = []; this.zh = 1;
@@ -218,12 +219,15 @@ export class LiveView {
     q('.lv-sndb').onclick = () => this.setSound(!this.sfx.on);
     q('.lv-end').onclick = () => this.o.onEnd && this.o.onEnd();
     this.el.pause.onclick = () => this.togglePause();
-    this.ro = new ResizeObserver(() => this._size());
-    this.ro.observe(this.stage.parentElement || this.stage);
+    // 크기는 창이 바뀔 때만 다시 잰다. ResizeObserver 로 부모 칸을 지켜보면
+    // 옆 칸의 문자중계가 자랄 때마다 불려 레이아웃이 매 프레임 흔들린다.
+    this._onResize = () => this._size();
+    window.addEventListener('resize', this._onResize);
     this._size();
+    setTimeout(() => this._size(), 250);           // 글꼴·레이아웃이 자리잡은 뒤 한 번 더
   }
 
-  destroy() { cancelAnimationFrame(this._raf); this.ro.disconnect(); this._dead = true; this.sfx.destroy(); }
+  destroy() { cancelAnimationFrame(this._raf); window.removeEventListener('resize', this._onResize); this._dead = true; this.sfx.destroy(); }
 
   setSound(on) {
     this.sfx.enable(on);
@@ -259,6 +263,9 @@ export class LiveView {
     let w = Math.max(200, Math.floor(r.width)), h = Math.round(w / V.aspect());
     if (h > maxH) { h = maxH; w = Math.round(h * V.aspect()); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // 같은 크기면 손대지 않는다. 캔버스 크기를 다시 쓰면 그림이 지워지고,
+    // ResizeObserver 가 매 프레임 부르면 그린 직후마다 지워져 빈 화면이 된다.
+    if (this.cw === w && this.ch === h && this.dpr === dpr) return;
     this.cv.width = Math.round(w * dpr); this.cv.height = Math.round(h * dpr);
     this.cv.style.height = h + 'px'; this.cv.style.width = w + 'px';
     this.dpr = dpr; this.cw = w; this.ch = h;
@@ -302,7 +309,8 @@ export class LiveView {
     const newHalf = S.half !== rec.half || S.inning !== rec.inning;
     S.half = rec.half; S.inning = rec.inning; S.def = rec.pos || S.def;
     S.defTeam = rec.def; S.offTeam = rec.off;
-    if (newHalf) { S.runners = []; S.outs = 0; S.batter = null; }
+    if (newHalf) { S.runners = []; S.outs = 0; S.batter = null;
+      const L = this.line; while (L[rec.half].length < rec.inning) L[rec.half].push(0); }
     // 수비수를 자리에 세운다
     for (const pos of Object.keys(POS_KR)) {
       const sp = BIP.fielderSpot(pos, 0);
@@ -519,8 +527,8 @@ export class LiveView {
     const chant = this.o.chant ? this.o.chant(rec.batter, rec.inning) : '';
     if (this.fill > 0.2) this.sfx.song(hashOf(rec.batter), home ? this.fill : this.fill * 0.35, chant);
     else this.sfx.stopSong();
-    // 구호도 같이. 응원석이 부르는 그 이름.
-    if (home && chant && this.fill > 0.4) this.el.capSub.textContent += `  ·  ${chant}`;
+    // 구호는 전광판에 띄운다. 타석 내내 켜져 있다.
+    this.chantText = home && chant && this.fill > 0.3 ? chant : '';
     this._cap(`${rec.batter}${rec.bh ? (rec.bh === 'L' ? ' · 좌타' : ' · 우타') : ''}`, this._todayLine(rec.batter));
     this._resetDefense(tl, rec.sh);
     this._zone(rec);
@@ -577,7 +585,17 @@ export class LiveView {
     this._emitScore(rec, rec.ro ?? this._runs);
     if (rec.pnp != null) this.el.np.textContent = rec.pnp;
     if (this.o.onLog) this.o.onLog(rec, true);
-    this.sfx.stopSong();
+    this.sfx.stopSong(); this.chantText = '';
+    this._tallyLine(rec);
+  }
+  /** 전광판 숫자. 이닝별 득점 · 안타 · 실책. 기록에서 셈한다. */
+  _tallyLine(rec) {
+    const L = this.line, h = rec.half, i = (rec.inning || 1) - 1;
+    if (!h) return;
+    while (L[h].length <= i) L[h].push(0);
+    L[h][i] += rec.runs || 0;
+    if (['1B', '2B', '3B', 'HR'].includes(rec.res) || rec.desc === '번트 안타') L.hits[h]++;
+    if (rec.res === 'E' || /실책|악송구/.test(rec.desc || '')) L.err[h === 'top' ? 'bottom' : 'top']++;
   }
   /** 다음 타석 전에 야수들을 제자리로 돌려보낸다. 시프트가 있으면 그 자리로. */
   _resetDefense(tl, sh) {
@@ -991,6 +1009,7 @@ export class LiveView {
     ctx.setTransform(sc, 0, 0, sc, 0, 0);
     if (!this._bg) this._bg = this._paintBg(V);
     ctx.drawImage(this._bg, 0, 0, V.W, V.H);
+    this._scoreboard(ctx, V);
     const S = this.S;
     // 그림자와 사람은 멀리 있는 것부터
     const items = [];
@@ -1017,6 +1036,63 @@ export class LiveView {
       else if (this.view === 'top') this._dot(ctx, V, it);
       else this._figure(ctx, V, it);
     }
+  }
+
+  /** 전광판. 중견수 뒤 관중석 위에 선다. 야구장에 있는 그것 — 이닝별 득점과 R H E. */
+  _scoreboard(ctx, V) {
+    const persp = this.view !== 'top';
+    const L = this.line, S = this.S;
+    const n = Math.max(9, L.top.length, L.bottom.length);
+    const w = V.W * (persp ? 0.31 : 0.34), cols = n + 3, cw = w / (cols + 1.6);
+    const rh = persp ? 11 : 10, h = rh * 3.9;
+    const dims = this.dims, fc = BIP.fence(0, dims);
+    const standD = 14 + ((this.o.park && this.o.park.capacity ? this.o.park.capacity : 18000) - 13000) / 13500 * 12;
+    const fh = dims.real ? dims.real.fH || 3 : 3;
+    const p = persp ? V.proj(0, fc, fh) : V.proj(0, fc + standD + 2);
+    const x0 = p.x - w / 2, y0 = persp ? Math.max(2, p.y - h - 4) : Math.max(3, p.y - h - 3);
+    // 판. 밤의 전광판은 검고, 숫자는 주황 LED 다.
+    ctx.fillStyle = '#070b10'; rr(ctx, x0, y0, w, h, 2); ctx.fill();
+    ctx.strokeStyle = '#2b3a4b'; ctx.lineWidth = 1; rr(ctx, x0 + 0.5, y0 + 0.5, w - 1, h - 1, 2); ctx.stroke();
+    if (persp) { ctx.fillStyle = '#1b2634'; ctx.fillRect(p.x - 3, y0 + h, 6, 5); }   // 기둥
+    const led = '#ffb84d', dim = '#3b4756', lit = '#fff1d6';
+    ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    const fx = (c) => x0 + cw * 1.6 + cw * (c + 0.5);
+    ctx.font = `700 ${rh * 0.62}px "IBM Plex Mono",ui-monospace,monospace`;
+    // 머릿줄
+    for (let c = 0; c < n; c++) { const on = S.inning === c + 1; ctx.fillStyle = on ? lit : dim; ctx.fillText(c + 1, fx(c), y0 + rh * 0.6); }
+    ['R', 'H', 'E'].forEach((t, k) => { ctx.fillStyle = dim; ctx.fillText(t, fx(n + k), y0 + rh * 0.6); });
+    const row = (half, name, y) => {
+      const arr = L[half], cur = S.half === half;
+      ctx.textAlign = 'left'; ctx.fillStyle = cur ? lit : '#aab6c3';
+      ctx.font = `700 ${rh * 0.66}px "Pretendard","Apple SD Gothic Neo",sans-serif`;
+      ctx.fillText(short(name).slice(0, 3), x0 + cw * 0.35, y);
+      ctx.textAlign = 'center'; ctx.font = `700 ${rh * 0.72}px "IBM Plex Mono",ui-monospace,monospace`;
+      for (let c = 0; c < n; c++) {
+        const played = c < arr.length;
+        ctx.fillStyle = played ? (arr[c] > 0 ? led : '#c9a56a') : dim;
+        ctx.fillText(played ? arr[c] : '', fx(c), y);
+      }
+      ctx.fillStyle = led;
+      const R = arr.reduce((a, b) => a + b, 0);
+      [R, L.hits[half], L.err[half]].forEach((v, k) => ctx.fillText(v, fx(n + k), y));
+    };
+    row('top', this.o.away, y0 + rh * 1.6);
+    row('bottom', this.o.home, y0 + rh * 2.55);
+    // 아래 줄 — B S O
+    const dots = (label, cnt, max, x, col) => {
+      ctx.textAlign = 'left'; ctx.font = `700 ${rh * 0.55}px "IBM Plex Mono",ui-monospace,monospace`;
+      ctx.fillStyle = dim; ctx.fillText(label, x, y0 + rh * 3.45);
+      for (let k = 0; k < max; k++) { ctx.beginPath(); ctx.arc(x + rh * 0.7 + k * rh * 0.5, y0 + rh * 3.45, rh * 0.17, 0, Math.PI * 2);
+        ctx.fillStyle = k < cnt ? col : '#22303e'; ctx.fill(); }
+    };
+    dots('B', S.b, 3, x0 + cw * 0.35, '#4bb37b'); dots('S', S.s, 2, x0 + cw * 0.35 + rh * 2.6, '#e8c23a'); dots('O', Math.min(S.outs, 2), 2, x0 + cw * 0.35 + rh * 4.6, '#d85e5e');
+    // 오른쪽에는 응원 구호. 전광판이 실제로 띄우는 그것 — 타석 내내 켜져 있다.
+    if (this.chantText) {
+      ctx.textAlign = 'right'; ctx.fillStyle = led;
+      ctx.font = `700 ${rh * 0.62}px "Pretendard","Apple SD Gothic Neo",sans-serif`;
+      ctx.fillText(this.chantText, x0 + w - cw * 0.4, y0 + rh * 3.45);
+    }
+    ctx.textBaseline = 'alphabetic';
   }
 
   _ball(ctx, V, p) {
