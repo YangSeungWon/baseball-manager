@@ -681,15 +681,13 @@ export class LiveView {
       const to = baseAt(tg.base);
       const Fl = dist2(from, to) / (thrower && ['LF', 'CF', 'RF'].includes(thrower.pos) ? speedOF : speedIF) + 0.1;
       if (tg.a) {
-        // 승부. 아웃이면 공이 0.25초 먼저, 세이프면 주자가 0.3초 먼저.
+        // 아웃. 야수는 잡자마자 던진다 — 일부러 기다렸다 던지는 야수는 없다.
+        // 공이 주자보다 0.25초 이상 먼저 못 가는 때만 주자를 그만큼 늦춘다.
         const rA = runnerArr(tg.a);
-        let want = rA - 0.25;
-        if (want - Fl < tRel) {                      // 공이 그렇게 빨리 못 간다 — 주자를 늦춘다
+        if (tRel + Fl > rA - 0.25) {
           const slow = (tRel + Fl + 0.25 - runStart) / (rA - runStart);
           clips.set(tg.a, { speedMul: 1 / Math.max(1, slow) });
-          want = tRel + Fl;
         }
-        tRel = Math.max(tRel, want - Fl);
       } else {
         // 아무도 안 잡힌다. 살아 들어가는 주자보다 공이 늦게 온다.
         const rA = Math.max(...adv.filter(a => a.t >= 1).map(runnerArr), tRel + Fl);
