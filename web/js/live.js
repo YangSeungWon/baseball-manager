@@ -33,6 +33,12 @@ const IC = {
   shift: '<path d="M3 10h14M13 6l4 4-4 4" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
   swing: '<path d="M4 15l9-9M12 5l3 3" fill="none" stroke-width="2.2" stroke-linecap="round"/>',
   glove: '<path d="M6 16c-2 0-3-2-3-5V7a1.5 1.5 0 013 0v3M9 10V5a1.5 1.5 0 013 0v5M12 10V6a1.5 1.5 0 013 0v5c0 3-2 5-5 5H6" fill="none" stroke-width="1.7" stroke-linecap="round"/>',
+  owner: '<circle cx="10" cy="7" r="3.2"/><path d="M4 17c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5z"/><path d="M6.5 3l2 1.5L10 2l1.5 2.5 2-1.5-.8 3.2H7.3z"/>',
+  park:  '<path d="M2 12a8 8 0 0116 0v4H2z" fill="none" stroke-width="1.8"/><path d="M6 16v-3M10 16v-4M14 16v-3" stroke-width="1.6" stroke-linecap="round"/><path d="M4 9h12" stroke-width="1.2"/>',
+  won:   '<circle cx="10" cy="10" r="7.5" fill="none" stroke-width="1.8"/><path d="M6 7l1.6 6 2.4-6 2.4 6L14 7M5.5 10h9M5.5 12h9" fill="none" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+  trophy:'<path d="M6 3h8v4a4 4 0 01-8 0z"/><path d="M6 4H3v2a3 3 0 003 3M14 4h3v2a3 3 0 01-3 3" fill="none" stroke-width="1.5"/><path d="M8.5 11h3v3h2v2h-7v-2h2z"/>',
+  star:  '<path d="M10 2.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2L10 14.3l-4.6 2.5.9-5.2L2.5 8l5.2-.7z"/>',
+  bolt:  '<path d="M11 2L4 11h5l-1 7 7-9h-5z"/>',
 };
 const ic = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">${IC[k]}</svg>`;
 export { ic as icon };

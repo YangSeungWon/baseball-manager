@@ -7,7 +7,7 @@ import * as save from './save.js';
 import * as card from './share.js';
 import * as BIP from './core/bip.js';
 import { PITCH } from './core/pitch.js';
-import { LiveView } from './live.js';
+import { LiveView, icon } from './live.js';
 
 const KEY = 'dugout.save.v1';
 /* 경기는 공 하나하나 본다. 축구는 하이라이트로 봐도 되지만 야구는 투구 하나가
@@ -302,22 +302,33 @@ async function boot() {
   $('#bootYear').textContent = year;
   $('#listLabel').textContent = `${year - 1} 최종 순위`;
   drawBracket();
-  // 작년 순위대로 세운다. 순위표를 보는 것과 같은 순서여야 읽힌다.
+  // 최종 순위는 포스트시즌이 정한다. 우승 1위, 준우승 2위, PO 탈락 3위, 준PO 4위, 와일드카드 5위.
+  // 그 아래는 정규시즌 순서.
+  const ps = bootGame.lastPostseason().rounds || [];
+  const finalRank = new Map();
+  if (ps.length >= 4) {
+    const [wc, sp, pl, ks] = ps;
+    [[ks.winner, 1], [ks.loser, 2], [pl.loser, 3], [sp.loser, 4], [wc.loser, 5]].forEach(([n, r]) => { if (n) finalRank.set(n, r); });
+  }
   const list = bootGame.teamList()
     .map(t => ({ t, d: bootGame.teamDossier(t.id) }))
-    .sort((a, b) => a.d.last.rank - b.d.last.rank);
+    .map(x => ({ ...x, fr: finalRank.get(x.d.name) || null }))
+    .sort((a, b) => (a.fr || 100 + a.d.last.rank) - (b.fr || 100 + b.d.last.rank));
+  list.forEach((x, i) => { x.rank = i + 1; });
   bootSel = list[0].t.id;
   const wrap = $('#teamPick');
   wrap.innerHTML = '';
-  list.forEach(({ t, d }) => {
+  list.forEach((x) => {
+    const { t, d } = x;
     const col = capOf(d.name).color;
     const b = el('button', 'trow');
     b.style.setProperty('--tc', col);
     b.style.setProperty('--tcfg', onColor(col));
     b.setAttribute('aria-pressed', String(t.id === bootSel));
-    b.innerHTML = `<span class="tpos">${d.last.rank}</span>
-      ${cap(d.name, 40)}
-      <span><span class="tname">${esc(d.name)}</span>
+    const tag = x.fr === 1 ? '우승' : x.fr === 2 ? '준우승' : '';
+    b.innerHTML = `<span class="tpos">${x.rank}</span>
+      ${cap(d.name, 34)}
+      <span class="tmain"><span class="tname">${esc(short(d.name))}${tag ? `<em class="ttag">${tag}</em>` : ''}</span>
         <span class="tarch">${esc(d.archetype)}</span></span>
       <span class="tdl d${d.difficulty}">${esc(d.difficultyLabel)}</span>`;
     b.onclick = () => {
@@ -400,7 +411,7 @@ function drawDossier() {
         <span class="chip d${d.difficulty}">${esc(d.difficultyLabel)}</span></div>
       <p class="headline">${esc(d.headline)}</p>
       ${d.story ? `<p class="story">${d.story.split('\n').map(esc).join('<br>')}</p>` : ''}
-      <p class="dlast">${bootGame.state().year - 1} 시즌 <b>${d.last.rank}위</b>
+      <p class="dlast">${bootGame.state().year - 1} 정규시즌 <b>${d.last.rank}위</b>
         <span>${d.last.w}승 ${d.last.l}패${d.last.d ? ` ${d.last.d}무` : ''}</span>
         ${d.lastRank ? `<em>득점 ${d.lastRank.rs}위 · 실점 ${d.lastRank.ra}위</em>` : ''}</p>
     </div>
@@ -421,53 +432,43 @@ function drawDossier() {
         ${d.risk.rows.length ? `<div class="riskline">${
           d.risk.rows.map(x => `<span class="s${x.s}">${x.k}<b>${x.v}</b></span>`).join('')}</div>` : ''}
 
-      <div class="dsec">
-        <div class="lab">스카우트 리포트</div>
-        <div class="scout">
-          <div class="axlegend"><span><b class="cur"></b>현재</span>
-            <span><b class="pot"></b>잠재력</span></div>
-          <div class="scoutkey"><span class="axscale">${
-            SCALE.map(x => `<i>${x}</i>`).join('')}</span><span></span></div>
-          <div class="sp-group">주축</div>
-          ${d.key.map(scoutRow).join('')}
-          ${d.prospect.length ? '<div class="sp-group">유망주</div>'
-            + d.prospect.map(scoutRow).join('') : ''}
+      <div class="dtiles">
+        <div class="dtile ${d.ownerLine.urgent ? 'urgent' : ''}">
+          ${icon('owner')}
+          <b>${esc(d.ownerLine.demand)}</b>
+          <div class="meter"><i style="width:${Math.max(4, Math.min(100, d.patience))}%"></i><span>인내 ${d.patience}</span></div>
+          <p>“${esc(d.ownerLine.ask)}”</p>
+        </div>
+        ${d.park && d.park.name ? `<div class="dtile">
+          ${icon('park')}
+          <b>${esc(d.park.name)}</b>
+          <div class="meter"><i style="width:${Math.min(100, d.park.rate || 0)}%"></i><span>${d.park.rate ? `관중 ${d.park.rate}%` : `${d.park.capacity.toLocaleString()}석`}</span></div>
+          <p>${d.park.opened} 개장 · ${d.park.capacity.toLocaleString()}석${d.park.avg ? ` · 평균 ${d.park.avg.toLocaleString()}명` : ''}</p>
+        </div>` : ''}
+        <div class="dtile">
+          ${icon('won')}
+          <b><span class="m">${d.payroll}</span>억 <small>/ ${d.budget}억</small></b>
+          <div class="meter ${payCls}"><i style="width:${Math.min(100, pay)}%"></i><span>소진 ${pay}%</span></div>
+          <p>${d.room > 0 ? `여유 ${d.room}억` : `초과 ${Math.abs(d.room)}억`}</p>
         </div>
       </div>
 
-      <div class="dsec">
-        <div class="lab">구단주</div>
-        <div class="owner ${d.ownerLine.urgent ? 'urgent' : ''}">
-          <span class="odemand">${esc(d.ownerLine.demand)}</span>
-          <span class="otemper">인내심 ${esc(d.ownerLine.temper.replace('인내심 ', ''))}</span>
-          <span class="oask">“${esc(d.ownerLine.ask)}”</span></div>
+      <div class="scout">
+        <div class="scouthead">
+          <div class="axlegend"><span><b class="cur"></b>현재</span><span><b class="pot"></b>잠재력</span></div>
+          <div class="scoutkey"><span class="axscale">${SCALE.map(x => `<i>${x}</i>`).join('')}</span><span></span></div>
+        </div>
+        <div class="sp-group">주축</div>
+        ${d.key.map(scoutRow).join('')}
+        ${d.prospect.length ? '<div class="sp-group">유망주</div>' + d.prospect.map(scoutRow).join('') : ''}
       </div>
 
-      ${d.park && d.park.name ? `<div class="dsec">
-        <div class="lab">홈 구장</div>
-        <div class="parkrow">
-          <span class="pkname">${esc(d.park.name)}
-            <span>${d.park.opened} 개장 · ${d.park.capacity.toLocaleString()}석</span></span>
-          ${d.park.avg ? `<span class="pkatt"><b>${d.park.avg.toLocaleString()}</b>
-            <span>평균 관중 · 수용 ${d.park.rate}%</span></span>` : ''}
-        </div>
-        ${d.park.rate ? `<div class="paybar"><i style="width:${Math.min(100, d.park.rate)}%"></i></div>` : ''}
+      ${H ? `<div class="dhistory">
+        <span class="trophies">${H.titles ? Array.from({ length: Math.min(H.titles, 8) }, () => icon('trophy')).join('') + (H.titles > 8 ? `<i>+${H.titles - 8}</i>` : '') : '<i>우승 없음</i>'}</span>
+        <span class="htext">${H.titles ? `우승 ${H.titles}회${H.lastTitle ? ` · 최근 ${H.lastTitle}` : ''}` : ''}</span>
+        ${H.legend ? `<span class="legend"><span class="lnum">${H.legend.number}</span>
+          <span><b>${esc(H.legend.name)}</b><span class="sub">${H.legend.from}–${H.legend.to} · ${esc(H.legend.line)}</span></span></span>` : ''}
       </div>` : ''}
-
-      <div class="dsec">
-        <div class="lab">운영 예산</div>
-        <div class="payline"><span>연봉으로 ${d.payroll}억 / ${d.budget}억</span><b>${pay}%</b></div>
-        <div class="paybar ${payCls}"><i style="width:${Math.min(100, pay)}%"></i></div>
-      </div>
-
-      ${H && H.legend ? `<div class="dsec">
-        <div class="lab">구단 역사</div>
-        <p class="dhist">우승 ${H.titles}회${H.lastTitle ? ` · 최근 ${H.lastTitle}년` : ''}</p>
-        <div class="legend">
-          <span class="lnum">${H.legend.number}</span>
-          <span><b>${esc(H.legend.name)}</b>
-            <span class="sub">${H.legend.from}–${H.legend.to} · ${esc(H.legend.line)}</span></span>
-        </div></div>` : ''}
 
     </div>
     <div class="dstart">

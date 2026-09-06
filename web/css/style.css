@@ -89,7 +89,7 @@ input:focus{outline:0;border-color:var(--accent)}
 .boot-head h1 em{font-style:normal;color:var(--accent);margin-left:6px;letter-spacing:.04em}
 .boot-head .goal{font-size:22px;font-weight:700;margin:0 0 10px;color:var(--fg2);
   border-left:1px solid var(--line);padding-left:12px;line-height:1.1}
-.boot-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(400px,1fr);
+.boot-main{display:grid;grid-template-columns:minmax(330px,.66fr) minmax(480px,1.34fr);
   gap:clamp(12px,1.6vw,20px);flex:1;min-height:0}
 @media(max-width:1020px){
   .boot{height:auto;min-height:100vh;overflow:visible}
@@ -100,8 +100,8 @@ input:focus{outline:0;border-color:var(--accent)}
 /* 구단 목록 — 선 대신 면으로 나눈다 */
 .teamlist{display:flex;flex-direction:column;gap:0;
   background:var(--s1);border-radius:2px;overflow:hidden}
-.trow{display:grid;grid-template-columns:28px 40px minmax(0,1fr) auto;gap:12px;
-  align-items:center;width:100%;padding:8px 13px 8px 10px;border:0;border-radius:0;
+.trow{display:grid;grid-template-columns:24px 34px minmax(0,1fr) auto;gap:10px;
+  align-items:center;width:100%;padding:7px 10px 7px 8px;border:0;border-radius:0;
   background:transparent;border-left:4px solid transparent;text-align:left;
   border-bottom:1px solid var(--line2);
   font-family:var(--kr);font-size:16px;color:var(--fg);cursor:pointer}
@@ -159,7 +159,8 @@ input:focus{outline:0;border-color:var(--accent)}
   padding:7px 9px;color:var(--tcfg,#0a1219);font-weight:700;font-size:14px;min-height:30px}
 .bchamp b{margin-left:auto;font-family:var(--mono);font-size:14px;opacity:.8}
 .bchamp .cap{box-shadow:0 0 0 1.5px rgba(255,255,255,.5);border-radius:50%}
-@media(max-width:1200px){
+/* 왼쪽 칸이 좁아졌다. 사다리는 1500px 위에서만, 그 아래는 세 칸으로 접는다 */
+@media(max-width:1500px){
   .brk{grid-template-columns:repeat(3,1fr);gap:14px 12px}
   .brd{padding-top:0 !important}
   .bmatch::after,.bmatch::before{display:none !important}
@@ -1551,3 +1552,32 @@ button .ic+span{margin-left:6px}
 .lv-flash.score.on{animation:lvInn 2.6s ease forwards}
 
 .fullname{font-size:14px;font-weight:500;color:var(--fg2);margin-left:8px}
+
+/* ── 구단 선택 — 라벨 대신 아이콘과 칸 ── */
+.ttag{font-style:normal;font-size:14px;color:#ffd45e;margin-left:6px;font-weight:700}
+.tmain{display:flex;flex-direction:column;min-width:0}
+.tmain .tname{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.dtile{background:var(--s1);border-radius:2px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.dtile .ic{width:22px;height:22px;color:var(--fg2)}
+.dtile>b{font-size:16px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtile>b small{font-size:14px;color:var(--fg2);font-weight:500}
+.dtile p{margin:0;font-size:14px;color:var(--fg2);line-height:1.45}
+.dtile.urgent>b{color:var(--neg)}
+.meter{position:relative;height:8px;background:var(--s3);border-radius:2px;margin:2px 0 4px}
+.meter i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:2px}
+.meter.tight i{background:#e0a03c} .meter.over i{background:var(--neg)}
+.meter span{position:absolute;right:0;top:11px;font-size:14px;color:var(--fg2);font-family:var(--mono)}
+.meter{margin-bottom:22px}
+.scout{margin-top:18px}
+.scouthead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.dhistory{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:18px;padding-top:14px;border-top:1px solid var(--line2)}
+.trophies{display:flex;gap:2px;align-items:center;color:#ffd45e}
+.trophies .ic{width:18px;height:18px} .trophies i{font-style:normal;font-size:14px;color:var(--fg2);margin-left:4px}
+.htext{font-size:14px;color:var(--fg2)}
+.dhistory .legend{margin-left:auto}
+@media(max-width:760px){.dtiles{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.dtiles{grid-template-columns:1fr}}
+
+.scouthead{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;margin-bottom:6px}
+.scouthead .scoutkey{margin-left:49px;grid-template-columns:1fr 58px}
