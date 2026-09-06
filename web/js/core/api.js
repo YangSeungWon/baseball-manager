@@ -1017,7 +1017,8 @@ export class Game {
     const side = (S) => ({ team:S.team.name, runs:S.runs, hits:S.hits, line:S.line,
       err:S.errors || 0,
       pitchers: S.pitchers.map(pl => ({ name:pl.p.name, ip:`${Math.floor(pl.outs/3)}.${pl.outs%3}`,
-        h:pl.h, r:pl.r, k:pl.k, bb:pl.bb, dec: pl.w?'승':pl.l?'패':pl.sv?'세':'' })),
+        h:pl.h, r:pl.r, k:pl.k, bb:pl.bb, np:pl.np, inn:pl.entered_inning || 1,
+        dec: pl.w?'승':pl.l?'패':pl.sv?'세':pl.hld?'홀':'' })),
       batters: S.team.lineup.filter(b => S.bat.has(b.pid)).map(b => {
         const L = S.bat.get(b.pid);
         return { name:b.name, slot:b.position, ab:L.ab, h:L.h, hr:L.hr, rbi:L.rbi, bb:L.bb, k:L.k };

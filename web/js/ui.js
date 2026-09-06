@@ -510,7 +510,7 @@ function renderTop() {
     case 'preseason': btn('시즌 시작', () => act(() => G.startSeason()), 'primary'); break;
     case 'regular':
       btn('다음 날', () => nextDay(), 'primary');
-      btn('7일', () => act(() => report(G.advance(7))));
+      btn('이번 주는 맡긴다', () => act(() => weekReport(G.advance(7))));
       btn('끝까지', () => act(() => report(G.simToEnd())));
       break;
     case 'postseason': btn('포스트시즌', () => act(() => modalPost(G.runPostseason())), 'primary'); break;
@@ -611,6 +611,82 @@ function gsResult(box, onDone) {
   document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };
   const nx = document.getElementById('gsNext');
   if (nx) nx.onclick = () => { closeGame(); if (onDone) onDone(); nextDay(); };
+}
+
+/* ── 주간 보고 ─────────────────────────────────────────────
+   일주일을 감독에게 맡겼다. 단장은 결과와 함께 감독이 무슨 손을 썼는지,
+   왜 이겼고 왜 졌는지를 받는다. 경기 기록에서 뽑는다 — 감독은 따로 말하지 않는다. */
+function decisionsOf(box, mine) {
+  const P = box.plays || [], out = [];
+  const myHalf = mine === 'home' ? 'bottom' : 'top';        // 내 팀이 공격하는 반이닝
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i], inn = `${p.inning}${p.half === 'top' ? '초' : '말'}`;
+    const off = p.half === myHalf;                             // 이 플레이에서 내 팀이 공격인가
+    const next = P.slice(i + 1).find(x => x.res);
+    if (p.sub && /대타/.test(p.desc) && off)
+      out.push({ inn, what: p.desc, then: next ? `→ ${next.desc}` : '' });
+    else if (p.sub && /투수 교체/.test(p.desc) && !off) {
+      const name = p.desc.replace('투수 교체 — ', '');
+      const side = mine === 'home' ? box.home : box.away;
+      const pl = side.pitchers.find(x => x.name === name);
+      out.push({ inn, what: p.desc, then: pl ? `→ ${pl.ip}이닝 ${pl.r}실점${pl.dec ? ' · ' + pl.dec : ''}` : '' });
+    }
+    else if (p.bunt && off) out.push({ inn, what: '번트 지시', then: `→ ${p.desc}` });
+    else if (p.ibb && !off) out.push({ inn, what: `고의사구 ${p.batter}`, then: next ? `→ ${next.batter} ${next.desc}` : '' });
+    else if (p.steal && off) out.push({ inn, what: '도루 시도', then: `→ ${p.desc}` });
+  }
+  return out;
+}
+/** 승부를 가른 장면. 마지막으로 앞서 나간 플레이, 또는 가장 많이 내준 반이닝. */
+function whyOf(box, mine, won) {
+  const P = box.plays || [];
+  const myHalf = mine === 'home' ? 'bottom' : 'top';
+  if (won) {
+    let go = null, myR = 0, opR = 0;
+    for (const p of P) {
+      if (!p.res && !p.runs) continue;
+      const before = myR - opR;
+      if (p.half === myHalf) myR += p.runs || 0; else opR += p.runs || 0;
+      if (before <= 0 && myR - opR > 0 && p.runs) go = p;
+    }
+    return go ? `${go.inning}${go.half === 'top' ? '초' : '말'} ${go.batter} ${go.desc}로 앞서 나갔다` : '끝까지 지켰다';
+  }
+  const by = new Map();
+  for (const p of P) if (p.half !== myHalf && p.runs) {
+    const k = `${p.inning}${p.half === 'top' ? '초' : '말'}`;
+    const v = by.get(k) || { r: 0, pit: p.pitcher }; v.r += p.runs; by.set(k, v);
+  }
+  const worst = [...by.entries()].sort((a, b) => b[1].r - a[1].r)[0];
+  return worst ? `${worst[0]} ${worst[1].pit} 가 ${worst[1].r}점을 내줬다` : '점수를 못 냈다';
+}
+function weekReport(r) {
+  reportNotices();
+  const games = (r && r.games) || [];
+  if (!games.length) return;
+  const last = games.filter(g => g.box).pop(); if (last) lastBox = last.box;
+  const me = G.state().user_team.name;
+  const w = games.filter(g => g.result === '승').length, l = games.filter(g => g.result === '패').length;
+  const rows = games.map(g => {
+    if (!g.box) return `<div class="wk-g rain"><span class="m">${g.day}일</span><b>${esc(short(g.opponent))}</b><span>${g.result}</span></div>`;
+    const mine = g.box.home.team === me ? 'home' : 'away';
+    const won = g.result === '승';
+    const dec = decisionsOf(g.box, mine);
+    return `<div class="wk-g ${won ? 'w' : g.result === '패' ? 'l' : ''}">
+      <div class="wk-head"><span class="m">${g.day}일</span><b>${mine === 'home' ? '' : '@'}${esc(short(g.opponent))}</b>
+        <em class="m">${g.score}</em><i>${g.result}</i></div>
+      <div class="wk-why">${esc(whyOf(g.box, mine, won))}</div>
+      ${dec.length ? `<div class="wk-dec">${dec.map(d => `<div><span class="m">${d.inn}</span>${esc(d.what)} <span class="then">${esc(d.then)}</span></div>`).join('')}</div>`
+                   : '<div class="wk-dec dim">감독이 손을 쓰지 않았다</div>'}
+    </div>`;
+  }).join('');
+  modal(`<div class="wk">
+    <div class="wk-top"><b>이번 주</b><span class="m">${w}승 ${l}패${games.length - w - l ? ` ${games.length - w - l}무` : ''}</span>
+      <span class="wk-note">감독에게 맡긴 ${games.length}경기. 감독이 쓴 손과 승부처.</span></div>
+    ${rows}
+    <div class="hl-btn"><button class="go" id="wkOk">확인</button>${last ? '<button class="quiet" id="wkLast">마지막 경기 다시 보기</button>' : ''}</div>
+  </div>`);
+  document.getElementById('wkOk').onclick = closeModal;
+  const wl = document.getElementById('wkLast'); if (wl) wl.onclick = () => { closeModal(); openReplay(last.box); };
 }
 
 /** 여러 날을 넘긴 뒤. 결과는 토스트로, 마지막 경기는 다시 볼 수 있게. */
