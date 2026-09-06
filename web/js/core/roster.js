@@ -6,7 +6,7 @@ import { personName, teamNames, franchiseOf } from './names.js';
 const RHO = 0.55;
 // 노화를 거친 뒤 리그 평균이 50(타석 엔진 기준선)에 오도록 하는 보정
 export const CALIB = { contact:1.7, avoid_k:2.7, discipline:2.8, gap_power:3.3,
-  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, reaction:6.2, positioning:1.0,
+  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, reaction:4.8, positioning:2.8,
   stuff:2.0, command:2.5, movement:3.7, stamina:7.9, velo:3.0 };
 const YOUTH_GAP = { contact:1.00, avoid_k:0.90, discipline:1.30, gap_power:1.20,
   hr_power:1.40, speed:0.35, fielding:0.80, arm:0.70, reaction:0.40, positioning:1.35,

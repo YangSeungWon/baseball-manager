@@ -263,8 +263,9 @@ export class Season {
       const fill = attendRate(home0.finance, wp0,
         home0.lastPlayoff || false, home0.lastTitle || false, this.rng);
       const crowd = Math.round(cap0 * fill);
-      const mine = watch != null &&
-        (this.teams[hi].team_id === watch || this.teams[ai].team_id === watch);
+      const watchId = watch != null && typeof watch === 'object' ? watch.team : watch;
+      const mine = watchId != null &&
+        (this.teams[hi].team_id === watchId || this.teams[ai].team_id === watchId);
       // 지켜보는 경기면 먼저 구장과 관중부터 보여 준다.
       if (mine) yield { play: { evt: 'start', home: this.teams[hi].name, away: this.teams[ai].name,
                                 park: home0.park, crowd, cap: cap0, dh: !!dh } };

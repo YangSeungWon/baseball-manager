@@ -2160,7 +2160,8 @@ function watchDay() {
         openGameShell(p.away, p.home, p.park, p.crowd, p.cap);
         const host = gsBody('');
         lv = mountLive(host, { ...liveOpts(p.home, p.away, p.park, p.crowd, p.cap),
-          onLog: logSink(seen, () => lv), onEnd: bail });
+          onLog: logSink(seen, () => lv), onEnd: bail,
+          command: w.command, cancel: w.cancel });          // 감독 패널 — 다음 타석 전에 엔진이 꺼내 쓴다
         const x = document.getElementById('gsX'); if (x) x.onclick = bail;
         $('#modal').onclick = (e) => { if (e.target.id === 'modal') bail(); };
         document.onkeydown = (e) => { if (e.key === 'Escape') bail(); };

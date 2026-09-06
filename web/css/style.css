@@ -1380,3 +1380,57 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .lv-bug-cnt{gap:7px} .lv-bug-cnt .bso i{width:7px;height:7px}
   .lv-tools{top:auto;bottom:6px;right:6px}
 }
+
+/* ── 구장 위 패널 — 왼쪽 아래 투타, 오른쪽 아래 감독. 폰에서는 구장 아래로 내려온다 ── */
+.lv-panel{position:absolute;bottom:10px;width:292px;max-height:58%;overflow-y:auto;
+  background:rgba(8,13,19,.86);border-radius:3px;padding:10px 12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.35);display:flex;flex-direction:column;gap:8px}
+.lv-pl{left:10px}
+.lv-mgr{right:10px;width:260px}
+.lv-cap{left:50%;bottom:10px;transform:translateX(-50%);max-width:min(40%,360px);text-align:center;align-items:center}
+.lv-panel .lv-who{gap:1px 6px}
+.lv-panel .lv-who>b{font-size:16px}
+.lv-panel .lv-who.bat{padding-top:8px;border-top:1px solid rgba(255,255,255,.08)}
+.lv-panel .lv-pitch em{font-size:13px} .lv-panel .lv-pitch span{font-size:16px}
+.lv-panel .lv-today{font-size:12px}
+.lv-panel .pzbox{padding:6px 0 0;background:transparent;border-top:1px solid rgba(255,255,255,.08);border-radius:0}
+.lv-panel .pz{width:96px;height:90px}
+.lv-panel .pzrow{font-size:11px}
+/* 스코어버그 아랫줄 — 투수 · 투구수, 타자 · 오늘 */
+.lv-bug{flex-direction:column;align-items:stretch}
+.lv-bug-top{display:flex;align-items:stretch}
+.lv-bug-strip{display:flex;gap:14px;padding:5px 12px;border-top:1px solid rgba(255,255,255,.09);
+  font-size:12px;color:var(--fg2);white-space:nowrap}
+.lv-bug-strip span{display:flex;align-items:baseline;gap:5px;min-width:0}
+.lv-bug-strip u{text-decoration:none;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--fg3)}
+.lv-bug-strip b{color:var(--fg);font-weight:700}
+.lv-bug-strip i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--fg3)}
+/* 공수 교대 — 한가운데 크게 */
+.lv-flash.inn{color:#fff;font-size:44px;display:flex;flex-direction:column;align-items:center;gap:4px;
+  background:rgba(8,13,19,.72);padding:18px 34px;border-radius:4px;border-left:4px solid var(--accent)}
+.lv-flash.inn small{font-size:15px;font-weight:600;color:var(--fg2);letter-spacing:0}
+.lv-flash.inn.on{animation:lvInn 3.4s ease forwards}
+@keyframes lvInn{0%{opacity:0;transform:translate(-50%,-50%) scale(.96)}8%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  85%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%)}}
+/* 감독 패널 */
+.lv-mgr-h{font-size:12px;font-weight:700;color:var(--fg3);letter-spacing:.04em}
+.lv-mgr-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.lv-mgr-row button{padding:7px 10px;font-size:13px}
+.lv-mgr-row button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.lv-shift button{padding:4px 7px;font-size:12px}
+.lv-shift .lab{margin-right:2px}
+.lv-mgr-list{display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto}
+.lv-mgr-list button{text-align:left;padding:6px 10px;font-size:13px;display:flex;justify-content:space-between}
+.lv-mgr-list button i{font-style:normal;color:var(--fg3);font-size:11px}
+.lv-mgr-cur{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg2)}
+.lv-mgr-cur b{color:var(--fg)}
+.lv-mgr-cur .lv-tired{flex:1}
+.lv-pend{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;
+  color:#ffd45e;background:rgba(255,212,94,.08);border-radius:2px;padding:4px 8px}
+.lv-pend button{padding:2px 8px;font-size:11px}
+@media(max-width:900px){
+  .lv-main>.lv-panel{position:static;width:auto;max-height:none;border-radius:2px;box-shadow:none;background:var(--s1)}
+  .lv-cap{left:6px;transform:none;max-width:80%;text-align:left;align-items:flex-start}
+  .lv-flash.inn{font-size:30px;padding:12px 22px}
+  .lv-bug-strip{gap:8px;padding:4px 8px;font-size:11px}
+}

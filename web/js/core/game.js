@@ -476,7 +476,7 @@ function trySteal(bases, outs, off, defn, rng) {
   // ABS 아래에서 포수의 값어치는 프레이밍이 아니라 어깨와 블로킹으로 간다.
   const c = defn && defn.byPos ? defn.byPos.C : null;
   const za = z(c ? (c.arm ?? c.fielding) : 50);
-  if (rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
+  if (!off.forceSteal && rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
       + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return [0, null];
   // 성공은 시간이 정한다 — 투구 시간, 포수의 팝, 송구, 주자의 발.
   const race = RUNT.stealRace(r1, c, pit && pit.p ? kmhOf(pit.p) : 142, rng);
@@ -555,7 +555,32 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     off: off.team.name, def: defn.team.name,
     pos: Object.fromEntries(['C','1B','2B','3B','SS','LF','CF','RF']
       .map(k => [k, defn.byPos[k] ? defn.byPos[k].name : null])
-      .concat([['P', defn.cur ? defn.cur.p.name : null]])) });
+      .concat([['P', defn.cur ? defn.cur.p.name : null]])),
+    // 감독 패널이 쓴다. 내가 공격이면 벤치, 수비면 불펜.
+    mine: ask ? (ask.team === off.team.team_id ? 'off' : 'def') : null,
+    bench: off.bench.map(b => ({ pid: b.pid, name: b.name, slot: b.position })),
+    pen: defn.bullpenLeft.map(p => ({ pid: p.pid, name: p.name, slot: R.PEN_LABEL[p.pen_role] || '불펜' })),
+    cur: defn.cur ? { name: defn.cur.p.name, np: defn.cur.np, tired: Math.round((defn.cur.fatigue || 0) * 100) } : null,
+    shift: tac(defn.team, 'shift') });
+  // 감독의 명령. 한 번 꺼내면 사라진다.
+  const cmd = (kind, side) => {
+    const a = side === 'off' ? askOff : askDef;
+    if (!a || !a.cmds) return null;
+    const i = a.cmds.findIndex(c => c.kind === kind);
+    return i >= 0 ? a.cmds.splice(i, 1)[0] : null;
+  };
+  const changePitcher = function* (pid) {
+    const i = defn.bullpenLeft.findIndex(p => p.pid === pid);
+    if (i < 0) return false;
+    const nx = defn.bullpenLeft.splice(i, 1)[0];
+    defn.pitchers.push(pitLine(nx));
+    defn.cur.entered_inning = inning; defn.cur.entered_lead = defn.runs - off.runs;
+    defn.cur.cold = outs > 0 ? 1 : 0;
+    yield* emit({ ...common(), batter: off.order[off.spot].name,
+      desc: `투수 교체 — ${nx.name}`, runs: 0, pitcher: nx.name, sub: true });
+    if (live) yield { play: sideRec() };
+    return true;
+  };
   if (live) yield { play: sideRec() };
   let before, batter0;
   const begin = () => { before = bases.r.slice(); scoredNow = []; };
@@ -580,7 +605,9 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     }
     if (outs >= 3) break;
     begin();
+    if (cmd('steal', 'off')) off.forceSteal = true;
     const [stOut, st] = trySteal(bases, outs, off, defn, rng);
+    off.forceSteal = false;
     if (st) {
       outs += stOut;
       yield* emit({ ...common(), batter: off.order[off.spot].name,
@@ -588,8 +615,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     }
     if (outs >= 3) break;
 
+    // 감독의 명령 — 투수 교체 · 시프트 (수비), 대타 · 번트 · 고의사구는 아래에서.
+    { const c = cmd('hook', 'def'); if (c && c.pid) yield* changePitcher(c.pid); }
+    { const c = cmd('shift', 'def'); if (c && c.dial != null) defn.shiftDial = Math.max(0, Math.min(4, c.dial | 0)); }
     // 대타. 한 번 나가면 원래 타자는 그날 끝이다.
     let ph = tryPinch(off, defn, inning, outs, bases, rng);
+    { const c = cmd('pinch', 'off'); if (c && c.pid) ph = off.bench.find(b => b.pid === c.pid) || ph; }
     if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
         && off.bench.length && (bases.r[0] || bases.r[1] || bases.r[2])) {
       const up = off.order[off.spot], cand = off.bench.slice(0, 3);
@@ -611,6 +642,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
 
     // 희생번트 (또는 시프트를 뚫는 기습번트)
     let buntKind = tryBunt(bases, outs, off, defn, inning, rng);
+    if (cmd('bunt', 'off') && outs < 2 && (bases.r[0] || bases.r[1])) buntKind = 'sac';
     if (askOff && askOff.left > 0 && lateClose(inning, off, defn)
         && outs < 2 && bases.r[0] && !bases.r[2]) {
       askOff.left--;
@@ -669,20 +701,13 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
           options: cands.map(p => ({ pid: p.pid, name: p.name,
             slot: R.PEN_LABEL[p.pen_role] || '불펜' })) });
       if (pick && pick.pid) {
-        const i = defn.bullpenLeft.findIndex(p => p.pid === pick.pid);
-        if (i >= 0) {
-          const nx = defn.bullpenLeft.splice(i, 1)[0];
-          defn.pitchers.push(pitLine(nx));
-          defn.cur.entered_inning = inning;
-          yield* emit({ ...common(), batter: off.order[off.spot].name,
-            desc: `투수 교체 — ${nx.name}`, runs: 0, pitcher: nx.name, sub: true });
-          if (live) yield { play: sideRec() };
-        }
+        yield* changePitcher(pick.pid);
       }
     }
 
     // 고의사구 — 이건 수비하는 쪽의 결정이다
     let ibb = tryIbb(bases, outs, off, defn, rng);
+    if (cmd('ibb', 'def')) ibb = true;
     if (askDef && askDef.left > 0 && lateClose(inning, off, defn)
         && !bases.r[0] && (bases.r[1] || bases.r[2]) && outs < 2) {
       askDef.left--;
@@ -729,7 +754,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                     balk: true, adv: adv(null) });
     }
     // 수비 시프트. 이 타자에게 얼마나 옮겨 설 것인가.
-    const shift = BIP.shiftDeg(batter, tac(defn.team, 'shift'));
+    const shift = BIP.shiftDeg(batter, defn.shiftDial ?? tac(defn.team, 'shift'));
     // 승부처. 득점권에서 사람은 저마다 다르게 흔들린다.
     // 효과는 작다. 한 시즌 기록으로는 알 수 없고, 몇 해가 쌓여야 겨우 보인다.
     const risp = !!(bases.r[1] || bases.r[2]);
@@ -895,7 +920,10 @@ export function* playGameGen(home, away, rng, maxInnings = 11, watch = null, fil
   const H = new TeamGameState(home), A = new TeamGameState(away);
   H.half = 'bottom'; A.half = 'top';
   H.venue = 'H'; A.venue = 'A';
-  const ask = watch == null ? null : { team: watch, left: CLUTCH_MAX };
+  // watch 가 객체면 지켜보는 쪽이 명령(cmds)을 넣을 수 있다 — 대타 · 번트 · 도루 · 투수 교체 · 고의사구 · 시프트.
+  const ask = watch == null ? null
+    : (typeof watch === 'object' ? Object.assign(watch, { left: watch.left ?? CLUTCH_MAX, cmds: watch.cmds || [] })
+                                  : { team: watch, left: CLUTCH_MAX, cmds: [] });
   let inning = 1;
   const plays = [];
   for (;;) {

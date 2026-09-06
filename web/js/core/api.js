@@ -954,10 +954,14 @@ export class Game {
    *  play 에 답을 보낼 필요는 없다 — 무시된다. */
   watchDay() {
     if (this.phase !== REGULAR) return { error:'wrong_phase' };
-    const it = this.advanceGen(1, this.userId);
+    // 지켜보는 쪽. command() 로 넣은 명령은 다음 타석 전에 엔진이 꺼내 쓴다.
+    const w = { team: this.userId, cmds: [] };
+    const it = this.advanceGen(1, w);
     return { step: (answer) => { const r = it.next(answer);
       if (r.done) return { done:true, result:r.value };
-      return r.value && r.value.play ? { play:r.value.play } : { ask:r.value }; } };
+      return r.value && r.value.play ? { play:r.value.play } : { ask:r.value }; },
+      command: (c) => { w.cmds = w.cmds.filter(x => x.kind !== c.kind); w.cmds.push(c); },
+      cancel: (kind) => { w.cmds = w.cmds.filter(x => x.kind !== kind); } };
   }
 
   *advanceGen(days = 1, watch = null) {

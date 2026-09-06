@@ -152,22 +152,46 @@ export class LiveView {
         <div class="lv-stage ${this.view}">
           <canvas class="lv-c"></canvas>
           <div class="lv-bug">
-            <div class="lv-bug-teams">
-              <div class="lv-bug-t" style="--tc:${this.o.colors.away}"><i></i><span>${short(this.o.away)}</span><b data-gs="a">0</b></div>
-              <div class="lv-bug-t" style="--tc:${this.o.colors.home}"><i></i><span>${short(this.o.home)}</span><b data-gs="h">0</b></div>
+            <div class="lv-bug-top">
+              <div class="lv-bug-teams">
+                <div class="lv-bug-t" style="--tc:${this.o.colors.away}"><i></i><span>${short(this.o.away)}</span><b data-gs="a">0</b></div>
+                <div class="lv-bug-t" style="--tc:${this.o.colors.home}"><i></i><span>${short(this.o.home)}</span><b data-gs="h">0</b></div>
+              </div>
+              <div class="lv-bug-sit">
+                <div class="lv-bug-inn"><em data-gs="arr"></em><b data-gs="inn">—</b></div>
+                <svg class="lv-bug-dia" viewBox="0 0 34 34" aria-hidden="true">
+                  <rect data-gs="d2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
+                  <rect data-gs="d3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
+                  <rect data-gs="d1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
+                </svg>
+                <div class="lv-bug-cnt" data-gs="bso"></div>
+              </div>
             </div>
-            <div class="lv-bug-sit">
-              <div class="lv-bug-inn"><em data-gs="arr"></em><b data-gs="inn">—</b></div>
-              <svg class="lv-bug-dia" viewBox="0 0 34 34" aria-hidden="true">
-                <rect data-gs="d2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
-                <rect data-gs="d3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
-                <rect data-gs="d1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
-              </svg>
-              <div class="lv-bug-cnt" data-gs="bso"></div>
+            <div class="lv-bug-strip">
+              <span class="lv-bug-p"><u>P</u><b class="lv-bug-pn">—</b><i class="lv-bug-pc"></i></span>
+              <span class="lv-bug-b"><u>B</u><b class="lv-bug-bn">—</b><i class="lv-bug-bl"></i></span>
             </div>
           </div>
           <div class="lv-cap"><b class="lv-cap-main"></b><span class="lv-cap-sub"></span></div>
           <div class="lv-flash"></div>
+          <div class="lv-panel lv-pl">
+            <div class="lv-who pit"><span class="lab">투수</span>
+              <b class="lv-pn">—</b><i class="lv-ph"></i>
+              <div class="lv-pitch"><em class="lv-pt">—</em><span class="lv-pv"></span></div>
+              <div class="lv-pstat"><span>투구수 <b class="m lv-np">0</b></span>
+                <span>최고 <b class="m lv-vmax">—</b></span>
+                <span class="lv-tired"><i></i></span></div>
+              <svg class="lv-spark" viewBox="0 0 120 28" preserveAspectRatio="none"></svg>
+              <div class="lv-bits lv-pbits"></div>
+            </div>
+            <div class="lv-who bat"><span class="lab">타자</span>
+              <b class="lv-bn">—</b><i class="lv-bh"></i>
+              <div class="lv-today">—</div>
+              <div class="lv-bits lv-bbits"></div>
+            </div>
+            <div class="pzbox lv-zone"><div class="pzempty">투구 없음</div></div>
+          </div>
+          <div class="lv-panel lv-mgr" hidden></div>
           <div class="lv-tools">
             <span class="lv-seg lv-view">
               <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">2.5D</button>
@@ -186,23 +210,6 @@ export class LiveView {
         </div>
       </div>
       <aside class="lv-side">
-        <div class="lv-match">
-          <div class="lv-who pit"><span class="lab">투수</span>
-            <b class="lv-pn">—</b><i class="lv-ph"></i>
-            <div class="lv-pitch"><em class="lv-pt">—</em><span class="lv-pv"></span></div>
-            <div class="lv-pstat"><span>투구수 <b class="m lv-np">0</b></span>
-              <span>최고 <b class="m lv-vmax">—</b></span>
-              <span class="lv-tired"><i></i></span></div>
-            <svg class="lv-spark" viewBox="0 0 120 28" preserveAspectRatio="none"></svg>
-            <div class="lv-bits lv-pbits"></div>
-          </div>
-          <div class="lv-who bat"><span class="lab">타자</span>
-            <b class="lv-bn">—</b><i class="lv-bh"></i>
-            <div class="lv-today">—</div>
-            <div class="lv-bits lv-bbits"></div>
-          </div>
-        </div>
-        <div class="pzbox lv-zone"><div class="pzempty">투구 없음</div></div>
         <div class="rplog lv-log"></div>
       </aside>
     </div>`;
@@ -213,7 +220,10 @@ export class LiveView {
       ask: q('.lv-ask'), pn: q('.lv-pn'), ph: q('.lv-ph'), pt: q('.lv-pt'), pv: q('.lv-pv'),
       np: q('.lv-np'), vmax: q('.lv-vmax'), tired: q('.lv-tired i'), spark: q('.lv-spark'), pbits: q('.lv-pbits'),
       bn: q('.lv-bn'), bh: q('.lv-bh'), today: q('.lv-today'), bbits: q('.lv-bbits'),
-      zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause') };
+      zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause'),
+      bugPn: q('.lv-bug-pn'), bugPc: q('.lv-bug-pc'), bugBn: q('.lv-bug-bn'), bugBl: q('.lv-bug-bl'),
+      mgr: q('.lv-mgr') };
+    this.pending = {};                          // 감독 패널에 걸어 둔 명령
     this.root.querySelectorAll('[data-v]').forEach(b => b.onclick = () => this.setView(b.dataset.v));
     this.root.querySelectorAll('[data-s]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.s));
     q('.lv-skip').onclick = () => this.skip();
@@ -264,6 +274,14 @@ export class LiveView {
     let w = Math.max(200, Math.floor(r.width)), h = Math.round(w / V.aspect());
     if (h > maxH) { h = maxH; w = Math.round(h * V.aspect()); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
+    // 좁은 화면에서는 패널을 구장 밖으로 내린다. 구장 위에 얹으면 필드가 안 보인다.
+    const narrow = window.innerWidth <= 900;
+    if (narrow !== this._narrow) {
+      this._narrow = narrow;
+      const main = this.root.querySelector('.lv-main'), bar = this.root.querySelector('.lv-bar');
+      for (const cls of ['.lv-mgr', '.lv-pl']) { const el = this.root.querySelector(cls); if (!el) continue;
+        if (narrow) main.insertBefore(el, bar.nextSibling); else this.stage.appendChild(el); }
+    }
     // 같은 크기면 손대지 않는다. 캔버스 크기를 다시 쓰면 그림이 지워지고,
     // ResizeObserver 가 매 프레임 부르면 그린 직후마다 지워져 빈 화면이 된다.
     if (this.cw === w && this.ch === h && this.dpr === dpr) return;
@@ -305,29 +323,73 @@ export class LiveView {
   }
 
   /* ── 상태 ── */
-  _side(rec) {
+  /** 더그아웃. 홈은 1루 쪽, 원정은 3루 쪽. 그라운드 밖 파울 지역이다. */
+  _dugout(team) { return team === this.o.home ? [23, -7] : [-23, -7]; }
+  _side(rec, tl = null) {
     const S = this.S;
     const newHalf = S.half !== rec.half || S.inning !== rec.inning;
+    const had = Object.keys(S.fielders).length > 0;
     S.half = rec.half; S.inning = rec.inning; S.def = rec.pos || S.def;
+    if (rec.mine !== undefined) { this.side = rec; this._mgr(); }
+    const prevDef = S.defTeam;
     S.defTeam = rec.def; S.offTeam = rec.off;
     if (newHalf) { S.runners = []; S.outs = 0; S.batter = null;
       const L = this.line; while (L[rec.half].length < rec.inning) L[rec.half].push(0); }
-    // 수비수를 자리에 세운다
-    for (const pos of Object.keys(POS_KR)) {
-      const sp = BIP.fielderSpot(pos, 0);
-      const w = pos === 'C' ? [0, -1.6] : pos === 'P' ? MOUND : W2(sp.angle, sp.depth);
-      S.fielders[pos] = { pos, name: S.def[pos] || null, x: w[0], y: w[1], home: w, alpha: 1 };
+    const spot = (pos) => { const sp = BIP.fielderSpot(pos, 0);
+      return pos === 'C' ? [0, -1.6] : pos === 'P' ? MOUND : W2(sp.angle, sp.depth); };
+    if (!newHalf) {
+      // 같은 이닝. 이름만 바꾼다. 자리는 그대로 (투수 교체 장면이 이미 움직였다).
+      for (const pos of Object.keys(POS_KR)) { if (S.fielders[pos]) S.fielders[pos].name = S.def[pos] || null;
+        else { const w = spot(pos); S.fielders[pos] = { pos, name: S.def[pos] || null, x: w[0], y: w[1], home: w, alpha: 1 }; } }
+    } else if (tl && had && prevDef) {
+      // 공수 교대. 나가던 수비는 더그아웃으로 들어가고, 새 수비가 나온다.
+      const out = this._dugout(prevDef), inn = this._dugout(rec.def);
+      const old = Object.values(S.fielders); S.fielders = {};
+      S.exiting = old; for (const f of old) f.color = this._offColor();
+      for (const f of old) { const from = [f.x, f.y];
+        tl.add(0.1, 2.0, (k) => { f.x = lerp(from[0], out[0], k); f.y = lerp(from[1], out[1], k); f.moving = k < 1; f.alpha = k > 0.75 ? 1 - (k - 0.75) * 4 : 1; }); }
+      tl.at(2.1, () => { S.exiting = null; });
+      for (const pos of Object.keys(POS_KR)) {
+        const w = spot(pos);
+        const f = { pos, name: S.def[pos] || null, x: inn[0], y: inn[1], home: w, alpha: 0, wait: true };
+        S.fielders[pos] = f;
+        const d = dist2(inn, w), dur = clamp(d / 5.2, 1.2, 3.2);
+        tl.add(1.0, dur, (k) => { f.wait = false; f.alpha = Math.min(1, k * 4); f.x = lerp(inn[0], w[0], k); f.y = lerp(inn[1], w[1], k); f.moving = k < 1; });
+      }
+    } else {
+      for (const pos of Object.keys(POS_KR)) { const w = spot(pos);
+        S.fielders[pos] = { pos, name: S.def[pos] || null, x: w[0], y: w[1], home: w, alpha: 1 }; }
     }
     if (rec.pos && rec.pos.P && rec.pos.P !== this.pitName) { this.pitName = rec.pos.P; this.velos = []; }
     this.el.pn.textContent = rec.pos && rec.pos.P ? rec.pos.P : this.el.pn.textContent;
+    this.el.bugPn.textContent = this.el.pn.textContent;
+  }
+  /** 투수 교체. 내려가는 투수는 더그아웃으로, 올라오는 투수는 불펜에서 뛰어 들어온다. */
+  _pitcherChange(tl, rec, name) {
+    const S = this.S, old = S.fielders.P;
+    const out = this._dugout(S.defTeam);
+    const side = S.defTeam === this.o.home ? 1 : -1;
+    const pen = [side * 34, 62];                    // 불펜 — 파울 지역 깊숙이
+    if (old) { const from = [old.x, old.y];
+      const walker = { ...old, name: old.name, color: this._defColor() };
+      S.exiting = [walker];
+      tl.add(0.3, 2.6, (k) => { walker.x = lerp(from[0], out[0], k); walker.y = lerp(from[1], out[1], k); walker.moving = k < 1; walker.alpha = k > 0.8 ? 1 - (k - 0.8) * 5 : 1; });
+      tl.at(2.95, () => { S.exiting = null; }); }
+    const nf = { pos: 'P', name, x: pen[0], y: pen[1], home: MOUND, alpha: 0, wait: true };
+    S.fielders.P = nf;
+    tl.add(0.8, 3.0, (k) => { nf.wait = false; nf.alpha = 1; nf.x = lerp(pen[0], MOUND[0], k); nf.y = lerp(pen[1], MOUND[1], k); nf.moving = k < 1; });
+    tl.add(3.8, 0.8, null);
+    this.pitName = name; this.velos = []; this._spark();
+    this.el.pn.textContent = name; this.el.bugPn.textContent = name; this.el.bugPc.textContent = '';
+    this.el.np.textContent = 0; this.el.vmax.textContent = '—';
   }
 
   _defColor() { return this.S.half === 'top' ? this.o.colors.home : this.o.colors.away; }
   _offColor() { return this.S.half === 'top' ? this.o.colors.away : this.o.colors.home; }
 
-  _flash(text, cls = '') {
-    this.S.flash = text; this.S.flashT = 1.6;
-    this.el.flash.textContent = text || '';
+  _flash(text, cls = '', sub = '') {
+    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : 1.6;
+    this.el.flash.innerHTML = text ? `<b>${text}</b>${sub ? `<small>${sub}</small>` : ''}` : '';
     this.el.flash.className = 'lv-flash' + (text ? ' on ' + cls : '');
   }
   _cap(main, sub = '') { this.el.cap.textContent = main || ''; this.el.capSub.textContent = sub || ''; }
@@ -356,9 +418,15 @@ export class LiveView {
     const S = this.S;
     if (rec.evt === 'start') { this._cap(`${rec.away} vs ${rec.home}`, rec.crowd ? `관중 ${rec.crowd.toLocaleString()}` : ''); tl.add(0, 1.2, null); return; }
     if (rec.evt === 'side') {
-      this._side(rec);
-      this._cap(`${rec.inning}회 ${rec.half === 'top' ? '초' : '말'}`, `${rec.off} 공격`);
-      tl.add(0, 1.3, null); return;
+      const newHalf = S.half !== rec.half || S.inning !== rec.inning;
+      this._side(rec, tl);
+      if (newHalf) {
+        // 공수 교대 — 한가운데 크게. 이닝과 공격하는 팀.
+        this._cap('', '');
+        this._flash(`${rec.inning}회 ${rec.half === 'top' ? '초' : '말'}`, 'inn', `${rec.off} 공격`);
+        tl.add(0, 3.6, null);
+      } else tl.add(0, 0.2, null);
+      return;
     }
     // 재생(기록만 있을 때)이면 side 이벤트가 없다. 이닝이 바뀌면 여기서 세운다.
     if (S.half !== rec.half || S.inning !== rec.inning) {
@@ -375,6 +443,8 @@ export class LiveView {
     this._syncRunners(rec);
     this.el.ph.textContent = rec.th ? (rec.th === 'L' ? '좌완' : '우완') : '';
     if (rec.batter && !rec.sub) {
+      this.el.bugBn.textContent = rec.batter; this.el.bugBl.textContent = this._todayLine(rec.batter);
+      this.el.bugPn.textContent = rec.pitcher || this.el.bugPn.textContent;
       this.el.bn.textContent = rec.batter;
       this.el.bh.textContent = rec.bh ? (rec.bh === 'L' ? '좌타' : '우타') : '';
       this.el.today.textContent = this._todayLine(rec.batter);
@@ -385,7 +455,7 @@ export class LiveView {
     }
     if (rec.sub) {                                       // 대타 · 투수 교체
       this._cap(rec.desc, '');
-      if (rec.pitcher && /투수 교체/.test(rec.desc)) { this.el.pn.textContent = rec.pitcher; }
+      if (rec.pitcher && /투수 교체/.test(rec.desc)) { this._pitcherChange(tl, rec, rec.pitcher); return; }
       tl.add(0, 1.4, null); return;
     }
     if (rec.steal) return this._steal(tl, rec);
@@ -468,6 +538,7 @@ export class LiveView {
       this.velos.push(v); this._spark(); this.el.vmax.textContent = Math.max(...this.velos);
       this.el.pt.textContent = PT_KR[q.t] || q.t; this.el.pv.innerHTML = `${v}<i>km/h</i>`;
       this.el.np.textContent = this.pnp0 + i + 1;
+      this.el.bugPc.textContent = `${this.pnp0 + i + 1}구 · ${PT_KR[q.t] || q.t} ${v}`;
       if (q.r === 'S' || q.r === 'W') S.s++;
       else if (q.r === 'F') { if (S.s < 2) S.s++; }
       else if (q.r === 'B') S.b++;
@@ -519,7 +590,8 @@ export class LiveView {
     const S = this.S;
     S.b = 0; S.s = 0; this.seq = []; this.zh = rec.zh || 1;
     this.pnp0 = (rec.pnp || 0) - (rec.np || 0);
-    this.el.np.textContent = this.pnp0;
+    this.el.np.textContent = this.pnp0; this.el.bugPc.textContent = `${this.pnp0}구`;
+    this._mgrConsumed();
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
     this._flash(null);
@@ -682,6 +754,18 @@ export class LiveView {
       tl.add(tl.end, 1.0, null); return;
     }
     if (F) move(F, fstart, icpt, tC + fre, tF);
+    // 아슬아슬한 타구 — 몸을 던진다. 닿았으면 잡고, 못 닿았으면 공이 옆으로 빠져나간다.
+    // 높은 직선타는 뛰어오른다.
+    const diff = rec.hard != null ? 1 - rec.hard : 0;
+    const zAt = gb ? 0.3 : 0.9 + peak * 4 * 0.98 * 0.02;      // 잡는 순간 공 높이 (거의 땅 · 낙하 직전)
+    const late = tF - (tC + Ti);                              // 못 닿았으면 얼마나 늦었나
+    if (F && !hr && ((reach && diff > 0.55) || (!reach && late < 0.7))) {
+      const dir = rec.ang > (rec.fpa ?? 0) ? 1 : -1;
+      tl.add(tC + Ti - 0.25, 1.0, (k) => { F.pose = 'dive'; F.dir = dir; }, () => { F.pose = null; });
+    } else if (F && !gb && !hr && rec.bbt === 'LD' && diff > 0.35) {
+      tl.add(tC + Ti - 0.2, 0.6, (k) => { F.pose = 'jump'; F.jump = Math.sin(Math.PI * k); }, () => { F.pose = null; });
+    }
+    void zAt;
 
     let pickup = null, pickT = 0, thrower = F;
     if (reach && !err && hit && !gb) {
@@ -1040,8 +1124,13 @@ export class LiveView {
     const defC = this._defColor(), offC = this._offColor();
     for (const f of Object.values(S.fielders)) {
       if (f.pos === 'C' && !S.catcher) continue;
-      items.push({ kind: 'fig', p: V.proj(f.x, f.y), color: defC, label: f.pos, name: f.name, pose: f.pos === 'C' ? 'crouch' : f.pos === 'P' ? 'pitch' : 'field', alpha: f.alpha });
+      if (f.wait) continue;
+      items.push({ kind: 'fig', p: V.proj(f.x, f.y), color: defC, label: f.pos, name: f.name, dir: f.dir, jump: f.jump,
+        pose: f.pose || (f.moving ? 'run' : f.pos === 'C' ? 'crouch' : f.pos === 'P' ? 'pitch' : 'field'), alpha: f.alpha });
     }
+    // 들어가는 사람들 — 공수 교대, 내려가는 투수
+    if (S.exiting) for (const f of S.exiting)
+      items.push({ kind: 'fig', p: V.proj(f.x, f.y), color: f.color || defC, pose: 'run', alpha: f.alpha });
     for (const r of S.runners) if (!r.gone && !r.wait) items.push({ kind: 'fig', p: V.proj(r.x, r.y), color: offC, pose: r.moving ? 'run' : 'stand', alpha: r.alpha, out: r.out, name: r.name, runner: true });
     if (S.batter) items.push({ kind: 'fig', p: V.proj(S.batter.hand === 'L' ? 0.85 : -0.85, 0.1), color: offC, pose: 'bat', hand: S.batter.hand, alpha: S.batter.alpha, swing: S.swing, bunt: S.batter.bunt });
     items.push({ kind: 'fig', p: V.proj(0, -3.2), color: C.ump, pose: 'ump', alpha: 1 });
@@ -1067,13 +1156,13 @@ export class LiveView {
     const persp = this.view !== 'top';
     const L = this.line, S = this.S;
     const n = Math.max(9, L.top.length, L.bottom.length);
-    const w = V.W * (persp ? 0.31 : 0.34), cols = n + 3, cw = w / (cols + 1.6);
+    const w = V.W * (persp ? 0.29 : 0.34), cols = n + 3, cw = w / (cols + 1.6);
     const rh = persp ? 11 : 10, h = rh * 3.9;
     const dims = this.dims, fc = BIP.fence(0, dims);
     const standD = 14 + ((this.o.park && this.o.park.capacity ? this.o.park.capacity : 18000) - 13000) / 13500 * 12;
     const fh = dims.real ? dims.real.fH || 3 : 3;
     const p = persp ? V.proj(0, fc, fh) : V.proj(0, fc + standD + 2);
-    const x0 = p.x - w / 2, y0 = persp ? Math.max(2, p.y - h - 4) : Math.max(3, p.y - h - 3);
+    const x0 = p.x - w / 2 + (persp ? 34 : 0), y0 = persp ? Math.max(2, p.y - h - 4) : Math.max(3, p.y - h - 3);
     // 판. 밤의 전광판은 검고, 숫자는 주황 LED 다.
     ctx.fillStyle = '#070b10'; rr(ctx, x0, y0, w, h, 2); ctx.fill();
     ctx.strokeStyle = '#2b3a4b'; ctx.lineWidth = 1; rr(ctx, x0 + 0.5, y0 + 0.5, w - 1, h - 1, 2); ctx.stroke();
@@ -1146,7 +1235,9 @@ export class LiveView {
   _dot(ctx, V, it) {
     const p = it.p, r = 5.4;
     ctx.save(); ctx.globalAlpha = it.alpha ?? 1;
-    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.beginPath();
+    if (it.pose === 'dive') ctx.ellipse(p.x + (it.dir || 1) * r * 0.8, p.y, r * 1.7, r * 0.75, 0, 0, Math.PI * 2);
+    else ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fillStyle = it.color; ctx.fill();
     ctx.lineWidth = 1.5; ctx.strokeStyle = it.out ? '#ff6b6b' : 'rgba(255,255,255,.75)'; ctx.stroke();
     if (it.label) {
@@ -1160,10 +1251,18 @@ export class LiveView {
   /** 2.5D 의 사람. 키는 거리에 따라 줄지만, 멀어도 읽힐 만큼은 남긴다. */
   _figure(ctx, V, it) {
     const p = it.p, h = V.figH(p) * (it.pose === 'crouch' ? 0.72 : 1);
-    const x = p.x, y = p.y;
+    let x = p.x, y = p.y;
     ctx.save(); ctx.globalAlpha = it.alpha ?? 1;
-    ctx.fillStyle = C.shadow;
-    ctx.beginPath(); ctx.ellipse(x, y, h * 0.34, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+    if (it.pose === 'dive') {
+      // 몸을 던진다 — 발을 축으로 눕힌다. 그림자는 길게.
+      ctx.fillStyle = C.shadow; ctx.beginPath(); ctx.ellipse(x + (it.dir || 1) * h * 0.3, y, h * 0.55, h * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(x, y); ctx.rotate((it.dir || 1) * 1.25); ctx.translate(-x, -y);
+    } else if (it.pose === 'jump') {
+      ctx.fillStyle = C.shadow; ctx.beginPath(); ctx.ellipse(x, y, h * 0.3, h * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+      y -= h * 0.32 * (it.jump || 0);
+    }
+    if (it.pose !== 'dive' && it.pose !== 'jump') { ctx.fillStyle = C.shadow;
+      ctx.beginPath(); ctx.ellipse(x, y, h * 0.34, h * 0.09, 0, 0, Math.PI * 2); ctx.fill(); }
     const lw = Math.max(1.2, h * 0.1);
     // 다리
     ctx.strokeStyle = it.pose === 'ump' ? '#222a33' : C.pants; ctx.lineWidth = lw; ctx.lineCap = 'round';
@@ -1194,6 +1293,9 @@ export class LiveView {
       ctx.moveTo(x - h * 0.1, ty + th * 0.4); ctx.lineTo(x - h * 0.2, ty + th * 0.9);
       ctx.moveTo(x + h * 0.1, ty + th * 0.4); ctx.lineTo(x + h * 0.2, ty + th * 0.9); ctx.stroke();
       ctx.fillStyle = '#7a5a3a'; ctx.beginPath(); ctx.arc(x - h * 0.22, ty + th * 0.95, h * 0.09, 0, Math.PI * 2); ctx.fill();   // 미트
+    } else if (it.pose === 'jump' || it.pose === 'dive') {
+      ctx.moveTo(x - tw / 2, ty + th * 0.2); ctx.lineTo(x - tw * 0.6, ty - h * 0.2);
+      ctx.moveTo(x + tw / 2, ty + th * 0.2); ctx.lineTo(x + tw * 0.6, ty - h * 0.22); ctx.stroke();
     } else {
       const r2 = it.pose === 'run' ? run * 1.2 : 0;
       ctx.moveTo(x - tw / 2, ty + th * 0.2); ctx.lineTo(x - tw * 0.85, ty + th * 0.75 + r2);
@@ -1322,6 +1424,49 @@ export class LiveView {
     try { pat.setTransform(new DOMMatrix().scale(1.4 / sc)); } catch {}
     return pat;
   }
+
+  /* ── 감독 패널 ────────────────────────────────────────────
+     경기 중 손을 쓴다. 명령은 다음 타석 전에 엔진이 꺼내 쓴다. */
+  _mgr() {
+    const el = this.el.mgr, sd = this.side;
+    if (!el || !this.o.command || !sd || !sd.mine) { if (el) el.hidden = true; return; }
+    el.hidden = false;
+    const P = this.pending, off = sd.mine === 'off';
+    const pend = (k, label) => P[k] ? `<div class="lv-pend"><span>다음 타석 · ${label}</span><button data-cancel="${k}" class="quiet">취소</button></div>` : '';
+    if (off) {
+      el.innerHTML = `<div class="lv-mgr-h">감독 · 공격</div>
+        ${pend('pinch', `대타 ${P.pinch && P.pinch.name || ''}`)}${pend('bunt', '번트')}${pend('steal', '도루')}
+        <div class="lv-mgr-row">
+          <button data-open="pinch" ${sd.bench.length ? '' : 'disabled'}>대타</button>
+          <button data-cmd="bunt" class="${P.bunt ? 'on' : ''}">번트 지시</button>
+          <button data-cmd="steal" class="${P.steal ? 'on' : ''}">도루 지시</button>
+        </div>
+        <div class="lv-mgr-list" hidden>${sd.bench.map(b => `<button data-pinch="${b.pid}">${b.name}<i>${b.slot}</i></button>`).join('')}</div>`;
+    } else {
+      const cur = sd.cur;
+      el.innerHTML = `<div class="lv-mgr-h">감독 · 수비</div>
+        ${cur ? `<div class="lv-mgr-cur">${cur.name} <b class="m">${cur.np}구</b><span class="lv-tired"><i style="width:${100 - clamp(cur.tired, 0, 100)}%"></i></span></div>` : ''}
+        ${pend('hook', `투수 ${P.hook && P.hook.name || ''}`)}${pend('ibb', '고의사구')}
+        <div class="lv-mgr-row">
+          <button data-open="hook" ${sd.pen.length ? '' : 'disabled'}>투수 교체</button>
+          <button data-cmd="ibb" class="${P.ibb ? 'on' : ''}">고의사구</button>
+        </div>
+        <div class="lv-mgr-row lv-shift"><span class="lab">시프트</span>${[0,1,2,3,4].map(d =>
+          `<button data-shift="${d}" class="${(P.shift ? P.shift.dial : sd.shift) === d ? 'on' : ''}">${['없음','약간','보통','자주','적극'][d]}</button>`).join('')}</div>
+        <div class="lv-mgr-list" hidden>${sd.pen.map(p => `<button data-hook="${p.pid}">${p.name}<i>${p.slot}</i></button>`).join('')}</div>`;
+    }
+    const list = el.querySelector('.lv-mgr-list');
+    el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { list.hidden = !list.hidden; });
+    el.querySelectorAll('[data-pinch]').forEach(b => b.onclick = () => this._cmd('pinch', { pid: +b.dataset.pinch, name: b.textContent.replace(/\s*\S+$/, '') }));
+    el.querySelectorAll('[data-hook]').forEach(b => b.onclick = () => this._cmd('hook', { pid: +b.dataset.hook, name: b.firstChild.textContent }));
+    el.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => P[b.dataset.cmd] ? this._uncmd(b.dataset.cmd) : this._cmd(b.dataset.cmd, {}));
+    el.querySelectorAll('[data-shift]').forEach(b => b.onclick = () => this._cmd('shift', { dial: +b.dataset.shift }));
+    el.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => this._uncmd(b.dataset.cancel));
+  }
+  _cmd(kind, a) { this.pending[kind] = a; this.o.command({ kind, ...a }); this._mgr(); }
+  _uncmd(kind) { delete this.pending[kind]; if (this.o.cancel) this.o.cancel(kind); this._mgr(); }
+  /** 타석이 시작됐다. 엔진이 명령을 꺼내 썼으니 표시를 지운다. 시프트는 유지된다. */
+  _mgrConsumed() { const sh = this.pending.shift; this.pending = sh ? { shift: sh } : {}; if (this.side) this._mgr(); }
 
   /* ── 승부처 오버레이 ── */
   ask(html) { this.el.ask.innerHTML = html; this.el.ask.hidden = false; return this.el.ask; }
