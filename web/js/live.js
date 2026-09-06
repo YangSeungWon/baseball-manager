@@ -16,6 +16,27 @@ import { RT } from './core/run.js';
 
 const rad = Math.PI / 180;
 const short = (s) => String(s || '').split(' ')[0];
+/* ── 아이콘 ────────────────────────────────────────────────
+   글자 대신 모양으로 위계를 만든다. 자주 누르는 것은 아이콘만, 결과가 큰 것은 아이콘과 글자. */
+const IC = {
+  pause: '<path d="M6 4h3v12H6zM11 4h3v12h-3z"/>',
+  play:  '<path d="M6 4l10 6-10 6z"/>',
+  skip:  '<path d="M4 4l8 6-8 6z"/><path d="M13 4h3v12h-3z"/>',
+  end:   '<path d="M3 5l6 5-6 5zM9 5l6 5-6 5z"/><path d="M15 5h2v10h-2z"/>',
+  ball:  '<circle cx="10" cy="10" r="7" fill="none" stroke-width="1.8"/><path d="M6 5.5c2 2.5 2 6.5 0 9M14 5.5c-2 2.5-2 6.5 0 9" fill="none" stroke-width="1.6"/>',
+  bat:   '<path d="M4 16l1.5-1.5 8-9.5 2 2-9.5 8L4.5 16.5z"/><circle cx="15" cy="5" r="1.6"/>',
+  pinch: '<path d="M4 7h9l-3-3M16 13H7l3 3" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  bunt:  '<path d="M3 12h7l6-6 1.5 1.5L11 14H3z"/>',
+  steal: '<circle cx="12" cy="4" r="1.8"/><path d="M11 7l-4 4 3 2-2 4M11 7l3 3 3-1" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  hook:  '<path d="M5 15V5l5 4V5l5 4" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><circle cx="15" cy="14" r="2.2"/>',
+  ibb:   '<circle cx="5" cy="10" r="1.7"/><circle cx="10" cy="10" r="1.7"/><circle cx="15" cy="10" r="1.7"/><path d="M3 15h14" stroke-width="1.6" stroke-linecap="round"/>',
+  shift: '<path d="M3 10h14M13 6l4 4-4 4" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
+  swing: '<path d="M4 15l9-9M12 5l3 3" fill="none" stroke-width="2.2" stroke-linecap="round"/>',
+  glove: '<path d="M6 16c-2 0-3-2-3-5V7a1.5 1.5 0 013 0v3M9 10V5a1.5 1.5 0 013 0v5M12 10V6a1.5 1.5 0 013 0v5c0 3-2 5-5 5H6" fill="none" stroke-width="1.7" stroke-linecap="round"/>',
+};
+const ic = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">${IC[k]}</svg>`;
+export { ic as icon };
+
 // 스피커 아이콘. 켜지면 파형이, 꺼지면 빗금이 보인다 — CSS 가 고른다.
 const SND_ICON = `<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true">
   <path class="sp" d="M3 7.5v5h3l4 3.5v-12l-4 3.5z"/>
@@ -121,7 +142,8 @@ export class LiveView {
   constructor(root, opts) {
     this.o = opts; this.root = root;
     this.view = opts.view === 'top' ? 'top' : 'persp';
-    this.speed = opts.speed || 1;
+    this.auto = opts.speed === 'auto' || opts.speed == null;   // 배속은 상황이 정한다
+    this.speed = this.auto ? 2 : (opts.speed || 1);
     this.paused = false;
     this.views = { top: new TopView(), persp: new PerspView() };
     this.dims = BIP.parkDims(opts.park);
@@ -170,8 +192,8 @@ export class LiveView {
               </div>
             </div>
             <div class="lv-bug-strip">
-              <span class="lv-bug-p"><u>P</u><b class="lv-bug-pn">—</b><i class="lv-bug-pc"></i></span>
-              <span class="lv-bug-b"><u>B</u><b class="lv-bug-bn">—</b><i class="lv-bug-bl"></i></span>
+              <span class="lv-bug-p">${ic('ball')}<b class="lv-bug-pn">—</b><i class="lv-bug-pc"></i></span>
+              <span class="lv-bug-b">${ic('bat')}<b class="lv-bug-bn">—</b><i class="lv-bug-bl"></i></span>
             </div>
           </div>
           <div class="lv-cap"><b class="lv-cap-main"></b><span class="lv-cap-sub"></span></div>
@@ -195,21 +217,23 @@ export class LiveView {
             <div class="pzbox lv-zone"><div class="pzempty">투구 없음</div></div>
           </div>
           <div class="lv-panel lv-mgr" hidden></div>
+          <div class="lv-card lv-pre" hidden></div>
+          <div class="lv-card lv-inn" hidden></div>
           <div class="lv-tools">
             <span class="lv-seg lv-view">
               <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">2.5D</button>
               <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">탑다운</button></span>
-            <span class="lv-seg lv-spd">${[1, 2, 4, 8].map(s =>
-              `<button data-s="${s}" class="${s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
+            <span class="lv-seg lv-spd"><button data-s="auto" class="${this.auto ? 'on' : ''}">자동</button>${[1, 2, 4, 8].map(s =>
+              `<button data-s="${s}" class="${!this.auto && s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
             <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리" aria-pressed="${!!this.o.sound}">${SND_ICON}</button></span>
           </div>
           <div class="lv-ask" hidden></div>
         </div>
         <div class="lv-bar">
-          <button class="quiet lv-pause">일시정지</button>
-          <button class="quiet lv-skip">이 장면 건너뛰기</button>
+          <button class="quiet lv-pause" title="일시정지">${ic('pause')}<span>일시정지</span></button>
+          <button class="quiet lv-skip" title="이 장면 건너뛰기">${ic('skip')}<span>장면 건너뛰기</span></button>
           <span class="lv-sp"></span>
-          <button class="quiet lv-end">결과로</button>
+          <button class="quiet lv-end" title="결과로">${ic('end')}<span>결과로</span></button>
         </div>
       </div>
       <aside class="lv-side">
@@ -225,10 +249,10 @@ export class LiveView {
       bn: q('.lv-bn'), bh: q('.lv-bh'), today: q('.lv-today'), bbits: q('.lv-bbits'),
       zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause'), ap: q('.lv-ap'),
       bugPn: q('.lv-bug-pn'), bugPc: q('.lv-bug-pc'), bugBn: q('.lv-bug-bn'), bugBl: q('.lv-bug-bl'),
-      mgr: q('.lv-mgr') };
+      mgr: q('.lv-mgr'), pre: q('.lv-pre'), inn: q('.lv-inn') };
     this.pending = {};                          // 감독 패널에 걸어 둔 명령
     this.root.querySelectorAll('[data-v]').forEach(b => b.onclick = () => this.setView(b.dataset.v));
-    this.root.querySelectorAll('[data-s]').forEach(b => b.onclick = () => this.setSpeed(+b.dataset.s));
+    this.root.querySelectorAll('[data-s]').forEach(b => b.onclick = () => b.dataset.s === 'auto' ? this.setAuto(true) : this.setSpeed(+b.dataset.s, true));
     q('.lv-skip').onclick = () => this.skip();
     q('.lv-sndb').onclick = () => this.setSound(!this.sfx.on);
     q('.lv-end').onclick = () => this.o.onEnd && this.o.onEnd();
@@ -257,15 +281,29 @@ export class LiveView {
     try { localStorage.setItem('dugout.view', v); } catch {}
     this._size();
   }
-  setSpeed(s) {
+  setSpeed(s, manual = false) {
+    if (manual) { this.auto = false; try { localStorage.setItem('dugout.speed', s); } catch {} }
     this.speed = s;
     this.sfx.mute(s > 2);                            // ×4 부터는 소리가 뭉개진다
-    this.root.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', +b.dataset.s === s));
-    try { localStorage.setItem('dugout.speed', s); } catch {}
+    this.root.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === 'auto' ? this.auto : (!this.auto && +b.dataset.s === s)));
   }
-  togglePause() { this.paused = !this.paused; this.el.pause.textContent = this.paused ? '계속' : '일시정지'; }
+  setAuto(on) { this.auto = on; try { localStorage.setItem('dugout.speed', 'auto'); } catch {} this.setSpeed(this.speed); }
+  /** 상황이 배속을 정한다. 접전의 늦은 이닝은 ×1, 크게 벌어진 이른 이닝은 ×4. 사람이 손대면 그만둔다. */
+  _autoSpeed(rec) {
+    if (!this.auto) return;
+    const diff = Math.abs((rec.ro || 0) - (rec.rd || 0)), late = (rec.inning || 1) >= 7;
+    const risp = (rec.base || []).slice(1).some(Boolean);
+    let s = 2;
+    if (diff >= 5) s = 4;
+    if (late && diff <= 2) s = 1;
+    else if (risp && diff <= 3) s = Math.min(s, late ? 1 : 2);
+    if (rec.inning >= 9 && diff <= 3) s = 1;
+    this.setSpeed(s);
+  }
+  togglePause() { this.paused = !this.paused;
+    this.el.pause.innerHTML = this.paused ? `${ic('play')}<span>계속</span>` : `${ic('pause')}<span>일시정지</span>`; }
   /** 지금 장면을 끝까지 돌린다 */
-  skip() { if (this.tl) { this.tl.finish(); } }
+  skip() { if (this.tl) { this.tl.finish(); } else if (this._preDone && !this.el.pre.hidden) this._preDone(); }
 
   _size() {
     const V = this.views[this.view];
@@ -311,6 +349,7 @@ export class LiveView {
 
   /** 한 플레이를 보여 준다. 끝나면 resolve. */
   play(rec) {
+    if (rec.evt === 'lineup') return new Promise((res) => this._preCard(rec, res));
     return new Promise((res) => {
       this.resolve = res; this._rec = rec;
       const tl = new Timeline();
@@ -431,10 +470,11 @@ export class LiveView {
       const newHalf = S.half !== rec.half || S.inning !== rec.inning;
       this._side(rec, tl);
       if (newHalf) {
-        // 공수 교대 — 한가운데 크게. 이닝과 공격하는 팀.
+        // 공수 교대 — 이닝 카드. 다음 타순과 불펜을 보여 주는 동안 야수들이 들어가고 나온다.
         this._cap('', '');
-        this._flash(`${rec.inning}회 ${rec.half === 'top' ? '초' : '말'}`, 'inn', `${rec.off} 공격`);
-        tl.add(0, 3.6, null);
+        this._innCard(rec);
+        tl.add(0, 4.2, null);
+        tl.at(4.15, () => { this.el.inn.hidden = true; });
       } else tl.add(0, 0.2, null);
       return;
     }
@@ -615,6 +655,7 @@ export class LiveView {
     this.el.ap.innerHTML = rec.ap ? `<span class="lab">접근</span><b>${AP_KR[rec.ap] || rec.ap}</b>${rec.apBy === 'mgr' ? '<i>감독 지시</i>' : ''}` : '';
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
+    this._autoSpeed(rec);
     this._lead(rec.lead);
     this._flash(null);
     // 타자마다 자기 응원가가 있다. 이름이 멜로디를 정한다. 원정 응원석은 작다.
@@ -1461,6 +1502,38 @@ export class LiveView {
     return pat;
   }
 
+  /* ── 경기 전 카드 ───────────────────────────────────────
+     오늘의 카드. 선발 대결 · 라인업 · 불펜. '플레이볼' 을 누르면 시작한다. */
+  _preCard(rec, done) {
+    const el = this.el.pre;
+    const side = (S, cls) => `<div class="lv-pre-team ${cls}" style="--tc:${cls === 'home' ? this.o.colors.home : this.o.colors.away}">
+      <div class="lv-pre-name"><i></i>${short(S.team)}</div>
+      <div class="lv-pre-sp">${ic('ball')}<b>${S.starter.name}</b><span>${S.starter.throws === 'L' ? '좌완' : '우완'}${S.penDay ? ' · 불펜데이' : ''}</span></div>
+      <ol class="lv-pre-order">${S.order.map(b => `<li><em>${b.pos}</em>${b.name}<span>${b.bats === 'L' ? '좌' : '우'}</span></li>`).join('')}</ol>
+      <div class="lv-pre-pen">${ic('glove')}${S.pen.slice(0, 5).map(p => `<span>${p.name}</span>`).join('')}${S.pen.length > 5 ? `<span>+${S.pen.length - 5}</span>` : ''}</div>
+    </div>`;
+    el.innerHTML = `<div class="lv-pre-in">
+      <div class="lv-pre-head">${this.o.crowd ? `관중 ${this.o.crowd.toLocaleString()} · ` : ''}${this.o.park && this.o.park.name ? this.o.park.name : ''}</div>
+      <div class="lv-pre-grid">${side(rec.away, 'away')}<div class="lv-pre-vs">VS</div>${side(rec.home, 'home')}</div>
+      <button class="go lv-pre-go">${ic('play')}<span>플레이볼</span></button>
+    </div>`;
+    el.hidden = false;
+    el.querySelector('.lv-pre-go').onclick = () => { el.hidden = true; done(); };
+    this._preDone = () => { el.hidden = true; done(); };
+  }
+  /** 이닝 사이 카드. 다음 타순과 불펜. 감독이 손을 쓰는 시간이다. */
+  _innCard(rec) {
+    const el = this.el.inn;
+    const due = (rec.due || []).map((b, i) => `<li><em>${b.pos}</em>${b.name}</li>`).join('');
+    const pen = (rec.pen || []).slice(0, 4).map(p => `<span>${p.name}<i>${p.slot}</i></span>`).join('');
+    el.innerHTML = `<div class="lv-inn-h">${rec.inning}회 ${rec.half === 'top' ? '초' : '말'}<small>${rec.off} 공격</small></div>
+      <div class="lv-inn-body">
+        <div><div class="lab">${ic('bat')} 타순</div><ol>${due}</ol></div>
+        <div><div class="lab">${ic('glove')} ${short(rec.def)} 불펜</div><div class="lv-inn-pen">${pen || '—'}</div></div>
+      </div>`;
+    el.hidden = false;
+  }
+
   /* ── 감독 패널 ────────────────────────────────────────────
      경기 중 손을 쓴다. 명령은 다음 타석 전에 엔진이 꺼내 쓴다. */
   _mgr() {
@@ -1473,11 +1546,11 @@ export class LiveView {
       el.innerHTML = `<div class="lv-mgr-h">감독 · 공격</div>
         ${pend('pinch', `대타 ${P.pinch && P.pinch.name || ''}`)}${pend('bunt', '번트')}${pend('steal', '도루')}${pend('approach', `타격 ${P.approach ? AP_KR[P.approach.mode] : ''}`)}
         <div class="lv-mgr-row">
-          <button data-open="pinch" ${sd.bench.length ? '' : 'disabled'}>대타</button>
-          <button data-cmd="bunt" class="${P.bunt ? 'on' : ''}">번트 지시</button>
-          <button data-cmd="steal" class="${P.steal ? 'on' : ''}">도루 지시</button>
+          <button data-open="pinch" ${sd.bench.length ? '' : 'disabled'}>${ic('pinch')}<span>대타</span></button>
+          <button data-cmd="bunt" class="${P.bunt ? 'on' : ''}">${ic('bunt')}<span>번트</span></button>
+          <button data-cmd="steal" class="${P.steal ? 'on' : ''}">${ic('steal')}<span>도루</span></button>
         </div>
-        <div class="lv-mgr-row lv-shift"><span class="lab">타격</span>${['power','line','oppo','contact'].map(m =>
+        <div class="lv-mgr-row lv-shift"><span class="lab">${ic('swing')} 타격</span>${['power','line','oppo','contact'].map(m =>
           `<button data-ap="${m}" class="${P.approach && P.approach.mode === m ? 'on' : ''}">${AP_KR[m]}</button>`).join('')}</div>
         <div class="lv-mgr-list" hidden>${sd.bench.map(b => `<button data-pinch="${b.pid}">${b.name}<i>${b.slot}</i></button>`).join('')}</div>`;
     } else {
@@ -1486,16 +1559,16 @@ export class LiveView {
         ${cur ? `<div class="lv-mgr-cur">${cur.name} <b class="m">${cur.np}구</b><span class="lv-tired"><i style="width:${100 - clamp(cur.tired, 0, 100)}%"></i></span></div>` : ''}
         ${pend('hook', `투수 ${P.hook && P.hook.name || ''}`)}${pend('ibb', '고의사구')}
         <div class="lv-mgr-row">
-          <button data-open="hook" ${sd.pen.length ? '' : 'disabled'}>투수 교체</button>
-          <button data-cmd="ibb" class="${P.ibb ? 'on' : ''}">고의사구</button>
+          <button data-open="hook" ${sd.pen.length ? '' : 'disabled'}>${ic('hook')}<span>투수 교체</span></button>
+          <button data-cmd="ibb" class="${P.ibb ? 'on' : ''}">${ic('ibb')}<span>고의사구</span></button>
         </div>
-        <div class="lv-mgr-row lv-shift"><span class="lab">시프트</span>${[0,1,2,3,4].map(d =>
+        <div class="lv-mgr-row lv-shift"><span class="lab">${ic('shift')} 시프트</span>${[0,1,2,3,4].map(d =>
           `<button data-shift="${d}" class="${(P.shift ? P.shift.dial : sd.shift) === d ? 'on' : ''}">${['없음','약간','보통','자주','적극'][d]}</button>`).join('')}</div>
         <div class="lv-mgr-list" hidden>${sd.pen.map(p => `<button data-hook="${p.pid}">${p.name}<i>${p.slot}</i></button>`).join('')}</div>`;
     }
     const list = el.querySelector('.lv-mgr-list');
     el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { list.hidden = !list.hidden; });
-    el.querySelectorAll('[data-pinch]').forEach(b => b.onclick = () => this._cmd('pinch', { pid: +b.dataset.pinch, name: b.textContent.replace(/\s*\S+$/, '') }));
+    el.querySelectorAll('[data-pinch]').forEach(b => b.onclick = () => this._cmd('pinch', { pid: +b.dataset.pinch, name: b.firstChild.textContent }));
     el.querySelectorAll('[data-hook]').forEach(b => b.onclick = () => this._cmd('hook', { pid: +b.dataset.hook, name: b.firstChild.textContent }));
     el.querySelectorAll('[data-cmd]').forEach(b => b.onclick = () => P[b.dataset.cmd] ? this._uncmd(b.dataset.cmd) : this._cmd(b.dataset.cmd, {}));
     el.querySelectorAll('[data-shift]').forEach(b => b.onclick = () => this._cmd('shift', { dial: +b.dataset.shift }));

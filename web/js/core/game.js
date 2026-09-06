@@ -608,6 +608,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     bench: off.bench.map(b => ({ pid: b.pid, name: b.name, slot: b.position })),
     pen: defn.bullpenLeft.map(p => ({ pid: p.pid, name: p.name, slot: R.PEN_LABEL[p.pen_role] || '불펜' })),
     cur: defn.cur ? { name: defn.cur.p.name, np: defn.cur.np, tired: Math.round((defn.cur.fatigue || 0) * 100) } : null,
+    due: [0, 1, 2].map(k => { const b = off.order[(off.spot + k) % 9]; return { name: b.name, pos: b.slot || b.position, bats: b.bats }; }),
     shift: tac(defn.team, 'shift') });
   // 감독의 명령. 한 번 꺼내면 사라진다. 꺼내 쓴 순간을 화면에 알린다.
   const CMD_KR = { pinch:'대타', bunt:'번트', steal:'도루', hook:'투수 교체', ibb:'고의사구', shift:'시프트', approach:'타격 지시' };
@@ -989,6 +990,15 @@ export function* playGameGen(home, away, rng, maxInnings = 11, watch = null, fil
                                   : { team: watch, left: CLUTCH_MAX, cmds: [] });
   let inning = 1;
   const plays = [];
+  // 경기 전 카드. 선발 대결과 라인업, 불펜. 지켜보는 사람에게만.
+  if (ask) {
+    const card = (S) => ({ team: S.team.name,
+      starter: { name: S.starter.name, throws: S.starter.throws, pid: S.starter.pid },
+      order: S.order.map(b => ({ name: b.name, pos: b.slot || b.position, bats: b.bats, pid: b.pid })),
+      pen: S.bullpenLeft.map(p => ({ name: p.name, slot: R.PEN_LABEL[p.pen_role] || '불펜' })),
+      penDay: S.penDay });
+    yield { play: { evt: 'lineup', home: card(H), away: card(A), mine: ask.team === home.team_id ? 'home' : 'away' } };
+  }
   for (;;) {
     plays.push(...(yield* playHalf(A, H, inning, home.park, rng, false, ask, edge))[1]);
     if (inning >= 9 && H.runs > A.runs) break;

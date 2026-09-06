@@ -1473,3 +1473,49 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-log .rpl{font-size:14px} .lv-log .rpl .ri{font-size:14px;color:var(--fg2)}
 .lv-log .rpl .rd{color:var(--fg)}
 .gs-out{font-size:14px}
+
+/* ── 아이콘 ── */
+.ic{width:16px;height:16px;fill:currentColor;stroke:currentColor;vertical-align:-3px;flex-shrink:0}
+.ic path,.ic circle{stroke:currentColor}
+button .ic+span{margin-left:6px}
+.lv-bar button,.lv-mgr-row button{display:inline-flex;align-items:center}
+.lv-bug-strip .ic{width:14px;height:14px;color:var(--fg2)}
+.lv-mgr .lab .ic{width:14px;height:14px;vertical-align:-2px}
+/* 경기 전 카드 · 이닝 카드 */
+.lv-card{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(8,13,19,.92);
+  border-radius:4px;box-shadow:0 6px 30px rgba(0,0,0,.5);color:var(--fg)}
+.lv-pre{width:min(92%,720px);padding:18px 22px 20px}
+.lv-pre-head{font-size:14px;color:var(--fg2);text-align:center;margin-bottom:12px}
+.lv-pre-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:start}
+.lv-pre-vs{font-family:var(--mono);font-size:22px;font-weight:800;color:var(--fg2);padding-top:6px}
+.lv-pre-name{display:flex;align-items:center;gap:8px;font-size:22px;font-weight:800}
+.lv-pre-name i{display:block;width:6px;height:22px;background:var(--tc)}
+.lv-pre-sp{display:flex;align-items:baseline;gap:8px;margin:8px 0 10px;font-size:16px}
+.lv-pre-sp b{font-size:18px} .lv-pre-sp span{color:var(--fg2);font-size:14px}
+.lv-pre-order{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;font-size:14px}
+.lv-pre-order li{display:flex;gap:6px;align-items:baseline}
+.lv-pre-order em{font-style:normal;font-family:var(--mono);color:var(--fg2);width:24px}
+.lv-pre-order span{color:var(--fg2);margin-left:auto}
+.lv-pre-pen{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:10px;font-size:14px;color:var(--fg2);align-items:center}
+.lv-pre-go{display:flex;margin:18px auto 0;padding:12px 28px;font-size:18px}
+.lv-inn{width:min(90%,520px);padding:16px 20px}
+.lv-inn-h{font-size:28px;font-weight:800;display:flex;align-items:baseline;gap:12px;margin-bottom:10px}
+.lv-inn-h small{font-size:16px;font-weight:600;color:var(--fg2)}
+.lv-inn-body{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.lv-inn-body ol{list-style:none;margin:6px 0 0;padding:0;font-size:16px}
+.lv-inn-body li{display:flex;gap:8px} .lv-inn-body li em{font-style:normal;font-family:var(--mono);color:var(--fg2);width:26px}
+.lv-inn-pen{display:flex;flex-direction:column;gap:3px;margin-top:6px;font-size:16px}
+.lv-inn-pen i{font-style:normal;color:var(--fg2);font-size:14px;margin-left:6px}
+/* 결과 — 오늘의 장면 */
+.gs-hl{display:flex;flex-direction:column;gap:4px;margin:6px 0 16px;background:var(--s1);border-radius:2px;padding:10px 12px}
+.gs-hlrow{display:grid;grid-template-columns:44px 80px 1fr auto;gap:8px;align-items:baseline;font-size:16px}
+.gs-hlrow .m{color:var(--fg2)} .gs-hlrow em{font-style:normal;font-family:var(--mono);font-weight:700;color:var(--pos)}
+@media(max-width:760px){
+  .lv-pre{padding:12px 14px} .lv-pre-grid{grid-template-columns:1fr;gap:10px} .lv-pre-vs{display:none}
+  .lv-pre-order{grid-template-columns:1fr}
+  .lv-inn-h{font-size:22px} .lv-inn-body{grid-template-columns:1fr}
+  .lv-bar button span{display:none} .lv-bar button{padding:10px 12px}
+}
+
+/* 겹침 순서 — 승부처 질문이 맨 위, 그다음 카드, 그다음 패널 */
+.lv-panel{z-index:2} .lv-card{z-index:4} .lv-ask{z-index:6} .lv-tools{z-index:3} .lv-bug{z-index:3}

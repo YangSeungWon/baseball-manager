@@ -13,11 +13,11 @@ const KEY = 'dugout.save.v1';
    장면이다. 미리 고르게 하지 않는다 — 일단 띄우고, 언제든 건너뛸 수 있게 한다.
    배속과 시점은 기억한다. */
 const livePrefs = () => {
-  let speed = 1, view = 'persp', sound = false;
-  try { speed = +localStorage.getItem('dugout.speed') || 1;
+  let speed = 'auto', view = 'persp', sound = false;
+  try { const v = localStorage.getItem('dugout.speed'); speed = v === null || v === 'auto' ? 'auto' : +v;
         view = localStorage.getItem('dugout.view') || 'persp';
         sound = localStorage.getItem('dugout.sfx') === '1'; } catch {}
-  return { speed: [1, 2, 4, 8].includes(speed) ? speed : 1, view, sound };
+  return { speed: speed === 'auto' || [1, 2, 4, 8].includes(speed) ? speed : 'auto', view, sound };
 };
 const FACE_KEY = 'dugout.faces';
 let facesOn = (() => { try { return localStorage.getItem(FACE_KEY) !== '0'; }
@@ -588,19 +588,29 @@ function gsResult(box, onDone) {
   if (!gsState) openGameShell(aw.team, hm.team, box.park, box.crowd, box.cap);
   gsScore({ a: aw.runs, h: hm.runs, inn: null, outs: null });
   document.getElementById('gsInn').textContent = '경기 종료';
+  // 오늘의 장면. 홈런 · 득점 · 다이빙 캐치 · 주루사. 많으면 뒤쪽 여섯.
+  const P = box.plays || [];
+  const hl = P.filter(p => (p.runs || 0) > 0 || p.res === 'HR' || p.dive === 'catch' || /주루사|태그업 아웃|홈 송구/.test(p.desc || '')).slice(-6);
+  const canNext = G.state().phase === 'regular' && !G.state().notices.some(n => n.kind === 'phase');
   gsBody(`<div class="gs-res">
       <div class="gs-final">
         <span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
         <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span>
       </div>
       ${lineScore(box)}
+      ${hl.length ? `<div class="gs-hl">${hl.map(p => `<div class="gs-hlrow">
+        <span class="m">${p.inning}${p.half === 'top' ? '초' : '말'}</span><b>${esc(p.batter || '')}</b>
+        <span>${esc(p.desc || '')}</span>${p.runs ? `<em>+${p.runs}</em>` : ''}</div>`).join('')}</div>` : ''}
       <div class="hl-btn">
-        <button class="go" id="gsFull">경기 전체 보기</button>
+        ${canNext ? '<button class="go" id="gsNext">다음 날</button>' : ''}
+        <button class="quiet" id="gsFull">다시 보기</button>
         <button class="quiet" id="gsDone">구단으로</button>
       </div>
     </div>`);
   document.getElementById('gsFull').onclick = () => openReplay(box);
   document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };
+  const nx = document.getElementById('gsNext');
+  if (nx) nx.onclick = () => { closeGame(); if (onDone) onDone(); nextDay(); };
 }
 
 /** 여러 날을 넘긴 뒤. 결과는 토스트로, 마지막 경기는 다시 볼 수 있게. */
