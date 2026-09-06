@@ -418,6 +418,7 @@ export class LiveView {
      한 플레이의 시간표. 투구 → 타구 → 야수 → 송구 → 주루. */
   _script(tl, rec) {
     const S = this.S;
+    if (rec.evt === 'pick') { this._syncRunners(rec); return this._pickoff(tl, rec); }
     if (rec.evt === 'start') { this._cap(`${rec.away} vs ${rec.home}`, rec.crowd ? `관중 ${rec.crowd.toLocaleString()}` : ''); tl.add(0, 1.2, null); return; }
     if (rec.evt === 'side') {
       const newHalf = S.half !== rec.half || S.inning !== rec.inning;
@@ -461,7 +462,7 @@ export class LiveView {
       tl.add(0, 1.4, null); return;
     }
     if (rec.steal) return this._steal(tl, rec);
-    if (rec.pick) return this._pickoff(tl, rec);
+    if (rec.pick || rec.evt === 'pick') return this._pickoff(tl, rec);
     if (rec.balk) { this._cap('보크', ''); this._runnersGo(tl, rec, 0.3, { walk: true }); tl.add(tl.end, 0.6, null); return; }
     if (rec.wild) return this._wild(tl, rec);
     if (rec.ibb) return this._ibb(tl, rec);
@@ -480,6 +481,15 @@ export class LiveView {
     if (start.join('|') === cur.join('|')) return;
     this.S.runners = [];
     start.forEach((n, i) => { if (n) this.S.runners.push(this._runner(n, i + 1)); });
+  }
+  /** 주자를 리드만큼 떼어 세운다. 1루 주자는 기록의 리드, 나머지는 기본 리드. */
+  _lead(lead1) {
+    for (const r of this.S.runners) {
+      if (r.gone || r.wait || r.base < 1 || r.base > 3) continue;
+      const A = baseAt(r.base), B = baseAt(r.base + 1);
+      const L = (r.base === 1 && lead1 != null ? lead1 : RT.lead) / 27.43;
+      r.x = lerp(A[0], B[0], L); r.y = lerp(A[1], B[1], L);
+    }
   }
   _runner(name, base) {
     const p = baseAt(base);
@@ -598,6 +608,7 @@ export class LiveView {
     this.el.ap.innerHTML = rec.ap ? `<span class="lab">접근</span><b>${AP_KR[rec.ap] || rec.ap}</b>${rec.apBy === 'mgr' ? '<i>감독 지시</i>' : ''}` : '';
     if (rec.tired != null) this.el.tired.style.width = (100 - clamp(rec.tired, 0, 100)) + '%';
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
+    this._lead(rec.lead);
     this._flash(null);
     // 타자마다 자기 응원가가 있다. 이름이 멜로디를 정한다. 원정 응원석은 작다.
     const home = rec.half === 'bottom';
@@ -1101,15 +1112,18 @@ export class LiveView {
   _pickoff(tl, rec) {
     const S = this.S;
     const a = (rec.adv || [])[0];
-    this._cap(rec.desc, '');
-    const r = a ? S.runners.find(x => x.name === a.n && !x.gone) : null;
+    this._cap(rec.desc, rec.lead ? `리드 ${rec.lead}m` : '');
+    const r = a ? S.runners.find(x => x.name === a.n && !x.gone) : S.runners.find(x => x.base === 1 && !x.gone);
     const A = BASE[1], toward = BASE[2];
-    if (r) { r.x = lerp(A[0], toward[0], 0.12); r.y = lerp(A[1], toward[1], 0.12); }
-    const tHit = this._throw(tl, MOUND, A, 0.5, 0.55);
-    if (r) tl.add(0.6, 0.5, (k) => { r.x = lerp(lerp(A[0], toward[0], 0.12), A[0], k); r.y = lerp(lerp(A[1], toward[1], 0.12), A[1], k); });
+    const L = (rec.lead || RT.lead) / 27.43;
+    if (r) { r.x = lerp(A[0], toward[0], L); r.y = lerp(A[1], toward[1], L); }
+    const tHit = this._throw(tl, MOUND, A, 0.45, 0.55);
+    // 귀루 — 헤드퍼스트. 리드가 클수록 아슬아슬하다.
+    if (r) tl.add(0.5, 0.45 + L * 2.5, (k) => { r.x = lerp(lerp(A[0], toward[0], L), A[0], k); r.y = lerp(lerp(A[1], toward[1], L), A[1], k); r.moving = k < 1; });
     if (a && a.t === 0 && r) { tl.at(tHit + 0.1, () => { r.out = true; this._flash('아웃', 'out'); this._outs(rec, 1); });
       tl.add(tHit + 0.4, 0.6, (k) => { r.alpha = 1 - k; }, () => { r.gone = true; }); }
     else if (a) { /* 악송구 */ this._runnersGo(tl, rec, tHit + 0.2, {}); }
+    else tl.at(tHit + 0.1, () => this._flash('세이프', 'safe'));
     tl.add(tl.end, 0.7, null);
   }
 

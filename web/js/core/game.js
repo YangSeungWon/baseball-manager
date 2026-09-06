@@ -19,7 +19,7 @@ export const MISC = {
   balk: 0.0025,                           // 주자 있을 때 타석당
   // 견제. 1루 주자가 있을 때만. 대부분은 아무 일도 없지만 가끔 잡히고,
   // 가끔은 던진 공이 흘러 주자가 그냥 한 베이스를 간다.
-  pickOut: 0.0048, pickSpeed: -0.34, pickCommand: 0.22,
+  pickTry: 0.075, pickLead: 0.55,         // 타석마다 견제를 던질 확률. 리드 1m 당 배율
   pickErr: 0.0012, pickErrTwo: 0.30,      // 악송구 중 두 베이스까지 가는 비율
   rundown: 0.185, rundownArm: 0.045,      // 과감한 주루가 협살로 끝날 확률
 };
@@ -245,7 +245,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         const r3 = bases.r[2];
         const tH = r3 ? RUNT.throwArrive(clock, 4) + noise() : 99;
         const tR3 = r3 ? RUNT.runArrive(r3, 3, 4) : 0;
-        if (r3 && !f3 && !dpOK && tH < tR3 - 0.12 && RUNT.dares(tR3, RUNT.throwArrive(clock, 4), rng)) {
+        if (r3 && !f3 && !dpOK && tH < tR3 - 0.12 && RUNT.dares(tR3, RUNT.throwArrive(clock, 4), rng, 0, r3)) {
           // 뛰었고, 잡혔다
           bases.take(2); if (bases.r[1]) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
           desc = '홈 송구 아웃'; thr = [4];
@@ -257,7 +257,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         } else if (forceOK && (t2 - tR1) < (t1 - tB) - 0.05 + (f3 ? 0.3 : 0)) {
           // 선행 주자를 잡는 쪽이 더 확실하다. 타자는 산다.
           bases.take(0);
-          if (bases.r[2]) { if (RUNT.dares(RUNT.runArrive(bases.r[2], 3, 4), t2 + 1.2, rng)) scored.push(bases.take(2)); }
+          if (bases.r[2]) { if (RUNT.dares(RUNT.runArrive(bases.r[2], 3, 4), t2 + 1.2, rng, 0, bases.r[2])) scored.push(bases.take(2)); }
           if (bases.r[1] && !bases.r[2]) bases.move(1, 2);
           bases.put(0, batter, me);
           desc = '야수선택'; thr = [2];
@@ -275,12 +275,12 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         thr = [1];
         if (r3) {
           const tR3 = RUNT.runArrive(r3, 3, 4), tH = RUNT.throwArrive(clock, 4);
-          if (RUNT.dares(tR3, tH, rng)) {
+          if (RUNT.dares(tR3, tH, rng, 0, r3)) {
             if (tH + noise() < tR3 - 0.1 && !RUNT.wildThrow(clock, rng)) { bases.take(2); bases.put(0, batter, me); desc = '홈 송구 아웃'; thr = [4]; }
             else scored.push(bases.take(2));
           }
         }
-        if (r2 && !bases.r[2] && RUNT.dares(RUNT.runArrive(r2, 2, 3), RUNT.throwArrive(clock, 3), rng)) bases.move(1, 2);
+        if (r2 && !bases.r[2] && RUNT.dares(RUNT.runArrive(r2, 2, 3), RUNT.throwArrive(clock, 3), rng, 0, r2)) bases.move(1, 2);
         if (!desc) desc = '땅볼 아웃';
       }
     } else if (bbt === 'GB') {
@@ -295,7 +295,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
           const to = i + 2;
           const tRun = RUNT.runArrive(r, i + 1, to, { tag: clock.t });
           const tThrow = RUNT.throwArrive(clock, to) + (drawn ? 1.0 : 0);
-          if (!RUNT.dares(tRun, tThrow, rng, RUNT.RT.tagBias)) continue;
+          if (!RUNT.dares(tRun, tThrow, rng, RUNT.RT.tagBias, r)) continue;
           const exec = tThrow + RUNT.execNoise(clock, rng);
           if (!drawn) { drawn = true; thr = [to]; }
           if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng)) {
@@ -331,7 +331,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         if (dest < 4 && clock && !infield && !bases.r[dest] /* 앞 주자 */ ) {
           const tRun = RUNT.runArrive(rec2[0], from, ahead);
           const tThrow = RUNT.throwArrive(clock, ahead) + (drawn ? 1.0 : 0);
-          if (RUNT.dares(tRun, tThrow, rng)) {
+          if (RUNT.dares(tRun, tThrow, rng, 0, rec2[0])) {
             const exec = tThrow + RUNT.execNoise(clock, rng);
             if (!drawn) { drawn = true; thr = [ahead]; }
             if (exec < tRun - 0.05 && !RUNT.wildThrow(clock, rng) && outs + addedOuts < 2) {
@@ -464,23 +464,29 @@ function tryIbb(bases, outs, off, defn, rng) {
 function tryPickoff(bases, outs, off, defn, rng, scoreNow) {
   const r1 = bases.r[0];
   if (!r1 || outs >= 3) return [0, null];
-  const pit = defn.cur;
-  const zs = z(r1.speed), zc = z(pit && pit.p ? pit.p.command : 50);
-  if (rng.random() < MISC.pickOut * Math.exp(MISC.pickSpeed * zs + MISC.pickCommand * zc)) {
+  const pit = defn.cur, pp = pit && pit.p;
+  const lead = RUNT.leadOf(r1, pp);
+  // 던질 것인가. 리드가 클수록, 발이 빠를수록, 견제가 좋은 투수일수록 던진다.
+  const pThrow = MISC.pickTry * Math.exp(MISC.pickLead * (lead - RUNT.RT.lead) + 0.25 * z(r1.speed)
+    + 0.30 * ((pp && pp.hidden && pp.hidden.hold) || 0));
+  if (rng.random() >= pThrow) return [0, null];
+  // 던졌다. 시간표 — 송구가 먼저인가 귀루가 먼저인가.
+  const race = RUNT.pickoffRace(r1, pp, lead, rng);
+  if (race.out && rng.random() >= MISC.pickErr * 8) {
     // 견제사는 도루자가 아니다. 기록에서 별개로 센다 — cs 에 넣으면 도루 성공률이 망가진다.
     bases.take(0); off.lineFor(r1).po = (off.lineFor(r1).po || 0) + 1;
-    return [1, { desc: `${r1.name} 견제사`, runs: 0 }];
+    return [1, { desc: `${r1.name} 견제사`, runs: 0, lead: r2(lead) }];
   }
-  if (rng.random() < MISC.pickErr) {
+  if (rng.random() < MISC.pickErr * 4) {
     const two = rng.random() < MISC.pickErrTwo;
     let runs = 0;
     if (bases.r[2]) { scoreNow(bases.take(2)); runs++; }      // 3루 주자는 들어온다
     if (bases.r[1]) bases.move(1, 2);
     bases.move(0, two && !bases.r[1] ? 2 : 1);
     defn.errors++;
-    return [0, { desc: `견제 악송구${two ? ' — 2루까지' : ''}`, runs, err: true }];
+    return [0, { desc: `견제 악송구${two ? ' — 2루까지' : ''}`, runs, err: true, lead: r2(lead) }];
   }
-  return [0, null];
+  return [0, { desc: '견제', runs: 0, pickSafe: true, lead: r2(lead) }];   // 던졌지만 돌아갔다
 }
 
 const kmhOf = (p) => kmh(p, 'FF');
@@ -492,10 +498,12 @@ function trySteal(bases, outs, off, defn, rng) {
   // ABS 아래에서 포수의 값어치는 프레이밍이 아니라 어깨와 블로킹으로 간다.
   const c = defn && defn.byPos ? defn.byPos.C : null;
   const za = z(c ? (c.arm ?? c.fielding) : 50);
+  const dare = (r1.hidden && r1.hidden.daring) || 0;
   if (!off.forceSteal && rng.random() >= (ADV.sb_attempt_base + ADV.sb_attempt_speed*zs
-      + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal'))) return [0, null];
-  // 성공은 시간이 정한다 — 투구 시간, 포수의 팝, 송구, 주자의 발.
-  const race = RUNT.stealRace(r1, c, pit && pit.p ? kmhOf(pit.p) : 142, rng);
+      + ADV.sb_success_arm * 0.38 * za) * tmul(tac(off.team, 'steal')) * Math.exp(0.35 * dare)) return [0, null];
+  // 성공은 시간이 정한다 — 투구 시간, 포수의 팝, 송구, 주자의 발, 그리고 리드.
+  const lead = RUNT.leadOf(r1, pit && pit.p);
+  const race = RUNT.stealRace(r1, c, pit && pit.p ? kmhOf(pit.p) : 142, rng, lead, pit && pit.p);
   if (race.safe) {
     bases.move(0, 1); off.lineFor(r1).sb++;
     return [0, { desc: `${r1.name} 2루 도루`, runs: 0, steal: true }];
@@ -614,10 +622,13 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     }
     begin();
     const [pkOut, pk] = tryPickoff(bases, outs, off, defn, rng, scoreNow);
-    if (pk) {
+    if (pk && !pk.pickSafe) {
       outs += pkOut;
       yield* emit({ ...common(), batter: off.order[off.spot].name,
-                    desc: pk.desc, runs: pk.runs, pick: true, adv: adv(null) });
+                    desc: pk.desc, runs: pk.runs, pick: true, lead: pk.lead, adv: adv(null) });
+    } else if (pk && live) {
+      // 던졌지만 돌아갔다. 기록에는 안 남기고 화면에만 보여 준다.
+      yield { play: { ...common(), evt: 'pick', batter: off.order[off.spot].name, desc: '견제', lead: pk.lead, adv: [] } };
     }
     if (outs >= 3) break;
     begin();
@@ -787,6 +798,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
       else ctx.cCommand += edge * HOME.pitch;
     }
     begin();
+    const lead1 = bases.r[0] ? r2(RUNT.leadOf(bases.r[0], pl.p)) : null;   // 1루 주자의 리드
     // 타자의 접근. 성향과 상황이 정하고, 감독이 덮어쓸 수 있다.
     ctx.plan = planFor(batter, bases, outs, inning, off.runs - defn.runs, rng, cmd('approach', 'off'));
     const pc = playCount(batter, pl.p, ctx, rng);
@@ -886,6 +898,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
                  seq: pc.seq, zh: pc.zh,        // 그 타석에 던진 공들. 존 그림이 이걸 쓴다.
                  sw: !!pc.swinging,             // 헛스윙 삼진인가
                  ap: ctx.plan.mode, apBy: ctx.plan.by,   // 접근과 누가 정했나 (self · mgr)
+                 lead: lead1,                   // 1루 주자의 리드 — 화면이 그만큼 떼어 세운다
                  zone: ball ? ball.zone : null, bbt,
                  ang: ball ? r2(ball.angle) : null, dep: ball ? r2(ball.depth) : null,
                  // 타구의 물리. 체공(초) · 땅볼 속도(m/s) · 야수의 출발점과 속도.

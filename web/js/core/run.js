@@ -24,8 +24,14 @@ export const RT = {
   runBase: 6.55, runSpeed: 0.38,
   runMotion: 1.12,          // 이미 뛰고 있는 주자는 타자보다 빠르다 (출발 가속이 없다)
   batterDelay: 0.25,        // 스윙 뒤 첫 발까지
-  lead: 4.2,                // 타구가 나갈 때 이미 나가 있는 거리 (m) — 리드와 2차 리드
-  stealLead: 3.2, stealReact: 0.36,
+  lead: 3.2,                // 1차 리드 (m). 주자의 담력과 투수의 견제가 늘리고 줄인다
+  leadDare: 0.55, leadHold: 0.45, leadMin: 1.8, leadMax: 5.0,
+  secondary: 1.0,           // 타구가 나갈 때는 이미 이만큼 더 나가 있다
+  stealReact: 0.36,
+  // 견제. 투수가 던져 1루에 닿는 시간 vs 주자의 귀루. 리드가 클수록 잡힌다.
+  pickRelease: 0.32, pickReturnReact: 0.22, pickDive: 0.5,
+  // 판단. 담력이 크면 덜 남기고 뛰고, 판단력이 좋으면 덜 흔들린다.
+  daringBias: 0.14, readSd: 0.06,
   tagDelay: 0.15,           // 포구를 보고 출발하기까지
   // 송구. m/s. 어깨가 좋으면 빠르다. 외야는 높게 던지느라 실효 속도가 낮다.
   throwIF: 31.0, throwOF: 33.0, throwArm: 1.6,
@@ -47,6 +53,11 @@ export const RT = {
 };
 
 export const runSpeed = (r) => RT.runBase + RT.runSpeed * z(r && r.speed ? r.speed : 50);
+const hid = (r, k) => (r && r.hidden && r.hidden[k]) || 0;
+/** 이 주자가 이 투수에게 잡는 리드 (m). 담력은 늘리고 견제는 줄인다. */
+export function leadOf(r, pit) {
+  return clamp(RT.lead + RT.leadDare * hid(r, 'daring') - RT.leadHold * hid(pit, 'hold'), RT.leadMin, RT.leadMax);
+}
 const throwSpeed = (f, of) => (of ? RT.throwOF : RT.throwIF) + RT.throwArm * z(f ? (f.arm ?? f.fielding ?? 50) : 50);
 const isOF = (pos) => pos === 'LF' || pos === 'CF' || pos === 'RF';
 
@@ -97,14 +108,22 @@ export function throwArrive(clock, b, relayFrom = null) {
 export function runArrive(r, f, t, opts = {}) {
   const legs = t - f;
   const v = runSpeed(r) * (f === 0 ? 1 : RT.runMotion);
-  const lead = f === 0 ? 0 : RT.lead;
+  const lead = f === 0 ? 0 : (opts.lead ?? leadOf(r, opts.pit)) + (opts.tag ? 0 : RT.secondary);
   const t0 = f === 0 ? RT.batterDelay : (opts.tag ? opts.tag + RT.tagDelay : 0);
   return t0 + (legs * BASE_M - lead) / v;
 }
 
 /** 주자의 판단. 내가 먼저 닿는가 — 오차를 얹어서. */
-export function dares(tRun, tThrow, rng, extra = 0) {
-  return tRun + RT.judgeBias + extra < tThrow + rng.gauss(0, RT.judgeSd);
+export function dares(tRun, tThrow, rng, extra = 0, r = null) {
+  const bias = RT.judgeBias - RT.daringBias * hid(r, 'daring');
+  const sd = clamp(RT.judgeSd - RT.readSd * hid(r, 'read'), 0.15, 0.6);
+  return tRun + bias + extra < tThrow + rng.gauss(0, sd);
+}
+/** 견제. 투수의 송구가 1루에 닿는 시각 vs 주자가 돌아가 닿는 시각. */
+export function pickoffRace(r, pit, lead, rng) {
+  const tThrow = RT.pickRelease - 0.04 * hid(pit, 'hold') + 19.4 / (RT.throwIF + 1.0) + rng.gauss(0, 0.05);
+  const tBack = RT.pickReturnReact - 0.05 * hid(r, 'read') + Math.max(0, lead - RT.pickDive) / (runSpeed(r) * 0.95) + rng.gauss(0, 0.06);
+  return { out: tThrow < tBack - 0.03, tThrow, tBack };
 }
 /** 송구가 빗나갔는가. */
 export function wildThrow(clock, rng) {
@@ -113,10 +132,11 @@ export function wildThrow(clock, rng) {
 }
 /** 도루. 투구 시간 + 포수 팝 + 송구 vs 주자. */
 export function execNoise(clock, rng) { return rng.gauss(0, clock && clock.of ? RT.fieldSdOF : RT.fieldSd); }
-export function stealRace(r, catcher, velo, rng) {
+export function stealRace(r, catcher, velo, rng, lead = RT.lead, pit = null) {
   const pitchT = 16.8 / ((velo || 142) / 3.6);
   const pop = RT.catcherPop + RT.catcherPopArm * z(catcher ? (catcher.arm ?? catcher.fielding ?? 50) : 50) + rng.gauss(0, 0.08);
-  const tThrow = RT.delivery + pitchT + pop;
-  const tRun = RT.stealReact + (BASE_M - RT.stealLead - 0.5) / (runSpeed(r) * RT.runMotion) + rng.gauss(0, 0.12);
+  // 견제가 좋은 투수는 세트가 빠르다 (슬라이드 스텝)
+  const tThrow = RT.delivery - 0.05 * hid(pit, 'hold') + pitchT + pop;
+  const tRun = RT.stealReact - 0.03 * hid(r, 'read') + (BASE_M - lead - 0.5) / (runSpeed(r) * RT.runMotion) + rng.gauss(0, 0.12);
   return { safe: tRun < tThrow - 0.05 || (catcher && wildThrow({ fielder: catcher }, rng)), tRun, tThrow };
 }
