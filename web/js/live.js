@@ -130,7 +130,7 @@ export class LiveView {
   _blank() {
     return { def: {}, defTeam: null, offTeam: null, half: null, inning: 0,
       fielders: {}, runners: [], batter: null, catcher: true,
-      ball: null, trail: [], cap: '', capSub: '', flash: null, flashT: 0,
+      ball: null, hold: null, trail: [], cap: '', capSub: '', flash: null, flashT: 0,
       pitcherWind: 0, swing: 0, b: 0, s: 0, outs: 0 };
   }
 
@@ -395,7 +395,9 @@ export class LiveView {
     const end = [clamp(q.x, -2.4, 2.4) * 0.216, 0, clamp(0.76 + q.z * 0.26 * zh, 0.05, 1.9)];
     const bend = { SL: [0.16, 0], CU: [0.05, 0.45], CH: [0, 0.18], FS: [0, 0.28], KN: [0.2, 0.25], SI: [-0.1, 0.08], FC: [0.08, 0.02] }[q.t] || [0, 0];
     const side = rec.th === 'L' ? -1 : 1;
+    tl.at(t0, () => this._hold(S.fielders.P));
     tl.add(t0, 0.9, (k) => { S.pitcherWind = k; });
+    tl.at(t0 + 0.9, () => { S.hold = null; });
     const tArr = t0 + 0.9 + T;
     tl.add(t0 + 0.9, T, (k) => {
       S.pitcherWind = 1 - k;
@@ -420,7 +422,7 @@ export class LiveView {
     });
     // 결과에 따른 공의 뒷처리
     if (q.r === 'S' || q.r === 'B' || q.r === 'W') {
-      tl.add(tArr, 0.12, (k) => { S.ball = { x: end[0] * 0.6, y: -1.2 * k, z: 0.6, vis: true }; }, () => { S.ball = null; });
+      tl.add(tArr, 0.12, (k) => { S.ball = { x: end[0] * 0.6, y: -1.2 * k, z: 0.6, vis: true }; }, () => this._hold(S.fielders.C));
     } else if (q.r === 'H') {
       const bx = rec.bh === 'L' ? 0.85 : -0.85;
       tl.add(tArr, 0.5, (k) => { S.ball = { x: bx + (bx > 0 ? 1 : -1) * k * 1.2, y: 0.1 - k * 0.8, z: Math.max(0.05, 1.0 - k * 1.1), vis: true }; }, () => { S.ball = null; });
@@ -498,11 +500,13 @@ export class LiveView {
     this._batted(tl, rec, tArr);
   }
 
+  /** 야수가 공을 들었다. 던질 때까지 손에 보인다. */
+  _hold(f) { this.S.ball = null; this.S.trail = []; this.S.hold = f || null; }
   _outs(rec, n) { this.S.outs = Math.min(3, this.S.outs + n); this._emitScore(rec, this._runs); }
   _settle(rec) {
     const S = this.S;
     if (rec.outs != null) S.outs = rec.outs;
-    S.ball = null; S.trail = []; S.swing = 0; S.pitcherWind = 0;
+    S.ball = null; S.hold = null; S.trail = []; S.swing = 0; S.pitcherWind = 0;
     if (rec.base) {
       const cur = this._baseNames();
       if (cur.join('|') !== rec.base.join('|')) {
@@ -600,10 +604,10 @@ export class LiveView {
       // 닿았는데 떨어졌다. 공이 앞에서 튀고, 야수가 집어 든다.
       pickup = [icpt[0], icpt[1] + 2.5]; pickT = tC + T + 0.7;
       tl.add(tC + T, 0.6, (k) => { S.ball = { x: lerp(icpt[0], pickup[0], k), y: lerp(icpt[1], pickup[1], k), z: 1.2 * Math.sin(Math.PI * k) * (1 - k * 0.5), vis: true }; this._trail(); });
-      tl.at(pickT, () => { S.ball = null; S.trail = []; });
+      tl.at(pickT, () => this._hold(F));
     } else if (reach && !err) {
       pickup = icpt; pickT = tC + Ti;
-      tl.at(pickT, () => { S.ball = null; S.trail = []; if (out && !gb) this._flash('아웃', 'out'); });
+      tl.at(pickT, () => { this._hold(F); if (out && !gb) this._flash('아웃', 'out'); });
     } else if (err) {
       // 닿았는데 놓쳤다. 공이 튀어 달아난다.
       const tE = tC + Ti;
@@ -611,7 +615,7 @@ export class LiveView {
       tl.at(tE, () => this._flash('실책', 'err'));
       tl.add(tE, 1.0, (k) => { S.ball = { x: lerp(icpt[0], pickup[0], k), y: lerp(icpt[1], pickup[1], k), z: 0.6 * Math.abs(Math.sin(Math.PI * 2 * k)) * (1 - k), vis: true }; this._trail(); });
       move(F, icpt, pickup, tE + 0.3, pickT);
-      tl.at(pickT, () => { S.ball = null; S.trail = []; });
+      tl.at(pickT, () => this._hold(F));
     } else {
       // 빠졌다. 뜬공은 떨어져 굴러가고, 땅볼은 내야를 지나 외야로 간다.
       const rollTo = Math.min(fence - 2.5, gb ? rec.dep + 34 : rec.dep + 10 + rec.dep * 0.12);
@@ -631,7 +635,7 @@ export class LiveView {
       const tArrive = tf0 + dist2(from, R) / fv;
       pickT = Math.max(tC + T + Tr, tArrive) + 0.3; pickup = R;
       move(thrower, from, R, tf0, tArrive);
-      tl.at(pickT, () => { S.ball = null; S.trail = []; });
+      tl.at(pickT, () => this._hold(thrower));
     }
 
     // 2b. 나머지 야수. 공을 쫓는 사람만 움직이면 야구가 아니다.
@@ -658,7 +662,7 @@ export class LiveView {
         const tRel = Math.max(pickT + 0.3, rA + 0.3 - Fl);
         const tArr = this._throw(tl, icpt, to, tRel, Fl);
         if (tag.t === 4) tl.at(tArr, () => this._flash('세이프', 'safe'));
-      } else this._throw(tl, icpt, BASE[2], pickT + 0.5, 1);
+      } else this._throw(tl, icpt, BASE[2], pickT + 0.6, 1);
       move(F, icpt, home, tl.end + 0.3, tl.end + 0.3 + dist2(icpt, home) / 4.5);
       tl.add(tl.end, 0.9, null); return;
     }
@@ -746,8 +750,13 @@ export class LiveView {
   _throw(tl, from, to, t0, Fl) {
     const S = this.S;
     const d = dist2(from, to), arc = clamp(d / 14, 0.8, 4.5);
-    tl.add(t0, Fl, (k) => { S.ball = { x: lerp(from[0], to[0], k), y: lerp(from[1], to[1], k), z: 1.4 + arc * 4 * k * (1 - k), vis: true }; this._trail(); },
-      () => { S.ball = null; S.trail = []; });
+    tl.add(t0, Fl, (k) => { S.hold = null; S.ball = { x: lerp(from[0], to[0], k), y: lerp(from[1], to[1], k), z: 1.4 + arc * 4 * k * (1 - k), vis: true }; this._trail(); },
+      () => {
+        // 받는 사람 — 그 베이스에 가장 가까운 야수. 없으면 공은 그냥 사라진다.
+        let best = null;
+        for (const f of Object.values(S.fielders)) { const dd = dist2([f.x, f.y], to); if (dd < 4 && (!best || dd < best.dd)) best = { f, dd }; }
+        this._hold(best ? best.f : null);
+      });
     return t0 + Fl;
   }
 
@@ -817,9 +826,10 @@ export class LiveView {
     const Cf = S.fielders.C;
     tl.add(tArr, 0.7, (k) => { S.ball = { x: 1.5 * k, y: -1.5 - 9 * k, z: 0.4, vis: true }; }, () => {});
     if (Cf) { tl.add(tArr + 0.2, 1.1, (k) => { Cf.x = 1.5 * k; Cf.y = -1.6 - 9 * k; });
+      tl.at(tArr + 1.3, () => this._hold(Cf));
       tl.add(tArr + 2.4, 1.2, (k) => { Cf.x = 1.5 * (1 - k); Cf.y = -10.6 + 9 * k; }); }
     if (d3) { this._throw(tl, [1.5, -10.6], BASE[1], tArr + 1.6, 1.1); }
-    else tl.at(tArr + 1.4, () => { S.ball = null; });
+    else if (!Cf) tl.at(tArr + 1.4, () => { S.ball = null; });
   }
 
   _wild(tl, rec) {
@@ -919,6 +929,7 @@ export class LiveView {
     if (S.batter) items.push({ kind: 'fig', p: V.proj(S.batter.hand === 'L' ? 0.85 : -0.85, 0.1), color: offC, pose: 'bat', hand: S.batter.hand, alpha: S.batter.alpha, swing: S.swing, bunt: S.batter.bunt });
     items.push({ kind: 'fig', p: V.proj(0, -3.2), color: C.ump, pose: 'ump', alpha: 1 });
     if (S.ball && S.ball.vis) items.push({ kind: 'ball', p: V.proj(S.ball.x, S.ball.y, S.ball.z) });
+    if (S.hold) { const p = V.proj(S.hold.x, S.hold.y); items.push({ kind: 'held', p: { ...p, depth: p.depth - 0.01 } }); }
     items.sort((a, b) => b.p.depth - a.p.depth);
     // 궤적
     if (S.trail.length > 1) {
@@ -928,6 +939,7 @@ export class LiveView {
     }
     for (const it of items) {
       if (it.kind === 'ball') this._ball(ctx, V, it.p);
+      else if (it.kind === 'held') this._held(ctx, V, it.p);
       else if (this.view === 'top') this._dot(ctx, V, it);
       else this._figure(ctx, V, it);
     }
@@ -944,6 +956,16 @@ export class LiveView {
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
     ctx.fillStyle = C.ball; ctx.fill();
     ctx.lineWidth = Math.max(0.8, r * 0.18); ctx.strokeStyle = C.ballEdge; ctx.stroke();
+  }
+
+  /** 손에 든 공. 사람 옆에 작은 흰 점 하나. */
+  _held(ctx, V, p) {
+    const top = this.view === 'top';
+    const h = top ? 5.4 : V.figH(p);
+    const x = top ? p.x + 5.2 : p.x + h * 0.3, y = top ? p.y - 4.6 : p.y - h * 0.62;
+    const r = top ? 2.2 : Math.max(1.8, h * 0.075);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = C.ball; ctx.fill(); ctx.lineWidth = 0.8; ctx.strokeStyle = C.ballEdge; ctx.stroke();
   }
 
   /** 탑다운의 사람 — 점과 글자 */
