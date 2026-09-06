@@ -29,7 +29,16 @@ const FAMILY = ['로페즈','마르티네스','로드리게스','산체스','페
 const NATION = ['미국','미국','미국','도미니카','도미니카','베네수엘라','베네수엘라',
                 '푸에르토리코','쿠바','멕시코','일본','대만','네덜란드','호주'];
 
+/* 등록명. KBO 는 외국인 선수를 성이나 이름 한 단어로 등록한다 — '오스틴 딘' 은 '오스틴',
+   '에릭 페디' 는 '페디'. 규칙은 단순하다: 짧고 구별되는 쪽. 성이 2~4자면 성, 아니면 이름.
+   전체 이름은 fullName 에 남긴다. 기록과 화면은 등록명을 쓴다. */
+export function registeredName(given, family) {
+  if (family.length >= 2 && family.length <= 4) return family;
+  if (given.length <= 5) return given;
+  return family.slice(0, 5);
+}
 const foreignName = (rng) => `${rng.choice(GIVEN)} ${rng.choice(FAMILY)}`;
+const withReg = (p) => { const [g, f] = p.name.split(' '); p.fullName = p.name; p.name = registeredName(g, f); return p; };
 
 /** 시장에 나온 외국인 선수 한 명.
  *  즉시 쓸 수 있어야 하므로 유망주가 아니라 완성된 선수로 만든다. */
@@ -59,6 +68,7 @@ export function makeForeign(rng, kind, year) {
     p.fielding = attr(0.20, -0.15); p.arm = attr(0.20, 0);
     p.reaction = attr(0.20, -0.10); p.positioning = attr(0.20, 0.10);
   }
+  withReg(p);
   p.age = age;
   p.pot = {};
   for (const a of dev.attrsOf(p)) p.pot[a] = Math.min(80, p[a] + Math.max(0, (28 - age) * 0.8));

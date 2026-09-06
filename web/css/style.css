@@ -1549,3 +1549,5 @@ button .ic+span{margin-left:6px}
 .lv-flash.score b .lit{color:#53b987}
 .lv-flash.score small{font-size:16px;font-weight:600;color:var(--fg2);letter-spacing:0}
 .lv-flash.score.on{animation:lvInn 2.6s ease forwards}
+
+.fullname{font-size:14px;font-weight:500;color:var(--fg2);margin-left:8px}

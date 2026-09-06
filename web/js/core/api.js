@@ -180,7 +180,7 @@ export class Game {
     const [p, t] = this.find(pid);
     if (!p) return { error:'not_found' };
     const c = this.L.careers.get(pid);
-    const out = { ...this.brief(p, t), ...this.ratings(p) };
+    const out = { ...this.brief(p, t), ...this.ratings(p), fullName: p.fullName || null };
     out.team = t ? t.name : null;
     out.debut_year = p.debut_year;
     out.draft = p.drafted_overall ? { round:p.drafted_round, overall:p.drafted_overall,

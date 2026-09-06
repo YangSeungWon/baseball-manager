@@ -10,6 +10,7 @@ import * as dev from './core/development.js';
 import { ScoutingDept } from './core/scouting.js';
 import { DraftSession } from './core/draft.js';
 import { Mailbox } from './core/mail.js';
+import { registeredName } from './core/foreign.js';
 
 export const VERSION = 2;
 const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','arm','reaction','positioning','gb_tendency'];
@@ -29,7 +30,7 @@ function dumpPlayer(p) {
   if (ip) { d.throws = p.throws; d.role = p.role; d.ars = p.arsenal; }
   else { d.bats = p.bats; d.position = p.position; }
   if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(f3)];
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter','fullName'])
     if (p[o] !== undefined) d[o] = p[o];
   if (p.scout_consensus) {
     const attrs = dev.attrsOf(p);
@@ -55,8 +56,12 @@ function loadPlayer(d) {
     if (p.pot.positioning === undefined) p.pot.positioning = Math.min(80, p.positioning + ((p.age || 27) < 30 ? 6 : 0));
   }
   p.contract = d.ct ? new C.Contract(d.ct[0], d.ct[1]) : null;
-  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter'])
+  for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter','fullName'])
     if (d[o] !== undefined) p[o] = d[o];
+  // 옛 저장본의 외국인은 '오스틴 딘' 그대로다. 등록명으로 바꾼다.
+  if (p.foreign && !p.fullName && p.name && p.name.includes(' ')) {
+    const [g, f] = p.name.split(' '); p.fullName = p.name; p.name = registeredName(g, f);
+  }
   if (d.sc) {
     const attrs = dev.attrsOf(p);
     p.scout_consensus = {}; p.scout_consensus_pot = {};

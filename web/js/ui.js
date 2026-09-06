@@ -2,6 +2,7 @@
 // 모든 능력치는 하나의 20~80 눈금축 위에, 어디서나 같은 좌표로 놓인다.
 import { Game } from './core/api.js';
 import { josa } from './core/mail.js';
+import { SUR } from './core/names.js';
 import * as save from './save.js';
 import * as card from './share.js';
 import * as BIP from './core/bip.js';
@@ -570,7 +571,9 @@ function chantName(name) {
     const sur = name.split(' ').pop();
     return sur.length <= 4 ? sur : sur.slice(-3);
   }
-  return name.length >= 3 ? name.slice(1) : name;      // 김도영 → 도영
+  // 한국 성으로 시작하는 세 글자 이름만 성을 뗀다. 등록명(오스틴 · 페디)은 통째로 부른다.
+  const isKr = name.length === 3 && SUR.includes(name[0]);
+  return isKr ? name.slice(1) : name;                    // 김도영 → 도영
 }
 /** 이름이 같으면 늘 같은 구호가 나온다. 이름과 상황으로 섞는다.
  *  구호는 응원하는 쪽 — 그러니까 그 구장 — 의 말을 쓴다. */
@@ -2357,7 +2360,7 @@ function openPlayer(pid) {
   const pcol = p.team ? capOf(p.team).color : '#3b4655';
   modal(`
     <div class="mhead"><div class="mhead-p">${avatar(p, pcol, 52, false, p.team ? franchiseOf(p.team) : null)}
-      <div><h2>${esc(p.name)}${awards}</h2>
+      <div><h2>${esc(p.name)}${p.fullName ? `<small class="fullname">${esc(p.fullName)}</small>` : ''}${awards}</h2>
       <div class="meta">${p.number ? `<b class="m">${p.number}번</b> · ` : ''}${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
         ${p.origin ? ' · ' + p.origin : ''}${p.draft ? ` · #${p.draft.overall}` : ''}
         ${p.mil && p.mil.s !== 'done' ? ` · <span class="milt ${p.mil.s}">${p.mil.s === 'serving'
