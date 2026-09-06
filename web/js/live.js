@@ -775,9 +775,14 @@ export class LiveView {
     // 3아웃이 되는 땅볼. 밀려야 하는 주자는 기록에 갈 곳이 없어도 뛴다 — 야구는 그렇게 끝난다.
     if (gb && rec.outs >= 3 && adv.some(a => a.f === 0)) {
       const names = new Set(adv.map(a => a.n));
-      const on = [1, 2, 3].map(b => S.runners.find(r => r.base === b && !r.gone && !r.wait && !names.has(r.name)));
-      for (let b = 1; b <= 3 && on[b - 1] && (b === 1 || on[b - 2] || names.has((S.runners.find(r => r.base === b - 1) || {}).name)); b++)
-        this._runnerClip(tl, { n: on[b - 1].name, f: b, t: b + 1, v: 6.8 }, runStart, { cosmetic: true });
+      // 시작 시점에 그 루에 누가 있었나. 기록에 있는 사람(뛰다 죽은 사람 포함)도 센다.
+      const at = (b) => S.runners.find(r => r.base === b && !r.gone && !r.wait) || null;
+      let forced = true;                           // 타자가 1루로 가니 1루 주자부터 밀린다
+      for (let b = 1; b <= 3 && forced; b++) {
+        const r = at(b) || (adv.find(a => a.f === b) ? {} : null);
+        if (!r) { forced = false; break; }
+        if (r.name && !names.has(r.name)) this._runnerClip(tl, { n: r.name, f: b, t: b + 1, v: 6.8 }, runStart, { cosmetic: true });
+      }
     }
     tl.add(tl.end, 0.9, null);
   }
