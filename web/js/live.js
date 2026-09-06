@@ -13,6 +13,7 @@
 import * as BIP from './core/bip.js';
 
 const rad = Math.PI / 180;
+const short = (s) => String(s || '').split(' ')[0];
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 const lerp = (a, b, k) => a + (b - a) * k;
 const W2 = (ang, dep) => [dep * Math.sin(ang * rad), dep * Math.cos(ang * rad)];
@@ -139,6 +140,21 @@ export class LiveView {
       <div class="lv-main">
         <div class="lv-stage ${this.view}">
           <canvas class="lv-c"></canvas>
+          <div class="lv-bug">
+            <div class="lv-bug-teams">
+              <div class="lv-bug-t" style="--tc:${this.o.colors.away}"><i></i><span>${short(this.o.away)}</span><b data-gs="a">0</b></div>
+              <div class="lv-bug-t" style="--tc:${this.o.colors.home}"><i></i><span>${short(this.o.home)}</span><b data-gs="h">0</b></div>
+            </div>
+            <div class="lv-bug-sit">
+              <div class="lv-bug-inn"><em data-gs="arr"></em><b data-gs="inn">—</b></div>
+              <svg class="lv-bug-dia" viewBox="0 0 34 34" aria-hidden="true">
+                <rect data-gs="d2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
+                <rect data-gs="d3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
+                <rect data-gs="d1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
+              </svg>
+              <div class="lv-bug-cnt" data-gs="bso"></div>
+            </div>
+          </div>
           <div class="lv-cap"><b class="lv-cap-main"></b><span class="lv-cap-sub"></span></div>
           <div class="lv-flash"></div>
           <div class="lv-tools">
@@ -192,7 +208,7 @@ export class LiveView {
     q('.lv-end').onclick = () => this.o.onEnd && this.o.onEnd();
     this.el.pause.onclick = () => this.togglePause();
     this.ro = new ResizeObserver(() => this._size());
-    this.ro.observe(this.stage);
+    this.ro.observe(this.stage.parentElement || this.stage);
     this._size();
   }
 
@@ -215,10 +231,12 @@ export class LiveView {
 
   _size() {
     const V = this.views[this.view];
-    const r = this.stage.getBoundingClientRect();
+    // 무대의 폭은 캔버스가 정하면 안 된다 (캔버스가 커지면 무대도 커져 서로 밀어낸다).
+    // 부모 칸의 폭을 잰다.
+    const r = (this.stage.parentElement || this.stage).getBoundingClientRect();
     // 폭에 맞추되, 세로가 화면을 넘지 않게. 남는 폭은 무대 배경으로 둔다.
     const maxH = Math.max(220, (this.o.maxH ? this.o.maxH() : window.innerHeight - 230));
-    let w = Math.max(200, r.width), h = Math.round(w / V.aspect());
+    let w = Math.max(200, Math.floor(r.width)), h = Math.round(w / V.aspect());
     if (h > maxH) { h = maxH; w = Math.round(h * V.aspect()); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     this.cv.width = Math.round(w * dpr); this.cv.height = Math.round(h * dpr);

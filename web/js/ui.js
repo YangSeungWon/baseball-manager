@@ -2042,18 +2042,18 @@ function openGameShell(aw, hm, park, crowd, cap) {
     <div class="gs-top">
       <div class="gs-teams">
         <span class="gs-t away">${jersey(franchiseOf(aw), true, 30)}
-          <b>${esc(short(aw))}</b><em id="gsA">0</em></span>
+          <b>${esc(short(aw))}</b><em id="gsA" data-gs="a">0</em></span>
         <span class="gs-t home">${jersey(franchiseOf(hm), false, 30)}
-          <b>${esc(short(hm))}</b><em id="gsH">0</em></span>
+          <b>${esc(short(hm))}</b><em id="gsH" data-gs="h">0</em></span>
       </div>
       <div class="gs-sit">
-        <span class="gs-inn"><i id="gsArr" class="gs-arr"></i><span id="gsInn">경기 준비</span></span>
+        <span class="gs-inn"><i id="gsArr" class="gs-arr" data-gs="arr"></i><span id="gsInn" data-gs="inn">경기 준비</span></span>
         <svg class="gs-dia" viewBox="0 0 34 34" aria-hidden="true">
-          <rect id="gd2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
-          <rect id="gd3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
-          <rect id="gd1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
+          <rect id="gd2" data-gs="d2" x="13" y="1"  width="9" height="9" transform="rotate(45 17.5 5.5)"/>
+          <rect id="gd3" data-gs="d3" x="1"  y="13" width="9" height="9" transform="rotate(45 5.5 17.5)"/>
+          <rect id="gd1" data-gs="d1" x="25" y="13" width="9" height="9" transform="rotate(45 29.5 17.5)"/>
         </svg>
-        <span class="gs-bso" id="gsBSO"></span>
+        <span class="gs-bso" id="gsBSO" data-gs="bso"></span>
       </div>
       <button id="gsX" class="quiet gs-out"><span>구단으로</span><i>나가기</i></button>
     </div>
@@ -2061,23 +2061,22 @@ function openGameShell(aw, hm, park, crowd, cap) {
   </div>`, true);
   document.getElementById('gsX').onclick = closeGame;
 }
+/** 스코어보드. 상단 바와 (경기 중이면) 구장 위 스코어버그, 같은 값을 둘 다에 쓴다. */
 function gsScore({ a, h, inn, half, outs, b, s, base }) {
-  const q = (id) => document.getElementById(id);
-  if (a != null && q('gsA')) q('gsA').textContent = a;
-  if (h != null && q('gsH')) q('gsH').textContent = h;
-  if (inn && q('gsInn')) q('gsInn').textContent = `${inn}회`;
+  const all = (k, fn) => document.querySelectorAll(`[data-gs="${k}"]`).forEach(fn);
+  if (a != null) all('a', e => { e.textContent = a; });
+  if (h != null) all('h', e => { e.textContent = h; });
+  if (inn) all('inn', e => { e.textContent = `${inn}회`; });
   // 중계처럼 초는 위 화살표, 말은 아래 화살표
-  if (half && q('gsArr')) q('gsArr').textContent = half === 'top' ? '▲' : '▼';
+  if (half) all('arr', e => { e.textContent = half === 'top' ? '▲' : '▼'; });
   // 기록의 아웃카운트는 그 플레이 '뒤' 값이라 3 이 나온다. 그때는 이닝이 끝난 것이다.
   const dot = (n, k, cls) => `<i class="${cls}${n > k ? ' on' : ''}"></i>`;
-  if (q('gsBSO')) q('gsBSO').innerHTML = outs == null ? ''
-    : `<span class="bso b">${[0,1,2].map(k => dot(b ?? 0, k, 'b')).join('')}</span>
-       <span class="bso s">${[0,1].map(k => dot(s ?? 0, k, 's')).join('')}</span>
-       <span class="bso o">${[0,1].map(k => dot(Math.min(outs, 2), k, 'o')).join('')}</span>`;
+  all('bso', e => { e.innerHTML = outs == null ? ''
+    : `<span class="bso b"><u>B</u>${[0,1,2].map(k => dot(b ?? 0, k, 'b')).join('')}</span>
+       <span class="bso s"><u>S</u>${[0,1].map(k => dot(s ?? 0, k, 's')).join('')}</span>
+       <span class="bso o"><u>O</u>${[0,1].map(k => dot(Math.min(outs, 2), k, 'o')).join('')}</span>`; });
   const bs = base || [null, null, null];
-  for (let k = 0; k < 3; k++) {
-    const e = q('gd' + (k + 1)); if (e) e.classList.toggle('on', !!bs[k]);
-  }
+  for (let k = 0; k < 3; k++) all('d' + (k + 1), e => e.classList.toggle('on', !!bs[k]));
 }
 const gsBody = (html) => { const e = document.getElementById('gsBody');
   if (e) e.innerHTML = html; return e; };

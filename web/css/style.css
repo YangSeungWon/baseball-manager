@@ -1114,7 +1114,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .gs-dia rect{fill:none;stroke:var(--fg3);stroke-width:1.6}
 .gs-dia rect.on{fill:#e8c23a;stroke:#e8c23a}
 .gs-bso{display:flex;gap:8px;align-items:center}
-.bso{display:flex;gap:3px}
+.bso{display:flex;gap:3px;align-items:center}
+.bso u{display:none}
 .bso i{width:7px;height:7px;border-radius:50%;background:var(--line);display:block}
 .bso.b i.on{background:#4bb37b}
 .bso.s i.on{background:#e8c23a}
@@ -1257,7 +1258,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-main{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
 .lv-stage{position:relative;background:#0a1017;border-radius:2px;overflow:hidden;
   box-shadow:inset 0 0 0 1px var(--line2)}
-.lv-stage canvas{display:block;margin:0 auto}
+.lv-stage canvas{display:block;margin:0 auto;max-width:100%}
+.lv-stage{width:100%}
 .lv-cap{position:absolute;left:10px;bottom:10px;display:flex;flex-direction:column;gap:2px;
   padding:8px 12px;background:rgba(8,13,19,.72);border-left:3px solid var(--accent);
   border-radius:2px;max-width:min(70%,420px);pointer-events:none}
@@ -1322,7 +1324,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-log{flex:1;min-height:120px;max-height:none}
 .rpl.pend .rd{color:var(--fg3);letter-spacing:.1em}
 @media(max-width:900px){
-  .lv{grid-template-columns:1fr;gap:12px;height:auto}
+  .lv{grid-template-columns:minmax(0,1fr);gap:12px;height:auto}
   .lv-side{flex-direction:column}
   .lv-log{max-height:200px;min-height:100px}
   .lv-flash{font-size:34px} .lv-flash.hr,.lv-flash.run{font-size:42px}
@@ -1336,3 +1338,41 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .gs .lv{padding:0}
 .gs-body:has(.lv){display:flex;flex-direction:column}
 .gs-body:has(.lv)>.lv{flex:1}
+
+/* 스코어버그 — 중계처럼 왼쪽 위에, 팀 점수 · 이닝 · 루상 · 카운트를 한 덩어리로 */
+.lv-bug{position:absolute;left:10px;top:10px;display:flex;align-items:stretch;gap:0;
+  background:rgba(8,13,19,.84);border-radius:3px;overflow:hidden;
+  box-shadow:0 2px 12px rgba(0,0,0,.35);font-family:var(--kr)}
+.lv-bug-teams{display:flex;flex-direction:column}
+.lv-bug-t{display:grid;grid-template-columns:5px auto 1fr;align-items:center;gap:8px;
+  padding:5px 12px 5px 0;min-width:150px}
+.lv-bug-t+.lv-bug-t{border-top:1px solid rgba(255,255,255,.07)}
+.lv-bug-t i{display:block;width:5px;height:100%;background:var(--tc)}
+.lv-bug-t span{font-size:15px;font-weight:700;color:var(--fg);white-space:nowrap}
+.lv-bug-t b{font-family:var(--mono);font-size:24px;font-weight:800;color:var(--fg);text-align:right;line-height:1}
+.lv-bug-sit{display:flex;flex-direction:column;justify-content:center;gap:5px;
+  padding:6px 12px;border-left:1px solid rgba(255,255,255,.09)}
+.lv-bug-inn{display:flex;align-items:baseline;gap:4px}
+.lv-bug-inn em{font-style:normal;font-size:12px;color:#e8c23a}
+.lv-bug-inn b{font-size:16px;font-weight:700;color:var(--fg)}
+.lv-bug-dia{width:36px;height:36px;position:absolute;right:12px;top:6px}
+.lv-bug-dia rect{fill:rgba(255,255,255,.08);stroke:var(--fg3);stroke-width:1.6}
+.lv-bug-dia rect.on{fill:#e8c23a;stroke:#e8c23a}
+.lv-bug-sit{position:relative;padding-right:58px;min-width:150px}
+.lv-bug-cnt{display:flex;gap:10px}
+.lv-bug-cnt .bso{gap:3px}
+.lv-bug-cnt .bso u{display:inline;text-decoration:none;font-family:var(--mono);font-size:11px;
+  font-weight:700;color:var(--fg3);margin-right:3px}
+.lv-bug-cnt .bso i{width:9px;height:9px}
+/* 경기 화면이 떠 있는 동안 상단 바의 작은 표시는 접는다. 스코어버그가 대신한다 */
+.gs:has(.lv) .gs-sit,.gs:has(.lv) .gs-teams{display:none}
+@media(max-width:760px){
+  .lv-bug{left:6px;top:6px}
+  .lv-bug-t{min-width:110px;padding:3px 8px 3px 0;gap:6px}
+  .lv-bug-t span{font-size:13px} .lv-bug-t b{font-size:19px}
+  .lv-bug-sit{min-width:120px;padding:4px 8px;padding-right:46px;gap:3px}
+  .lv-bug-inn b{font-size:14px}
+  .lv-bug-dia{width:28px;height:28px;right:8px;top:5px}
+  .lv-bug-cnt{gap:7px} .lv-bug-cnt .bso i{width:7px;height:7px}
+  .lv-tools{top:auto;bottom:6px;right:6px}
+}
