@@ -57,6 +57,7 @@ export function makeForeign(rng, kind, year) {
     p.contact = attr(0.50, 0.15); p.avoid_k = attr(0.35, -0.10);
     p.discipline = attr(0.40, 0.25); p.speed = attr(0.20, -0.25);
     p.fielding = attr(0.20, -0.15); p.arm = attr(0.20, 0);
+    p.reaction = attr(0.20, -0.10); p.positioning = attr(0.20, 0.10);
   }
   p.age = age;
   p.pot = {};

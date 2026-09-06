@@ -45,6 +45,9 @@ export const BC = {
   hangK: { GB: 1.319, LD: 1.294, FB: 1.099, PU: 1.249 },
   // 야수 이동 속도 (m/s)
   rangeBase: 6.30, rangeField: 0.055, rangeSpeed: 0.022, react: 0.32,
+  // 첫 발(순발력)은 반응 시간을, 자리(위치 선정)는 가야 할 거리를 줄인다.
+  // 직선타는 체공이 1~2초라 반응이 전부고, 깊은 뜬공은 거리가 전부다.
+  reactZ: 0.075, posZ: 0.060,
   // 투수는 투구 동작을 막 끝낸 참이다. 반응이 늦고 옆으로 못 움직인다.
   pReact: 0.28, pRange: 0.55,
   // 여유(초)가 클수록 쉬운 타구
@@ -172,10 +175,13 @@ export function fielderSpot(pos, shift = 0) {
 export function fielderMotion(pos, f) {
   const fld = num(f && f.fielding, pos === 'P' ? 45 : 50);
   const spd = num(f && f.speed, pos === 'P' ? 45 : 50);
+  // 순발력·위치 선정이 없는 선수(투수, 옛 저장본)는 있던 값에서 빚는다.
+  const rea = num(f && f.reaction, (fld + spd) / 2);
+  const posn = num(f && f.positioning, fld);
   let v = BC.rangeBase + BC.rangeField * (fld - 50) + BC.rangeSpeed * (spd - 50);
-  let react = BC.react;
+  let react = Math.max(0.12, BC.react - BC.reactZ * z(rea));
   if (pos === 'P') { v *= BC.pRange; react += BC.pReact; }
-  return { v, react };
+  return { v, react, posK: 1 - BC.posZ * z(posn) };
 }
 
 /** 그 타구에 누가 먼저 닿는가. 표가 아니라 경합으로 정한다. */
@@ -186,7 +192,7 @@ export function assign(ball, byPos, shift = 0) {
   for (const pos of pool) {
     const f = byPos && byPos[pos];
     // 투수에게는 수비 능력치가 없다. 자리 기본값으로 메운다.
-    const { v, react } = fielderMotion(pos, f);
+    const { v, react, posK } = fielderMotion(pos, f);
     let dist, avail;
     const { angle: pa } = fielderSpot(pos, shift);
     if (ground) {
@@ -199,6 +205,8 @@ export function assign(ball, byPos, shift = 0) {
                         ball.depth - POS_DEPTH[pos]);
       avail = ball.hang;
     }
+    // 자리를 잘 잡는 야수는 처음부터 공 쪽에 서 있었다 — 갈 거리가 짧다.
+    dist *= pos === 'P' || pos === 'C' ? 1 : posK;
     const slack = (avail - react) - dist / v;
     if (!best || slack > best.slack)
       best = { pos, fielder: f, slack, dist, v, react, avail, pa, pd: POS_DEPTH[pos] };

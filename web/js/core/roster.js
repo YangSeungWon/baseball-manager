@@ -6,9 +6,11 @@ import { personName, teamNames, franchiseOf } from './names.js';
 const RHO = 0.55;
 // 노화를 거친 뒤 리그 평균이 50(타석 엔진 기준선)에 오도록 하는 보정
 export const CALIB = { contact:1.7, avoid_k:2.7, discipline:2.8, gap_power:3.3,
-  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, stuff:2.0, command:2.5, movement:3.7, stamina:7.9, velo:3.0 };
+  hr_power:0.6, speed:6.8, fielding:3.6, arm:3.2, reaction:6.2, positioning:1.0,
+  stuff:2.0, command:2.5, movement:3.7, stamina:7.9, velo:3.0 };
 const YOUTH_GAP = { contact:1.00, avoid_k:0.90, discipline:1.30, gap_power:1.20,
-  hr_power:1.40, speed:0.35, fielding:0.80, arm:0.70, stuff:1.00, command:1.30, movement:1.10, stamina:0.90, velo:0.75 };
+  hr_power:1.40, speed:0.35, fielding:0.80, arm:0.70, reaction:0.40, positioning:1.35,
+  stuff:1.00, command:1.30, movement:1.10, stamina:0.90, velo:0.75 };
 // [타격보정, 수비요구, 주력보정, 송구요구]
 // 포수와 3루수·유격수는 어깨가 필요하고, 우익수는 3루 송구 때문에 강견을 쓴다.
 export const POS = { C:[-0.35,0.55,-0.60,0.70], '1B':[0.45,-0.35,-0.45,-0.55],
@@ -76,6 +78,9 @@ export function makeProspectBatter(rng, pos, talent = null, year = 0, birth = nu
     hr_power: attr(t,rng,RHO,hit*0.8), speed: attr(t,rng,0.20,spd),
     fielding: attr(t,rng,0.15,fld), arm: attr(t,rng,0.10,arm),
   };
+  // 첫 발은 몸이다 — 주력과 글러브에 붙는다. 자리는 머리다 — 재능과 따로 논다.
+  pot.reaction = Math.max(20, Math.min(80, 0.40 * pot.speed + 0.30 * pot.fielding + 0.30 * attr(t,rng,0.10,fld)));
+  pot.positioning = Math.max(20, Math.min(80, 0.35 * pot.fielding + 0.65 * attr(0,rng,0,fld * 0.5)));
   const b = newBatter({ gb_tendency: attr(0,rng,0), bats: rng.random()<0.33?'L':'R',
     position: pos, pid: newPid(), name: personName(rng, birth ?? (year || 2023) - 18) });
   return finish(b, pot, rng, year);

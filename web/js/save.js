@@ -12,7 +12,7 @@ import { DraftSession } from './core/draft.js';
 import { Mailbox } from './core/mail.js';
 
 export const VERSION = 2;
-const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','arm','gb_tendency'];
+const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fielding','arm','reaction','positioning','gb_tendency'];
 const PF = ['stuff','command','movement','stamina','velo','gb_tendency'];
 const META = ['pid','name','age','service','injury_days','career_injuries',
   'career_injury_days','debut_year','draft_year','unsigned_years','height','weight'];
@@ -44,6 +44,16 @@ function loadPlayer(d) {
   for (const m of META) if (d[m] !== undefined) p[m] = d[m];
   for (const f of (ip ? PF : BF)) p[f] = d[f] ?? 50;   // 예전 저장본에 없던 능력치
   p.pot = { ...d.pot }; p.hidden = { ...d.hid };
+  // 순발력·위치 선정이 없던 저장본. 있던 능력치에서 빚는다 — 새로 뽑으면 리그가 바뀐다.
+  if (!ip && d.reaction === undefined) {
+    p.reaction = Math.round(0.5 * p.speed + 0.5 * p.fielding);
+    p.positioning = Math.round(Math.max(20, Math.min(80, p.fielding + ((p.age || 27) - 27) * 0.6)));
+    // 정점을 지난 선수의 잠재력은 지금 값이다. 젊으면 주력·수비 잠재력에서.
+    const young = (p.age || 27) < 26;
+    if (p.pot.reaction === undefined) p.pot.reaction = young
+      ? Math.max(p.reaction, Math.round(0.5 * (p.pot.speed ?? p.speed) + 0.5 * (p.pot.fielding ?? p.fielding))) : p.reaction;
+    if (p.pot.positioning === undefined) p.pot.positioning = Math.min(80, p.positioning + ((p.age || 27) < 30 ? 6 : 0));
+  }
   p.contract = d.ct ? new C.Contract(d.ct[0], d.ct[1]) : null;
   for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter'])
     if (d[o] !== undefined) p[o] = d[o];

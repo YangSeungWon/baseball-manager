@@ -2238,7 +2238,7 @@ function closeModal() { $('#modal').hidden = true; $('#modal').classList.remove(
   gsState = null; }
 
 const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구안', gap_power:'갭파워',
-  hr_power:'파워', speed:'주력', fielding:'수비', stuff:'구위', command:'제구',
+  hr_power:'파워', speed:'주력', fielding:'수비', reaction:'순발력', positioning:'위치선정', stuff:'구위', command:'제구',
   movement:'무브먼트', stamina:'체력', arm:'송구', velo:'구속' };
 
 function openPlayer(pid) {
