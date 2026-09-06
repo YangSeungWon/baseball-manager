@@ -243,28 +243,59 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
     }
   } else if (res === OUT) {
     addedOuts = 1;
-    if (bbt === 'GB' && bases.r[0] && outs < 2) {
-      const pdp = ADV.gidp_base + ADV.gidp_speed*zs + ADV.gidp_infield*z(defn.team.defense.infield);
-      if (rng.random() < pdp) {
-        addedOuts = 2; bases.take(0);
-        if (outs === 0 && bases.r[2]) scored.push(bases.take(2));
-        if (bases.r[1] && !bases.r[2]) bases.move(1, 2);
-        desc = '병살타';
+    if (bbt === 'GB') {
+      // 땅볼 아웃. 진루 의무가 있다 — 타자가 1루로 가니 1루 주자는 2루로,
+      // 그 뒤도 줄줄이 밀린다. 야수는 그 중 잡기 쉬운 아웃을 고른다.
+      const pos = play ? play.pos : null;
+      const f1 = !!bases.r[0], f2 = f1 && !!bases.r[1], f3 = f2 && !!bases.r[2];
+      // 강제 진루 주자를 한 칸씩 민다. 3루 주자가 밀리면 득점이다.
+      const pushForced = () => {
+        if (f3) scored.push(bases.take(2));
+        if (f2) bases.move(1, 2);
+        if (f1) bases.move(0, 1);
+      };
+      if (outs === 2) {
+        // 3아웃. 결과는 같지만 화면은 다르다 — 가장 가까운 포스를 잡는다.
+        // 밀려 들어오는 주자는 빈 베이스로만 간다. 홈을 밟아도 득점이 아니라 그 자리에 둔다.
+        const slide = () => { if (bases.r[1] && !bases.r[2]) bases.move(1, 2); if (bases.r[0] && !bases.r[1]) bases.move(0, 1); };
+        if (f2 && pos === '3B')       { bases.take(1); slide(); bases.put(0, batter, me); }
+        else if (f1 && (pos === 'SS' || pos === '2B')) { bases.take(0); slide(); bases.put(0, batter, me); }
+        else slide();
+        if (!desc) desc = '땅볼 아웃';
+      } else if (f1) {
+        const pdp = ADV.gidp_base + ADV.gidp_speed*zs + ADV.gidp_infield*z(defn.team.defense.infield);
+        // 병살이 안 되면: 선행 주자 포스아웃(타자 세이프)인가, 타자 1루 아웃인가.
+        // 1루수·투수는 1루가 가깝고, 유격수·3루수는 2루가 가깝다.
+        let pFirst = 0.55 + (pos === '1B' || pos === 'P' ? 0.25 : pos === 'SS' || pos === '3B' ? -0.15 : 0);
+        const r = rng.random();
+        if (r < pdp) {
+          addedOuts = 2; bases.take(0);
+          if (outs === 0 && bases.r[2]) scored.push(bases.take(2));
+          if (bases.r[1] && !bases.r[2]) bases.move(1, 2);
+          desc = '병살타';
+        } else if (rng.random() < pFirst) {
+          // 타자 1루 아웃. 주자들은 한 칸씩 간다. 3루 주자는 홈에 던지지 않으면 들어온다.
+          if (f3 && rng.random() >= ADV.gb_r3_scores + 0.25 + gbSide * 0.5) {
+            // 홈에서 잡았다 — 3루 주자 아웃, 타자는 살았다
+            bases.take(2); if (f2) bases.move(1, 2); bases.move(0, 1); bases.put(0, batter, me);
+            desc = '홈 송구 아웃';
+          } else pushForced();
+          if (!desc) desc = desc0 || '땅볼 아웃';
+        } else {
+          // 선행 주자를 잡고 타자는 살았다
+          bases.take(0);
+          if (bases.r[2] && rng.random() < ADV.gb_r3_scores + 0.25) scored.push(bases.take(2));
+          if (bases.r[1] && !bases.r[2] && rng.random() < 0.35 + gbSide) bases.move(1, 2);
+          bases.put(0, batter, me);
+          desc = '야수선택';
+        }
       } else {
-        bases.take(0);
-        if (bases.r[2] && rng.random() < ADV.gb_r3_scores + 0.25) scored.push(bases.take(2));
-        if (bases.r[1] && !bases.r[2] && rng.random() < 0.35 + gbSide) bases.move(1, 2);
-        bases.put(0, batter, me);
-        desc = '야수선택';
-      }
-    } else if (bbt === 'GB') {
-      if (outs < 2) {
-        // 3루 주자는 깊은 땅볼(내야 뒤쪽)일수록, 우측 타구일수록 들어온다
+        // 1루가 비었다. 강제 진루는 없고, 판단으로 간다.
         if (bases.r[2] && rng.random() < ADV.gb_r3_scores + gbSide * 0.5
             + (dep != null ? 0.006 * (dep - 30) : 0)) scored.push(bases.take(2));
         if (bases.r[1] && !bases.r[2] && rng.random() < ADV.gb_r2_to_third + gbSide) bases.move(1, 2);
+        if (!desc) desc = '땅볼 아웃';
       }
-      if (!desc) desc = '땅볼 아웃';
     } else {
       if (bbt === 'FB' && outs < 2) {
         if (bases.r[2] && rng.random() < ADV.sacfly_base + ADV.of_arm_coeff*zarm + sf) {
