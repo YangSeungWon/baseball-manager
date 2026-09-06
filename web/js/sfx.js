@@ -10,6 +10,34 @@
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
+/* ── 모음 ──────────────────────────────────────────────────
+   말은 못 만들어도 모음은 만들 수 있다. 목소리는 성대의 톱니파를 포먼트
+   대역 셋으로 거른 것이고, 모음마다 그 대역이 다르다. 한글 음절에서 모음만
+   뽑아 부르면 "김! 도! 영!" 이 "이! 오! 어!" 로 들린다 — 멀리서 듣는 떼창은
+   실제로 딱 그만큼만 들린다. */
+const FORMANT = {                       // [F1, F2, F3] — 남성 평균
+  a: [730, 1090, 2440], eo: [600, 1000, 2300], o: [570, 840, 2410], u: [300, 870, 2240],
+  eu: [400, 1500, 2400], i: [270, 2290, 3010], e: [530, 1840, 2480],
+};
+// 한글 중성 21개 → 기본 모음. 이중모음은 끝나는 소리로 친다 (ㅑ→ㅏ, ㅝ→ㅓ, ㅢ→ㅣ).
+const JUNG = ['a','e','a','e','eo','e','eo','e','o','a','e','e','o','u','eo','e','i','u','eu','i','i'];
+export function vowelOf(ch) {
+  const c = ch.codePointAt(0) - 0xAC00;
+  if (c < 0 || c > 11171) return null;
+  return JUNG[Math.floor(c / 28) % 21];
+}
+/** 구호 → 음절 열. '!' '~' 는 앞 음절을 늘이고, 띄어쓰기는 쉼이다. */
+export function syllables(text) {
+  const out = [];
+  for (const ch of String(text || '')) {
+    const v = vowelOf(ch);
+    if (v) out.push({ v, len: 1 });
+    else if ((ch === '!' || ch === '~') && out.length) out[out.length - 1].len += ch === '~' ? 1.5 : 0.5;
+    else if (ch === ' ' && out.length && out[out.length - 1].v) out.push({ v: null, len: 0.5 });
+  }
+  return out;
+}
+
 export class Sfx {
   constructor() { this.ctx = null; this.on = false; this.muted = false; this.crowdG = null; this.crowdLevel = 0; }
 
@@ -132,7 +160,7 @@ export class Sfx {
      KBO 응원은 북 · 박수 · 나팔 · 떼창이다. 실제 응원가는 쓸 수 없으니 멜로디는
      구단 이름에서 뽑은 고유한 모티프다. 홈팀 타석 동안 돌고, 타석이 끝나면 멈춘다.
      떼창은 말이 아니라 모음 소리다 — 멀리서 들리는 관중석이 실제로 그렇다. */
-  song(seed, level = 0.6) {
+  song(seed, level = 0.6, chant = '') {
     if (!this.on || !this.ctx || this.songOn === seed) return;
     this.stopSong();
     this.songOn = seed;
@@ -150,12 +178,19 @@ export class Sfx {
     const kick = (t) => { const o = c.createOscillator(), g = c.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.12);
       g.gain.setValueAtTime(0.9, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.22); o.connect(g); g.connect(bus); o.start(t); o.stop(t + 0.25); };
     const clap = (t) => { for (let i = 0; i < 3; i++) this._burstTo(bus, 0.04, { f: 1800, q: 0.9, gain: 0.35, at: t - c.currentTime + i * 0.012 }); };
-    const oh = (t, dur, f) => {                          // 떼창 — 포먼트 두 개 얹은 노이즈
+    const oh = (t, dur, f) => {                          // 떼창 — 포먼트 두 개 얹은 노이즈 (구호가 없을 때)
       for (const [ff, q, g] of [[f, 6, 0.5], [f * 2.4, 5, 0.25]]) this._burstTo(bus, dur, { f: ff, q, gain: g * 0.5, at: t - c.currentTime, attack: 0.05 }); };
     const horn = (t, f, dur) => { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f;
       const fl = c.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = 1800; const g = c.createGain();
       g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.16, t + 0.03); g.gain.setValueAtTime(0.16, t + dur - 0.05); g.gain.linearRampToValueAtTime(0, t + dur);
       o.connect(fl); fl.connect(g); g.connect(bus); o.start(t); o.stop(t + dur + 0.02); };
+    // 구호. 음절마다 8분음표 하나, 늘임표는 더 길게. 떼창 두 마디(32박)를 구호로 채운다 —
+    // 짧은 구호는 반복하고, 한 번 부르면 한 박 쉰다.
+    const syl = syllables(chant), slots = new Array(32).fill(null);
+    if (syl.length) { let acc = 0, i = 0, guard = 0;
+      while (acc < 32 && guard++ < 200) { const x = syl[i % syl.length];
+        if (x.v) slots[Math.round(acc)] = x; acc += x.len;
+        if (++i % syl.length === 0) acc += 1; } }
     const tick = () => {
       if (!this.ctx || this.songOn !== seed) return;
       while (next < c.currentTime + 0.35) {
@@ -164,6 +199,10 @@ export class Sfx {
         else if (groove === 1) { if (e % 4 === 0 || e % 8 === 3) kick(next); if (e % 8 === 4) clap(next); }
         else { if (e % 8 === 0) kick(next); if (e % 8 === 2 || e % 8 === 4 || e % 8 === 5) clap(next); }
         if (bar < 2) { if (e % 2 === 0) horn(next, mel[(e / 2) | 0], beat * 0.9); }
+        else if (syl.length) {
+          const x = slots[(bar - 2) * 16 + e];
+          if (x) this.sing(bus, next, beat * 0.5 * x.len * 0.95, mel[(e / 2) | 0] / 2, x.v, 0.6);
+        }
         else if (e % 2 === 0 && e !== 14) oh(next, beat * 0.8, 380 + (e % 6) * 40);   // 나팔 두 마디, 떼창 두 마디
         next += beat / 2; step++;
       }
@@ -174,6 +213,23 @@ export class Sfx {
     if (this.songTimer) clearInterval(this.songTimer); this.songTimer = null; this.songOn = null;
     if (this.songBus && this.ctx) { const b = this.songBus, t = this.ctx.currentTime; b.gain.setTargetAtTime(0, t, 0.25); setTimeout(() => { try { b.disconnect(); } catch {} }, 1500); }
     this.songBus = null;
+  }
+  /** 한 음절을 부른다. 목소리 넷을 조금씩 어긋나게 겹쳐 사람 여럿처럼. */
+  sing(dest, t, dur, f0, vowel, gain = 0.5) {
+    const c = this.ctx, F = FORMANT[vowel] || FORMANT.a;
+    const mix = c.createGain(); mix.gain.value = gain; mix.connect(dest);
+    for (let vI = 0; vI < 4; vI++) {
+      const o = c.createOscillator(); o.type = 'sawtooth';
+      const det = 1 + (vI - 1.5) * 0.012 + (Math.random() - 0.5) * 0.01;
+      o.frequency.setValueAtTime(f0 * det * 1.03, t); o.frequency.exponentialRampToValueAtTime(f0 * det, t + 0.08);
+      const env = c.createGain(); env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(0.28, t + 0.04 + vI * 0.01);
+      env.gain.setValueAtTime(0.28, t + dur - 0.06); env.gain.linearRampToValueAtTime(0, t + dur);
+      o.connect(env);
+      F.forEach((f, i) => { const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = [9, 12, 12][i];
+        const g = c.createGain(); g.gain.value = [1, 0.55, 0.22][i]; env.connect(bp); bp.connect(g); g.connect(mix); });
+      o.start(t); o.stop(t + dur + 0.02);
+    }
   }
   _burstTo(dest, dur, { f = 1500, q = 1, gain = 0.5, type = 'bandpass', at = 0, attack = 0.003 } = {}) {
     const c = this.ctx, t = c.currentTime + Math.max(0, at);
