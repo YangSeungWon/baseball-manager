@@ -195,6 +195,7 @@ export const RUN = {
   gbRight: 0.14,       // 땅볼이 우측(1루·2루수)으로 가면 2루 주자가 3루로 간다
   gbLeft: -0.10,       // 좌측(유격·3루수)으로 가면 그 앞에서 잡힌다
   armMax: 0.9,         // 실제 야수의 어깨 z 를 팀 평균 대신 쓴다 (한계)
+  ofSingle: 0.06,      // 외야로 빠진 단타. 내야 안타가 주자를 못 보내게 된 몫을 여기서 돌려받는다
 };
 function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null) {
   const bl = off.lineFor(batter);
@@ -327,12 +328,20 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
         if (rng.random() < p) scored.push([r1, rp1, ue1]); else bases.put(2, r1, rp1, ue1);
       }
       bases.put(1, batter, me); if (!desc) desc = '2루타';
+    } else if (ball && (ball.depth < 52 || (ball.bbt === 'GB' && play && play.slack >= 0))) {
+      // 내야 안타. 공이 내야에 있다 — 주자는 밀리는 만큼만 간다.
+      // 2루 주자가 홈까지 오거나 협살에 걸릴 공이 아니다.
+      const f1 = !!bases.r[0], f2 = f1 && !!bases.r[1], f3 = f2 && !!bases.r[2];
+      if (bases.r[2] && (f3 || rng.random() < 0.35)) scored.push(bases.take(2));
+      if (bases.r[1] && !bases.r[2] && (f2 || rng.random() < 0.30)) bases.move(1, 2);
+      if (bases.r[0]) bases.move(0, 1);
+      bases.put(0, batter, me); if (!desc) desc = '내야 안타';
     } else {
       if (bases.r[2]) scored.push(bases.take(2));
       const [r2, rp2, ue2] = bases.take(1);
       const [r1, rp1, ue1] = bases.take(0);
       if (r2) {
-        const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm + m1;
+        const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm + m1 + RUN.ofSingle;
         if (rng.random() < p) scored.push([r2, rp2, ue2]);
         else if (outs < 2 && rng.random() < MISC.rundown + MISC.rundownArm * zarm) {
           addedOuts++; desc = `${desc || '안타'} — ${r2.name} 주루사`;   // 협살에 걸렸다. 안타는 안타다.
