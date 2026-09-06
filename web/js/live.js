@@ -771,7 +771,13 @@ export class LiveView {
     const fence = BIP.fence(rec.ang, this.dims);
 
     // 맞는 순간에는 타구만 말한다. 결과는 아직 모른다 — 잡을 수도, 놓칠 수도 있다.
-    const where = gb ? `${POS_FULL[rec.pos] || ''} 쪽 땅볼` : `${rec.zone || ''} ${rec.bbt === 'LD' ? '직선타' : rec.bbt === 'PU' ? '높이 뜬 공' : '뜬공'}`;
+    // 방향은 각도로만, 깊이는 말로. '우익수 뜬공' 이라 해 놓고 2루수가 잡으면 거짓말이다.
+    const kind = rec.bbt === 'LD' ? '직선타' : rec.bbt === 'PU' ? '높이 뜬 공' : '뜬공';
+    const side = rec.ang < -12 ? '좌측' : rec.ang > 12 ? '우측' : '중앙';
+    const where = gb ? `${POS_FULL[rec.pos] || ''} 쪽 땅볼`
+      : rec.dep < 45 ? `${side} 내야 ${kind}`
+      : rec.dep < 68 ? `얕은 ${rec.zone || side} ${kind}`
+      : rec.dep > 100 ? `깊은 ${rec.zone || side} ${kind}` : `${rec.zone || side} ${kind}`;
     tl.at(tC, () => { S.batter = null; this._cap(hr && rec.dep > 125 ? '큰 타구' : where, ''); });
     if (hit && rec.half === 'bottom') tl.at(tC + T * 0.9, () => this.sfx.cheer(0.45));
     if (out && rec.half === 'top') tl.at(tC + T, () => this.sfx.cheer(0.15));
