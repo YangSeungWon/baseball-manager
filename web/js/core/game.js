@@ -298,10 +298,13 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       }
     } else {
       if (bbt === 'FB' && outs < 2) {
+        // 태그업. 3루 주자의 득점과 2루 주자의 3루행은 따로 판단한다 —
+        // 깊은 뜬공이면 둘이 같이 간다.
         if (bases.r[2] && rng.random() < ADV.sacfly_base + ADV.of_arm_coeff*zarm + sf) {
           scored.push(bases.take(2)); desc = '희생플라이';
-        } else if (bases.r[1] && !bases.r[2] && rng.random() < ADV.fb_r2_to_third + sf * 0.6
-                   + RUN.side * 0.5 * side) bases.move(1, 2);
+        }
+        if (bases.r[1] && !bases.r[2] && rng.random() < ADV.fb_r2_to_third + sf * 0.6
+            + RUN.side * 0.5 * side) bases.move(1, 2);
       }
       if (!desc) desc = {FB:'뜬공 아웃', LD:'직선타 아웃', PU:'내야 뜬공'}[bbt];
     }

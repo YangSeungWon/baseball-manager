@@ -649,10 +649,17 @@ export class LiveView {
       if (bat) this._runnerClip(tl, bat, runStart, { stopAt: tC + T, fadeAt: tC + T + 0.2, out: true });
       for (const a of adv) if (a.f > 0) this._runnerClip(tl, a, a.t > a.f ? tC + T : runStart, {});
       tl.at(tC + T, () => this._outs(rec, 1));
-      // 공을 내야로 돌려보낸다
+      // 태그업 주자가 있으면 그 베이스로 던진다. 홈에서의 승부 — 주자가 조금 먼저다.
+      const tag = adv.filter(a => a.f > 0 && a.t > a.f).sort((p, q) => q.t - p.t)[0];
       const home = F ? [F.home[0], F.home[1]] : icpt;
-      this._throw(tl, icpt, BASE[2], pickT + 0.5, 1);
-      move(F, icpt, home, pickT + 1.5, pickT + 1.5 + dist2(icpt, home) / 4.5);
+      if (tag) {
+        const to = baseAt(tag.t), Fl = dist2(icpt, to) / 29 + 0.1;
+        const rA = tC + T + 27.4 * (tag.t - tag.f) / tag.v;
+        const tRel = Math.max(pickT + 0.3, rA + 0.3 - Fl);
+        const tArr = this._throw(tl, icpt, to, tRel, Fl);
+        if (tag.t === 4) tl.at(tArr, () => this._flash('세이프', 'safe'));
+      } else this._throw(tl, icpt, BASE[2], pickT + 0.5, 1);
+      move(F, icpt, home, tl.end + 0.3, tl.end + 0.3 + dist2(icpt, home) / 4.5);
       tl.add(tl.end, 0.9, null); return;
     }
     // 땅볼 아웃 · 병살 · 야수선택 · 안타 · 실책
