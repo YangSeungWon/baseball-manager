@@ -1320,6 +1320,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-bits:empty{display:none}
 .lv-zone{flex-shrink:0}
 .lv-log{flex:1;min-height:120px;max-height:none}
+.rpl.pend .rd{color:var(--fg3);letter-spacing:.1em}
 @media(max-width:900px){
   .lv{grid-template-columns:1fr;gap:12px;height:auto}
   .lv-side{flex-direction:column}

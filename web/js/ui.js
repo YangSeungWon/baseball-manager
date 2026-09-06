@@ -2104,14 +2104,25 @@ function liveOpts(home, away, park, crowd, cap) {
     playerBits: (pid) => { const p = G.player(pid);
       return p && p.ovr ? axis(p.ovr, p.pot, 'sm') : ''; } };
 }
-/** 경기 안의 문자중계. 최근 40 플레이. */
+/** 경기 안의 문자중계. 최근 40 플레이.
+ *  진행 중인 타석은 결과 없이 '…' 로 서 있다가, 장면이 끝나면 결과로 바뀐다.
+ *  결과를 먼저 보여 주면 공 하나하나 볼 이유가 없다. */
 function liveLog(lv, plays) {
   lv.setLog(plays.slice(-40).map((x, n, a) =>
-    `<div class="rpl${n === a.length - 1 ? ' cur' : ''}">
+    `<div class="rpl${n === a.length - 1 ? ' cur' : ''}${x.pending ? ' pend' : ''}">
       <span class="ri">${x.inning}${x.half === 'top' ? '초' : '말'}</span>
       <span class="rb">${esc(x.batter || '')}</span>
-      <span class="rd">${esc(x.desc || '')}</span>
-      ${x.runs ? `<em>+${x.runs}</em>` : ''}</div>`).join(''));
+      <span class="rd">${x.pending ? '…' : esc(x.desc || '')}</span>
+      ${!x.pending && x.runs ? `<em>+${x.runs}</em>` : ''}</div>`).join(''));
+}
+/** onLog 콜백. 시작(done=false)이면 자리만 잡고, 끝(done=true)이면 그 자리에 결과를 넣는다. */
+function logSink(seen, getLv) {
+  return (rec, done) => {
+    const i = seen.findIndex(x => x.pending && x.rec === rec);
+    if (!done) { if (i < 0) seen.push({ ...rec, desc: '', runs: 0, pending: true, rec }); }
+    else if (i >= 0) seen[i] = rec; else seen.push(rec);
+    const lv = getLv(); if (lv) liveLog(lv, seen);
+  };
 }
 
 function watchDay() {
@@ -2149,7 +2160,7 @@ function watchDay() {
         openGameShell(p.away, p.home, p.park, p.crowd, p.cap);
         const host = gsBody('');
         lv = mountLive(host, { ...liveOpts(p.home, p.away, p.park, p.crowd, p.cap),
-          onLog: (rec) => { seen.push(rec); liveLog(lv, seen); }, onEnd: bail });
+          onLog: logSink(seen, () => lv), onEnd: bail });
         const x = document.getElementById('gsX'); if (x) x.onclick = bail;
         $('#modal').onclick = (e) => { if (e.target.id === 'modal') bail(); };
         document.onkeydown = (e) => { if (e.key === 'Escape') bail(); };
@@ -2572,7 +2583,7 @@ function openReplay(box) {
   const seen = [];
   const end = () => { stop = true; if (lv) { lv.skip(); } };
   lv = mountLive(host, { ...liveOpts(box.home.team, box.away.team, box.park, box.crowd, box.cap),
-    onLog: (rec) => { seen.push(rec); liveLog(lv, seen); }, onEnd: end });
+    onLog: logSink(seen, () => lv), onEnd: end });
   const x = document.getElementById('gsX');
   if (x) x.onclick = () => { stop = true; closeGame(); };
   (async () => {

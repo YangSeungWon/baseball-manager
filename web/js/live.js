@@ -252,7 +252,9 @@ export class LiveView {
       // 장면이 끝나면 기록과 맞춘다. 건너뛰었어도 화면은 진실이어야 한다.
       if (!rec.evt) tl.at(tl.end, () => this._settle(rec));
       this.tl = tl;
-      if (this.o.onLog && !rec.evt) this.o.onLog(rec);
+      // 문자중계 줄은 결과를 미리 말하면 안 된다. 시작할 때는 '진행 중' 으로 붙이고
+      // 장면이 끝나 확정될 때 결과로 바꾼다.
+      if (this.o.onLog && !rec.evt) this.o.onLog(rec, false);
     });
   }
 
@@ -511,6 +513,7 @@ export class LiveView {
     S.b = rec.b ?? S.b; S.s = rec.s ?? S.s;
     this._emitScore(rec, rec.ro ?? this._runs);
     if (rec.pnp != null) this.el.np.textContent = rec.pnp;
+    if (this.o.onLog) this.o.onLog(rec, true);
   }
   /** 다음 타석 전에 야수들을 제자리로 돌려보낸다. 시프트가 있으면 그 자리로. */
   _resetDefense(tl, sh) {
@@ -631,6 +634,10 @@ export class LiveView {
       tl.at(pickT, () => { S.ball = null; S.trail = []; });
     }
 
+    // 2b. 나머지 야수. 공을 쫓는 사람만 움직이면 야구가 아니다.
+    //     베이스 커버 · 컷오프 · 백업. 누가 어디로 가는지는 타구 방향이 정한다.
+    this._coverage(tl, rec, pos, thrower, tC, gb, L);
+
     // 3. 주루와 송구. 기록이 누가 살았는지 정했다. 화면은 그 결과가 아슬아슬하게 나오게 맞춘다.
     const adv = rec.adv || [];
     const flyOut = out && !gb;
@@ -691,6 +698,35 @@ export class LiveView {
     for (const a of adv) if (a.t !== 0) this._runnerClip(tl, a, runStart, {});
     if (targets.length === 1 && !targets[0].a && err) tl.at(tC + T + 0.2, () => {});
     tl.add(tl.end, 0.9, null);
+  }
+
+  /** 공 없는 야수들의 움직임. 타구를 쫓는 야수(pos)와 주우러 가는 야수(thrower)는 뺀다. */
+  _coverage(tl, rec, pos, thrower, tC, gb, L) {
+    const S = this.S, busy = new Set([pos, thrower && thrower.pos]);
+    const go = (p, to, t0, v = 6.0, frac = 1) => {
+      const f = S.fielders[p]; if (!f || busy.has(p)) return;
+      const from = [f.x, f.y], tgt = [lerp(from[0], to[0], frac), lerp(from[1], to[1], frac)];
+      const d = dist2(from, tgt); if (d < 0.5) return;
+      tl.add(t0, d / v, (k) => { f.x = lerp(from[0], tgt[0], k); f.y = lerp(from[1], tgt[1], k); });
+    };
+    const t0 = tC + 0.35, right = rec.ang > 0;
+    const runnersOn = S.runners.some(r => !r.gone && !r.wait);
+    // 1루 — 1루수가 잡으러 갔으면 투수가 커버한다
+    if (busy.has('1B')) go('P', BASE[1], t0, 6.0); else go('1B', BASE[1], t0);
+    // 2루 — 유격수와 2루수 중 공 반대편이 베이스로, 같은 편은 공 쪽으로 (백업·컷오프)
+    const midCover = right ? 'SS' : '2B', midHelp = right ? '2B' : 'SS';
+    go(midCover, BASE[2], t0);
+    if (gb) go(midHelp, L, t0 + 0.1, 6.0, 0.35);
+    else go(midHelp, L, t0 + 0.1, 6.0, 0.45);             // 컷오프 자리로
+    // 3루 — 주자가 있거나 좌측 타구면 3루수는 베이스를 지킨다
+    if (runnersOn || !right) go('3B', BASE[3], t0);
+    // 투수 — 외야로 간 공이면 송구가 올 베이스 뒤를 백업한다
+    if (!gb && !busy.has('P')) {
+      const back = runnersOn ? BASE[3] : BASE[2];
+      go('P', [back[0] * 1.15, back[1] * 1.15 + 3], t0 + 0.2, 5.5);
+    }
+    // 다른 외야수들은 공 쪽으로 몇 걸음 백업
+    for (const p of ['LF', 'CF', 'RF']) go(p, L, t0, 5.5, 0.28);
   }
 
   /** 송구. 도착 시각을 돌려준다. */

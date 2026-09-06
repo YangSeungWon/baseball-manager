@@ -182,9 +182,36 @@ function forceAdvance(bases, batter, resp) {
   return scored;
 }
 
-function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140) {
+/* ── 진루는 타구를 따라간다 ──────────────────────────────
+   같은 단타라도 내야를 뚫고 나간 땅볼과 외야수 앞에 뚝 떨어진 직선타는 다르다.
+   깊이 · 방향 · 잡은 야수의 어깨가 주자의 판단을 정한다. 표의 기본 확률은
+   리그 평균 타구에서 그 값이 나오도록 두고, 그 주변으로만 움직인다. */
+export const RUN = {
+  depth1: 0.0045,      // 단타: 깊이 1m 당 (평균 55m 기준)
+  depth2: 0.0040,      // 2루타: 깊이 1m 당 (평균 80m 기준)
+  sfDepth: 0.0060,     // 희생플라이: 깊이 1m 당 (평균 80m 기준)
+  side: 0.10,          // 우익 쪽 타구면 3루 송구가 멀다 · 좌익 쪽이면 가깝다
+  through: 0.07,       // 내야를 뚫고 나간 땅볼은 외야수가 앞으로 나와 잡는다 — 시간이 더 걸린다
+  gbRight: 0.14,       // 땅볼이 우측(1루·2루수)으로 가면 2루 주자가 3루로 간다
+  gbLeft: -0.10,       // 좌측(유격·3루수)으로 가면 그 앞에서 잡힌다
+  armMax: 0.9,         // 실제 야수의 어깨 z 를 팀 평균 대신 쓴다 (한계)
+};
+function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unearnedInning = false, velo0 = 140, ball = null, play = null) {
   const bl = off.lineFor(batter);
-  const zs = z(batter.speed), zarm = z(defn.team.defense.outfield);
+  const zs = z(batter.speed);
+  // 잡은 야수의 어깨. 없으면 (홈런·삼진) 팀 평균.
+  const fld = play && play.fielder;
+  const zarm = fld ? Math.max(-RUN.armMax, Math.min(RUN.armMax, z(fld.arm ?? fld.fielding ?? 50)))
+                   : z(defn.team.defense.outfield);
+  // 타구 보정. 깊이·방향·유형이 주자에게 주는 시간.
+  const dep = ball ? ball.depth : null, ang = ball ? ball.angle : 0;
+  const side = ang > 15 ? 1 : ang < -15 ? -1 : 0;        // +1 우익 쪽
+  const thru = ball && ball.bbt === 'GB' ? RUN.through : 0;
+  const m1 = dep != null ? RUN.depth1 * (dep - 55) + thru : 0;   // 단타 공통
+  const toThird = m1 + RUN.side * side;                          // 1루 → 3루: 우익 쪽이면 유리
+  const m2 = dep != null ? RUN.depth2 * (dep - 80) : 0;          // 2루타
+  const sf = dep != null ? RUN.sfDepth * (dep - 80) : 0;         // 희생플라이
+  const gbSide = ball && ball.bbt === 'GB' ? (ang > 5 ? RUN.gbRight : ang < -5 ? RUN.gbLeft : 0) : 0;
   const me = defn.cur;
   const scored = [];
   const bases0 = bases.occupied();          // 타석 시작 시점의 주자
@@ -226,21 +253,24 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       } else {
         bases.take(0);
         if (bases.r[2] && rng.random() < ADV.gb_r3_scores + 0.25) scored.push(bases.take(2));
-        if (bases.r[1] && !bases.r[2] && rng.random() < 0.35) bases.move(1, 2);
+        if (bases.r[1] && !bases.r[2] && rng.random() < 0.35 + gbSide) bases.move(1, 2);
         bases.put(0, batter, me);
         desc = '야수선택';
       }
     } else if (bbt === 'GB') {
       if (outs < 2) {
-        if (bases.r[2] && rng.random() < ADV.gb_r3_scores) scored.push(bases.take(2));
-        if (bases.r[1] && !bases.r[2] && rng.random() < ADV.gb_r2_to_third) bases.move(1, 2);
+        // 3루 주자는 깊은 땅볼(내야 뒤쪽)일수록, 우측 타구일수록 들어온다
+        if (bases.r[2] && rng.random() < ADV.gb_r3_scores + gbSide * 0.5
+            + (dep != null ? 0.006 * (dep - 30) : 0)) scored.push(bases.take(2));
+        if (bases.r[1] && !bases.r[2] && rng.random() < ADV.gb_r2_to_third + gbSide) bases.move(1, 2);
       }
       if (!desc) desc = '땅볼 아웃';
     } else {
       if (bbt === 'FB' && outs < 2) {
-        if (bases.r[2] && rng.random() < ADV.sacfly_base + ADV.of_arm_coeff*zarm) {
+        if (bases.r[2] && rng.random() < ADV.sacfly_base + ADV.of_arm_coeff*zarm + sf) {
           scored.push(bases.take(2)); desc = '희생플라이';
-        } else if (bases.r[1] && !bases.r[2] && rng.random() < ADV.fb_r2_to_third) bases.move(1, 2);
+        } else if (bases.r[1] && !bases.r[2] && rng.random() < ADV.fb_r2_to_third + sf * 0.6
+                   + RUN.side * 0.5 * side) bases.move(1, 2);
       }
       if (!desc) desc = {FB:'뜬공 아웃', LD:'직선타 아웃', PU:'내야 뜬공'}[bbt];
     }
@@ -259,7 +289,7 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       if (bases.r[1]) scored.push(bases.take(1));
       if (bases.r[0]) {
         const [r1, rp1, ue1] = bases.take(0);
-        const p = ADV.b2_first_scores + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm;
+        const p = ADV.b2_first_scores + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm + m2;
         if (rng.random() < p) scored.push([r1, rp1, ue1]); else bases.put(2, r1, rp1, ue1);
       }
       bases.put(1, batter, me); if (!desc) desc = '2루타';
@@ -268,14 +298,14 @@ function resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0 = '', unea
       const [r2, rp2, ue2] = bases.take(1);
       const [r1, rp1, ue1] = bases.take(0);
       if (r2) {
-        const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm;
+        const p = ADV.b1_second_scores + ADV.speed_coeff*z(r2.speed) + ADV.of_arm_coeff*zarm + m1;
         if (rng.random() < p) scored.push([r2, rp2, ue2]);
         else if (outs < 2 && rng.random() < MISC.rundown + MISC.rundownArm * zarm) {
           addedOuts++; desc = '주루사';            // 협살에 걸렸다
         } else bases.put(2, r2, rp2, ue2);
       }
       if (r1) {
-        const p = ADV.b1_first_to_third + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm;
+        const p = ADV.b1_first_to_third + ADV.speed_coeff*z(r1.speed) + ADV.of_arm_coeff*zarm + toThird;
         if (!bases.r[2] && rng.random() < p) bases.put(2, r1, rp1, ue1);
         else if (!bases.r[2] && outs + addedOuts < 2
                  && rng.random() < (MISC.rundown + MISC.rundownArm * zarm) * 0.6) {
@@ -749,7 +779,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     if (d3) { res = 'D3'; desc0 = '낫아웃 출루'; }
     if (res === ERR && outs === 2) unearnedInning = true;   // 이닝이 실책으로 이어졌다
     if (res !== K && res !== OUT && res !== FOUL_OUT) pl.br++;   // 출루를 허용했다
-    const [ao, runs, desc, scoredR] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140);
+    const [ao, runs, desc, scoredR] = resolve(res, bbt, batter, bases, outs, off, defn, rng, desc0, unearnedInning, pc.velo || 140, ball, play);
     scoredNow.push(...scoredR);
     outs += ao; pl.outs += ao;
     // 스플릿 누적: [pa,ab,h,2b,3b,hr,bb,k,rbi]
