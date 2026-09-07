@@ -730,8 +730,9 @@ function gsResult(box, onDone) {
         <button class="quiet" id="gsFull">다시 보기</button>
         <button class="quiet" id="gsDone">구단으로</button>
       </div>
-      <div class="gs-box">${ptable(aw)}${ptable(hm)}</div>
+      <details class="gs-box-details" ${window.innerWidth > 900 ? 'open' : ''}><summary>전체 기록 보기</summary><div class="gs-box">${ptable(aw)}${ptable(hm)}</div></details>
     </div>`);
+  if (window.innerWidth <= 900) $('#gsBody .gs-final')?.after($('#gsBody .hl-btn'));
   $$('#gsBody [data-star]').forEach(b => b.onclick = () => openPlayer(+b.dataset.star));
   document.getElementById('gsFull').onclick = () => openReplay(box);
   document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };
@@ -2431,6 +2432,7 @@ function askMoment(m, lv, done) {
             inn: m.inning, half: m.half, outs: m.outs, base: m.bases });
   const html = `<div class="clutch">
       <div class="gs-q">${title}</div>
+      <p class="clutch-situation">${m.inning}회 ${m.half === 'top' ? '초' : '말'} · ${m.outs}아웃</p>
       <div class="csit">
         <div class="cbase">${on.length ? on.map(x => `<span>${x}</span>`).join('')
           : '<span class="dim">주자 없음</span>'}</div>
@@ -2913,8 +2915,8 @@ function openReplay(box) {
 // Escape 동작은 경기/진행 화면이 정하고, Tab 순환은 모든 모달에 공통 적용한다.
 document.addEventListener('keydown', e => {
   if (e.key !== 'Tab' || $('#modal').hidden) return;
-  const items = [...$('#modalBody').querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')]
-    .filter(x => !x.disabled && x.getClientRects().length);
+  const items = [...$('#modalBody').querySelectorAll('button, a[href], input, select, textarea, summary, [tabindex="0"]')]
+    .filter(x => !x.disabled && !x.closest('[inert]') && x.getClientRects().length);
   if (!items.length) { e.preventDefault(); $('#modalBody').focus(); return; }
   const i = items.indexOf(document.activeElement);
   if (i < 0 || (e.shiftKey && i === 0) || (!e.shiftKey && i === items.length - 1)) {

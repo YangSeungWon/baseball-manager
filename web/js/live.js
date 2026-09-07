@@ -206,8 +206,8 @@ export class LiveView {
               </div>
             </div>
             <div class="lv-bug-strip">
-              <span class="lv-bug-p">${ic('ball')}<b class="lv-bug-pn">—</b><i class="lv-bug-pc"></i></span>
-              <span class="lv-bug-b">${ic('bat')}<b class="lv-bug-bn">—</b><i class="lv-bug-bl"></i></span>
+              <span class="lv-bug-p"><small class="lv-mobile-role">투수</small>${ic('ball')}<b class="lv-bug-pn">—</b><i class="lv-bug-pc"></i></span>
+              <span class="lv-bug-b"><small class="lv-mobile-role">타자</small>${ic('bat')}<b class="lv-bug-bn">—</b><i class="lv-bug-bl"></i></span>
             </div>
           </div>
           <div class="lv-cap"><b class="lv-cap-main"></b><span class="lv-cap-sub"></span></div>
@@ -234,9 +234,10 @@ export class LiveView {
           <div class="lv-card lv-pre" hidden></div>
           <div class="lv-card lv-inn" hidden></div>
           <div class="lv-tools">
+            <button class="lv-mobile-skip quiet">이 장면 넘기기</button>
             <span class="lv-seg lv-view">
-              <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">2.5D</button>
-              <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">탑다운</button></span>
+              <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">입체</button>
+              <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">위에서</button></span>
             <span class="lv-seg lv-spd"><button data-s="auto" class="${this.auto ? 'on' : ''}">자동</button>${[1, 2, 4, 8].map(s =>
               `<button data-s="${s}" class="${!this.auto && s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
             <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리" aria-pressed="${!!this.o.sound}">${SND_ICON}</button></span>
@@ -247,8 +248,15 @@ export class LiveView {
           <button class="quiet lv-pause" title="일시정지">${ic('pause')}<span>일시정지</span></button>
           <button class="quiet lv-skip" title="이 장면 건너뛰기">${ic('skip')}<span>장면 건너뛰기</span></button>
           <span class="lv-sp"></span>
-          <button class="quiet lv-end" title="결과로">${ic('end')}<span>결과로</span></button>
+          <label class="lv-mobile-speed"><span class="sr-only">재생 속도</span><select aria-label="재생 속도"><option value="auto">자동 속도</option><option value="1">1배</option><option value="2">2배</option><option value="4">4배</option><option value="8">8배</option></select></label>
+          <button class="quiet lv-end" title="결과로">${ic('end')}<span>경기 끝까지</span></button>
         </div>
+        <details name="live-mobile-panels" class="lv-mobile-details lv-manager-details" ${this.o.command ? '' : 'hidden'}>
+          <summary>작전 지시</summary><p class="lv-detail-note">펼쳐 두면 경기가 멈춥니다. 지시를 고르고 접으면 다음 타석에 적용됩니다.</p><div class="lv-manager-slot"></div>
+        </details>
+        <details name="live-mobile-panels" class="lv-mobile-details lv-record-details">
+          <summary>기록 · 화면 설정</summary><p class="lv-detail-note">접으면 경기가 이어집니다.</p><div class="lv-settings-slot"></div><div class="lv-player-slot"></div><div class="lv-log-slot"></div>
+        </details>
       </div>
       <aside class="lv-side">
         <div class="rplog lv-log"></div>
@@ -268,8 +276,15 @@ export class LiveView {
     this.root.querySelectorAll('[data-v]').forEach(b => b.onclick = () => this.setView(b.dataset.v));
     this.root.querySelectorAll('[data-s]').forEach(b => b.onclick = () => b.dataset.s === 'auto' ? this.setAuto(true) : this.setSpeed(+b.dataset.s, true));
     q('.lv-skip').onclick = () => this.skip();
+    q('.lv-mobile-skip').onclick = () => this.skip();
+    q('.lv-mobile-speed select').value = this.auto ? 'auto' : String(this.speed);
+    q('.lv-mobile-speed select').onchange = e => e.target.value === 'auto' ? this.setAuto(true) : this.setSpeed(+e.target.value, true);
+    this.root.querySelectorAll('.lv-mobile-details').forEach(panel => panel.addEventListener('toggle', () => {
+      if (panel.open && this._narrow) this.root.querySelectorAll('.lv-mobile-details').forEach(other => { if (other !== panel) other.open = false; });
+      this.panelPaused = this._narrow && [...this.root.querySelectorAll('.lv-mobile-details')].some(x => x.open);
+    }));
     q('.lv-sndb').onclick = () => this.setSound(!this.sfx.on);
-    q('.lv-end').onclick = () => this.o.onEnd && this.o.onEnd();
+    q('.lv-end').onclick = () => { this._closePanels(); if (this.o.onEnd) this.o.onEnd(); };
     this.el.pause.onclick = () => this.togglePause();
     // 크기는 창이 바뀔 때만 다시 잰다. ResizeObserver 로 부모 칸을 지켜보면
     // 옆 칸의 문자중계가 자랄 때마다 불려 레이아웃이 매 프레임 흔들린다.
@@ -298,6 +313,7 @@ export class LiveView {
   setSpeed(s, manual = false) {
     if (manual) { this.auto = false; try { localStorage.setItem('dugout.speed', s); } catch {} }
     this.speed = s;
+    const select = this.root.querySelector('.lv-mobile-speed select'); if (select) select.value = this.auto ? 'auto' : String(s);
     this.sfx.mute(s > 2);                            // ×4 부터는 소리가 뭉개진다
     this.root.querySelectorAll('[data-s]').forEach(b => b.classList.toggle('on', b.dataset.s === 'auto' ? this.auto : (!this.auto && +b.dataset.s === s)));
   }
@@ -317,15 +333,19 @@ export class LiveView {
   togglePause() { this.paused = !this.paused;
     this.el.pause.innerHTML = this.paused ? `${ic('play')}<span>계속</span>` : `${ic('pause')}<span>일시정지</span>`; }
   /** 지금 장면을 끝까지 돌린다 */
-  skip() { if (this.tl) { this.tl.finish(); } else if (this._preDone && !this.el.pre.hidden) this._preDone(); }
+  skip() { this._closePanels(); if (this.tl) { this.tl.finish(); const done = this.resolve; this.tl = null; this.resolve = null; if (done) done(); } else if (this._preDone && !this.el.pre.hidden) this._preDone(); }
+
+  _closePanels() { this.root.querySelectorAll('.lv-mobile-details').forEach(p => p.open = false); this.panelPaused = false; }
 
   _size() {
+    if (this._dead) return;
     const V = this.views[this.view];
     // 무대의 폭은 캔버스가 정하면 안 된다 (캔버스가 커지면 무대도 커져 서로 밀어낸다).
     // 부모 칸의 폭을 잰다.
     const r = (this.stage.parentElement || this.stage).getBoundingClientRect();
     // 폭에 맞추되, 세로가 화면을 넘지 않게. 남는 폭은 무대 배경으로 둔다.
-    const maxH = Math.max(220, (this.o.maxH ? this.o.maxH() : window.innerHeight - 230));
+    const maxH = window.innerWidth <= 900 ? Math.max(140, Math.min(260, window.innerHeight * .30))
+      : Math.max(220, (this.o.maxH ? this.o.maxH() : window.innerHeight - 230));
     let w = Math.max(200, Math.floor(r.width)), h = Math.round(w / V.aspect());
     if (h > maxH) { h = maxH; w = Math.round(h * V.aspect()); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -333,10 +353,26 @@ export class LiveView {
     const narrow = window.innerWidth <= 900;
     if (narrow !== this._narrow) {
       this._narrow = narrow;
-      const main = this.root.querySelector('.lv-main'), bar = this.root.querySelector('.lv-bar');
-      for (const cls of ['.lv-mgr', '.lv-pl']) { const el = this.root.querySelector(cls); if (!el) continue;
-        if (narrow) main.insertBefore(el, bar.nextSibling); else this.stage.appendChild(el); }
+      const q = s => this.root.querySelector(s), main = q('.lv-main');
+      this._closePanels();
+      if (narrow) {
+        main.insertBefore(q('.lv-bug'), this.stage);
+        this.stage.after(q('.lv-cap'));
+        q('.lv-manager-slot').appendChild(this.el.mgr);
+        q('.lv-player-slot').appendChild(q('.lv-pl'));
+        q('.lv-settings-slot').appendChild(q('.lv-tools'));
+        q('.lv-log-slot').appendChild(this.el.log);
+        main.insertBefore(this.el.pre, this.stage);
+        q('.lv').appendChild(this.el.ask);
+      } else {
+        for (const selector of ['.lv-bug', '.lv-cap', '.lv-mgr', '.lv-pl', '.lv-tools', '.lv-pre', '.lv-ask']) this.stage.appendChild(q(selector));
+        q('.lv-side').appendChild(this.el.log);
+      }
+      main.inert = narrow && !this.el.ask.hidden;
+      const top = this.root.closest('.gs')?.querySelector('.gs-top'); if (top) top.inert = main.inert;
+      this.el.pre.querySelectorAll('details').forEach(d => d.open = !narrow);
     }
+
     // 같은 크기면 손대지 않는다. 캔버스 크기를 다시 쓰면 그림이 지워지고,
     // ResizeObserver 가 매 프레임 부르면 그린 직후마다 지워져 빈 화면이 된다.
     if (this.cw === w && this.ch === h && this.dpr === dpr) return;
@@ -352,7 +388,7 @@ export class LiveView {
     // rAF 의 시각 인자는 performance.now() 보다 앞설 수 있다. 한 시계만 쓴다.
     const now = performance.now();
     const dt = clamp((now - this._last) / 1000, 0, 0.1); this._last = now;
-    if (this.tl && !this.paused) {
+    if (this.tl && !this.paused && !this.panelPaused) {
       this.tl.step(this.tl.t + dt * this.speed);
       if (this.tl.over) { const r = this.resolve; this.tl = null; this.resolve = null; if (r) r(); }
     }
@@ -1543,8 +1579,8 @@ export class LiveView {
     const side = (S, cls) => `<div class="lv-pre-team ${cls}" style="--tc:${cls === 'home' ? this.o.colors.home : this.o.colors.away}">
       <div class="lv-pre-name"><i></i>${short(S.team)}</div>
       <div class="lv-pre-sp">${ic('ball')}<b>${S.starter.name}</b><span>${S.starter.throws === 'L' ? '좌완' : '우완'}${S.penDay ? ' · 불펜데이' : ''}</span></div>
-      <ol class="lv-pre-order">${S.order.map(b => `<li><em>${b.pos}</em>${b.name}<span>${b.bats === 'L' ? '좌' : '우'}</span></li>`).join('')}</ol>
-      <div class="lv-pre-pen">${ic('glove')}${S.pen.slice(0, 5).map(p => `<span>${p.name}</span>`).join('')}${S.pen.length > 5 ? `<span>+${S.pen.length - 5}</span>` : ''}</div>
+      <details class="lv-pre-roster" ${this._narrow ? '' : 'open'}><summary>라인업 · 불펜</summary><ol class="lv-pre-order">${S.order.map(b => `<li><em>${b.pos}</em>${b.name}<span>${b.bats === 'L' ? '좌' : '우'}</span></li>`).join('')}</ol>
+      <div class="lv-pre-pen">${ic('glove')}${S.pen.slice(0, 5).map(p => `<span>${p.name}</span>`).join('')}${S.pen.length > 5 ? `<span>+${S.pen.length - 5}</span>` : ''}</div></details>
     </div>`;
     el.innerHTML = `<div class="lv-pre-in">
       <div class="lv-pre-head">${this.o.crowd ? `관중 ${this.o.crowd.toLocaleString()} · ` : ''}${this.o.park && this.o.park.name ? this.o.park.name : ''}</div>
@@ -1552,11 +1588,14 @@ export class LiveView {
       <button class="go lv-pre-go">${ic('play')}<span>플레이볼</span></button>
     </div>`;
     el.hidden = false;
+    el.querySelector('.lv-pre-go').focus();
     el.querySelector('.lv-pre-go').onclick = () => { el.hidden = true; done(); };
     this._preDone = () => { el.hidden = true; done(); };
   }
   /** 이닝 사이 카드. 다음 타순과 불펜. 감독이 손을 쓰는 시간이다. */
   _innCard(rec) {
+    this.o.onScore?.({ inn:rec.inning, half:rec.half, outs:0, base:[null,null,null], b:0, s:0 });
+    if (rec.due?.[0]) this.el.bugBn.textContent = rec.due[0].name;
     const el = this.el.inn;
     const due = (rec.due || []).map((b, i) => `<li><em>${b.pos}</em>${b.name}</li>`).join('');
     const pen = (rec.pen || []).slice(0, 4).map(p => `<span>${p.name}<i>${p.slot}</i></span>`).join('');
@@ -1574,6 +1613,8 @@ export class LiveView {
     const el = this.el.mgr, sd = this.side;
     if (!el || !this.o.command || !sd || !sd.mine) { if (el) el.hidden = true; return; }
     el.hidden = false;
+    const summary = this.root.querySelector('.lv-manager-details summary');
+    if (summary) summary.textContent = '작전 지시' + (Object.keys(this.pending).length ? ' · 예약 있음' : '');
     const P = this.pending, off = sd.mine === 'off';
     const pend = (k, label) => P[k] ? `<div class="lv-pend"><span>다음 타석 · ${label}</span><button data-cancel="${k}" class="quiet">취소</button></div>` : '';
     if (off) {
@@ -1615,8 +1656,21 @@ export class LiveView {
   _mgrConsumed() { const sh = this.pending.shift; this.pending = sh ? { shift: sh } : {}; if (this.side) this._mgr(); }
 
   /* ── 승부처 오버레이 ── */
-  ask(html) { this.el.ask.innerHTML = html; this.el.ask.hidden = false; return this.el.ask; }
-  unask() { this.el.ask.hidden = true; this.el.ask.innerHTML = ''; }
+  ask(html) {
+    this._closePanels(); this.askFocus = document.activeElement;
+    this.el.ask.innerHTML = html; this.el.ask.hidden = false;
+    this.el.ask.setAttribute('role', 'group'); this.el.ask.setAttribute('aria-label', '승부처 선택');
+    this.root.querySelector('.lv-main').inert = this._narrow;
+    const top = this.root.closest('.gs')?.querySelector('.gs-top'); if (top) top.inert = this._narrow;
+    this.el.ask.tabIndex = -1; this.el.ask.focus();
+    return this.el.ask;
+  }
+  unask() {
+    this.el.ask.hidden = true; this.el.ask.innerHTML = '';
+    this.root.querySelector('.lv-main').inert = false;
+    const top = this.root.closest('.gs')?.querySelector('.gs-top'); if (top) top.inert = false;
+    if (this.askFocus?.isConnected) this.askFocus.focus();
+  }
   setLog(html) { this.el.log.innerHTML = html; this.el.log.scrollTop = this.el.log.scrollHeight; }
 }
 

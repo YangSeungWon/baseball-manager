@@ -84,6 +84,7 @@ MIT. 자세한 것은 [LICENSE](LICENSE).
 node --test tools/check-game.mjs
 # Playwright가 설치된 환경. 필요하면 PLAYWRIGHT_MODULE과 CHROMIUM_PATH를 지정한다.
 node tools/check-ui.mjs
+node tools/check-live-ui.mjs
 python3 tools/package-itch.py /tmp/dugout-itch.zip
 ```
 
