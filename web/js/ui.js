@@ -412,9 +412,9 @@ function drawDossier() {
         <span class="chip d${d.difficulty}">${esc(d.difficultyLabel)}</span></div>
       <p class="headline">${esc(d.headline)}</p>
       ${d.story ? `<p class="story">${d.story.split('\n').map(esc).join('<br>')}</p>` : ''}
-      <p class="dlast">${bootGame.state().year - 1} 정규시즌 <b>${d.last.rank}위</b>
-        <span>${d.last.w}승 ${d.last.l}패${d.last.d ? ` ${d.last.d}무` : ''}</span>
-        ${d.lastRank ? `<em>득점 ${d.lastRank.rs}위 · 실점 ${d.lastRank.ra}위</em>` : ''}</p>
+      <div class="ptags"><span class="ptag">${bootGame.state().year - 1} 정규시즌</span><span class="ptag m"><b>${d.last.rank}위</b></span>
+        <span class="ptag m">${d.last.w}승 ${d.last.l}패${d.last.d ? ` ${d.last.d}무` : ''}</span>
+        ${d.lastRank ? `<span class="ptag">${icon('bat')}득점 <b class="m">${d.lastRank.rs}위</b></span><span class="ptag">${icon('ball')}실점 <b class="m">${d.lastRank.ra}위</b></span>` : ''}</div>
     </div>
 
     <div class="dbody">
@@ -430,8 +430,8 @@ function drawDossier() {
             ${x === best ? '<i class="s">강점</i>' : x === worst ? '<i class="w">리스크</i>' : ''}
           </div>`).join('');
         })()}</div>
-        ${d.risk.rows.length ? `<div class="riskline">${
-          d.risk.rows.map(x => `<span class="s${x.s}">${x.k}<b>${x.v}</b></span>`).join('')}</div>` : ''}
+        ${d.risk.rows.length ? `<div class="chips riskchips">${
+          d.risk.rows.map(x => `<span class="chip ${x.s === 2 ? 'bad' : x.s === 1 ? 'warn' : ''}">${icon(x.s === 2 ? 'hurt' : x.s === 1 ? 'bolt' : 'news')}${x.k}<b>${x.v}</b></span>`).join('')}</div>` : ''}
 
       <div class="dtiles">
         <div class="dtile ${d.ownerLine.urgent ? 'urgent' : ''}">
@@ -1710,7 +1710,7 @@ function openTalk(p, tones) {
              <b>${esc(t.label)}</b><i>${esc(t.hint)}</i></button>`).join('')}</div>
         <p class="note">무엇이 먹히는지는 그 사람에 달렸다. 겪어봐야 안다.</p>
       </div>
-      <div class="trow">
+      <div class="trophyrow">
         <button id="yes" class="primary">받아들인다</button>
         <button id="no" class="danger">자른다</button>
       </div>
@@ -1759,7 +1759,7 @@ function openOffer(p) {
           <button id="tso" class="tgl${p.offer && p.offer.optout ? ' on' : ''}">옵트아웃</button>
         </div>
       </div>
-      <div class="trow">
+      <div class="trophyrow">
         <button id="ok" class="primary">제시한다</button>
         ${p.offer ? '<button id="del" class="quiet">거둬들인다</button>' : ''}
       </div>
@@ -1883,7 +1883,7 @@ function openPosting() {
             다음 겨울에 더 세게 말을 꺼낸다.</p>
         </div>
       </div>
-      <div class="trow">
+      <div class="trophyrow">
         <button id="pyes" class="primary">보낸다 (${esc(p.fee_text)})</button>
         <button id="pno" class="danger">붙잡는다</button>
       </div>
@@ -1999,7 +1999,7 @@ function viewHistory(v) {
       </div>`).join('')).join('')}</div>`));
 
   /* 구단 연혁. 우승은 트로피 개수로 — 13 이라는 숫자보다 줄지어 선 트로피가 먼저 보인다. */
-  const trophies = (n) => n ? `<span class="trow">${Array.from({ length: Math.min(n, 10) }, () => icon('trophy')).join('')}${n > 10 ? `<b class="m">+${n - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
+  const trophies = (n) => n ? `<span class="trophyrow">${Array.from({ length: Math.min(n, 10) }, () => icon('trophy')).join('')}${n > 10 ? `<b class="m">+${n - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
   g.appendChild(sect('구단 연혁', `${fr.length}개 구단`, table(
     ['구단','창단','통산 전적','승률','우승','정규 1위','최근 우승','무관','프랜차이즈 레전드'],
     fr.map(f => ({ team_id: f.team_id, cells: [
@@ -2473,7 +2473,7 @@ function openTeam(tid) {
   const list = (arr) => arr.map(p => `<div class="row click" data-pid="${p.pid}"><span class="prow"><span class="m dim pn ${p.pen ? 'wide' : ''}">${p.pen || p.order}</span>${esc(p.name)}
     <span class="sub">${p.slot}</span></span>${axis(p.ovr, p.pot)}</div>`).join('');
   const h = d.history;
-  const trophies = h && h.titles ? `<span class="trow">${Array.from({ length: Math.min(h.titles, 10) }, () => icon('trophy')).join('')}${h.titles > 10 ? `<b class="m">+${h.titles - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
+  const trophies = h && h.titles ? `<span class="trophyrow">${Array.from({ length: Math.min(h.titles, 10) }, () => icon('trophy')).join('')}${h.titles > 10 ? `<b class="m">+${h.titles - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
   modal(`
     <div class="mhead"><div class="mhead-p">${cap(r.name, 56)}
       <div class="mh-main"><h2>${esc(r.name)}</h2>
