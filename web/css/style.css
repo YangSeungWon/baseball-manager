@@ -1810,3 +1810,17 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .wk-d .ic{width:14px;height:14px;color:var(--fg2)} .wk-d .m{color:var(--fg2)} .wk-d i{font-style:normal;color:var(--fg2)}
 .wk-d i::before{content:'→ ';color:var(--fg3)}
 @media(max-width:700px){.ptiles.t4{grid-template-columns:1fr 1fr}}
+
+/* ── 시즌 정리 · 포스트시즌 · FA 계약 ── */
+.mh-ic{width:44px;height:44px;color:var(--fg2);flex:none}
+.ptag.good{color:var(--pos)}
+.brk{display:flex;flex-direction:column;gap:6px;width:100%} .brk-r{width:100%;box-sizing:border-box}
+.brk-r{display:grid;grid-template-columns:110px 1fr auto 1fr;gap:12px;align-items:center;background:var(--s2);border-radius:2px;padding:10px 14px;border-left:4px solid transparent}
+.brk-r.me{border-left-color:var(--accent)}
+.brk-k{font-size:14px;color:var(--fg2)}
+.brk-t{display:inline-flex;align-items:center;gap:8px;font-size:16px;color:var(--fg2)} .brk-t.win{color:var(--fg)} .brk-t.win b{font-size:18px}
+.brk-t:last-child{justify-content:flex-end}
+.brk-s{display:flex;flex-direction:column;align-items:center;gap:4px} .brk-s b{font-size:22px}
+.chips .chip{display:inline-flex;align-items:center;gap:5px} .chips .chip .ic{width:14px;height:14px}
+.rnum.me{outline:1px solid var(--accent)}
+@media(max-width:700px){.brk-r{grid-template-columns:1fr 1fr;gap:6px 12px}.brk-k{grid-column:1/-1}.brk-s{grid-column:1/-1;flex-direction:row;justify-content:center;gap:10px}}

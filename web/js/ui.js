@@ -1,5 +1,6 @@
 // UI. api.js 가 돌려주는 순수 데이터만 그린다.
 // 모든 능력치는 하나의 20~80 눈금축 위에, 어디서나 같은 좌표로 놓인다.
+import { MEET_KR, MEDAL_KR } from './core/military.js';
 import { Game } from './core/api.js';
 import { josa } from './core/mail.js';
 import { SUR } from './core/names.js';
@@ -2513,41 +2514,78 @@ function openTeam(tid) {
 }
 
 function modalPost(r) {
-  modal(`<div class="mhead"><div><h2>${esc(r.champion)}</h2>
-    <div class="meta">${r.user_won ? '우리 팀 우승' : '챔피언'}</div></div>
-    <button id="mx" class="quiet">닫기</button></div>
-    <div class="mbody">${r.rounds.map(x => `<div class="row ${x.user ? 'me' : ''}">
-      <span class="lab">${esc(x.round)}</span>
-      <span><b>${esc(x.winner)}</b> <span class="m">${x.score}</span> ${esc(x.loser)}</span></div>`).join('')}</div>`);
-}
-function modalRollover(r) {
-  const block = (t, arr, fmt) => arr.length
-    ? `<div><div class="lab" style="margin-bottom:6px">${t}</div>${arr.map(fmt).join('')}</div>` : '';
-  modal(`<div class="mhead"><div><h2>${G.state().year} 시즌 정리</h2></div>
+  /* 챔피언은 크게. 시리즈는 이긴 팀 쪽에서 본 경기 점 줄 — 4승 1패면 초록 넷 빨강 하나. */
+  const dots = (x) => x.games && x.games.length ? `<span class="form">${x.games.map(g => {
+    const wHome = g.home === x.winner;
+    const won = wHome ? g.hr > g.ar : g.ar > g.hr;
+    return `<b class="${won ? 'w' : ''}"></b>`; }).join('')}</span>` : '';
+  modal(`<div class="mhead"><div class="mhead-p">${cap(r.champion, 56)}
+      <div class="mh-main"><h2>${esc(r.champion)}</h2>
+        <div class="ptags"><span class="ptag gold">${icon('trophy')}${G.state().year} 챔피언</span>${r.user_won ? '<span class="ptag good">우리가 해냈다</span>' : ''}</div></div></div>
     <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
-    ${(r.honored || []).length ? `<div><div class="lab" style="margin-bottom:6px">영구결번</div>
-      ${r.honored.map(h => `<div class="row ${h.mine ? 'me' : ''}">
-        <span><b class="m">${h.number}번</b> ${esc(h.name)}
-          <span class="sub">${esc(short(h.team))} · ${h.from}–${h.to}</span></span>
-        <span class="m dim">${h.years}시즌 · WAR ${h.war}</span></div>`).join('')}</div>` : ''}
-    ${block('은퇴', r.retired.slice(0, 24), x => `<div class="row ${x.mine ? 'me' : ''}">
-      <span>${esc(x.name)} <span class="sub">${x.age} ${esc(short(x.team))}</span></span>
-      <span class="m dim">${x.years}시즌 · ${x.war}</span></div>`)}
-    ${block('급성장', r.breakout, x => `<div class="row"><span>${esc(x.name)}</span>
-      <b class="m">+${x.delta}</b></div>`)}
-    ${block('급락', r.decline, x => `<div class="row"><span>${esc(x.name)}</span>
-      <b class="m mark">${x.delta}</b></div>`)}
+      <div class="brk">${r.rounds.map(x => `<div class="brk-r ${x.user ? 'me' : ''}">
+        <span class="brk-k">${esc(x.round)}</span>
+        <span class="brk-t win">${cap(x.winner, 30)}<b>${esc(short(x.winner))}</b></span>
+        <span class="brk-s"><b class="m">${x.w}–${x.l}</b>${dots(x)}</span>
+        <span class="brk-t">${cap(x.loser, 30)}<b>${esc(short(x.loser))}</b></span>
+      </div>`).join('')}</div>
+    </div>`);
+}
+function modalRollover(r) {
+  const n = (a) => (a || []).length;
+  const ret = r.retired || [], mineRet = ret.filter(x => x.mine);
+  const tmt = r.tournament;
+  const pchip = (x, extra = '') => `<span class="ptag">${esc(x.name)}${x.age ? `<i class="m">${x.age}</i>` : ''}${extra}</span>`;
+  /* 첫 줄 — 겨울에 일어난 일을 숫자로. 은퇴, 급성장, 급락, 병역. */
+  const tiles = `<div class="ptiles t4">
+    <div class="htile">${icon('back')}<b><span class="m">${n(ret)}</span><small>명 은퇴</small></b><p>${mineRet.length ? `우리 ${mineRet.length}명` : '우리 팀은 없다'}</p></div>
+    <div class="htile ${n(r.breakout) ? 'good' : ''}">${icon('bolt')}<b><span class="m">${n(r.breakout)}</span><small>명 급성장</small></b><p>우리 팀</p></div>
+    <div class="htile ${n(r.decline) ? 'bad' : ''}">${icon('hurt')}<b><span class="m">${n(r.decline)}</span><small>명 급락</small></b><p>우리 팀</p></div>
+    <div class="htile">${icon('shift')}<b><span class="m">${n(r.enlisted)}</span><small>입대</small><span class="m">${n(r.discharged)}</span><small>전역</small></b>
+      <p>${n(r.returned) ? `해외에서 ${n(r.returned)}명 돌아왔다` : '돌아온 사람은 없다'}</p></div>
+  </div>`;
+  const sec = (ic, t, body) => body ? `<div><div class="lead">${icon(ic, 'lead-ic')}<span class="pcnt">${t}</span></div>${body}</div>` : '';
+  modal(`<div class="mhead"><div class="mhead-p">${icon('star', 'mh-ic')}<div class="mh-main"><h2>${G.state().year} 시즌 정리</h2>
+      <div class="ptags"><span class="ptag">겨울이 왔다</span></div></div></div>
+    <button id="mx" class="quiet">닫기</button></div>
+    <div class="mbody stack">
+    ${tiles}
+    ${tmt ? `<div class="report">${esc(MEET_KR[tmt.kind] || tmt.kind)} 대표팀 ${tmt.medal ? esc(MEDAL_KR[tmt.medal] || tmt.medal) : '노메달'}${tmt.exempt ? ' — 대표팀 전원 병역 면제' : ''}.
+      ${tmt.squad.filter(c => c.team === G.state().user_team.name).map(c => esc(c.name)).join(', ') || '우리 선수는 없었다'}</div>` : ''}
+    ${(r.honored || []).length ? sec('gem', `영구결번 ${r.honored.length}`, `<div class="rnums">${r.honored.map(h => `
+      <div class="rnum ${h.mine ? 'me' : ''}" style="--tc:${capOf(h.team).color}"><b>${h.number}</b>
+        <span class="rn-main"><span class="rn-name">${esc(h.name)}</span><span class="rn-sub">${esc(short(h.team))} · ${h.from}–${h.to} · ${h.years}시즌</span></span>
+        <span class="rn-line">WAR ${h.war}</span></div>`).join('')}</div>`) : ''}
+    ${mineRet.length ? sec('back', `우리 팀 은퇴 ${mineRet.length}`, `<div class="stack tight">${mineRet.map(x => `<div class="row">
+      <span class="prow">${cap(x.team, 22)}<b>${esc(x.name)}</b><span class="sub">${x.age}세</span></span><span class="m dim">${x.years}시즌 · WAR ${x.war}</span></div>`).join('')}</div>`) : ''}
+    ${n(r.breakout) || n(r.decline) ? sec('bolt', '달라진 선수', `<div class="chips">
+      ${(r.breakout || []).map(x => `<span class="chip good">${esc(x.name)} <b class="m">+${x.delta}</b></span>`).join('')}
+      ${(r.decline || []).map(x => `<span class="chip bad">${esc(x.name)} <b class="m">${x.delta}</b></span>`).join('')}</div>`) : ''}
+    ${n(r.enlisted) || n(r.discharged) || n(r.returned) ? sec('shift', '오가는 사람', `<div class="chips">
+      ${(r.enlisted || []).map(x => `<span class="chip">${icon('shift')}${esc(x.name)} 입대${x.kind === 'sangmu' ? ' · 상무' : ''}</span>`).join('')}
+      ${(r.discharged || []).map(x => `<span class="chip good">${icon('back')}${esc(x.name)} 전역</span>`).join('')}
+      ${(r.returned || []).map(x => `<span class="chip ${x.mine ? 'good' : ''}">${icon('arrow')}${esc(x.name)} 해외에서 복귀</span>`).join('')}</div>`) : ''}
+    ${ret.length ? sec('back', `리그 은퇴 ${ret.length}`, `<div class="stack tight">${ret.slice(0, 24).map(x => `<div class="row ${x.mine ? 'me' : ''}">
+      <span class="prow">${cap(x.team, 22)}${esc(x.name)}<span class="sub">${x.age}세</span></span><span class="m dim">${x.years}시즌 · WAR ${x.war}</span></div>`).join('')}</div>`) : ''}
     </div>`);
 }
 function modalSignings(r) {
-  modal(`<div class="mhead"><div><h2>FA 계약</h2>
-    <div class="meta">${r.signings.length}건</div></div>
+  const S = r.signings, mine = S.filter(s => s.mine);
+  const total = (arr) => arr.reduce((a, s) => a + (parseFloat((s.text.match(/([\d.]+)억/) || [])[1]) || 0), 0);
+  modal(`<div class="mhead"><div class="mhead-p">${icon('pen', 'mh-ic')}<div class="mh-main"><h2>FA 계약</h2>
+      <div class="ptags"><span class="ptag">시장이 닫혔다</span></div></div></div>
     <button id="mx" class="quiet">닫기</button></div>
-    <div class="mbody">${r.signings.slice(0, 40).map(s => `<div class="row ${s.mine ? 'me' : ''}">
-      <span>${esc(s.name)} <span class="sub">${s.age} ${s.slot}</span>
-        ${s.moved ? '<span class="dim">→</span>' : ''} <b>${esc(short(s.team))}</b></span>
-      <span class="m">${esc(s.text)}</span></div>`).join('')}</div>`);
+    <div class="mbody stack">
+      <div class="ptiles t3">
+        <div class="htile">${icon('pen')}<b><span class="m">${S.length}</span><small>건</small></b><p>리그 전체</p></div>
+        <div class="htile ${mine.length ? 'good' : ''}">${icon('star')}<b><span class="m">${mine.length}</span><small>건 우리 계약</small></b><p>${mine.length ? mine.map(s => esc(s.name)).join(', ') : '한 명도 못 잡았다'}</p></div>
+        <div class="htile">${icon('won')}<b><span class="m">${total(S).toFixed(0)}</span>억 <small>총액</small></b><p>우리 ${total(mine).toFixed(1)}억</p></div>
+      </div>
+      <div class="stack tight">${S.slice(0, 40).map(s => `<div class="row ${s.mine ? 'me' : ''}">
+        <span class="prow">${cap(s.team, 22)}<b>${esc(s.name)}</b><span class="sub">${s.age} · ${s.slot}</span>${s.moved ? `<span class="ptag">${icon('arrow')}이적</span>` : '<span class="ptag">잔류</span>'}</span>
+        <span class="m">${esc(s.text)}</span></div>`).join('')}</div>
+    </div>`);
 }
 
 boot();
