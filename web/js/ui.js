@@ -1368,99 +1368,90 @@ function viewFront(v) {
   if (s === 'off_draft') return viewDraft(v);
   if (s === 'off_trade') return viewTrade(v);
   const f = G.finances();
-  const g = el('div', 'grid g21');
+  const own = G.ownerStatus();
+  const inc = f.income, tot = Math.max(1, inc.ticket + inc.concession + inc.media);
+  const pay = f.budget ? Math.round(f.payroll / f.budget * 100) : 0;
+  const g = el('div', 'grid');
+
+  /* 맨 위 — 돈과 구단주. 제목 대신 아이콘, 숫자, 게이지. */
+  g.appendChild(sect('', '', `<div class="ftiles">
+    <div class="htile fin">${icon('won')}
+      <b><span class="m">${f.payroll}</span>억 <small>/ ${f.budget}억</small></b>
+      <div class="meter ${pay > 100 ? 'over' : pay > 90 ? 'tight' : ''}"><i style="width:${Math.min(100, pay)}%"></i><span>소진 ${pay}%</span></div>
+      <p class="${f.room < 0 ? 'mark' : ''}">${f.room >= 0 ? `여력 ${f.room}억` : `초과 ${-f.room}억`}</p>
+    </div>
+    <div class="htile inc">${icon('star')}
+      <b><span class="m">${tot}</span>억 <small>시즌 수입</small></b>
+      <div class="incbar">${[['ticket','i1'],['concession','i2'],['media','i3']].map(([k, c]) => `<i class="${c}" style="width:${inc[k] / tot * 100}%"></i>`).join('')}</div>
+      <div class="inclegend"><span><i class="i1"></i>입장 ${inc.ticket}</span><span><i class="i2"></i>식음료·굿즈 ${inc.concession}</span><span><i class="i3"></i>중계·스폰서 ${inc.media}</span></div>
+    </div>
+    <div class="htile owner2 ${own.ok === false ? 'bad' : ''}">${icon('owner')}
+      <b>${esc(own.demand)}</b>
+      <div class="meter"><i style="width:${Math.max(4, Math.min(100, own.patience))}%"></i><span>인내 ${own.patience}</span></div>
+      <p>${esc(own.text)}</p>
+    </div>
+  </div>`));
+
+  // 계약 만료 · FA 임박. 있을 때만.
+  const al = G.contractAlerts().rows;
+  if (al.length) g.appendChild(sect('', '', `<div class="lead">${icon('bolt', 'lead-ic')}<span class="pcnt">계약 만료 · FA 임박 ${al.length}</span>
+    <div class="alrow">${al.map(p => `<button class="lb" data-pid="${p.pid}">${esc(p.name)}<i>${p.age} ${p.slot}</i><em class="tag ${p.status === 'FA' ? 'inj' : ''}">${p.status}</em></button>`).join('')}</div></div>`));
+
+  // 외국인. 있으면 표, 여름 시장이 열렸으면 그 아래.
   const fr = G.foreignReplacements();
   if (!fr.error && fr.mine.length) {
-    const box = el('div', 'grid');
-    box.appendChild(sect('외국인', fr.open ? `교체 마감까지 ${fr.left - fr.deadline}일`
-      : '교체 마감', table(
-      ['선수','국적','P','능력 / 잠재력','올 시즌','WAR','연봉'],
-      fr.mine.map(p => ({ p, cells: [nameCell(p),
-        `<span class="nat">${esc(p.nation)}</span>`,
-        `<span class="m dim">${p.slot}</span>`, axis(p.ovr, p.pot),
-        `<span class="m dim">${esc(p.stat)}</span>`,
-        `<b class="m ${p.war < 1 ? 'neg' : p.war >= 3 ? 'pos' : ''}">${p.war}</b>`,
-        `<span class="m">${p.paid}억</span>`] })))));
+    g.appendChild(sect('', fr.open ? `교체 마감까지 ${fr.left - fr.deadline}일` : '교체 마감', `<div class="lead">${icon('park', 'lead-ic')}<span class="pcnt">외국인 ${fr.mine.length}</span></div>`));
+    g.lastChild.appendChild(table(['선수','국적','P','능력 / 잠재력','올 시즌','WAR','연봉'],
+      fr.mine.map(p => ({ p, cells: [nameCell(p), `<span class="nat">${esc(p.nation)}</span>`,
+        `<span class="m dim">${p.slot}</span>`, axis(p.ovr, p.pot), `<span class="m dim">${esc(p.stat)}</span>`,
+        `<b class="m ${p.war < 1 ? 'neg' : p.war >= 3 ? 'pos' : ''}">${p.war}</b>`, `<span class="m">${p.paid}억</span>`] }))));
     if (fr.open && fr.pool.length) {
-      box.appendChild(sect('여름 시장', `${fr.pool.length} · ${AXIS_KEY}`, table(
-        ['선수','국적','P','나이','능력 / 잠재력','잔여 몸값',''],
-        fr.pool.map(p => ({ p, cells: [nameCell(p),
-          `<span class="nat">${esc(p.nation)}</span>`,
-          `<span class="m dim">${p.slot}</span>`,
-          `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
-          `<b class="m">${p.price}억</b>`,
-          `<span class="fbtn"><button data-repl="${p.pid}">교체</button></span>`] })))));
-      box.appendChild(sect('', '', `<p class="note">여름에 나와 있는 선수는 겨울에 팔리지 않았거나
-        다른 데서 잘린 선수다. 급이 떨어지고 볼 시간도 짧다. 방출해도 이미 준 돈은 돌아오지 않는다.</p>`));
+      g.appendChild(sect('', `${fr.pool.length} · ${AXIS_KEY}`, `<div class="lead">${icon('pinch', 'lead-ic')}<span class="pcnt">여름 시장</span></div>`));
+      g.lastChild.appendChild(table(['선수','국적','P','나이','능력 / 잠재력','잔여 몸값',''],
+        fr.pool.map(p => ({ p, cells: [nameCell(p), `<span class="nat">${esc(p.nation)}</span>`,
+          `<span class="m dim">${p.slot}</span>`, `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
+          `<b class="m">${p.price}억</b>`, `<span class="fbtn"><button data-repl="${p.pid}">교체</button></span>`] }))));
+      g.lastChild.appendChild(el('p', 'note', '여름에 나온 선수는 겨울에 팔리지 않았거나 다른 데서 잘린 선수다. 급이 떨어지고 볼 시간도 짧다. 방출해도 이미 준 돈은 돌아오지 않는다.'));
     }
-    g.appendChild(box);
   }
-  // 코치진. 코치는 정답을 주지 않는다. 결과를 바꾸거나 노이즈를 줄인다.
-  const sf = G.staff();
-  g.appendChild(sect('코치진', `연봉 ${sf.cost}억`, `<div class="stf">${sf.rows.map(r => `
-    <div class="sr">
-      <div class="sk">${esc(r.label)}<i>${esc(r.hint)}</i></div>
-      <div class="sc">${r.cur ? `<b>${esc(r.cur.name)}</b>
-        <span class="m sn">${r.cur.rating}</span>
-        <span class="m dim">${r.cur.salary}억 · ${r.cur.age}세</span>` : '<span class="dim">공석</span>'}</div>
-      <div class="se">${esc(r.effect)}</div>
-      <div class="sm">${r.market.map(c => `<button data-hire="${r.key}:${c.id}"
-        class="${r.cur && c.rating > r.cur.rating ? 'up' : ''}">${esc(c.name)}
-        <i>${c.rating}</i><em>${c.salary}억</em></button>`).join('')}</div>
-    </div>`).join('')}</div>`));
 
+  /* 코치진. 자리마다 한 칸 — 이름과 등급이 크고, 시장은 그 아래. */
+  const sf = G.staff();
+  g.appendChild(sect('', `연봉 ${sf.cost}억`, `<div class="lead">${icon('glove', 'lead-ic')}<span class="pcnt">코치진 ${sf.rows.filter(r => r.cur).length}/${sf.rows.length}</span>
+    <div class="stf2">${sf.rows.map(r => `
+    <div class="scard">
+      <div class="sk">${esc(r.label)}<i>${esc(r.hint)}</i></div>
+      <div class="sc">${r.cur ? `<b>${esc(r.cur.name)}</b><span class="m sn">${r.cur.rating}</span><span class="m dim">${r.cur.salary}억 · ${r.cur.age}세</span>` : '<span class="dim">공석</span>'}</div>
+      <div class="se">${esc(r.effect)}</div>
+      <div class="sm">${r.market.map(c => `<button data-hire="${r.key}:${c.id}" class="${r.cur && c.rating > r.cur.rating ? 'up' : ''}">${esc(c.name)}<i>${c.rating}</i><em>${c.salary}억</em></button>`).join('')}</div>
+    </div>`).join('')}</div></div>`));
+
+  /* 구장과 유니폼. 그림이 곧 설명이다. */
   const bp = G.ballpark();
-  const bpr = el('div', 'grid');
-  bpr.appendChild(sect(bp.name, `${bp.opened} 개장`, `
-    <div class="parkbox">${fieldSvg(bp, capOf(G.state().user_team.name).color)}</div>
-    <div class="parkspec">
-      <div><span>담장</span><b class="m">${bp.fL}<i>·</i>${bp.fC}<i>·</i>${bp.fR}</b><em>m</em></div>
-      <div><span>담장 높이</span><b class="m">${bp.fH}</b><em>m</em></div>
-      <div><span>수용</span><b class="m">${(bp.capacity/1000).toFixed(1)}</b><em>천</em></div>
-      ${bp.attendance ? `<div><span>평균 관중</span><b class="m">${(bp.attendance/1000).toFixed(1)}</b><em>천 · ${bp.rate}%</em></div>` : ''}
-      <div><span>구장</span><b>${bp.dome ? '돔' : '개방'}${bp.turf ? ' · 인조잔디' : ' · 천연잔디'}</b></div>
-    </div>`));
   const ufr = franchiseOf(G.state().user_team.name);
-  bpr.appendChild(sect('유니폼', '', `<div class="unis">
-    <div class="uni"><div class="ubox">${jersey(ufr, false, 108)}</div><span>홈</span></div>
-    <div class="uni"><div class="ubox away">${jersey(ufr, true, 108)}</div><span>원정</span></div>
+  g.appendChild(sect('', '', `<div class="parkwrap">
+    <div class="parkbox">${fieldSvg(bp, capOf(G.state().user_team.name).color)}</div>
+    <div class="parkside">
+      <div class="parkname"><b>${esc(bp.name)}</b><span>${bp.opened} 개장 · ${bp.dome ? '돔' : '개방'} · ${bp.turf ? '인조잔디' : '천연잔디'}</span></div>
+      <div class="htiles p4">
+        <div class="htile"><b class="m">${bp.fL}<small>·</small>${bp.fC}<small>·</small>${bp.fR}</b><span>담장 (m)</span></div>
+        <div class="htile"><b class="m">${bp.fH}<small>m</small></b><span>담장 높이</span></div>
+        <div class="htile"><b class="m">${bp.capacity.toLocaleString()}</b><span>좌석</span></div>
+        ${bp.attendance ? `<div class="htile"><b class="m">${bp.attendance.toLocaleString()}</b><span>평균 관중 <i class="rkc">${bp.rate}%</i></span></div>` : ''}
+        ${f.park && f.park.total ? `<div class="htile"><b class="m">${Math.round(f.park.total / 10000 * 10) / 10}<small>만</small></b><span>시즌 총관중</span></div>` : ''}
+      </div>
+      <div class="unis"><div class="uni"><div class="ubox">${jersey(ufr, false, 92)}</div><span>홈</span></div>
+        <div class="uni"><div class="ubox away">${jersey(ufr, true, 92)}</div><span>원정</span></div></div>
+    </div>
   </div>`));
-  g.appendChild(bpr);
-  g.appendChild(sect('연봉', `${f.contracts.length}`, table(['선수','나이','연봉','계약','만료'],
+
+  // 연봉. 표가 맞는 정보다.
+  g.appendChild(sect('', `${f.contracts.length}명 · ${f.payroll}억`, `<div class="lead">${icon('won', 'lead-ic')}</div>`));
+  g.lastChild.appendChild(table(['선수','나이','연봉','계약','만료'],
     f.contracts.map(x => ({ pid: x.pid, cells: [`<span class="name">${esc(x.name)}</span>`,
       `<span class="m">${x.age}</span>`, `<span class="m">${x.salary}</span>`,
       `<span class="m dim">${x.text}</span>`, `<span class="m dim">${x.end_year}</span>`] })),
-    (row) => openPlayer(row.pid))));
-  const al = G.contractAlerts().rows;
-  const right = el('div', 'grid');
-  const inc = f.income, tot = Math.max(1, inc.ticket + inc.concession + inc.media);
-  const bar = (v, cls) => `<i class="${cls}" style="width:${v / tot * 100}%"></i>`;
-  right.appendChild(sect('재정', '', `
-    <div class="kv"><span>예산</span><b class="m">${f.budget}억</b></div>
-    <div class="kv"><span>연봉</span><b class="m">${f.payroll}억</b></div>
-    <div class="kv"><span>여력</span><b class="m ${f.room < 0 ? 'mark' : ''}">${f.room}억</b></div>
-    <div class="incbar">${bar(inc.ticket,'i1')}${bar(inc.concession,'i2')}${bar(inc.media,'i3')}</div>
-    <div class="inclegend">
-      <span><i class="i1"></i>입장 ${inc.ticket}억</span>
-      <span><i class="i2"></i>식음료·굿즈 ${inc.concession}억</span>
-      <span><i class="i3"></i>중계·스폰서 ${inc.media}억</span></div>`));
-  if (f.park && f.park.name) right.appendChild(sect('홈 구장', '', `
-    <div class="kv"><span>${esc(f.park.name)}</span>
-      <b class="m">${f.park.capacity.toLocaleString()}석</b></div>
-    ${f.park.avg ? `<div class="kv"><span>평균 관중</span>
-      <b class="m">${f.park.avg.toLocaleString()}명 <i class="off">${f.park.rate}%</i></b></div>
-      <div class="kv"><span>시즌 총관중</span>
-      <b class="m">${Math.round(f.park.total / 10000 * 10) / 10}만명</b></div>` : ''}`));
-  if (al.length) right.appendChild(sect('계약 만료·FA 임박', `${al.length}`, al.map(p =>
-    `<div class="row click" data-pid="${p.pid}"><span>${esc(p.name)}
-      <span class="sub">${p.age} ${p.slot}</span></span>
-     <span><span class="tag ${p.status === 'FA' ? 'inj' : ''}">${p.status}</span></span></div>`).join('')));
-  const own = G.ownerStatus();
-  right.appendChild(sect('구단주', '', `
-    <div class="kv"><span>요구</span><b>${esc(own.demand)}</b></div>
-    <div class="kv"><span>인내심</span><b class="m ${own.patience < 35 ? 'mark' : ''}">${own.patience}</b></div>
-    <div class="kv"><span>현황</span><b>${esc(own.text)}</b></div>`));
-  g.appendChild(right);
+    (row) => openPlayer(row.pid)));
   v.appendChild(g);
   saveSection(v);
   v.querySelectorAll('[data-hire]').forEach(b => b.onclick = () => {

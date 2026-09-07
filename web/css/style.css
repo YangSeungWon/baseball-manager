@@ -1658,3 +1658,26 @@ button .ic+span{margin-left:6px}
 .grp{font-size:14px;color:var(--fg2)} .grp.g1{color:var(--fg)}
 .htiles.t8 .htile>b{font-size:20px}
 @media(max-width:900px){.prep{grid-template-columns:1fr}.prep3{grid-template-columns:1fr}.tseg{width:100%}.tseg button{flex:1;justify-content:center}}
+
+/* ── 프런트 — 돈 · 구단주 · 코치 · 구장. 제목은 아이콘이 진다 ── */
+.ftiles{display:grid;grid-template-columns:1fr 1.2fr 1fr;gap:10px}
+.htile.inc .incbar{margin:8px 0 6px}
+.htile.inc .inclegend{font-size:14px;gap:8px 12px}
+.htile.owner2>b{font-family:var(--kr);font-size:18px} .htile.owner2.bad>b{color:var(--neg)}
+.htile p{margin:0;font-size:14px;color:var(--fg2)} .htile p.mark{color:var(--neg)}
+.alrow{display:flex;flex-wrap:wrap;gap:6px}
+.alrow .lb em{font-style:normal;margin-left:8px}
+.stf2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.scard{background:var(--s2);border-radius:2px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.scard .sk{font-size:16px} .scard .sc{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.scard .sc b{font-size:20px} .scard .se{font-size:14px}
+.scard .sm{justify-content:flex-start}
+.parkwrap{display:grid;grid-template-columns:minmax(300px,1fr) minmax(0,1.2fr);gap:20px;align-items:start}
+.parkside{display:flex;flex-direction:column;gap:14px}
+.parkname b{font-size:22px;font-weight:800;display:block} .parkname span{font-size:14px;color:var(--fg2)}
+.htiles.p4{grid-template-columns:repeat(3,1fr)}
+.htiles.p4 .htile>b{font-size:20px}
+.parkside .unis{max-width:280px}
+@media(max-width:900px){.ftiles{grid-template-columns:1fr}.parkwrap{grid-template-columns:1fr}.htiles.p4{grid-template-columns:1fr 1fr}}
+
+.alrow .lb{width:auto;display:inline-flex;align-items:baseline;gap:6px;text-align:left}
