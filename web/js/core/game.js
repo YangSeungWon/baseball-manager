@@ -598,6 +598,8 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
   function* emit(rec) { plays.push(rec); if (live) yield { play: rec }; }
   const common = () => ({ inning, half: off.half, outs, ro: off.runs, rd: defn.runs,
                           pitcher: defn.cur ? defn.cur.p.name : null, base: names(bases) });
+  const decisionContext = () => ({ outs, ro:off.runs, rd:defn.runs, base:names(bases),
+    pitcher:defn.cur?.p.name || null, pitches:defn.cur?.np || 0 });
   const sideRec = () => ({ evt: 'side', inning, half: off.half,
     off: off.team.name, def: defn.team.name,
     pos: Object.fromEntries(['C','1B','2B','3B','SS','LF','CF','RF']
@@ -623,6 +625,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     return i >= 0 ? a.cmds.splice(i, 1)[0] : null;
   };
   const changePitcher = function* (pid) {
+    const decision = decisionContext();
     const i = defn.bullpenLeft.findIndex(p => p.pid === pid);
     if (i < 0) return false;
     const nx = defn.bullpenLeft.splice(i, 1)[0];
@@ -630,7 +633,7 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
     defn.cur.entered_inning = inning; defn.cur.entered_lead = defn.runs - off.runs;
     defn.cur.cold = outs > 0 ? 1 : 0;
     yield* emit({ ...common(), batter: off.order[off.spot].name,
-      desc: `투수 교체 — ${nx.name}`, runs: 0, pitcher: nx.name, sub: true });
+      desc: `투수 교체 — ${nx.name}`, runs: 0, pitcher: nx.name, sub: true, decision });
     if (live) yield { play: sideRec() };
     return true;
   };
@@ -641,12 +644,12 @@ function* playHalf(off, defn, inning, park, rng, walkoff, ask = null, edge = 0) 
 
   while (outs < 3) {
     const lead = defn.runs - off.runs;
-    const pit0 = defn.cur;
+    const pit0 = defn.cur, decision = decisionContext();
     maybeChangePitcher(defn, inning, lead, outs);
     if (defn.cur !== pit0) {
       // 감독이 알아서 바꿨다. 화면에는 누가 올라왔는지 보여야 한다.
       yield* emit({ ...common(), batter: off.order[off.spot].name,
-        desc: `투수 교체 — ${defn.cur.p.name}`, runs: 0, sub: true, pitcher: defn.cur.p.name });
+        desc: `투수 교체 — ${defn.cur.p.name}`, runs: 0, sub: true, pitcher: defn.cur.p.name, decision });
       if (live) yield { play: sideRec() };
     }
     begin();

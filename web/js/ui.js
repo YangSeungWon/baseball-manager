@@ -10,7 +10,11 @@ import * as BIP from './core/bip.js';
 import { PITCH } from './core/pitch.js';
 import { LiveView, icon } from './live.js';
 
-const KEY = 'dugout.save.v1';
+import { KEY, BACKUP, readSlot, writeSave, checkpoint } from './storage.js';
+import { simulate } from './simulation.js';
+import { experience, watchPlayer, updateChallenge } from './experience.js';
+const storage = (() => { try { return localStorage; } catch { return null; } })();
+let simRunning = false, modalReturn = null;
 /* 경기는 공 하나하나 본다. 축구는 하이라이트로 봐도 되지만 야구는 투구 하나가
    장면이다. 미리 고르게 하지 않는다 — 일단 띄우고, 언제든 건너뛸 수 있게 한다.
    배속과 시점은 기억한다. */
@@ -42,10 +46,86 @@ let luSel = null, luRot = null;   // 편성 화면에서 고른 타순 / 선발
 
 /* ── 저장 ── */
 function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(save.dump(G))); }
-  catch { toast('저장 실패', '저장 공간이 부족하다', 'injury'); }
+  if (!G || curLive) return false;
+  try {
+    writeSave(storage, JSON.stringify(save.dump(G)));
+    const status = $('#saveStatus');
+    if (status) status.textContent = '저장됨';
+    return true;
+  } catch {
+    const status = $('#saveStatus'); if (status) status.textContent = '저장 실패 · 파일로 내보내기';
+    toast('저장 실패', '기존 저장본은 보관했습니다. 프런트에서 파일로 내보내세요.', 'injury');
+    return false;
+  }
 }
 const autosave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(persist, 400); };
+function installGame(g, replace = true) {
+  clearTimeout(saveTimer);
+  // 새 구단으로 화면을 바꾸기 전에 원본 보관과 새 저장을 완료한다.
+  try { writeSave(storage, JSON.stringify(save.dump(g)), { replace }); }
+  catch { toast('저장 실패', '원본을 보관할 공간이 없습니다. 저장 파일을 내보낸 뒤 다시 시도하세요.', 'injury'); return false; }
+  G = g; lastBox = null; lastPhase = null; tab = 'home'; return true;
+}
+function rawDownload(text, name) {
+  const url = URL.createObjectURL(new Blob([text], { type:'application/json' }));
+  const a = el('a'); a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function resumeSlot(key = KEY) {
+  const raw = readSlot(storage, key);
+  if (!raw) return toast('저장본 없음', '불러올 저장본이 없습니다.');
+  try { const g = save.load(JSON.parse(raw)); if (installGame(g, false)) start(); }
+  catch {
+    modal(`<div class="mhead"><h2>저장본을 열지 못했습니다</h2><button id="mx">닫기</button></div>
+      <div class="mbody stack"><p>원본은 그대로 보관되어 있습니다. 파일로 내려받거나 복구 저장본을 열어 보세요.</p>
+      <button id="rawSave">원본 파일 내려받기</button>
+      ${key === KEY && readSlot(storage, BACKUP) ? '<button id="recoverSave">복구 저장본 열기</button>' : ''}</div>`);
+    $('#rawSave').onclick = () => rawDownload(raw, 'dugout-recovery-original.json');
+    if ($('#recoverSave')) $('#recoverSave').onclick = () => { closeModal(); resumeSlot(BACKUP); };
+  }
+}
+function resumePanel() {
+  const host = $('#resumePanel'), raw = readSlot(storage);
+  if (!host || !raw) return;
+  let label = '저장된 구단', date = '';
+  try { const d = JSON.parse(raw); label = d.teams.find(t => t.id === d.user)?.name || label;
+    date = `${d.year} 시즌 · ${d.season?.day || 0}일 진행`; } catch {}
+  host.hidden = false;
+  host.innerHTML = `<div><b>${esc(label)}</b><span>${esc(date)}</span></div><button class="primary" id="resumeMain">이어하기</button>`;
+  $('#resumeMain').onclick = () => resumeSlot();
+}
+async function runSimulation(days) {
+  if (simRunning) return;
+  simRunning = true; clearTimeout(saveTimer);
+  let cancelled = false, result;
+  let safeState = JSON.stringify(save.dump(G));
+  try {
+    persist();
+    try { checkpoint(storage); } catch { /* 기본 저장은 유지된다. */ }
+    modal(`<div class="mhead"><h2>감독에게 맡기는 중</h2></div><div class="mbody stack">
+      <p id="simStatus" role="status">경기를 준비합니다.</p><progress id="simProgress" max="${days}" value="0" aria-label="자동 진행"></progress>
+      <button id="simCancel">오늘 경기 후 멈추기</button></div>`);
+    const cancel = () => { cancelled = true; $('#simCancel').disabled = true; $('#simCancel').textContent = '멈추는 중'; };
+    $('#simCancel').onclick = cancel;
+    $('#modal').onclick = e => { if (e.target.id === 'modal') cancel(); };
+    document.onkeydown = e => { if (e.key === 'Escape') cancel(); };
+    result = await simulate(G, days, {
+      cancelled:() => cancelled,
+      shouldStop:m => m.pri >= 1 && experience(G).stops[m.kind] === true,
+      onDay:n => { safeState = JSON.stringify(save.dump(G)); $('#simProgress').value = n; $('#simStatus').textContent = `${n} / ${days}일 진행 · ${G.state().year} 시즌`; },
+    });
+    updateChallenge(G); experience(G).guide.played = true;
+  } catch (e) { G = save.load(JSON.parse(safeState)); toast('진행 중 오류', '마지막으로 완료한 날로 돌아왔습니다. 복구 저장본은 프런트에 있습니다.', 'injury'); }
+  finally {
+    simRunning = false; closeModal(); persist(); render();
+    if (result?.games.length) weekReport(result);
+    if (result?.reason === 'event') toast('확인할 소식이 있습니다', '중요한 사건이 생긴 날 멈췄습니다. 받은 편지함을 확인하세요.');
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && G && !curLive && !simRunning) { clearTimeout(saveTimer); persist(); }
+});
+window.addEventListener('pagehide', () => { if (G && !curLive && !simRunning) { clearTimeout(saveTimer); persist(); } });
 
 /* 세이브를 파일로 꺼낸다.
    브라우저 저장소는 영구적이지 않다 — 사파리는 한동안 안 들어오면 지운다.
@@ -74,7 +154,7 @@ function importSave(file, onDone) {
   r.onload = () => {
     try {
       const g = save.load(JSON.parse(r.result));
-      G = g; persist(); onDone();
+      if (installGame(g)) onDone();
     } catch (e) { toast('불러오기 실패', '세이브 파일이 아니다', 'injury'); }
   };
   r.onerror = () => toast('불러오기 실패', '파일을 읽지 못했다', 'injury');
@@ -291,6 +371,7 @@ addEventListener('scroll', () => {
 async function boot() {
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;
+  resumePanel();
   // 고정 리그. 한 번 구운 세계를 그대로 불러온다. 매번 시즌을 다시 돌리지 않는다.
   try {
     const res = await fetch('data/league.json', { cache: 'force-cache' });
@@ -334,12 +415,17 @@ async function boot() {
       <span class="tdl d${d.difficulty}">${esc(d.difficultyLabel)}</span>`;
     b.onclick = () => {
       bootSel = t.id;
+      if ($('#mobileTeam')) $('#mobileTeam').value = String(bootSel);
       [...wrap.children].forEach(c => c.setAttribute('aria-pressed', 'false'));
       b.setAttribute('aria-pressed', 'true');
       drawDossier();
     };
     wrap.appendChild(b);
   });
+  const picker = $('#mobileTeam');
+  picker.innerHTML = list.map(x => `<option value="${x.t.id}">${esc(x.d.name)} · ${esc(x.d.difficultyLabel)}</option>`).join('');
+  picker.value = String(bootSel);
+  picker.onchange = () => { bootSel = +picker.value; [...wrap.children].forEach((b, i) => b.setAttribute('aria-pressed', String(list[i].t.id === bootSel))); drawDossier(); };
   drawDossier();
 }
 
@@ -389,7 +475,7 @@ function drawBracket() {
 function drawDossier() {
   const d = bootGame.teamDossier(bootSel);
   const col = capOf(d.name).color;
-  const saved = localStorage.getItem(KEY);
+  const saved = readSlot(storage);
   const c = d.contrast;
   const H = d.history;
   const fr = franchiseOf(d.name);
@@ -474,7 +560,7 @@ function drawDossier() {
     </div>
     <div class="dstart">
       <button id="btnNew" class="go">${esc(josa(d.name, '으로'))} 시작</button>
-      ${saved ? '<button id="btnResume" class="second">이어하기</button>' : ''}
+
     </div>`;
   const mapBox = $('#kmap');
   if (mapBox) mapBox.innerHTML = drawMap(bootGame.teamList().map(t => t.name), d.name);
@@ -482,12 +568,19 @@ function drawDossier() {
     el.style.setProperty('--tc', col);
     el.style.setProperty('--tcfg', onColor(col));
   }
-  $('#btnNew').onclick = () => { bootGame.userId = bootSel; G = bootGame; start(); };
-
-  if ($('#btnResume')) $('#btnResume').onclick = () => {
-    try { G = save.load(JSON.parse(saved)); start(); }
-    catch (e) { localStorage.removeItem(KEY); toast('불러오기 실패', '새 게임으로 시작하세요', 'injury');
-      drawDossier(); }
+  $('#btnNew').onclick = () => {
+    const begin = () => {
+      bootGame.userId = bootSel;
+      experience(bootGame).guide = { active:true };
+      if (installGame(bootGame)) { closeModal(); start(); }
+    };
+    if (!saved) return begin();
+    modal(`<div class="mhead"><h2>새 구단을 시작할까요?</h2><button id="mx">닫기</button></div>
+      <div class="mbody stack"><p>지금 구단은 복구 저장본으로 보관합니다. 이전 복구 저장본은 교체됩니다.</p>
+      <button id="exportBeforeNew">현재 저장본 파일로 내려받기</button>
+      <button class="primary" id="confirmNew">${esc(d.name)} 시작</button></div>`);
+    $('#exportBeforeNew').onclick = () => rawDownload(saved, 'dugout-before-new-game.json');
+    $('#confirmNew').onclick = begin;
   };
 }
 
@@ -513,8 +606,8 @@ function renderTop() {
     case 'preseason': btn('시즌 시작', () => act(() => G.startSeason()), 'primary'); break;
     case 'regular':
       btn('다음 날', () => nextDay(), 'primary');
-      btn('이번 주는 맡긴다', () => act(() => weekReport(G.advance(7))));
-      btn('끝까지', () => act(() => report(G.simToEnd())));
+      btn('이번 주는 맡긴다', () => runSimulation(7));
+      btn('시즌 끝까지', () => runSimulation(s.total_days - s.day));
       break;
     case 'postseason': btn('포스트시즌', () => act(() => modalPost(G.runPostseason())), 'primary'); break;
     case 'off_rollover': btn('시즌 정리', () => act(() => modalRollover(G.offseasonRollover())), 'primary'); break;
@@ -552,7 +645,7 @@ function renderTop() {
     b.onclick = () => { tab = k; render(); }; tb.appendChild(b);
   });
 }
-function act(fn) { const r = fn(); autosave(); render(); return r; }
+function act(fn) { if (simRunning) return; const r = fn(); updateChallenge(G); autosave(); render(); return r; }
 /* ── 응원 ──────────────────────────────────────────────────
    KBO 응원은 대개 이름 음절을 두드린다. 실제 응원가는 저작권이 걸린
    개사곡이라 쓸 수 없고, 소리 없이 글자만으로도 분위기는 산다.
@@ -627,7 +720,7 @@ function gsResult(box, onDone) {
       ${lineScore(box)}
       ${decs.length ? `<div class="gs-decs">${decs.map(p => `<span class="ptag dec d${'승패세홀'.indexOf(p.dec)}"><b>${p.dec}</b>${cap(p.team, 18)}${esc(p.name)}<i class="m">${p.ip}이닝 ${p.r}실점 ${p.k}K</i></span>`).join('')}</div>` : ''}
       ${stars.length ? `<div class="gs-stars">${stars.map(b => `<div class="pcard"><span class="gs-star">${icon('star')}</span>${cap(b.team, 30)}
-        <span class="pc-main"><b>${esc(b.name)}</b><i>${bline(b)}</i></span></div>`).join('')}</div>` : ''}
+        <span class="pc-main"><b>${esc(b.name)}</b><i>${bline(b)}</i></span>${b.pid ? `<button class="quiet" data-star="${b.pid}">선수 카드</button>` : ''}</div>`).join('')}</div>` : ''}
       ${hl.length ? `<div class="lead">${icon('bolt', 'lead-ic')}<span class="pcnt">장면 ${hl.length}</span></div>
       <div class="gs-hl">${hl.map(p => `<div class="gs-hlrow">
         <span class="m">${p.inning}${p.half === 'top' ? '초' : '말'}</span>${cap(p.half === 'top' ? aw.team : hm.team, 18)}<b>${esc(p.batter || '')}</b>
@@ -639,6 +732,7 @@ function gsResult(box, onDone) {
       </div>
       <div class="gs-box">${ptable(aw)}${ptable(hm)}</div>
     </div>`);
+  $$('#gsBody [data-star]').forEach(b => b.onclick = () => openPlayer(+b.dataset.star));
   document.getElementById('gsFull').onclick = () => openReplay(box);
   document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };
   const nx = document.getElementById('gsNext');
@@ -661,7 +755,7 @@ function decisionsOf(box, mine) {
       const name = p.desc.replace('투수 교체 — ', '');
       const side = mine === 'home' ? box.home : box.away;
       const pl = side.pitchers.find(x => x.name === name);
-      out.push({ inn, what: p.desc, then: pl ? `→ ${pl.ip}이닝 ${pl.r}실점${pl.dec ? ' · ' + pl.dec : ''}` : '' });
+      out.push({ inn, what: p.desc, context:p.decision ? `${p.decision.outs}아웃 · ${p.decision.ro}:${p.decision.rd} (공격:수비) · ${p.decision.base.filter(Boolean).length}명 출루 · ${p.decision.pitcher} ${p.decision.pitches}구` : '', then: pl ? `→ ${pl.ip}이닝 ${pl.r}실점${pl.dec ? ' · ' + pl.dec : ''}` : '' });
     }
     else if (p.bunt && off) out.push({ inn, what: '번트 지시', then: `→ ${p.desc}` });
     else if (p.ibb && !off) out.push({ inn, what: `고의사구 ${p.batter}`, then: next ? `→ ${next.batter} ${next.desc}` : '' });
@@ -730,13 +824,14 @@ function weekReport(r) {
       <div class="wk-head"><span class="m">${g.day}일</span>${cap(g.opponent, 24)}<b>${mine === 'home' ? '' : '@'}${esc(short(g.opponent))}</b>
         <em class="m">${g.score}</em><i>${g.result}</i></div>
       <div class="wk-why">${esc(whyOf(g.box, mine, won))}</div>
-      ${dec.length ? `<div class="wk-dec">${dec.map(d => `<span class="wk-d">${icon(d.ic)}<span class="m">${d.inn}</span>${esc(d.what.replace(/^투수 교체 — /, '').replace(/^고의사구 /, ''))}<i>${esc(d.then.replace(/^→ /, ''))}</i></span>`).join('')}</div>`
+      ${dec.length ? `<div class="wk-dec">${dec.map(d => `<span class="wk-d">${icon(d.ic)}<span class="m">${d.inn}</span>${esc(d.what.replace(/^투수 교체 — /, '').replace(/^고의사구 /, ''))}${d.context ? `<small>${esc(d.context)}</small>` : ''}<i>${esc(d.then.replace(/^→ /, ''))}</i></span>`).join('')}</div>`
                    : '<div class="wk-dec dim">감독이 손을 쓰지 않았다</div>'}
     </div>`;
   }).join('');
   modal(`<div class="wk">
-    <div class="wk-top"><b>이번 주</b><span class="wk-note">감독에게 맡긴 ${games.length}경기</span></div>
+    <div class="wk-top"><b>진행 보고</b><span class="wk-note">감독에게 맡긴 ${games.length}경기</span></div>
     ${tiles}
+    <p class="note">아래는 감독의 선택 뒤에 실제로 일어난 결과입니다. 한 번의 성공이나 실패만으로 선택의 좋고 나쁨을 단정하지 마세요.</p>
     ${rows}
     <div class="hl-btn"><button class="go" id="wkOk">확인</button>${last ? '<button class="quiet" id="wkLast">마지막 경기 다시 보기</button>' : ''}</div>
   </div>`);
@@ -818,7 +913,7 @@ function table(head, rows, onRow) {
     const tr = el('tr', (r._cls || '') + (onRow ? ' click' : ''));
     tr.innerHTML = r.cells.map(c => `<td>${c}</td>`).join('');
     if (onRow) { tr.tabIndex = 0; tr.onclick = () => onRow(r);
-      tr.onkeydown = (e) => { if (e.key === 'Enter') onRow(r); }; }
+      tr.onkeydown = (e) => { if (['Enter', ' '].includes(e.key)) { e.preventDefault(); onRow(r); } }; }
     tb.appendChild(tr);
   });
   t.appendChild(tb);
@@ -869,8 +964,12 @@ function viewInbox(v) {
         </span></div>`).join('')));
   }
   v.appendChild(g);
-  v.querySelectorAll('.mail.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
-  G.markMailRead();
+  v.querySelectorAll('.mail.click').forEach(e => {
+    e.tabIndex = 0; e.setAttribute('role', 'button');
+    e.onclick = () => openPlayer(+e.dataset.pid);
+    e.onkeydown = event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); e.click(); } };
+  });
+  G.markMailRead(rows.map(x => x.id));
   renderTop();          // 배지를 즉시 반영한다
   autosave();
 }
@@ -946,6 +1045,8 @@ function monthSection(v) {
 }
 
 function viewHome(v) {
+  homeActions(v);
+  if (G.state().phase === 'preseason') return preseasonHome(v);
   const s = G.state();
   const st = G.standings().rows;
   const me = st.find(r => r.is_user);
@@ -1138,6 +1239,7 @@ const PIT_HEAD = (live) => ['선수','보직','나이','능력 / 잠재력',
 
 let teamTab = 'prep';                 // 경기 준비 · 선수단 · 2군 · 병역
 function viewTeam(v) {
+  watchSection(v);
   const r = G.roster();
   const live = ['regular','postseason'].includes(G.state().phase);
   const g = el('div', 'grid');
@@ -1429,6 +1531,18 @@ function saveSection(v) {
   v.appendChild(sec);
   $('#svExport').onclick = () => exportSave();
   $('#svInfo').onclick = modalInfo;
+  const extra = el('div', 'savebtn');
+  extra.innerHTML = '<button id="svRecover">복구 저장본 열기</button><button id="svRaw">현재 저장 원본 내려받기</button><button id="svGuide">첫 시작 안내 다시 보기</button>';
+  sec.appendChild(extra);
+  $('#svRecover').disabled = !readSlot(storage, BACKUP);
+  $('#svRecover').onclick = () => {
+    modal('<div class="mhead"><h2>이전 저장본으로 돌아갈까요?</h2><button id="mx">닫기</button></div><div class="mbody stack"><p>현재 진행은 복구 시점으로 돌아갑니다. 먼저 현재 구단을 파일로 보관할 수 있습니다.</p><button id="backupCurrent">현재 구단 내보내기</button><button id="confirmRecovery">복구 저장본 열기</button></div>');
+    $('#backupCurrent').onclick = exportSave;
+    $('#confirmRecovery').onclick = () => { closeModal(); resumeSlot(BACKUP); };
+  };
+  $('#svRaw').onclick = () => rawDownload(readSlot(storage) || '{}', 'dugout-stored.json');
+  $('#svGuide').onclick = () => { experience(G).guide.active = true; tab = 'home'; render(); autosave(); };
+  simulationSettings(sec);
   $('#svImport').onclick = () => {
     if (!confirm('불러오면 지금 구단은 사라진다. 계속하겠는가?')) return;
     pickSaveFile(() => { lastPhase = null; render(); toast('불러왔다', G.state().year + ' 시즌'); });
@@ -1900,14 +2014,15 @@ function openPosting() {
 }
 
 function viewDraft(v) {
-  const b = G.draftBoard(40);
+  watchSection(v, true);
+  const b = G.draftBoard(200);
   const g = el('div', 'grid');
   const clock = b.my_turn ? null : b.on_clock;
   /* 첫 줄 — 라운드 · 순번 · 누구 차례. 내 차례면 크게. */
   g.appendChild(sect('', '', `<div class="ftiles">
     <div class="htile"><b><span class="m">${b.round}</span><small>라운드</small></b><p>전체 ${b.pick_no} / ${b.total}</p></div>
     <div class="htile ${b.my_turn ? 'myturn' : ''}">${clock ? cap(clock, 28) : icon('star')}<b>${b.my_turn ? '내 차례' : esc(short(clock || ''))}</b>
-      <p>${b.my_turn ? '보드에서 선수를 누르면 지명한다. 되돌릴 수 없다.' : '지명을 기다린다'}</p></div>
+      <p>${b.my_turn ? '선수를 눌러 리포트를 읽고 비교한 뒤 지명하세요.' : '지명을 기다린다'}</p></div>
     <div class="htile">${icon('pinch')}<b><span class="m">${b.picks.filter(p => p.mine).length}</span><small>명 지명</small></b>
       <div class="alrow">${b.picks.filter(p => p.mine).map(p => `<span class="lb">${esc(p.name)}<i>${p.n}순위</i></span>`).join('') || '<span class="dim">아직 없다</span>'}</div></div>
   </div>`));
@@ -1918,8 +2033,7 @@ function viewDraft(v) {
       `<span class="tag hs">${p.origin ? p.origin[0] : ''}</span>`,
       `<span class="m dim">${p.slot}</span>`, `<span class="m">${p.age}</span>`,
       axis(p.ovr, p.pot), `<span class="m dim">${p.confidence}%</span>`] })),
-    (row) => { if (!b.my_turn) return openPlayer(row.p.pid);
-      if (confirm(`${row.p.name} 지명. 되돌릴 수 없다.`)) { G.draftPick(row.p.pid); autosave(); render(); } }));
+    (row) => openPlayer(row.p.pid)));
   g2.appendChild(sect('', `${b.picks.length}`, `<div class="lead">${icon('trophy', 'lead-ic')}<span class="pcnt">지명 순서</span></div>
     <div class="stack tight">${b.picks.length ? b.picks.slice().reverse().slice(0, 24).map(p =>
       `<div class="row ${p.mine ? 'me' : ''}"><span class="prow"><span class="m dim pn">${p.n}</span>${cap(p.team, 22)}<span class="name">${esc(p.name)}</span></span></div>`).join('')
@@ -2067,7 +2181,7 @@ async function makeCard(p) {
     const blob = await card.playerCard(p, { team: p.team || G.me.name,
       color: cp.color, code: cp.code, year: G.state().year });
     const how = await card.shareCard(blob, `dugout-${p.name}.png`,
-      `${p.name} · ${p.seasons.length}시즌 · 통산 WAR ${(p.career_war ?? 0).toFixed(1)}`);
+      playerCaption(p));
     if (how === 'downloaded') toast('카드를 내려받았다', p.name);
   } catch (e) { toast('카드 실패', '다시 시도해 보라', 'injury'); }
   b.disabled = false; b.textContent = '카드 만들기';
@@ -2122,6 +2236,7 @@ function modalInfo() {
    지켜볼 생각이 없는 사람에게 판단을 물을 이유가 없고,
    지켜보기로 한 사람에게 판단을 안 물을 이유도 없다. */
 function nextDay() {
+  clearTimeout(saveTimer); persist();
   const sch = G.schedule(1).rows[0];
   if (!sch) return act(() => report(G.advance(1)));
   const me = G.state().user_team.name;
@@ -2233,13 +2348,14 @@ function logSink(seen, getLv) {
 }
 
 function watchDay() {
+  const beforeDay = JSON.stringify(save.dump(G));
   const w = G.watchDay();
   if (w.error) { closeGame(); return; }
   let lv = null, bailed = false, pendingAsk = null;
   const seen = [];
   const finish = (r) => {
     if (lv) { lv.destroy(); if (curLive === lv) curLive = null; lv = null; }
-    autosave(); render(); reportNotices();
+    experience(G).guide.played = true; updateChallenge(G); autosave(); render(); reportNotices();
     const g = (r.result.games || []).find(x => x.box);
     if (g) { lastBox = g.box; gsResult(g.box); }
     else { closeGame(); report(r.result); }
@@ -2277,7 +2393,7 @@ function watchDay() {
       r = w.step(null);
     }
     finish(r);
-  })();
+  })().catch(() => { closeGame(); G = save.load(JSON.parse(beforeDay)); persist(); render(); toast('경기를 다시 준비합니다', '경기 시작 전 저장본으로 돌아왔습니다.', 'injury'); });
 }
 
 /** 감독의 질문. 구장 위에 얹힌다. 답이 정해지면 done(답). */
@@ -2333,17 +2449,23 @@ function askMoment(m, lv, done) {
 
 
 function modal(html, full = false) {
+  if ($('#modal').hidden) modalReturn = document.activeElement;
   $('#modal').classList.toggle('full', !!full);
   $('#modalBody').innerHTML = html; $('#modal').hidden = false;
   const x = $('#mx'); if (x) x.onclick = closeModal;
   $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
   document.onkeydown = (e) => { if (e.key === 'Escape') closeModal(); };
+  $('#app').inert = true; $('#boot').inert = true;
+  const body = $('#modalBody'), title = body.querySelector('h2');
+  if (title) { title.id = 'dialogTitle'; body.setAttribute('aria-labelledby', 'dialogTitle'); }
+  else { body.removeAttribute('aria-labelledby'); body.setAttribute('aria-label', '경기와 선수 정보'); }
+  (body.querySelector('button, input, select, [tabindex="0"]') || body).focus();
 }
-function closeModal() { $('#modal').hidden = true; $('#modal').classList.remove('full');
+function closeModal() { $('#app').inert = false; $('#boot').inert = false; $('#modal').hidden = true; $('#modal').classList.remove('full');
   document.onkeydown = null;
   // 경기 화면이 열려 있었으면 그리기도 멈춘다. 창만 숨기고 두면 뒤에서 계속 돈다.
   if (curLive) { curLive.destroy(); curLive = null; }
-  gsState = null; }
+  gsState = null; if (modalReturn?.isConnected) modalReturn.focus(); else ($('#tabs button[aria-current="page"]') || $('#btnNew'))?.focus(); }
 
 const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구안', gap_power:'갭파워',
   hr_power:'파워', speed:'주력', fielding:'수비', reaction:'순발력', positioning:'위치선정', stuff:'구위', command:'제구',
@@ -2352,6 +2474,7 @@ const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구�
 function openPlayer(pid) {
   const p = G.player(pid);
   if (p.error) return;
+  experience(G).guide.inspected = true; autosave();
   const row = (k, v) => `<div class="attrrow"><span>${ATTR_KO[k] || k}</span>${axis(v, { lo:v.pot_lo, hi:v.pot_hi })}</div>`;
   const keys = Object.keys(p.attrs);
   const BATK = ['contact','avoid_k','discipline','gap_power','hr_power'];
@@ -2442,6 +2565,7 @@ function openPlayer(pid) {
         + '</div>' : ''}
     </div>`);
   bindShare();
+  playerActions(p);
 }
 
 function openTeam(tid) {
@@ -2507,6 +2631,7 @@ function modalPost(r) {
         <div class="ptags"><span class="ptag gold">${icon('trophy')}${G.state().year} 챔피언</span>${r.user_won ? '<span class="ptag good">우리가 해냈다</span>' : ''}</div></div></div>
     <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
+      <button id="shareChamp">우승 소식 소개 글 복사</button>
       <div class="brk">${r.rounds.map(x => `<div class="brk-r ${x.user ? 'me' : ''}">
         <span class="brk-k">${esc(x.round)}</span>
         <span class="brk-t win">${cap(x.winner, 30)}<b>${esc(short(x.winner))}</b></span>
@@ -2514,6 +2639,7 @@ function modalPost(r) {
         <span class="brk-t">${cap(x.loser, 30)}<b>${esc(short(x.loser))}</b></span>
       </div>`).join('')}</div>
     </div>`);
+  $('#shareChamp').onclick = () => copyText(`${G.state().year} 시즌 우승, ${r.champion}.\n내가 지켜본 가을야구 — Project Dugout\nhttps://baseball.ysw.kr`);
 }
 function modalRollover(r) {
   const n = (a) => (a || []).length;
@@ -2543,7 +2669,7 @@ function modalRollover(r) {
     ${mineRet.length ? sec('back', `우리 팀 은퇴 ${mineRet.length}`, `<div class="stack tight">${mineRet.map(x => `<div class="row">
       <span class="prow">${cap(x.team, 22)}<b>${esc(x.name)}</b><span class="sub">${x.age}세</span></span><span class="m dim">${x.years}시즌 · WAR ${x.war}</span></div>`).join('')}</div>`) : ''}
     ${n(r.breakout) || n(r.decline) ? sec('bolt', '달라진 선수', `<div class="chips">
-      ${(r.breakout || []).map(x => `<span class="chip good">${esc(x.name)} <b class="m">+${x.delta}</b></span>`).join('')}
+      ${(r.breakout || []).map(x => `<button class="chip good" data-breakout="${x.pid}">${esc(x.name)} <b class="m">+${x.delta}</b> · 선수 카드</button>`).join('')}
       ${(r.decline || []).map(x => `<span class="chip bad">${esc(x.name)} <b class="m">${x.delta}</b></span>`).join('')}</div>`) : ''}
     ${n(r.enlisted) || n(r.discharged) || n(r.returned) ? sec('shift', '오가는 사람', `<div class="chips">
       ${(r.enlisted || []).map(x => `<span class="chip">${icon('shift')}${esc(x.name)} 입대${x.kind === 'sangmu' ? ' · 상무' : ''}</span>`).join('')}
@@ -2783,3 +2909,174 @@ function openReplay(box) {
     if (gsState) gsResult(box);
   })();
 }
+
+// Escape 동작은 경기/진행 화면이 정하고, Tab 순환은 모든 모달에 공통 적용한다.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Tab' || $('#modal').hidden) return;
+  const items = [...$('#modalBody').querySelectorAll('button, a[href], input, select, textarea, [tabindex="0"]')]
+    .filter(x => !x.disabled && x.getClientRects().length);
+  if (!items.length) { e.preventDefault(); $('#modalBody').focus(); return; }
+  const i = items.indexOf(document.activeElement);
+  if (i < 0 || (e.shiftKey && i === 0) || (!e.shiftKey && i === items.length - 1)) {
+    e.preventDefault(); items[e.shiftKey ? items.length - 1 : 0].focus();
+  }
+});
+
+function simulationSettings(host) {
+  const box = el('fieldset', 'sim-settings');
+  box.innerHTML = '<legend>자동 진행을 멈출 소식</legend><p>선택한 중요한 소식이 생기면 그날 경기를 마친 뒤 멈춥니다.</p>' +
+    Object.entries({ injury:'큰 부상', owner:'구단주 요청', contract:'계약', transfer:'이적' }).map(([k, label]) =>
+      `<label><input type="checkbox" data-stop="${k}" ${experience(G).stops[k] ? 'checked' : ''}>${label}</label>`).join('');
+  box.querySelectorAll('[data-stop]').forEach(input => input.onchange = () => {
+    experience(G).stops[input.dataset.stop] = input.checked; autosave();
+  });
+  host.appendChild(box);
+}
+function homeActions(v) {
+  const e = experience(G), s = G.state();
+  if (e.guide.active) {
+    const g = e.guide;
+    const box = el('section', 'guide-card');
+    box.innerHTML = `<div class="action-head"><h2>첫 일주일, 이렇게 시작하세요</h2><button id="skipGuide" class="quiet">안내 접기</button></div>
+      <p>스카우트가 본 선수의 모습과 실제 경기 기록을 함께 살펴보세요. 선수 기용과 영입은 당신의 선택입니다.</p>
+      <div class="guide-steps">
+        <button id="guidePlayer">${g.inspected ? '✓ ' : '1. '}선수 리포트 읽기</button>
+        <button id="guideLineup">${g.lineup ? '✓ ' : '2. '}라인업 확인하기</button>
+        <button id="guidePlay">${g.played ? '✓ ' : '3. '}첫 경기로</button>
+      </div>
+      <details><summary>막대와 숫자는 어떻게 읽나요?</summary>
+        <p>20–80 눈금에서 50은 보통 수준입니다. 실선은 현재 평가, 빗금은 잠재력의 추정 범위입니다.
+        예를 들어 45–65는 53–57보다 판단의 여지가 큽니다. 확신도는 스카우트의 평가가 얼마나 좁혀졌는지 보여 줍니다.</p>
+        <p>WAR는 대체 선수보다 팀에 얼마나 기여했는지 보는 게임 내 기록입니다. 한 경기 결과보다 여러 경기의 흐름과 함께 보세요.</p></details>`;
+    v.appendChild(box);
+    $('#skipGuide').onclick = () => { g.active = false; autosave(); render(); };
+    $('#guidePlayer').onclick = () => { const p = G.roster().lineup[0]; if (p) openPlayer(p.pid); };
+    $('#guideLineup').onclick = () => { g.lineup = true; tab = 'team'; teamTab = 'prep'; autosave(); render(); };
+    $('#guidePlay').onclick = () => { if (s.phase === 'preseason') act(() => G.startSeason()); if (G.state().phase === 'regular') nextDay(); };
+    $('#guidePlay').disabled = !['preseason', 'regular'].includes(s.phase);
+  }
+  const jobs = [];
+  const roster = G.roster(), pen = G.pitcherStatus();
+  if (roster.injured.length) jobs.push({ title:`부상 선수 ${roster.injured.length}명`, text:'대체 선수와 1군 편성을 확인하세요.', tab:'team', team:'farm' });
+  if (s.phase === 'regular' && pen.ready < 3) jobs.push({ title:`오늘 쓸 수 있는 불펜 ${pen.ready}명`, text:'연투와 휴식 일수를 확인하세요.', tab:'team', team:'prep' });
+  const expiring = G.finances().contracts.filter(c => c.end_year <= s.year);
+  if (expiring.length) jobs.push({ title:`올해 계약 만료 ${expiring.length}명`, text:'남길 선수와 다음 시즌 예산을 살펴보세요.', tab:'front' });
+  const urgent = G.mail(240).rows.find(m => !m.read && m.pri >= 1);
+  if (urgent) jobs.unshift({ title:urgent.title, text:'받은 편지함에서 소식을 확인하세요.', tab:'inbox' });
+  if (jobs.length) {
+    const box = el('section', 'attention');
+    box.innerHTML = '<h2>오늘 확인할 일</h2><div class="attention-grid">' + jobs.slice(0, 3).map((j, i) =>
+      `<button data-job="${i}"><b>${esc(j.title)}</b><span>${esc(j.text)}</span></button>`).join('') + '</div>';
+    box.querySelectorAll('[data-job]').forEach(b => b.onclick = () => { const j = jobs[+b.dataset.job]; tab = j.tab; if (j.team) teamTab = j.team; render(); });
+    v.appendChild(box);
+  }
+  const c = updateChallenge(G);
+  const challenge = el('section', 'challenge-card');
+  challenge.innerHTML = c
+    ? `<b>3시즌 안에 가을야구</b><span>${c.start}–${c.start + 2} · ${c.result === 'success' ? `${c.end}년 달성` : c.result === 'ended' ? '도전 종료 · 자유 플레이는 계속됩니다' : `${Math.min(3, s.year - c.start + 1)}번째 시즌 진행 중`}</span>`
+    : '<b>자유 플레이</b><span>나만의 목표를 정해 구단을 운영하세요.</span>' +
+      (s.phase === 'preseason' ? '<button id="startChallenge">3시즌 안에 가을야구 도전</button>' : '');
+  v.appendChild(challenge);
+  if ($('#startChallenge')) $('#startChallenge').onclick = () => {
+    e.challenge = { start:s.year, result:null }; autosave(); render();
+  };
+  const memorable = G.mail(80).rows.filter(m => m.pid && m.tid === s.user_team.id && ['milestone', 'draft', 'scout'].includes(m.kind)).slice(0, 2);
+  if (memorable.length) {
+    const box = el('section', 'attention');
+    box.innerHTML = '<h2>기억할 선수</h2>' + memorable.map(m => `<button data-memory="${m.pid}">${esc(m.title)} · 선수 카드</button>`).join(' ');
+    box.querySelectorAll('[data-memory]').forEach(b => b.onclick = () => openPlayer(+b.dataset.memory));
+    v.appendChild(box);
+  }
+}
+function watchSection(v, draftOnly = false) {
+  const watched = experience(G).watched;
+  const available = draftOnly ? new Set(G.draftBoard(1000).rows.map(p => p.pid)) : null;
+  const rows = watched.filter(w => !available || available.has(w.pid)).map(w => ({ w, p:G.player(w.pid) })).filter(x => !x.p.error);
+  if (!rows.length && !draftOnly) return;
+  const box = el('section', 'watch-card');
+  box.innerHTML = `<div class="action-head"><h2>${draftOnly ? '지명 후보' : '관심 선수'}</h2><button class="quiet" id="compareWatch" disabled>두 선수 비교</button></div>
+    ${rows.length ? '<div class="watch-list">' + rows.map(({ w, p }) => `<div class="watch-row">
+      <label><input type="checkbox" data-compare="${p.pid}" aria-label="${esc(p.name)} 비교"></label>
+      <button data-watch-open="${p.pid}"><b>${esc(p.name)}</b><span>${p.age}세 · ${p.slot} · ${esc(p.team || '지명 후보')}</span></button>
+      <span>${w.year} 평가 ${w.ovr.lo}–${w.ovr.hi} → 현재 ${p.ovr.lo}–${p.ovr.hi}<small>확신 ${w.confidence}% → ${p.confidence}% · 통산 WAR ${(p.career_war || 0).toFixed(1)}</small></span>
+    </div>`).join('') + '</div>' : '<p>선수 리포트에서 관심 선수로 등록하면 평가 변화를 기록하고 후보끼리 비교할 수 있습니다.</p>'}`;
+  box.querySelectorAll('[data-watch-open]').forEach(b => b.onclick = () => openPlayer(+b.dataset.watchOpen));
+  const selected = () => [...box.querySelectorAll('[data-compare]:checked')].map(b => +b.dataset.compare);
+  box.querySelectorAll('[data-compare]').forEach(input => input.onchange = () => {
+    const ids = selected();
+    box.querySelectorAll('[data-compare]').forEach(b => b.disabled = ids.length >= 2 && !b.checked);
+    box.querySelector('#compareWatch').disabled = ids.length !== 2;
+  });
+  box.querySelector('#compareWatch').onclick = () => comparePlayers(selected());
+  v.appendChild(box);
+}
+function comparePlayers(ids) {
+  const players = ids.map(pid => G.player(pid)).filter(p => !p.error);
+  if (players.length !== 2) return;
+  modal(`<div class="mhead"><h2>선수 비교</h2><button id="mx">닫기</button></div><div class="mbody">
+    <p>같은 눈금으로 비교하세요. 평가 범위가 넓을수록 더 지켜볼 여지가 있습니다.</p><div class="compare-grid">${players.map(p =>
+      `<section><h3>${esc(p.name)}</h3><p>${p.age}세 · ${p.slot} · ${esc(p.origin || '')}</p>
+      <p>현재 ${p.ovr.lo}–${p.ovr.hi} / 잠재력 ${p.pot.lo}–${p.pot.hi}</p>${axis(p.ovr, p.pot)}
+      <p>확신도 ${p.confidence}% · ${p.contract ? esc(p.contract.text) : '계약 없음'}</p>
+      ${Object.entries(p.attrs).map(([k, r]) => `<div class="attrrow"><span>${ATTR_KO[k] || k}</span>${axis(r, { lo:r.pot_lo, hi:r.pot_hi })}</div>`).join('')}
+      <p>${esc(p.comment)}</p><button data-report="${p.pid}">상세 리포트</button></section>`).join('')}</div></div>`);
+  $$('#modalBody [data-report]').forEach(b => b.onclick = () => openPlayer(+b.dataset.report));
+}
+function playerActions(p) {
+  const e = experience(G), w = e.watched.find(x => x.pid === p.pid);
+  const body = $('#modalBody .mbody'), box = el('section', 'player-actions');
+  box.innerHTML = `<button id="watchPlayer" aria-pressed="${!!w}">${w ? '관심 선수 해제' : '관심 선수 등록'}</button>
+    <button id="copyCaption">소개 글 복사</button>
+    ${w ? `<p>${w.year}년 처음 살펴본 평가 ${w.ovr.lo}–${w.ovr.hi} · 잠재력 ${w.pot.lo}–${w.pot.hi}<br>
+      지금까지 통산 WAR ${((p.career_war || 0) - w.war).toFixed(1)} 증가</p>` : ''}`;
+  const board = G.state().phase === 'off_draft' ? G.draftBoard(1000) : null;
+  if (board?.my_turn && board.rows.some(x => x.pid === p.pid)) {
+    box.insertAdjacentHTML('beforeend', `<button class="primary" id="draftPlayer">${esc(p.name)} 지명</button>`);
+  }
+  body.prepend(box);
+  $('#watchPlayer').onclick = () => {
+    if (!w && e.watched.length >= 20) return toast('관심 선수 20명', '먼저 다른 선수의 관심 등록을 해제하세요.');
+    watchPlayer(G, p); autosave(); render(); openPlayer(p.pid);
+  };
+  $('#copyCaption').onclick = () => copyText(playerCaption(p));
+  if ($('#draftPlayer')) $('#draftPlayer').onclick = () => {
+    modal(`<div class="mhead"><h2>${esc(p.name)} 지명</h2><button id="mx">닫기</button></div><div class="mbody stack">
+      <p>${board.round}라운드 · 전체 ${board.pick_no}순위. 지명하면 다음 구단 차례로 넘어갑니다.</p>
+      <p>현재 ${p.ovr.lo}–${p.ovr.hi} · 잠재력 ${p.pot.lo}–${p.pot.hi} · 확신도 ${p.confidence}%</p>
+      <button id="backReport">리포트로 돌아가기</button><button id="confirmDraft" class="primary">지명 확정</button></div>`);
+    $('#backReport').onclick = () => openPlayer(p.pid);
+    $('#confirmDraft').onclick = () => {
+      const r = G.draftPick(p.pid);
+      if (r.error) return toast('지명할 수 없습니다', '현재 지명 순서를 확인하세요.');
+      if (!e.watched.some(w => w.pid === p.pid) && e.watched.length < 20) watchPlayer(G, p);
+      closeModal(); autosave(); render(); toast('지명 완료', `${p.name}의 성장 과정을 관심 선수에서 지켜보세요.`);
+    };
+  };
+}
+function playerCaption(p) {
+  const draft = p.draft ? `${p.draft.round}라운드 전체 ${p.draft.overall}순위. ` : '';
+  return `${draft}${p.name}, ${p.seasons.length}시즌 통산 WAR ${(p.career_war || 0).toFixed(1)}.\n내가 지켜본 선수의 이야기 — Project Dugout\nhttps://baseball.ysw.kr`;
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast('복사했습니다', '원하는 곳에 소개 글을 붙여 넣으세요.'); }
+  catch {
+    modal('<div class="mhead"><h2>소개 글</h2><button id="mx">닫기</button></div><div class="mbody"><label for="copyText">아래 글을 선택해 복사하세요.</label><textarea id="copyText" readonly rows="6"></textarea></div>');
+    $('#copyText').value = text; $('#copyText').focus(); $('#copyText').select();
+  }
+}
+
+function preseasonHome(v) {
+  const roster = G.roster(), prospects = G.farm().rows.slice(0, 3);
+  const box = el('section', 'attention');
+  const groups = [['시즌을 이끌 선수', roster.lineup.slice(0, 3)], ['지켜볼 유망주', prospects]];
+  box.innerHTML = groups.map(([title, rows]) => `<h2>${title}</h2><div class="attention-grid">${rows.map(p =>
+    `<button data-preplayer="${p.pid}"><b>${esc(p.name)} · ${p.slot}</b><span>${p.age}세 · 현재 ${p.ovr.lo}–${p.ovr.hi} · 잠재력 ${p.pot.lo}–${p.pot.hi}</span>${axis(p.ovr, p.pot)}</button>`).join('')}</div>`).join('');
+  box.querySelectorAll('[data-preplayer]').forEach(b => b.onclick = () => openPlayer(+b.dataset.preplayer));
+  v.appendChild(box);
+  const standings = G.lastStandings().rows;
+  if (standings.length) v.appendChild(sect('지난 시즌 최종 순위', '', table(['구단', '승', '패'], standings.map(r => ({ cells:[esc(r.team), r.w, r.l] })))));
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-breakout]'); if (b) openPlayer(+b.dataset.breakout);
+});

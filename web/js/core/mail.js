@@ -65,6 +65,17 @@ export function scanDay(g, day, newInjuries, boxes) {
            ? ' 이 정도 부상은 몸에 흔적을 남긴다.' : '') });
   }
 
+  // 프로 첫 출장. 시즌 첫 출장과 구분하고, 한 번만 알린다.
+  for (const line of [...S.bat.values(), ...S.pit.values()]) {
+    if (line.team.team_id !== me || line.g !== 1 || L.careers.get(line.p.pid)?.seasons.length) continue;
+    const key = `debut:${line.p.pid}`;
+    if (mb.seen.has(key)) continue;
+    mb.seen.add(key);
+    mb.push({ year:L.year, day, kind:'milestone', pri:0, pid:line.p.pid, tid:me,
+      title:`${line.p.name}의 첫 1군 경기`,
+      body:'프로 첫 출장 기록이 생겼습니다. 선수 리포트에서 관심 선수로 등록하고 성장 과정을 지켜보세요.' });
+  }
+
   // 2. 통산 기록 이정표
   const check = (line, c, marks, isPit) => {
     for (const [f, cuts, unit] of marks) {

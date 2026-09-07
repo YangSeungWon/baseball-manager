@@ -3,8 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Project Dugout</title>
-<meta name="description" content="선수의 진짜 능력은 아무도 모른다. 스카우트의 추정치로 판단하는 야구단 운영 시뮬레이션.">
+<title>Project Dugout · 야구단 운영 시뮬레이션</title>
+<meta name="description" content="지명부터 우승까지, 당신이 만드는 구단의 이야기. 설치·가입 없이 즐기는 무료 야구단 운영 시뮬레이션.">
+<link rel="canonical" href="https://baseball.ysw.kr/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:title" content="Project Dugout · 지명부터 우승까지">
+<meta property="og:description" content="스카우트 리포트를 읽고, 선수를 키우고, 승부처에서 결정하세요. 설치·가입 없이 무료로 플레이.">
+<meta property="og:url" content="https://baseball.ysw.kr/">
+<meta property="og:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Project Dugout — 지명부터 우승까지, 당신이 만드는 구단의 이야기">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Project Dugout · 지명부터 우승까지">
+<meta name="twitter:description" content="당신이 만드는 구단의 이야기. 설치·가입 없이 무료로 플레이.">
+<meta name="twitter:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
 <link rel="stylesheet" href="css/style.css">
 <meta name="theme-color" content="#0e151c">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230e151c'/><rect x='5' y='13' width='12' height='6' rx='1' fill='%234c8ed9'/><rect x='18.5' y='13' width='8' height='6' rx='1' fill='none' stroke='%2365727d'/></svg>">
@@ -26,12 +40,17 @@
     </h1>
     <p class="goal">구단 선택</p>
   </div>
+  <p class="boot-intro">지명부터 우승까지, 당신이 만드는 구단의 이야기.<span>리포트를 읽고, 선수를 키우고, 승부처에서 결정하세요. 무료 · 설치·가입 없음</span></p>
+  <div id="resumePanel" class="resume-panel" hidden></div>
   <div class="boot-main">
     <div class="bootleft">
       <div class="lab" id="listLabel"></div>
+      <label class="mobile-team-picker" for="mobileTeam">구단 선택<select id="mobileTeam"></select></label>
       <div id="teamPick" class="teamlist"></div>
+      <details class="boot-extras"><summary>지난 시즌과 연고지 살펴보기</summary>
       <div id="bracket" class="bracket"></div>
       <div id="kmap" class="mapbox"></div>
+      </details>
       <p class="bootfoot">
         <span>구단과 선수는 모두 가상입니다. 실존하는 구단·인물과 관련이 없습니다.</span>
         <button id="btnLoad" class="linky">세이브 파일 불러오기</button>
@@ -48,14 +67,15 @@
     <span id="tbPhase" class="tb-phase"></span>
     <span id="tbCount" class="tb-count"></span>
     <span class="tb-team"><span id="tbTeam"></span><em id="tbMode"></em></span>
+    <span id="saveStatus" class="save-status" role="status">저장됨</span>
     <span class="tb-right" id="tbActions"></span>
   </header>
   <nav class="tabs" id="tabs"></nav>
   <main id="view"></main>
-  <div id="toasts" class="toasts"></div>
 </div>
+<div id="toasts" class="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 
-<div id="modal" class="modal" hidden><div class="modal-body" id="modalBody"></div></div>
+<div id="modal" class="modal" hidden><div class="modal-body" id="modalBody" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 <script type="module" src="js/ui.js"></script>
 </body>
 </html>

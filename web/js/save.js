@@ -17,24 +17,25 @@ const BF = ['contact','avoid_k','discipline','gap_power','hr_power','speed','fie
 const PF = ['stuff','command','movement','stamina','velo','gb_tendency'];
 const META = ['pid','name','age','service','injury_days','career_injuries',
   'career_injury_days','debut_year','draft_year','unsigned_years','height','weight'];
-const f3 = (v) => Math.round(v*1000)/1000;
+// 저장할 때 반올림하면 같은 리포트와 경기의 입력이 달라진다.
+const savedNumber = (v) => v;
 
 function dumpPlayer(p) {
   const ip = p.kind === 'P';
   const d = { k: p.kind };
   for (const m of META) if (p[m] !== undefined && p[m] !== null) d[m] = p[m];
-  for (const f of (ip ? PF : BF)) d[f] = f3(p[f]);
-  d.pot = {}; for (const a in p.pot) d.pot[a] = f3(p.pot[a]);
+  for (const f of (ip ? PF : BF)) d[f] = savedNumber(p[f]);
+  d.pot = {}; for (const a in p.pot) d.pot[a] = savedNumber(p.pot[a]);
   d.hid = {}; for (const a in p.hidden)
-    d.hid[a] = typeof p.hidden[a] === 'string' ? p.hidden[a] : f3(p.hidden[a]);
+    d.hid[a] = typeof p.hidden[a] === 'string' ? p.hidden[a] : savedNumber(p.hidden[a]);
   if (ip) { d.throws = p.throws; d.role = p.role; d.ars = p.arsenal; }
   else { d.bats = p.bats; d.position = p.position; }
-  if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(f3)];
+  if (p.contract) d.ct = [p.contract.start_year, p.contract.salaries.map(savedNumber)];
   for (const o of ['origin','scout_difficulty','drafted_round','drafted_overall','drafted_by','foreign','nation','kbo_years','seen','talks','downUntil','mil','milKind','milLeft','natl','wbc','pen_role','pen_lock','draft_look','drafted_year','number','mlb','mlbLeft','mlbFrom','post_refused','fa_signed','promised_starter','fullName'])
     if (p[o] !== undefined) d[o] = p[o];
   if (p.scout_consensus) {
     const attrs = dev.attrsOf(p);
-    d.sc = [attrs.map(a=>f3(p.scout_consensus[a])), attrs.map(a=>f3(p.scout_consensus_pot[a]))];
+    d.sc = [attrs.map(a=>savedNumber(p.scout_consensus[a])), attrs.map(a=>savedNumber(p.scout_consensus_pot[a]))];
   }
   return d;
 }
@@ -93,6 +94,7 @@ export function dump(game) {
   const live = {};
   for (const t of L.teams) for (const p of [...t.batters, ...t.pitchers, ...t.farm]) live[p.pid] = dumpPlayer(p);
   for (const p of L.unsigned) live[p.pid] = dumpPlayer(p);
+  for (const p of game.replPool || []) live[p.pid] = dumpPlayer(p);
   for (const p of (L.abroad || [])) live[p.pid] = dumpPlayer(p);
   if (game.draftSession) for (const p of game.draftSession.available) live[p.pid] = dumpPlayer(p);
 
@@ -107,22 +109,24 @@ export function dump(game) {
     for (const [pid, m] of s.memory) {
       if (!live[pid]) continue;
       const keys = Object.keys(m.cur);
-      mem[pid] = [keys.map(k=>f3(m.cur[k])), keys.map(k=>f3(m.pot[k])), keys];
+      mem[pid] = [keys.map(k=>savedNumber(m.cur[k])), keys.map(k=>savedNumber(m.pot[k])), keys];
     }
     const looks = {};
     for (const [pid, v] of s.looks) if (live[pid]) looks[pid] = v;
-    return { ec:f3(s.eval_current), ep:f3(s.eval_potential), h:f3(s.hitting), p:f3(s.pitching),
-             bias: Object.fromEntries(Object.entries(s.bias).map(([k,v])=>[k,f3(v)])), mem, looks };
+    return { ec:savedNumber(s.eval_current), ep:savedNumber(s.eval_potential), h:savedNumber(s.hitting), p:savedNumber(s.pitching),
+             bias: Object.fromEntries(Object.entries(s.bias).map(([k,v])=>[k,savedNumber(v)])), mem, looks };
   };
 
   const dumpSeason = (S) => S ? {
     year:S.year, games:S.games, day:S.curDay, rng:S.rng.state,
+    rngShared:S.rng === L.rng, rngSpare:S.rng._spare,
     sched:S.schedule, rec:Object.fromEntries([...S.rec].map(([k,r])=>[k,[r.w,r.l,r.rs,r.ra,r.d]])),
     bat:Object.fromEntries([...S.bat].map(([pid,b])=>[pid,[b.team.team_id, BAT_LINE.map(f=>b[f]),
       [b.sp.H,b.sp.A,b.sp.L,b.sp.R,b.sp.S]]])),
     pit:Object.fromEntries([...S.pit].map(([pid,q])=>[pid,[q.team.team_id, PIT_LINE.map(f=>q[f]),
       [q.sp.H,q.sp.A]]])),
     res:S.results,
+    postponed:S.postponed, rained:S.rained, att:Object.fromEntries(S.att),
     avail:Object.fromEntries(S.availDay), last:Object.fromEntries(S.lastUsed),
     consec:Object.fromEntries(S.consec),
     feats:(S.feats||[]).map(f => [f.y,f.d,f.k,f.pid,f.name,f.team,f.opp,f.v]),
@@ -130,22 +134,26 @@ export function dump(game) {
 
   return {
     v: VERSION, year:L.year, games:L.games, user:game.userId, phase:game.phase,
+    experience:game.experience || null,
+    replPool:game.replPool?.map(p => p.pid) || null, wbc:game.wbc || null,
+    previous:game._prev || null, notices:game.notices || [], newImportant:game.newImportant || 0,
+    playoffLog:game.playoffLog || [], rngSpare:L.rng._spare,
     rng: L.rng.state, nteams: L.teams.length,
     teams: L.teams.map(t => ({ id:t.team_id, name:t.name,
       b:t.batters.map(p=>p.pid), p:t.pitchers.map(p=>p.pid), f:t.farm.map(p=>p.pid),
-      rot:t.rot_index, park:[f3(t.park.hrFactor), f3(t.park.hitFactor), t.park.name, t.park.capacity, t.park.opened,
+      rot:t.rot_index, lastPlayoff:!!t.lastPlayoff, lastTitle:!!t.lastTitle, park:[savedNumber(t.park.hrFactor), savedNumber(t.park.hitFactor), t.park.name, t.park.capacity, t.park.opened,
             t.park.fL, t.park.fC, t.park.fR, t.park.fH, t.park.turf|0, t.park.alt|0, t.park.dome?1:0],
-      fin:[f3(t.finance.market_size), f3(t.finance.owner_spending), f3(t.finance.revenue),
-           f3(t.finance.budget), f3(t.finance.patience), t.finance.attendance || 0,
+      fin:[savedNumber(t.finance.market_size), savedNumber(t.finance.owner_spending), savedNumber(t.finance.revenue),
+           savedNumber(t.finance.budget), savedNumber(t.finance.patience), t.finance.attendance || 0,
            t.finance.homeGames || 0, t.finance.income || null],
-      up:f3(t.upside_weight ?? 0.7), talent:f3(t.talent ?? 0), hist:t.history || null,
+      up:savedNumber(t.upside_weight ?? 0.7), talent:savedNumber(t.talent ?? 0), hist:t.history || null,
       tac:t.tactics || null, man:t.manual || null, stf:t.staff || null,
       fs:t.forcedStarter ?? null, pd:t.penDayNext ? 1 : 0 })),
     players: live, ghosts,
     careers: [...L.careers.values()].filter(c => c.seasons.length || live[c.p.pid]).map(c => ({
       pid:c.p.pid, k:c.kind,
       s: c.seasons.map(x => [x.year, x.team,
-          (c.kind==='B'?BAT_LINE:PIT_LINE).map(f => x.line[f] ?? 0), f3(x.war), x.age]),
+          (c.kind==='B'?BAT_LINE:PIT_LINE).map(f => x.line[f] ?? 0), savedNumber(x.war), x.age]),
       e: c.events.map(e => [e.year, e.text]), a: { ...c.awards }, r: c.retired_year })),
     unsigned: L.unsigned.map(p=>p.pid),
     abroad: (L.abroad || []).map(p=>p.pid),
@@ -195,7 +203,7 @@ export function load(data) {
   }
 
   const L = Object.create(League.prototype);
-  L.rng = new RNG(1); L.rng.state = data.rng;
+  L.rng = new RNG(1); L.rng.state = data.rng; L.rng._spare = data.rngSpare ?? null;
   L.year = data.year; L.games = data.games;
   L.history = data.history; L.champions = data.champions;
   L.feats = (data.feats || []).map(a =>
@@ -214,7 +222,7 @@ export function load(data) {
       batters: td.b.map(i=>players.get(i)).filter(Boolean),
       pitchers: td.p.map(i=>players.get(i)).filter(Boolean),
       farm: td.f.map(i=>players.get(i)).filter(Boolean),
-      rot_index: td.rot,
+      rot_index: td.rot, lastPlayoff:!!td.lastPlayoff, lastTitle:!!td.lastTitle,
       park:{ hrFactor:td.park[0], hitFactor:td.park[1], name:td.park[2],
              fL:td.park[5], fC:td.park[6], fR:td.park[7], fH:td.park[8],
              turf:td.park[9]||0, alt:td.park[10]||0, dome:!!td.park[11],
@@ -268,7 +276,10 @@ export function load(data) {
 
   const g = new Game({ _empty:true });
   g.L = L; g.userId = data.user; g.phase = data.phase;
-  g.champion = data.champion ?? null; g.playoffLog = []; g.notices = [];
+  g.experience = data.experience || null;
+  g.champion = data.champion ?? null; g.playoffLog = data.playoffLog || []; g.notices = data.notices || [];
+  g.newImportant = data.newImportant || 0;
+  g.replPool = data.replPool?.map(pid => players.get(pid)).filter(Boolean) || null; g.wbc = data.wbc || null;
   g.lastTable = data.lastTable || null;
   g.lastPlayoffs = data.lastPlayoffs || null;
   g.faOffers = new Map(Object.entries(data.faOffers || {}).map(([k,v]) => [+k, v]));
@@ -289,14 +300,15 @@ export function load(data) {
         tones:r.tones || {}, walked:r.walked, unsigned:r.unsigned }); }
     g.nego = fresh;
   }
-  g._prev = { rank: 0, run: 0 };
+  g._prev = data.previous || { rank: 0, run: 0 };
   g.draftSession = null;
 
   if (data.season) {
     const d = data.season;
     const S = Object.create(Season.prototype);
     S.teams = L.teams; S.year = d.year; S.games = d.games;
-    S.rng = new RNG(1); S.rng.state = d.rng;
+    S.rng = d.rngShared === false ? new RNG(1) : L.rng;
+    S.rng.state = d.rng; S.rng._spare = d.rngSpare ?? null;
     S.schedule = d.sched;
     S.byDay = new Map();
     for (const [day,h,a] of S.schedule) { if (!S.byDay.has(day)) S.byDay.set(day, []); S.byDay.get(day).push([h,a]); }
@@ -320,6 +332,21 @@ export function load(data) {
       if (sp) { q.sp = { H:sp[0], A:sp[1] }; }
       S.pit.set(+pid, q); }
     S.results = d.res; S.injuries = [];
+    S.postponed = d.postponed || [];
+    S.rained = d.rained || [];
+    S.att = new Map(L.teams.map(t => [t.team_id,
+      d.att?.[t.team_id] || { games:0, total:0 }]));
+    // 이전 저장본에는 우천 순연 목록이 없었다. 완료된 대진을 편성표와 대조한다.
+    if (!d.postponed) {
+      const completed = new Map();
+      for (const [,h,a] of S.results) {
+        const key = `${h}:${a}`; completed.set(key, (completed.get(key) || 0) + 1);
+      }
+      for (const [day,h,a] of S.schedule) if (day < S.curDay) {
+        const key = `${h}:${a}`, n = completed.get(key) || 0;
+        if (n) completed.set(key, n - 1); else S.postponed.push([h,a]);
+      }
+    }
     S.availDay = new Map(Object.entries(d.avail).map(([k,v])=>[+k,v]));
     S.lastUsed = new Map(Object.entries(d.last).map(([k,v])=>[+k,v]));
     S.consec = new Map(Object.entries(d.consec).map(([k,v])=>[+k,v]));

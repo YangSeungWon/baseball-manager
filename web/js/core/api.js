@@ -508,7 +508,11 @@ export class Game {
       id:m.id, year:m.year, day:m.day ?? null, kind:m.kind, pri:m.pri,
       title:m.title, body:m.body, pid:m.pid ?? null, tid:m.tid ?? null, read:m.read })) };
   }
-  markMailRead() { this.L.mail.markAllRead(); return { ok:true }; }
+  markMailRead(ids = null) {
+    if (ids === null) this.L.mail.markAllRead();
+    else { const visible = new Set(ids); for (const m of this.L.mail.items) if (visible.has(m.id)) m.read = true; }
+    return { ok:true };
+  }
 
   /** 선수 스플릿 — 홈/원정, 좌투 상대/우투 상대. 야구 팬의 판단 단위. */
   splits(pid) {
@@ -1016,12 +1020,12 @@ export class Game {
   boxscore(box) {
     const side = (S) => ({ team:S.team.name, runs:S.runs, hits:S.hits, line:S.line,
       err:S.errors || 0,
-      pitchers: S.pitchers.map(pl => ({ name:pl.p.name, ip:`${Math.floor(pl.outs/3)}.${pl.outs%3}`,
+      pitchers: S.pitchers.map(pl => ({ pid:pl.p.pid, name:pl.p.name, ip:`${Math.floor(pl.outs/3)}.${pl.outs%3}`,
         h:pl.h, r:pl.r, k:pl.k, bb:pl.bb, np:pl.np, inn:pl.entered_inning || 1,
         dec: pl.w?'승':pl.l?'패':pl.sv?'세':pl.hld?'홀':'' })),
       batters: S.team.lineup.filter(b => S.bat.has(b.pid)).map(b => {
         const L = S.bat.get(b.pid);
-        return { name:b.name, slot:b.position, ab:L.ab, h:L.h, hr:L.hr, rbi:L.rbi, bb:L.bb, k:L.k };
+        return { pid:b.pid, name:b.name, slot:b.position, ab:L.ab, h:L.h, hr:L.hr, rbi:L.rbi, bb:L.bb, k:L.k };
       })});
     return { home:side(box.H), away:side(box.A), park: box.H.team.park,
              crowd: box.crowd ?? null, cap: box.cap ?? null, plays: box.plays };
@@ -1109,8 +1113,8 @@ export class Game {
     const out = {
       retired: s.retired.map(({p,t}) => ({ name:p.name, age:p.age, team:t.name, mine:t.team_id===me,
         war: r1(this.L.careers.get(p.pid)?.war ?? 0), years: this.L.careers.get(p.pid)?.years ?? 0 })),
-      breakout: s.breakout.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
-      decline: s.decline.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ name:p.name, delta:r1(d) })),
+      breakout: s.breakout.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ pid:p.pid, name:p.name, delta:r1(d) })),
+      decline: s.decline.filter(x=>x.t.team_id===me).map(({p,t,d}) => ({ pid:p.pid, name:p.name, delta:r1(d) })),
     };
     offseasonMail(this, 'retire', out.retired);
     // 나가 있던 사람들이 돌아온다. 미계약 신분이라 겨울 시장에 선다.
