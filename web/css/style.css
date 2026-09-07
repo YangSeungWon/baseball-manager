@@ -1828,3 +1828,15 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .riskchips{margin-top:12px} .riskchips .chip b{margin-left:5px;font-weight:700;color:var(--fg)}
 .chip.warn{box-shadow:inset 2px 0 0 #e0a03c} .chip.bad b{color:var(--neg)}
 .dtop .ptags{margin-top:4px} .dtop .ptag b{margin-left:3px}
+
+/* ── 정보 · 약관 ── */
+.ptiles.info{grid-template-columns:repeat(4,1fr)} .ptiles.info .htile>b{font-family:var(--kr);font-size:16px}
+.isec{margin:0} .isec .lead{margin-bottom:8px} .isec p{max-width:none}
+.ilist{display:flex;flex-direction:column;gap:6px}
+.irow{display:grid;grid-template-columns:96px 1fr;gap:12px;align-items:start;background:var(--s2);border-radius:2px;padding:10px 12px}
+.irow .ptag,.irow .tgl{justify-self:start;white-space:nowrap} .irow p{margin:0;font-size:16px;line-height:1.6}
+.irow .tgl{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700} .irow .tgl .ic{width:14px;height:14px}
+.ptag.warn .ic{color:#e0a03c} .ptag.good .ic{color:var(--pos)}
+.chips a.chip{display:inline-flex;align-items:center;gap:6px;text-decoration:none;color:var(--accent)}
+@media(max-width:700px){.ptiles.info{grid-template-columns:1fr 1fr}.irow{grid-template-columns:1fr;gap:6px}}
+.irow:has(.tgl){grid-template-columns:auto 1fr}

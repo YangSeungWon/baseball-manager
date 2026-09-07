@@ -2077,60 +2077,43 @@ async function makeCard(p) {
    길게 쓰지 않는다. 실제로 하는 일만 적으면 짧아진다. */
 const REPO = 'https://github.com/YangSeungWon/baseball-manager';
 function modalInfo() {
-  modal(`<div class="mhead"><div><h2>정보</h2>
-      <div class="meta">Project Dugout</div></div>
+  /* 약속 넷을 먼저 타일로. 글은 그 아래에서 근거를 댄다. */
+  const tiles = `<div class="ptiles t4 info">
+    <div class="htile">${icon('park')}<b>서버가 없다</b><p>계정도 로그인도 결제도 없다.</p></div>
+    <div class="htile">${icon('eye')}<b>추적이 없다</b><p>통계도 광고 식별자도 안 남긴다.</p></div>
+    <div class="htile">${icon('won')}<b>세이브는 여기에</b><p>이 브라우저 안에만 있다. 파일로 꺼낼 수 있다.</p></div>
+    <div class="htile">${icon('star')}<b>전부 가상이다</b><p>구단·선수·기록은 지어낸 것이다.</p></div>
+  </div>`;
+  const sec = (ic, t, body) => `<section class="isec"><div class="lead">${icon(ic, 'lead-ic')}<span class="pcnt">${t}</span></div>${body}</section>`;
+  modal(`<div class="mhead"><div class="mhead-p">${icon('glove', 'mh-ic')}<div class="mh-main"><h2>Project Dugout</h2>
+      <div class="ptags"><span class="ptag">무료</span><span class="ptag">오프라인 저장</span><span class="ptag">가상 리그</span></div></div></div>
     <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack doc">
-      <section>
-        <h3>보기 설정</h3>
-        <div class="tglrow"><button id="fcOn" class="tgl${facesOn ? ' on' : ''}">선수 얼굴</button></div>
-        <p>선수 얼굴은 <b>번호에서 그려냅니다.</b> 사진이 아니고, 실존 인물과 아무 관계가
-          없습니다. 나이가 들면 머리가 셉니다. 끄면 이름과 숫자만 남습니다.</p>
-      </section>
-      <section>
-        <h3>가상입니다</h3>
-        <p>이 게임에 나오는 구단, 선수, 기록, 사건은 <b>전부 지어낸 것</b>입니다.
-          선수 이름은 프로그램이 음절을 조합해 만듭니다. 실존하는 인물과 이름이
-          같더라도 우연입니다.</p>
-        <p>구단 이름과 연고지, 리그 제도는 한국 프로야구의 리듬을 참고했지만,
-          실존하는 구단·단체·인물과는 아무 관련이 없습니다. 어떤 프로야구 기구나
-          구단으로부터 후원이나 승인을 받지 않았고, 그들을 대표하지도 않습니다.</p>
-      </section>
-      <section>
-        <h3>개인정보</h3>
-        <p><b>서버가 없습니다.</b> 계정도, 로그인도, 결제도 없습니다.</p>
-        <ul>
-          <li>세이브는 이 브라우저의 저장소에만 있습니다. 밖으로 나가지 않습니다.
-            지우려면 브라우저의 사이트 데이터를 비우면 됩니다.</li>
-          <li>방문 기록도, 이용 통계도, 광고 식별자도 수집하지 않습니다.
-            추적 스크립트가 하나도 없습니다.</li>
-          <li>글꼴을 포함한 모든 파일을 이 사이트에서 직접 보냅니다.
-            페이지를 여는 동안 <b>다른 회사로 나가는 요청이 없습니다.</b></li>
-          <li>다만 이 사이트는 GitHub Pages 로 서비스됩니다. 접속하는 순간
-            GitHub 이 자체 운영 기록(접속 IP 등)을 남길 수 있고, 그것은
-            제작자가 통제하거나 열람할 수 없습니다.</li>
-        </ul>
-      </section>
-      <section>
-        <h3>이용약관</h3>
-        <ul>
-          <li>무료이고, <b>있는 그대로</b> 제공됩니다. 언제든 멈추거나 바뀔 수 있습니다.</li>
-          <li>세이브가 사라져도 되돌려 드릴 방법이 없습니다. 브라우저 저장소는
-            영구적이지 않습니다 — <b>프런트 탭에서 파일로 내보내 두세요.</b></li>
-          <li>게임을 즐기는 것 외의 용도로 쓰지 마세요. 자동화된 대량 접속처럼
-            서비스를 방해하는 행위는 삼가 주십시오.</li>
-          <li>이 게임을 하다 생긴 어떤 손해에 대해서도 제작자는 책임지지 않습니다.</li>
-        </ul>
-      </section>
-      <section>
-        <h3>만든 것들</h3>
-        <p>글꼴 IBM Plex Mono — © IBM Corp., SIL Open Font License 1.1
-          (<a href="fonts/OFL.txt" target="_blank" rel="noopener">전문</a>).</p>
-        <p>문의와 버그 제보는 <a href="${REPO}" target="_blank" rel="noopener">저장소</a>로.</p>
-      </section>
+      ${tiles}
+      ${sec('owner', '보기 설정', `<div class="irow">
+        <button id="fcOn" class="tgl${facesOn ? ' on' : ''}">${icon('owner')}선수 얼굴 ${facesOn ? '켬' : '끔'}</button>
+        <p>얼굴은 <b>번호에서 그려낸다.</b> 사진이 아니고 실존 인물과 관계없다. 나이가 들면 머리가 센다. 끄면 이름과 숫자만 남는다.</p></div>`)}
+      ${sec('star', '가상입니다', `<p>구단, 선수, 기록, 사건은 <b>전부 지어낸 것</b>이다. 선수 이름은 프로그램이 음절을 조합해 만든다. 실존 인물과 이름이 같더라도 우연이다.</p>
+        <p>구단 이름과 연고지, 리그 제도는 한국 프로야구의 리듬을 참고했지만 실존하는 구단·단체·인물과 아무 관련이 없다. 어떤 기구나 구단의 후원·승인을 받지 않았고 대표하지도 않는다.</p>`)}
+      ${sec('eye', '개인정보', `<div class="ilist">
+        <div class="irow"><span class="ptag good">${icon('won')}저장</span><p>세이브는 이 브라우저의 저장소에만 있다. 밖으로 나가지 않는다. 지우려면 사이트 데이터를 비우면 된다.</p></div>
+        <div class="irow"><span class="ptag good">${icon('eye')}수집</span><p>방문 기록, 이용 통계, 광고 식별자를 모으지 않는다. 추적 스크립트가 하나도 없다.</p></div>
+        <div class="irow"><span class="ptag good">${icon('arrow')}요청</span><p>글꼴까지 모든 파일을 이 사이트에서 직접 보낸다. 페이지를 여는 동안 <b>다른 회사로 나가는 요청이 없다.</b></p></div>
+        <div class="irow"><span class="ptag warn">${icon('news')}호스팅</span><p>이 사이트는 GitHub Pages 로 서비스된다. 접속하는 순간 GitHub 이 자체 운영 기록(접속 IP 등)을 남길 수 있고, 제작자는 그것을 통제하거나 열람할 수 없다.</p></div>
+      </div>`)}
+      ${sec('pen', '이용약관', `<div class="ilist">
+        <div class="irow"><span class="ptag">${icon('star')}제공</span><p>무료이고 <b>있는 그대로</b> 제공된다. 언제든 멈추거나 바뀔 수 있다.</p></div>
+        <div class="irow"><span class="ptag warn">${icon('won')}세이브</span><p>사라져도 되돌릴 방법이 없다. 브라우저 저장소는 영구적이지 않다. <b>프런트 탭에서 파일로 내보내 두라.</b></p></div>
+        <div class="irow"><span class="ptag">${icon('shift')}이용</span><p>게임을 즐기는 것 외의 용도로 쓰지 말라. 자동화된 대량 접속처럼 서비스를 방해하는 행위는 삼가라.</p></div>
+        <div class="irow"><span class="ptag">${icon('hurt')}책임</span><p>이 게임을 하다 생긴 어떤 손해에 대해서도 제작자는 책임지지 않는다.</p></div>
+      </div>`)}
+      ${sec('gem', '만든 것들', `<div class="chips">
+        <a class="chip" href="fonts/OFL.txt" target="_blank" rel="noopener">IBM Plex Mono · OFL 1.1</a>
+        <a class="chip" href="${REPO}" target="_blank" rel="noopener">${icon('news')}저장소 · 문의와 버그 제보</a></div>`)}
     </div>`);
   const fb = $('#fcOn'); if (fb) fb.onclick = () => {
-    setFaces(!facesOn); fb.classList.toggle('on', facesOn); render();
+    setFaces(!facesOn); fb.classList.toggle('on', facesOn);
+    fb.innerHTML = `${icon('owner')}선수 얼굴 ${facesOn ? '켬' : '끔'}`; render();
   };
 }
 
