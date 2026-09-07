@@ -778,32 +778,42 @@ const nameCell = (p) => `<span class="name">${esc(p.name)}</span>`
   + (p.injury_days ? `<span class="tag inj">✚${p.injury_days}</span>` : '');
 
 /* ── 받은 편지함 ── */
-const MAIL_ICON = { injury:'✚', ret:'↩', milestone:'◆', owner:'§', contract:'✎',
-  game:'●', streak:'▲', standings:'↕', league:'◇', scout:'⌖',
-  transfer:'→', draft:'★' };
+const MAIL_ICON = { injury:'hurt', ret:'back', milestone:'gem', owner:'owner', contract:'pen',
+  game:'ball', streak:'bolt', standings:'rank', league:'news', scout:'eye',
+  transfer:'arrow', draft:'star' };
+let mailFilter = null;
 
 function viewInbox(v) {
   const m = G.mail(80);
+  if (!m.rows.length) { v.appendChild(sect('', '', '<div class="empty">아직 온 편지가 없다.</div>')); return; }
+  /* 종류별로 칸을 나눈다 — 글자로 '부상' 이라 쓰는 대신 아이콘과 숫자를 누르면 그것만 남는다. */
+  const tally = {};
+  for (const x of m.rows) tally[x.kind] = (tally[x.kind] || 0) + 1;
+  const kinds = Object.keys(tally).sort((a, b) => tally[b] - tally[a]);
+  if (mailFilter && !tally[mailFilter]) mailFilter = null;
+  const bar = el('div', 'mailbar');
+  bar.innerHTML = `<button class="mk ${mailFilter ? '' : 'on'}" data-k="">${icon('news')}<b>${m.rows.length}</b></button>` +
+    kinds.map(k => `<button class="mk k-${k} ${mailFilter === k ? 'on' : ''}" data-k="${k}" title="${KIND_KO(k)}">${icon(MAIL_ICON[k] || 'news')}<span>${KIND_KO(k)}</span><b>${tally[k]}</b></button>`).join('');
+  v.appendChild(bar);
+  bar.querySelectorAll('.mk').forEach(b => b.onclick = () => { mailFilter = b.dataset.k || null; render(); });
+
+  const rows = mailFilter ? m.rows.filter(x => x.kind === mailFilter) : m.rows;
   const g = el('div', 'grid');
-  if (!m.rows.length) {
-    v.appendChild(sect('받은 편지함', '', '<div class="empty">—</div>'));
-    return;
-  }
   const groups = [];
   let cur = null;
-  for (const x of m.rows) {
+  for (const x of rows) {
     const key = `${x.year}${x.day ? '' : ' 오프시즌'}`;
     if (!cur || cur.key !== key) { cur = { key, year:x.year, off:!x.day, rows:[] }; groups.push(cur); }
     cur.rows.push(x);
   }
   for (const grp of groups) {
     g.appendChild(sect(`${grp.year}${grp.off ? ' 오프시즌' : ''}`, `${grp.rows.length}`,
-      grp.rows.map(x => `<div class="mail ${x.read ? '' : 'new'} ${x.pri ? 'pri' : ''}
+      grp.rows.map(x => `<div class="mail k-${x.kind} ${x.read ? '' : 'new'} ${x.pri ? 'pri' : ''}
           ${x.pid ? 'click' : ''}" ${x.pid ? `data-pid="${x.pid}"` : ''}>
-        <span class="mi" title="${KIND_KO(x.kind)}">${MAIL_ICON[x.kind] || '·'}</span>
+        <span class="mi" title="${KIND_KO(x.kind)}">${icon(MAIL_ICON[x.kind] || 'news')}</span>
         <span class="mtext">
           <span class="mtop"><b>${esc(x.title)}</b>
-            <span class="mmeta">${x.day ? x.day + '일' : ''} · ${KIND_KO(x.kind)}</span></span>
+            <span class="mmeta">${x.day ? x.day + '일' : ''}</span></span>
           <span class="mbody">${esc(x.body).replace(/\n/g, '<br>')}</span>
         </span></div>`).join('')));
   }
@@ -816,6 +826,24 @@ function viewInbox(v) {
 const KIND_KO = (k) => ({ injury:'부상', ret:'복귀', milestone:'기록', owner:'구단주',
   contract:'계약', game:'경기', streak:'흐름', standings:'순위', league:'리그',
   scout:'스카우트', transfer:'이적', draft:'드래프트' }[k] || k);
+
+/* 순위표 한 칸. 1위는 크게, 나머지는 줄로. 제목은 굵게 한 번만. */
+function ldrBoard(groups, { sub = false, team = true } = {}) {
+  return `<div class="ldrs">${groups.map(b => {
+    const top = b.rows[0];
+    if (!top) return `<div class="ldr"><div class="ldr-k">${esc(b.label)}</div><div class="empty">—</div></div>`;
+    const act = (r) => r.active === false ? '' : (r.active ? '<i class="dot">●</i>' : '');
+    const tm = (r) => team && r.team ? `<i class="sub">${esc(short(r.team))}</i>` : '';
+    return `<div class="ldr">
+      <div class="ldr-k">${esc(b.label)}</div>
+      <div class="ldr-top ${top.pid ? 'click' : ''}" ${top.pid ? `data-pid="${top.pid}"` : ''}>
+        ${top.team ? cap(top.team, 30) : ''}<span class="ldr-nm">${act(top)}${esc(top.name)}${tm(top)}${sub ? `<i class="sub">${top.year}</i>` : ''}</span>
+        <b class="m">${top.value}</b></div>
+      ${b.rows.slice(1).map((r, i) => `<div class="row ${r.pid ? 'click' : ''}" ${r.pid ? `data-pid="${r.pid}"` : ''}>
+        <span><span class="m dim pn">${i + 2}</span>${act(r)}${esc(r.name)} ${tm(r)}${sub ? `<i class="sub">${r.year}</i>` : ''}</span>
+        <b class="m">${r.value}</b></div>`).join('')}
+    </div>`; }).join('')}</div>`;
+}
 
 /* ── 홈 ── */
 const formStrip = (arr) => `<span class="form">${arr.map(r =>
@@ -1300,12 +1328,13 @@ function viewLeague(v) {
   if (!st.length) { const ls = G.lastStandings(); st = ls.rows; title = `${ls.year} 최종 순위`; }
   if (!st.length) { v.appendChild(sect('순위', '', '<div class="empty">—</div>')); return; }
   const live = !!G.state().total_days && G.state().day > 0;
-  g.appendChild(sect(title, '', table(
+  const nPo = st.filter(r => r.playoff).length;
+  g.appendChild(sect(title, nPo ? `위 ${nPo}팀이 가을야구` : '', table(
     ['팀','W','L','D','PCT','GB','RS','RA','PYTH', ...(live ? ['최근 10','홈','원정'] : [])],
-    st.map(r => {
+    st.map((r, i) => {
       const f = live ? G.form(r.team_id, 10) : null;
-      return { _cls: r.is_user ? 'me' : '', team_id: r.team_id, cells: [
-        (r.playoff ? '<span class="mark">★</span> ' : '　') + esc(r.team),
+      return { _cls: (r.is_user ? 'me ' : '') + (nPo && i === nPo - 1 ? 'cut' : ''), team_id: r.team_id, cells: [
+        `<span class="tcell"><span class="m dim pn">${i + 1}</span>${cap(r.team, 22)}<span class="name">${esc(r.team)}</span></span>`,
         `<span class="m">${r.w}</span>`, `<span class="m">${r.l}</span>`,
         `<span class="m dim">${r.d || 0}</span>`,
         `<span class="m">${r.pct}</span>`, `<span class="m dim">${r.gb}</span>`,
@@ -1318,25 +1347,19 @@ function viewLeague(v) {
   const ts = G.leagueTeamStats().rows;
   if (ts.length && live) {
     const rk = (v, n) => `<span class="m">${v}<i class="rk">${n}</i></span>`;
-    g.appendChild(sect('팀 기록', '', table(['팀','타율','홈런','도루','볼넷','삼진','ERA','WHIP','탈삼진'],
+    g.appendChild(sect('팀 기록', 'ERA 순', table(['팀','타율','홈런','도루','볼넷','삼진','ERA','WHIP','탈삼진'],
       ts.sort((a,b) => a.rank.era - b.rank.era).map(r => ({ _cls: r.is_user ? 'me' : '',
-        team_id: r.team_id, cells: [esc(r.team),
+        team_id: r.team_id, cells: [`<span class="tcell">${cap(r.team, 22)}<span class="name">${esc(r.team)}</span></span>`,
           rk(r.avg, r.rank.avg), rk(r.hr, r.rank.hr), rk(r.sb, r.rank.sb),
           `<span class="m">${r.bb}</span>`, `<span class="m">${r.k}</span>`,
           rk(r.era, r.rank.era), `<span class="m">${r.whip}</span>`, rk(r.pk, r.rank.k)] })),
       (row) => openTeam(row.team_id))));
   }
   const L = G.leaders(5);
-  const board = (groups) => groups.map(b => `<div style="margin-bottom:16px">
-    <div class="lab" style="border-bottom:1px solid var(--rule);padding-bottom:3px;margin-bottom:2px">${b.label}</div>` +
-    b.rows.map((r, i) => `<div class="row"><span><span class="m dim">${i+1}</span>
-      ${esc(r.name)} <span class="sub">${esc(short(r.team))}</span></span>
-      <b class="m">${r.value}</b></div>`).join('') + '</div>').join('');
-  const two = el('div', 'grid g2');
-  two.appendChild(sect('타격', '', board(L.batting)));
-  two.appendChild(sect('투구', '', board(L.pitching)));
-  g.appendChild(two);
+  g.appendChild(sect('', '', `<div class="lead">${icon('bat', 'lead-ic')}<span class="pcnt">타격</span></div>` + ldrBoard(L.batting)));
+  g.appendChild(sect('', '', `<div class="lead">${icon('ball', 'lead-ic')}<span class="pcnt">투구</span></div>` + ldrBoard(L.pitching)));
   v.appendChild(g);
+  v.querySelectorAll('[data-pid]').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 
 /* ── 프런트 ── */
@@ -1923,53 +1946,44 @@ function viewHistory(v) {
           <span class="rn-sub">${esc(short(f.name))} · ${r.from}–${r.to} · ${r.years}시즌</span></span>
         <span class="rn-line">${esc(r.line)}<i>WAR ${r.war}</i></span>
       </div>`).join('')).join('')}</div>`));
+
+  /* 구단 연혁. 우승은 트로피 개수로 — 13 이라는 숫자보다 줄지어 선 트로피가 먼저 보인다. */
+  const trophies = (n) => n ? `<span class="trow">${Array.from({ length: Math.min(n, 10) }, () => icon('trophy')).join('')}${n > 10 ? `<b class="m">+${n - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
   g.appendChild(sect('구단 연혁', `${fr.length}개 구단`, table(
     ['구단','창단','통산 전적','승률','우승','정규 1위','최근 우승','무관','프랜차이즈 레전드'],
     fr.map(f => ({ team_id: f.team_id, cells: [
-      `<span class="name">${esc(f.name)}</span>`,
+      `<span class="tcell">${cap(f.name, 22)}<span class="name">${esc(f.name)}</span></span>`,
       `<span class="m dim">${f.founded}</span>`,
       `<span class="m">${esc(f.record)}</span>`,
       `<span class="m">${f.pct}</span>`,
-      `<span class="m"><b>${f.titles}</b></span>`,
+      trophies(f.titles),
       `<span class="m dim">${f.pennants}</span>`,
       `<span class="m dim">${f.lastTitle ?? '—'}</span>`,
       `<span class="m ${f.drought >= 20 ? 'mark' : 'dim'}">${f.drought ?? '—'}</span>`,
-      f.legend ? `<span class="sub">${f.legend.number}번 ${esc(f.legend.name)}
-        <span class="dim">${esc(f.legend.line)}</span></span>` : '—'] })),
+      f.legend ? `<span class="two"><b>${f.legend.number}번 ${esc(f.legend.name)}</b><i>${esc(f.legend.line)}</i></span>` : '—'] })),
     (row) => openTeam(row.team_id))));
 
   const two = el('div', 'grid g2');
   const tl = G.titleTimeline();
+  /* 역대 우승. 모자를 줄지어 세운다 — 왕조가 눈에 보인다. */
   two.appendChild(sect('역대 우승', `${tl.length}회`, tl.length
-    ? `<div class="timeline">${tl.slice(0, 40).map(t =>
-        `<span class="tl ${t.sim ? 'sim' : ''}"><i class="m">${t.year}</i>
-         ${esc(short(t.team))}</span>`).join('')}</div>`
+    ? `<div class="capline">${tl.slice(0, 40).map(t =>
+        `<span class="tlc ${t.sim ? 'sim' : ''}" title="${t.year} ${esc(t.team)}">${cap(t.team, 30)}<i class="m">${String(t.year).slice(2)}</i></span>`).join('')}</div>`
     : '<div class="empty">—</div>'));
   const aw = G.awardHistory(14);
   two.appendChild(sect('수상 이력', '', aw.length
     ? aw.map(a => `<div class="row click" data-pid="${a.pid}">
-        <span><span class="m dim">${a.year}</span> <span class="tag">${a.kind}</span>
-          <span class="name">${esc(a.name)}</span>
-          <span class="sub">${esc(short(a.team))}</span></span>
+        <span class="tcell"><span class="m dim">${a.year}</span> <span class="tag">${a.kind}</span>
+          ${cap(a.team, 22)}<span class="name">${esc(a.name)}</span></span>
         <span class="m dim">${esc(a.line)}</span></div>`).join('')
     : '<div class="empty">—</div>'));
   g.appendChild(two);
 
   const rec = G.records(10), sr = G.seasonRecords(5);
-  const board = (groups, sub) => groups.map(b => `<div class="lead">
-    <div class="lab">${b.label}</div>` +
-    (b.rows.length ? b.rows.map((r, i) => `<div class="row click" data-pid="${r.pid}">
-      <span><span class="m dim">${i+1}</span> ${r.active === false ? '' : (r.active ? '<span class="dot">●</span> ' : '')}${esc(r.name)}
-        ${sub ? `<span class="sub">${r.year}</span>` : ''}</span>
-      <b class="m">${r.value}</b></div>`).join('') : '<div class="empty">—</div>') + '</div>').join('');
-  const c1 = el('div', 'grid g2');
-  c1.appendChild(sect('통산 기록 — 타격', '', `<div class="leadgrid">${board(rec.batting)}</div>`));
-  c1.appendChild(sect('통산 기록 — 투구', '', `<div class="leadgrid">${board(rec.pitching)}</div>`));
-  g.appendChild(c1);
-  const c2 = el('div', 'grid g2');
-  c2.appendChild(sect('단일 시즌 최고 — 타격', '', `<div class="leadgrid">${board(sr.batting, true)}</div>`));
-  c2.appendChild(sect('단일 시즌 최고 — 투구', '', `<div class="leadgrid">${board(sr.pitching, true)}</div>`));
-  g.appendChild(c2);
+  g.appendChild(sect('통산 기록', '', `<div class="lead">${icon('bat', 'lead-ic')}<span class="pcnt">타격</span></div>` + ldrBoard(rec.batting, { team: false })
+    + `<div class="lead">${icon('ball', 'lead-ic')}<span class="pcnt">투구</span></div>` + ldrBoard(rec.pitching, { team: false })));
+  g.appendChild(sect('단일 시즌 최고', '', `<div class="lead">${icon('bat', 'lead-ic')}<span class="pcnt">타격</span></div>` + ldrBoard(sr.batting, { sub: true, team: false })
+    + `<div class="lead">${icon('ball', 'lead-ic')}<span class="pcnt">투구</span></div>` + ldrBoard(sr.pitching, { sub: true, team: false })));
 
   // 대기록. 통계표에는 남지 않지만 사람들이 기억하는 것들.
   const ft = G.feats(24);

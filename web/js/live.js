@@ -39,6 +39,14 @@ const IC = {
   trophy:'<path d="M6 3h8v4a4 4 0 01-8 0z"/><path d="M6 4H3v2a3 3 0 003 3M14 4h3v2a3 3 0 01-3 3" fill="none" stroke-width="1.5"/><path d="M8.5 11h3v3h2v2h-7v-2h2z"/>',
   star:  '<path d="M10 2.5l2.3 4.8 5.2.7-3.8 3.6.9 5.2L10 14.3l-4.6 2.5.9-5.2L2.5 8l5.2-.7z"/>',
   bolt:  '<path d="M11 2L4 11h5l-1 7 7-9h-5z"/>',
+  hurt:  '<path d="M8 3h4v5h5v4h-5v5H8v-5H3V8h5z"/>',
+  back:  '<path d="M8 5L3 9.5 8 14V11h5a3 3 0 0 1 0 6h-2v2h2a5 5 0 0 0 0-10H8z"/>',
+  gem:   '<path d="M10 2l7 7-7 9-7-9z"/>',
+  news:  '<path d="M3 4h14v12H3z" fill="none" stroke-width="1.8"/><path d="M6 8h8M6 11h8M6 14h5" stroke-width="1.6" stroke-linecap="round"/>',
+  eye:   '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z" fill="none" stroke-width="1.8"/><circle cx="10" cy="10" r="2.6"/>',
+  arrow: '<path d="M3 9h9V5l5 5-5 5v-4H3z"/>',
+  rank:  '<path d="M3 16h4V9H3zM8 16h4V4H8zM13 16h4v-5h-4z"/>',
+  pen:   '<path d="M3 17l4-1 9-9-3-3-9 9zM12.5 5.5l3 3" fill="none" stroke-width="1.8" stroke-linejoin="round"/>',
 };
 const ic = (k, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">${IC[k]}</svg>`;
 export { ic as icon };

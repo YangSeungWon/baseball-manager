@@ -1717,3 +1717,32 @@ button .ic+span{margin-left:6px}
 .tp-nm{display:flex;flex-direction:column} .tp-nm b{font-size:16px} .tp-nm i{font-style:normal;font-size:14px;color:var(--fg2);font-family:var(--mono)}
 .tchd{display:flex;align-items:center;gap:10px;margin-bottom:6px} .tchd b{font-size:18px}
 .tv-ic{width:22px;height:22px;flex:none;color:var(--fg2)} .tverdict.ok .tv-ic{color:var(--pos)} .tverdict.no .tv-ic{color:var(--neg)}
+
+/* ── 리그·역사·편지함 ── */
+.tcell{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+tr.cut td{border-bottom:2px solid var(--accent)}
+.ldrs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:12px}
+.ldr{background:var(--s2);border-radius:2px;padding:10px 12px}
+.ldr-k{font-size:16px;font-weight:700;margin-bottom:6px}
+.ldr-top{display:flex;align-items:center;gap:8px;padding:6px 0 8px;border-bottom:1px solid var(--line)}
+.ldr-top.click{cursor:pointer} .ldr-top.click:hover{background:var(--hover)}
+.ldr-nm{flex:1;font-size:18px;font-weight:700;display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.ldr-nm .sub,.ldr .row .sub{font-style:normal;font-weight:500}
+.ldr-top>b{font-size:22px;font-weight:700}
+.ldr .row{padding:4px 0;font-size:14px} .ldr .row .pn{display:inline-block;width:18px}
+.ldr .dot{font-style:normal;font-size:10px;margin-right:3px}
+.trow{display:inline-flex;gap:1px;align-items:center;color:#e0a03c} .trow .ic{width:14px;height:14px} .trow b{margin-left:4px;color:var(--fg2)}
+.two{display:inline-flex;flex-direction:column;line-height:1.3} .two b{font-weight:600} .two i{font-style:normal;color:var(--fg2);font-size:14px}
+.capline{display:flex;flex-wrap:wrap;gap:6px 4px}
+.tlc{display:flex;flex-direction:column;align-items:center;gap:2px;width:38px} .tlc i{font-style:normal;font-size:14px;color:var(--fg3)}
+.tlc.sim i{color:var(--accent);font-weight:700}
+.mailbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.mk{display:inline-flex;align-items:center;gap:6px;background:var(--s2);border:1px solid transparent;border-radius:2px;padding:6px 10px;color:var(--fg2);font-size:14px}
+.mk .ic{width:16px;height:16px} .mk b{font-family:var(--mono);color:var(--fg)}
+.mk:hover{background:var(--hover)} .mk.on{border-color:var(--accent);color:var(--fg)}
+.mail .mi{border:0;width:28px;height:28px;background:var(--s3);color:var(--fg2)} .mail .mi .ic{width:16px;height:16px}
+.mail.k-injury .mi{color:var(--neg)} .mail.k-milestone .mi{color:#e0a03c} .mail.k-owner .mi{color:var(--accent)} .mail.k-game .mi{color:var(--pos)}
+.mail.pri .mi{background:rgba(76,142,217,.2)} .mail.new.pri .mi{background:rgba(216,94,94,.2)}
+.mk.k-injury .ic{color:var(--neg)} .mk.k-milestone .ic{color:#e0a03c} .mk.k-owner .ic{color:var(--accent)} .mk.k-game .ic{color:var(--pos)}
+@media(max-width:620px){.mk span{display:none}}
+.mail .mbody{padding:0} .tcell .pn{width:18px;text-align:right;margin-right:2px}
