@@ -2412,21 +2412,54 @@ function openPlayer(pid) {
 
 function openTeam(tid) {
   const r = G.roster(tid);
-  const list = (arr) => arr.map(p => `<div class="row"><span>${esc(p.name)}
-    <span class="sub">${p.age} ${p.slot}</span></span>${axis(p.ovr, p.pot)}</div>`).join('');
+  const d = G.teamDossier(tid);
+  const n = d.rank.of;
+  const rkc = (x) => `<i class="rkc ${x <= 3 ? 'top' : x >= n - 2 ? 'low' : ''}">${x}위</i>`;
+  const pay = d.budget ? Math.round(d.payroll / d.budget * 100) : 0;
+  const cp = capOf(r.name);
+  const pcard = (p) => `<div class="pcard click" data-pid="${p.pid}">${avatar(p, cp.color, 40)}
+    <span class="pc-main"><b>${esc(p.name)}</b><i>${p.age} · ${p.slot}</i></span>${axis(p.ovr, p.pot)}</div>`;
+  const list = (arr) => arr.map(p => `<div class="row click" data-pid="${p.pid}"><span class="prow"><span class="m dim pn ${p.pen ? 'wide' : ''}">${p.pen || p.order}</span>${esc(p.name)}
+    <span class="sub">${p.slot}</span></span>${axis(p.ovr, p.pot)}</div>`).join('');
+  const h = d.history;
+  const trophies = h && h.titles ? `<span class="trow">${Array.from({ length: Math.min(h.titles, 10) }, () => icon('trophy')).join('')}${h.titles > 10 ? `<b class="m">+${h.titles - 10}</b>` : ''}</span>` : '<span class="dim">—</span>';
   modal(`
-    <div class="mhead"><div><h2>${esc(r.name)}</h2>
-      <div class="meta">${r.mode} · 연봉 ${r.payroll}억</div></div>
+    <div class="mhead"><div class="mhead-p">${cap(r.name, 56)}
+      <div class="mh-main"><h2>${esc(r.name)}</h2>
+        <div class="ptags"><span class="ptag">${esc(d.archetype)}</span><span class="ptag">${esc(r.mode)}</span>
+          ${d.last ? `<span class="ptag m">${d.last.rank}위 ${d.last.w}–${d.last.l}</span>` : ''}
+          ${h ? `<span class="ptag">${h.founded} 창단</span>` : ''}</div></div></div>
       <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody stack">
-      ${(() => { const d = G.teamDossier(tid); return d.history ? `<div class="report">
-        ${esc(d.history.tagline)}<br><span class="sub">창단 ${d.history.founded} ·
-        통산 ${esc(d.history.record)} (${d.history.pct}) · 우승 ${d.history.titles}회</span>
-        ${d.history.legend ? `<br><span class="sub">영구결번 ${d.history.legend.number}
-        ${esc(d.history.legend.name)} — ${esc(d.history.legend.line)}</span>` : ''}</div>` : ''; })()}
-      <div><div class="lab" style="margin-bottom:6px">라인업</div>${list(r.lineup)}</div>
-      <div><div class="lab" style="margin-bottom:6px">선발</div>${list(r.rotation)}</div>
+      ${h ? `<div class="report">${esc(h.tagline)}</div>` : ''}
+      <div class="ptiles t5">
+        <div class="htile">${icon('star')}<b>${rkc(d.rank.strength)}<small>전력</small></b><p>${n}팀 중</p></div>
+        <div class="htile">${icon('bat')}<b>${rkc(d.rank.batting)}<small>타선</small></b><p>평균 ${d.batting}</p></div>
+        <div class="htile">${icon('ball')}<b>${rkc(d.rank.pitching)}<small>마운드</small></b><p>평균 ${d.pitching}</p></div>
+        <div class="htile">${icon('pinch')}<b>${rkc(d.rank.farm)}<small>팜</small></b><p>유망주 ${d.farm}</p></div>
+        <div class="htile fin">${icon('won')}<b><span class="m">${d.payroll}</span>억 <small>/ ${d.budget}억</small></b>
+          <div class="meter ${pay > 100 ? 'over' : pay > 90 ? 'tight' : ''}"><i style="width:${Math.min(100, pay)}%"></i><span>${pay}%</span></div></div>
+      </div>
+      ${h ? `<div class="ptiles t3">
+        <div class="htile">${icon('trophy')}<b><span class="m">${h.titles}</span><small>우승</small></b>${trophies}<p>${h.lastTitle ? `최근 ${h.lastTitle}` : '아직 없다'}${h.drought >= 10 ? ` · <span class="mark">${h.drought}년째 무관</span>` : ''}</p></div>
+        <div class="htile">${icon('rank')}<b><span class="m">${h.pct}</span><small>통산 승률</small></b><p>${esc(h.record)} · 정규 1위 ${h.pennants}</p></div>
+        <div class="htile">${icon('park')}<b>${esc(d.park.name)}</b><p>${d.park.capacity.toLocaleString()}석 · ${d.park.opened}${d.park.avg ? ` · 평균 ${d.park.avg.toLocaleString()}명` : ''}</p></div>
+      </div>` : ''}
+      <div class="grid g2">
+        <div><div class="lead">${icon('star', 'lead-ic')}<span class="pcnt">핵심 ${d.key.length}</span></div><div class="stack tight">${d.key.map(pcard).join('')}</div></div>
+        <div><div class="lead">${icon('pinch', 'lead-ic')}<span class="pcnt">유망주 ${d.prospect.length}</span></div><div class="stack tight">${d.prospect.length ? d.prospect.map(pcard).join('') : '<div class="empty">—</div>'}</div></div>
+      </div>
+      <div class="grid g2">
+        <div><div class="lead">${icon('bat', 'lead-ic')}<span class="pcnt">라인업</span></div>${list(r.lineup)}</div>
+        <div><div class="lead">${icon('ball', 'lead-ic')}<span class="pcnt">선발</span></div>${list(r.rotation)}
+          <div class="lead" style="margin-top:12px">${icon('glove', 'lead-ic')}<span class="pcnt">불펜</span></div>${list(r.bullpen.slice(0, 5))}</div>
+      </div>
+      ${h && h.retired.length ? `<div><div class="lead">${icon('gem', 'lead-ic')}<span class="pcnt">영구결번</span></div>
+        <div class="rnums">${h.retired.map(x => `<div class="rnum" style="--tc:${cp.color}"><b>${x.number}</b>
+          <span class="rn-main"><span class="rn-name">${esc(x.name)}<i>${x.pos}</i></span><span class="rn-sub">${x.from}–${x.to} · ${x.years}시즌</span></span>
+          <span class="rn-line">${esc(x.line)}<i>WAR ${x.war}</i></span></div>`).join('')}</div></div>` : ''}
     </div>`);
+  $$('#modal [data-pid]').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 
 function modalPost(r) {

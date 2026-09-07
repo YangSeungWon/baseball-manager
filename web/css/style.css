@@ -1765,3 +1765,14 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .scout .report{margin-top:4px} .scout .prs{margin-top:10px;flex-direction:row;flex-wrap:wrap}
 .mbody .lead{margin-bottom:4px}
 @media(max-width:700px){.ptiles{grid-template-columns:1fr 1fr}.attrgrid{grid-template-columns:1fr}.mbody .axkey{justify-content:space-between}}
+
+.ptiles.t5{grid-template-columns:1fr 1fr 1fr 1fr 1.4fr} .ptiles.t3{grid-template-columns:1fr 1fr 1.4fr}
+.ptiles .htile>b .rkc{font-size:22px;padding:0 6px}
+.ptiles .htile .trow{margin:2px 0}
+.pcard{display:flex;align-items:center;gap:10px;background:var(--s2);border-radius:2px;padding:8px 10px;margin-bottom:4px}
+.pcard.click{cursor:pointer} .pcard.click:hover{background:var(--hover)}
+.pc-main{flex:1;display:flex;flex-direction:column;min-width:0} .pc-main b{font-size:16px} .pc-main i{font-style:normal;font-size:14px;color:var(--fg2);font-family:var(--mono)}
+@media(max-width:700px){.ptiles.t5{grid-template-columns:1fr 1fr}.ptiles.t3{grid-template-columns:1fr 1fr}.ptiles.t5 .htile.fin,.ptiles.t3 .htile:last-child{grid-column:1/-1}}
+.prow .pn{white-space:nowrap} .prow .pn.wide{width:auto;min-width:44px;font-family:var(--kr);font-size:14px}
+.mbody .row{padding:6px 0}
+.mbody .row{align-items:center} .mbody .row .prow{flex:1}
