@@ -1681,3 +1681,39 @@ button .ic+span{margin-left:6px}
 @media(max-width:900px){.ftiles{grid-template-columns:1fr}.parkwrap{grid-template-columns:1fr}.htiles.p4{grid-template-columns:1fr 1fr}}
 
 .alrow .lb{width:auto;display:inline-flex;align-items:baseline;gap:6px;text-align:left}
+
+/* ── 오프시즌 화면 ── */
+.quotadots{display:flex;gap:5px;margin:4px 0}
+.quotadots i{width:14px;height:8px;border-radius:2px;background:var(--s3)} .quotadots i.on{background:var(--accent)}
+.fcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+.fcard{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;background:var(--s2);border-radius:2px;padding:12px 14px;align-items:center}
+.fc-main{display:flex;flex-direction:column;gap:2px} .fc-main b{font-size:18px} .fc-main span{font-size:14px;color:var(--fg2)}
+.fc-ax{grid-column:1/-1} .fc-ax .ax{width:100%}
+.fc-act{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fc-act>b{font-size:18px}
+.heat{display:inline-flex;gap:2px;align-items:flex-end;height:14px}
+.heat i{width:5px;background:var(--s3);border-radius:1px;height:5px} .heat i:nth-child(2){height:9px} .heat i:nth-child(3){height:14px}
+.heat.h1 i:nth-child(1),.heat.h2 i:nth-child(-n+2),.heat.h3 i{background:#e0a03c} .heat.h3 i{background:var(--neg)}
+.stack.tight{gap:0;margin-top:4px}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.tcard2{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;align-items:center;text-align:left;background:var(--s2);
+  border:1px solid transparent;border-left:4px solid var(--tc);border-radius:2px;padding:12px 14px}
+.tcard2:hover{background:var(--hover)}
+.tc-main{display:flex;flex-direction:column} .tc-main b{font-size:18px} .tc-main i{font-style:normal;font-size:14px;color:var(--fg2);font-family:var(--mono)}
+.tc-mode{grid-column:1/-1;font-style:normal;font-size:14px;font-weight:700;padding:3px 8px;border-radius:2px;width:fit-content;background:var(--s3);color:var(--fg2)}
+.tcard2.contend .tc-mode{background:rgba(83,185,135,.18);color:var(--pos)}
+.tcard2.rebuild .tc-mode{background:rgba(76,142,217,.2);color:var(--accent)}
+.htile.myturn{outline:2px solid var(--accent)} .htile.myturn>b{color:var(--accent)}
+.htile .alrow .lb{padding:4px 8px;font-size:14px}
+
+.prow{display:inline-flex;align-items:center;gap:8px} .prow .pn{width:26px;text-align:right}
+.tverdict{display:flex;align-items:center;gap:12px;background:var(--s2);border-left:4px solid var(--s3);padding:12px 14px;border-radius:2px;margin-bottom:14px}
+.tverdict span{flex:1;font-size:16px} .tverdict.ok{border-left-color:var(--pos)} .tverdict.no{border-left-color:var(--neg)}
+.tcols{display:grid;grid-template-columns:1fr 1fr;gap:14px} @media(max-width:700px){.tcols{grid-template-columns:1fr}}
+.tcol{border-top:3px solid var(--tc);padding-top:8px} .tcol .lead{margin-bottom:6px}
+.tplist{max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+.tp{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--s2);border:1px solid transparent;border-radius:2px;padding:8px 10px;text-align:left}
+.tp:hover{background:var(--hover)} .tp.on{border-color:var(--accent);background:rgba(76,142,217,.14)}
+.tp-nm{display:flex;flex-direction:column} .tp-nm b{font-size:16px} .tp-nm i{font-style:normal;font-size:14px;color:var(--fg2);font-family:var(--mono)}
+.tchd{display:flex;align-items:center;gap:10px;margin-bottom:6px} .tchd b{font-size:18px}
+.tv-ic{width:22px;height:22px;flex:none;color:var(--fg2)} .tverdict.ok .tv-ic{color:var(--pos)} .tverdict.no .tv-ic{color:var(--neg)}

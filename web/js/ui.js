@@ -1504,51 +1504,40 @@ function openReplace(inPid) {
 function viewForeign(v) {
   const m = G.foreignMarket();
   if (m.error) return;
-  const g = el('div', 'grid g21');
-  const left = el('div', 'grid');
+  const g = el('div', 'grid');
+  const held = 3 - m.room, heldP = 2 - m.pitcherRoom;
+  const pay = m.budget ? Math.round(m.payroll / m.budget * 100) : 0;
+  // 첫 줄 — 쿼터와 돈. 제목 없이 숫자와 게이지로.
+  g.appendChild(sect('', '', `<div class="ftiles">
+    <div class="htile">${icon('pinch')}<b><span class="m">${held}</span><small>/ 3 보유</small></b>
+      <div class="quotadots">${[0,1,2].map(i => `<i class="${i < held ? 'on' : ''}"></i>`).join('')}</div>
+      <p>투수 <b class="m">${heldP}</b>/2 · 자리 ${m.room}</p></div>
+    <div class="htile">${icon('won')}<b><span class="m">${m.cap}</span>억 <small>신규 계약 상한</small></b>
+      <p>재계약은 상한이 없다</p></div>
+    <div class="htile fin">${icon('star')}<b><span class="m">${m.payroll}</span>억 <small>/ ${m.budget}억</small></b>
+      <div class="meter ${pay > 100 ? 'over' : pay > 90 ? 'tight' : ''}"><i style="width:${Math.min(100, pay)}%"></i><span>소진 ${pay}%</span></div></div>
+  </div>`));
 
-  const mineRows = m.mine.map(p => ({ p, cells: [
-    nameCell(p),
-    `<span class="nat">${esc(p.nation)}</span>`,
-    `<span class="m dim">${p.slot}</span>`,
-    `<span class="m">${p.age}</span>`,
-    axis(p.ovr, p.pot),
-    `<span class="m dim">${p.stat || '—'}</span>`,
-    `<b class="m">${p.ask}억</b>`,
-    p.contract ? '<span class="tag ok">재계약</span>'
-      : `<span class="fbtn"><button data-re="${p.pid}">재계약</button><button data-rel="${p.pid}" class="q">방출</button></span>`,
-  ] }));
-  left.appendChild(sect('우리 외국인', `${m.mine.length} / 3`, m.mine.length
-    ? table(['선수','국적','P','나이','능력 / 잠재력','지난 시즌','재계약','']
-        , mineRows) : '<div class="empty">없다</div>'));
+  // 우리 외국인. 있으면 카드로 — 재계약과 방출은 얼굴을 보고 정한다.
+  if (m.mine.length) g.appendChild(sect('', '', `<div class="fcards">${m.mine.map(p => `
+    <div class="fcard" data-pid="${p.pid}">
+      ${avatar(p, capOf(G.state().user_team.name).color, 44)}
+      <div class="fc-main"><b>${esc(p.name)}</b><span>${esc(p.nation)} · ${p.slot} · ${p.age}세</span>
+        <span class="m dim">${p.stat || '—'}</span></div>
+      <div class="fc-ax">${axis(p.ovr, p.pot)}</div>
+      <div class="fc-act">${p.contract ? '<span class="tag ok">재계약</span>'
+        : `<b class="m">${p.ask}억</b><span class="fbtn"><button data-re="${p.pid}">재계약</button><button data-rel="${p.pid}" class="q">방출</button></span>`}</div>
+    </div>`).join('')}</div>`));
+  else g.appendChild(sect('', '', `<div class="empty">외국인 선수가 없다. 시장에서 셋까지 데려올 수 있다.</div>`));
 
   const canP = m.room > 0 && m.pitcherRoom > 0, canB = m.room > 0;
-  left.appendChild(sect('시장', `${m.market.length} · ${AXIS_KEY}`, table(
-    ['선수','국적','P','나이','능력 / 잠재력','몸값',''],
-    m.market.map(p => ({ p, cells: [
-      nameCell(p),
-      `<span class="nat">${esc(p.nation)}</span>`,
-      `<span class="m dim">${p.slot}</span>`,
-      `<span class="m">${p.age}</span>`,
-      axis(p.ovr, p.pot),
+  g.appendChild(sect('', `${m.market.length} · ${AXIS_KEY}`, `<div class="lead">${icon('park', 'lead-ic')}<span class="pcnt">시장</span></div>`));
+  g.lastChild.appendChild(table(['선수','국적','P','나이','능력 / 잠재력','몸값',''],
+    m.market.map(p => ({ p, cells: [nameCell(p), `<span class="nat">${esc(p.nation)}</span>`,
+      `<span class="m dim">${p.slot}</span>`, `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
       `<b class="m">${p.ask}억</b>`,
-      (p.kind === 'P' ? canP : canB)
-        ? `<span class="fbtn"><button data-sign="${p.pid}">계약</button></span>`
-        : '<span class="dim">—</span>',
-    ] })))));
-
-  const right = el('div', 'grid');
-  right.appendChild(sect('쿼터', '', `
-    <div class="quota">
-      <div class="qb"><span>보유</span><b>${3 - m.room}<i>/3</i></b></div>
-      <div class="qb"><span>투수</span><b>${2 - m.pitcherRoom}<i>/2</i></b></div>
-    </div>
-    <div class="kv"><span>신규 계약 상한</span><b class="m">${m.cap}억</b></div>
-    <div class="kv"><span>연봉 총액</span><b class="m">${m.payroll}억</b></div>
-    <div class="kv"><span>예산</span><b class="m">${m.budget}억</b></div>`));
-  right.appendChild(sect('', '', `<p class="note">몸값은 리그 전체가 매긴 값이다.
-    우리 스카우트가 본 눈금과 어긋난다면, 그 차이가 곧 기회이거나 함정이다.</p>`));
-  g.appendChild(left); g.appendChild(right);
+      (p.kind === 'P' ? canP : canB) ? `<span class="fbtn"><button data-sign="${p.pid}">계약</button></span>` : '<span class="dim">—</span>'] }))));
+  g.lastChild.appendChild(el('p', 'note', '몸값은 리그 전체가 매긴 값이다. 우리 스카우트가 본 눈금과 어긋난다면 그 차이가 기회이거나 함정이다.'));
   v.appendChild(g);
 
   v.querySelectorAll('[data-re]').forEach(b => b.onclick = (e) => {
@@ -1571,11 +1560,24 @@ function viewFA(v) {
   const spend = mine.reduce((s, r) => s + r.offer.aav, 0);
   const done = fa.rows.filter(r => r.signed);
   const talking = live.filter(r => r.demand);
+  const pct = fa.room ? Math.round(spend / fa.room * 100) : 0;
 
-  // 오늘 답을 기다리는 사람이 먼저다. 나머지는 그다음이다.
+  /* 첫 줄 — 겨울 예산, 내 제시, 시장 날짜. 제목 없이. */
+  v.appendChild(sect('', '', `<div class="ftiles">
+    <div class="htile fin">${icon('won')}<b><span class="m">${spend.toFixed(1)}</span>억 <small>/ 여력 ${fa.room}억 (연)</small></b>
+      <div class="meter ${pct > 100 ? 'over' : pct > 90 ? 'tight' : ''}"><i style="width:${Math.min(100, pct)}%"></i><span>${pct}%</span></div>
+      <p>넘겨서 부를 수 없다. 자리를 비우려면 방출이나 트레이드가 먼저다.</p></div>
+    <div class="htile">${icon('bat')}<b><span class="m">${mine.length}</span><small>건 제시</small></b>
+      <div class="alrow">${mine.length ? mine.map(r => `<span class="lb">${esc(r.name)}<i>${r.offer.years}년 ${r.offer.total}억</i></span>`).join('') : '<span class="dim">아직 없다</span>'}</div></div>
+    <div class="htile">${icon('star')}<b><span class="m">${fa.day}</span><small>/ ${fa.days}일</small></b>
+      <div class="quotadots">${Array.from({ length: fa.days }, (_, i) => `<i class="${i < fa.day ? 'on' : ''}"></i>`).join('')}</div>
+      <p>${done.length ? `계약 완료 ${done.length}명` : '아직 계약이 없다'}</p></div>
+  </div>`));
+
+  // 오늘 답을 기다리는 사람이 먼저다.
   if (talking.length) {
     const w = el('div', 'sect');
-    w.innerHTML = `<h3>답을 기다린다 <em>${talking.length}</em></h3>
+    w.innerHTML = `<div class="lead">${icon('owner', 'lead-ic')}<span class="pcnt">답을 기다린다 ${talking.length}</span></div>
       <div class="nego">${talking.map(r => `
         <div class="ncard" data-talk="${r.pid}">
           <div class="nhd">${avatar(r, r.former_team && r.former_team !== '미계약'
@@ -1590,42 +1592,27 @@ function viewFA(v) {
     v.appendChild(w);
   }
 
-  // 좁은 화면에서는 협상에 필요한 칸만 남긴다. 요구와 내 제시가 핵심이다.
+  // 시장. 표가 맞다. 시장 온도는 점으로.
+  const heat = (h) => `<span class="heat ${h === '뜨겁다' ? 'h3' : h === '경쟁이 있다' ? 'h2' : h === '한 곳 정도' ? 'h1' : 'h0'}" title="${esc(h)}"><i></i><i></i><i></i></span>`;
   const narrow = window.innerWidth < 620;
-  const g = el('div', 'grid g21');
-  g.appendChild(sect('FA 시장', `${fa.day}/${fa.days}일`, table(
-    narrow ? ['선수','등급','요구','내 제시']
-           : ['선수','','나이','등급','능력','요구','시장','기분','내 제시'],
+  const g = el('div', done.length ? 'grid g21' : 'grid');
+  g.appendChild(sect('', `${live.length} · ${AXIS_KEY}`, `<div class="lead">${icon('pinch', 'lead-ic')}<span class="pcnt">FA 시장</span></div>`));
+  g.lastChild.appendChild(table(
+    narrow ? ['선수','등급','요구','내 제시'] : ['선수','','나이','등급','능력','요구','시장','기분','내 제시'],
     live.map(p => {
       const ask = `<span class="m">${p.ask.years}년 ${p.ask.total}억</span>`;
-      const off = p.offer ? `<b class="m mark">${p.offer.years}년 ${p.offer.total}억</b>`
-                          : '<span class="dim">—</span>';
+      const off = p.offer ? `<b class="m mark">${p.offer.years}년 ${p.offer.total}억</b>` : '<span class="dim">—</span>';
       const gr = `<span class="gr g${p.grade}">${p.grade}</span>`;
-      return { p, cells: narrow
-        ? [nameCell(p), gr, ask, off]
-        : [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-           `<span class="m">${p.age}</span>`, gr, axis(p.ovr), ask,
-           `<span class="dim">${p.heat}</span>`,
-           `<span class="${p.mood < 34 ? 'warn' : ''}">${p.offer ? p.mood_word : '—'}</span>`,
-           off] };
+      return { p, cells: narrow ? [nameCell(p), gr, ask, off]
+        : [nameCell(p), `<span class="m dim">${p.slot}</span>`, `<span class="m">${p.age}</span>`, gr, axis(p.ovr), ask,
+           heat(p.heat), `<span class="${p.mood < 34 ? 'warn' : ''}">${p.offer ? p.mood_word : '—'}</span>`, off] };
     }),
-    (row) => openOffer(row.p))));
+    (row) => openOffer(row.p)));
 
-  const side = el('div', 'stack');
-  side.appendChild(sect('겨울 예산', '', `
-    <div class="kv"><span>연 지출 여력</span><b class="m">${fa.room}억</b></div>
-    <div class="kv"><span>제시 합계 (연)</span><b class="m ${spend > fa.room ? 'mark' : ''}">${spend.toFixed(1)}억</b></div>
-    <p class="note">한 해에 쓸 수 있는 돈이다. 넘겨서 부를 수는 없다 —
-      자리를 비우려면 방출이나 트레이드를 먼저 해야 한다.</p>
-    <div style="margin-top:12px">${mine.length ? mine.map(r =>
-      `<div class="row"><span>${esc(r.name)}</span>
-       <b class="m">${r.offer.years}년 ${r.offer.total}억</b></div>`).join('')
-      : '<div class="empty">아직 제시한 곳이 없다</div>'}</div>`));
-  if (done.length) side.appendChild(sect('계약 완료', `${done.length}`,
-    `<div class="stack">${done.slice(0, 14).map(r =>
-      `<div class="row ${r.signed.mine ? 'mine' : ''}"><span>${esc(r.name)}</span>
-       <b class="m">${esc(r.signed.team)} ${esc(r.signed.text)}</b></div>`).join('')}</div>`));
-  g.appendChild(side);
+  if (done.length) g.appendChild(sect('', `${done.length}`, `<div class="lead">${icon('trophy', 'lead-ic')}<span class="pcnt">계약 완료</span></div>
+    <div class="stack tight">${done.slice(0, 14).map(r =>
+      `<div class="row ${r.signed.mine ? 'mine' : ''}"><span class="prow">${cap(r.signed.team, 22)} ${esc(r.name)}</span>
+       <b class="m">${esc(r.signed.text)}</b></div>`).join('')}</div>`));
   v.appendChild(g);
 
   v.querySelectorAll('[data-talk]').forEach(c => c.onclick = () =>
@@ -1840,33 +1827,44 @@ function openPosting() {
 
 function viewDraft(v) {
   const b = G.draftBoard(40);
-  const g = el('div', 'grid g21');
-  const note = `${b.round}R · ${b.pick_no}/${b.total} · ` +
-    (b.my_turn ? '<span class="mark">내 차례</span>' : esc(short(b.on_clock || '')));
-  g.appendChild(sect('드래프트 보드', `${note} · ${AXIS_KEY}`, table(
-    ['선수','','','나이','능력 / 잠재력','확신도'],
+  const g = el('div', 'grid');
+  const clock = b.my_turn ? null : b.on_clock;
+  /* 첫 줄 — 라운드 · 순번 · 누구 차례. 내 차례면 크게. */
+  g.appendChild(sect('', '', `<div class="ftiles">
+    <div class="htile"><b><span class="m">${b.round}</span><small>라운드</small></b><p>전체 ${b.pick_no} / ${b.total}</p></div>
+    <div class="htile ${b.my_turn ? 'myturn' : ''}">${clock ? cap(clock, 28) : icon('star')}<b>${b.my_turn ? '내 차례' : esc(short(clock || ''))}</b>
+      <p>${b.my_turn ? '보드에서 선수를 누르면 지명한다. 되돌릴 수 없다.' : '지명을 기다린다'}</p></div>
+    <div class="htile">${icon('pinch')}<b><span class="m">${b.picks.filter(p => p.mine).length}</span><small>명 지명</small></b>
+      <div class="alrow">${b.picks.filter(p => p.mine).map(p => `<span class="lb">${esc(p.name)}<i>${p.n}순위</i></span>`).join('') || '<span class="dim">아직 없다</span>'}</div></div>
+  </div>`));
+  const g2 = el('div', 'grid g21');
+  g2.appendChild(sect('', AXIS_KEY, `<div class="lead">${icon('bat', 'lead-ic')}<span class="pcnt">보드 ${b.rows.length}</span></div>`));
+  g2.lastChild.appendChild(table(['선수','','','나이','능력 / 잠재력','확신도'],
     b.rows.map(p => ({ p, cells: [`<span class="name">${esc(p.name)}</span>`,
       `<span class="tag hs">${p.origin ? p.origin[0] : ''}</span>`,
       `<span class="m dim">${p.slot}</span>`, `<span class="m">${p.age}</span>`,
       axis(p.ovr, p.pot), `<span class="m dim">${p.confidence}%</span>`] })),
     (row) => { if (!b.my_turn) return openPlayer(row.p.pid);
-      if (confirm(`${row.p.name} 지명. 되돌릴 수 없다.`)) { G.draftPick(row.p.pid); autosave(); render(); } })));
-  g.appendChild(sect('지명', `${b.picks.length}`,
-    b.picks.length ? b.picks.slice().reverse().slice(0, 24).map(p =>
-      `<div class="row ${p.mine ? 'me' : ''}"><span class="m dim">${p.n}</span>
-       <span>${esc(short(p.team))} <span class="name">${esc(p.name)}</span></span></div>`).join('')
-      : '<div class="empty">—</div>'));
+      if (confirm(`${row.p.name} 지명. 되돌릴 수 없다.`)) { G.draftPick(row.p.pid); autosave(); render(); } }));
+  g2.appendChild(sect('', `${b.picks.length}`, `<div class="lead">${icon('trophy', 'lead-ic')}<span class="pcnt">지명 순서</span></div>
+    <div class="stack tight">${b.picks.length ? b.picks.slice().reverse().slice(0, 24).map(p =>
+      `<div class="row ${p.mine ? 'me' : ''}"><span class="prow"><span class="m dim pn">${p.n}</span>${cap(p.team, 22)}<span class="name">${esc(p.name)}</span></span></div>`).join('')
+      : '<div class="empty">—</div>'}</div>`));
+  g.appendChild(g2);
   v.appendChild(g);
 }
 
 function viewTrade(v) {
   const teams = G.teamList().filter(t => t.id !== G.state().user_team.id);
+  const st = G.lastStandings().rows;
   const g = el('div', 'grid');
-  g.appendChild(sect('트레이드', '', `<div style="display:grid;
-    grid-template-columns:repeat(auto-fill,minmax(200px,1fr));border-top:1px solid var(--rule);
-    border-left:1px solid var(--rule)">
-    ${teams.map(t => `<button class="tcard" data-tid="${t.id}">
-      <b>${esc(t.name)}</b><span>${t.mode}</span></button>`).join('')}</div>`));
+  /* 상대를 고른다. 모자와 방향성이 카드 하나 — 리빌딩 팀에 베테랑을 팔려 하면 안 된다는 걸 색이 말한다. */
+  const modeCls = (m) => m === '우승도전' ? 'contend' : m === '리빌딩' ? 'rebuild' : 'neutral';
+  g.appendChild(sect('', '상대를 고른다', `<div class="tgrid">${teams.map(t => {
+    const r = st.find(x => x.team === t.name);
+    return `<button class="tcard2 ${modeCls(t.mode)}" data-tid="${t.id}" style="${tcVars(capOf(t.name))}">
+      ${cap(t.name, 40)}<span class="tc-main"><b>${esc(short(t.name))}</b><i>${r ? `${r.rank}위 · ${r.w}–${r.l}` : ''}</i></span>
+      <em class="tc-mode">${esc(t.mode)}</em></button>`; }).join('')}</div>`));
   v.appendChild(g);
   v.querySelectorAll('[data-tid]').forEach(b => b.onclick = () => openTrade(+b.dataset.tid));
 }
@@ -1876,29 +1874,26 @@ const openTrade = (tid) => { tsel = { give: new Set(), get: new Set(), other: ti
 function drawTrade() {
   const mine = G.tradeAssets(G.state().user_team.id);
   const theirs = G.tradeAssets(tsel.other);
-  const group = (arr, set, side, title) => `<div class="lab"
-    style="border-bottom:1px solid var(--rule);padding-bottom:3px;margin:12px 0 2px">${title}</div>` +
-    arr.map(p => `<div class="row" style="cursor:pointer" data-side="${side}" data-pid="${p.pid}">
-      <span>${set.has(p.pid) ? '<span class="mark">■</span> ' : '<span class="dim">□</span> '}
-      ${esc(p.name)} <span class="sub">${p.age} ${p.slot}</span></span>${axis(p.ovr)}</div>`).join('');
+  const me = G.state().user_team.name;
+  const card = (p, set, side) => `<button class="tp ${set.has(p.pid) ? 'on' : ''}" data-side="${side}" data-pid="${p.pid}">
+      <span class="tp-nm"><b>${esc(p.name)}</b><i>${p.age} · ${p.slot}${p.farm ? ' · 2군' : ''}</i></span>${axis(p.ovr)}</button>`;
+  const col = (t, arr, set, side, color) => `<div class="tcol" style="--tc:${color}">
+    <div class="tchd">${cap(t, 28)}<b>${esc(short(t))}</b><span class="m dim">${set.size ? `${set.size}명` : ''}</span></div>
+    <div class="tplist">${arr.map(p => card(p, set, side)).join('')}</div></div>`;
   const ev = (tsel.give.size || tsel.get.size)
     ? G.tradeEvaluate([...tsel.give], [...tsel.get], tsel.other) : null;
+  const ok = ev && ev.verdict === 'accept';
   modal(`
-    <div class="mhead"><div><h2>${esc(theirs.team)}</h2>
-      <div class="meta">${theirs.mode}</div></div><button id="mx" class="quiet">닫기</button></div>
+    <div class="mhead"><div class="mhead-p">${cap(theirs.team, 40)}<h2>${esc(theirs.team)}</h2><span class="tag">${esc(theirs.mode)}</span></div>
+      <button id="mx" class="quiet">닫기</button></div>
     <div class="mbody">
-      ${ev ? `<div class="report" style="border-left-color:${ev.verdict === 'accept' ? 'var(--ink)' : 'var(--mark)'};
-        margin-bottom:16px;color:var(--ink)">${esc(ev.text)}</div>` : ''}
-      <div class="grid g2">
-        <div><div class="lab">내가 내줄 선수</div>
-          <div style="max-height:340px;overflow:auto">
-          ${group(mine.roster, tsel.give, 'give', '1군')}${group(mine.farm, tsel.give, 'give', '2군')}</div></div>
-        <div><div class="lab">내가 받을 선수</div>
-          <div style="max-height:340px;overflow:auto">
-          ${group(theirs.roster, tsel.get, 'get', '1군')}${group(theirs.farm, tsel.get, 'get', '2군')}</div></div>
+      <div class="tverdict ${ev ? (ok ? 'ok' : 'no') : ''}">${ev ? icon(ok ? 'trophy' : 'hook', 'tv-ic') : icon('pinch', 'tv-ic')}
+        <span>${ev ? esc(ev.text) : '양쪽에서 선수를 고르면 상대가 답한다.'}</span>
+        <button id="propose" class="primary" ${ok ? '' : 'disabled'}>제안</button></div>
+      <div class="tcols">
+        ${col(me, [...mine.roster, ...mine.farm.map(p => ({ ...p, farm: true }))], tsel.give, 'give', capOf(me).color)}
+        ${col(theirs.team, [...theirs.roster, ...theirs.farm.map(p => ({ ...p, farm: true }))], tsel.get, 'get', capOf(theirs.team).color)}
       </div>
-      <div style="margin-top:18px"><button id="propose" class="primary"
-        ${ev && ev.verdict === 'accept' ? '' : 'disabled'}>제안</button></div>
     </div>`);
   document.querySelectorAll('[data-pid]').forEach(row => row.onclick = () => {
     const set = row.dataset.side === 'give' ? tsel.give : tsel.get;
