@@ -1009,20 +1009,24 @@ function viewHome(v) {
 const POS_SLOT = { C:'c', '1B':'b1', '2B':'b2', '3B':'b3', SS:'ss',
                    LF:'lf', CF:'cf', RF:'rf' };
 
-function diamond() {
+/** 수비 배치. 그라운드 그림 위에 사람을 세운다. 상자 격자가 아니라 야구장이다. */
+const FC_POS = { LF:[17,26], CF:[50,15], RF:[83,26], SS:[33,46], '2B':[67,46], '3B':[15,67], '1B':[85,67], SP:[50,59], C:[50,86], CL:[88,86] };
+function fieldChart() {
   const ch = G.lineupChart();
-  const cell = (pos) => {
-    const p = ch.pos[pos];
-    if (!p) return `<span class="dpos ${POS_SLOT[pos]}"><i>${pos}</i></span>`;
-    return `<span class="dpos ${POS_SLOT[pos]} click" data-pid="${p.pid}"><i>${pos}</i>
-      <b>${esc(p.name)}</b><u>${p.ovr.mid}</u></span>`;
-  };
-  const battery = (p, label) => p
-    ? `<span class="dpos ${label === 'SP' ? 'sp' : 'cl'} click" data-pid="${p.pid}">
-        <i>${label}</i><b>${esc(p.name)}</b><u>${p.ovr.mid}</u></span>` : '';
-  return `<div class="diamond">
-    ${['LF','CF','RF','SS','2B','3B','1B','C'].map(cell).join('')}
-    ${battery(ch.sp, 'SP')}${battery(ch.closer, 'CL')}</div>`;
+  const chip = (pos, p, cls = '') => { const [x, y] = FC_POS[pos];
+    return `<span class="fcp ${cls} ${p ? 'click' : 'empty'}" style="left:${x}%;top:${y}%"${p ? ` data-pid="${p.pid}"` : ''}>
+      <i>${pos}</i>${p ? `<b>${esc(p.name)}</b><u>${p.ovr.mid}</u>` : ''}</span>`; };
+  return `<div class="fieldchart">
+    <svg viewBox="0 0 400 300" preserveAspectRatio="none" aria-hidden="true">
+      <path class="fc-grass" d="M200 285 L18 90 Q200 -40 382 90 Z"/>
+      <path class="fc-dirt" d="M200 285 L120 205 L200 125 L280 205 Z"/>
+      <path class="fc-inner" d="M200 262 L143 205 L200 148 L257 205 Z"/>
+      <circle class="fc-mound" cx="200" cy="205" r="9"/>
+      <path class="fc-line" d="M200 285 L18 90 M200 285 L382 90"/>
+    </svg>
+    ${['LF','CF','RF','SS','2B','3B','1B','C'].map(pos => chip(pos, ch.pos[pos])).join('')}
+    ${chip('SP', ch.sp, 'pit')}${chip('CL', ch.closer, 'pit')}
+  </div>`;
 }
 
 function batRow(p, live) {
@@ -1053,34 +1057,28 @@ const BAT_HEAD = (live) => ['선수','P','나이','능력 / 잠재력',
 const PIT_HEAD = (live) => ['선수','보직','나이','능력 / 잠재력',
   ...(live ? ['G','IP','W-L','SV','ERA','K'] : []), '계약'];
 
+let teamTab = 'prep';                 // 경기 준비 · 선수단 · 2군 · 병역
 function viewTeam(v) {
   const r = G.roster();
   const live = ['regular','postseason'].includes(G.state().phase);
   const g = el('div', 'grid');
 
-  if (live) {
-    const ts = G.leagueTeamStats().rows.find(x => x.is_user);
-    const f = G.form(null, 10);
-    const st = G.standings().rows.find(x => x.is_user);
-    g.appendChild(sect('팀 기록', '', `<div class="statgrid">
-      <div><span>전적</span><b class="m">${st.w}–${st.l}</b></div>
-      <div><span>타율</span><b class="m">${ts.avg}<i>${ts.rank.avg}위</i></b></div>
-      <div><span>홈런</span><b class="m">${ts.hr}<i>${ts.rank.hr}위</i></b></div>
-      <div><span>도루</span><b class="m">${ts.sb}<i>${ts.rank.sb}위</i></b></div>
-      <div><span>ERA</span><b class="m">${ts.era}<i>${ts.rank.era}위</i></b></div>
-      <div><span>WHIP</span><b class="m">${ts.whip}</b></div>
-      <div><span>탈삼진</span><b class="m">${ts.pk}<i>${ts.rank.k}위</i></b></div>
-      <div><span>홈/원정</span><b class="m">${f.home[0]}–${f.home[1]}<i>${f.away[0]}–${f.away[1]}</i></b></div>
-    </div>`));
-  }
+  // 한 화면에 다 쌓지 않는다. 할 일이 다른 셋으로 나눈다.
+  const segs = [['prep', '경기 준비', icon('glove')], ['roster', '선수단', icon('bat')], ['farm', '2군 · 병역', icon('pinch')]];
+  const seg = el('div', 'tseg');
+  seg.innerHTML = segs.map(([k, t, ic]) => `<button data-tt="${k}" class="${teamTab === k ? 'on' : ''}">${ic}<span>${t}</span></button>`).join('');
+  v.appendChild(seg);
+  seg.querySelectorAll('[data-tt]').forEach(b => b.onclick = () => { teamTab = b.dataset.tt; render(); });
 
-  g.appendChild(sect('수비 배치', '', diamond()));
-
-  // 편성. 타순과 자리를 직접 정한다. 출전 시간이 곧 육성이다.
   const lu = G.lineup();
+  const ps = G.pitcherStatus();
+  const forcedPid = ps.forced_pid;
   const fitCls = (f) => f === '적합' ? '' : f === '가능' ? 'w1' : f === '무리' ? 'w2' : 'w3';
-  g.appendChild(sect('편성', lu.manual ? '수동' : '자동',
-    `<div class="lu">
+
+  if (teamTab === 'prep') {
+    /* 수비 배치와 타순은 한 장면이다. 왼쪽은 그라운드, 오른쪽은 타순. */
+    g.appendChild(sect('', lu.manual ? '수동 편성' : '자동 편성', `<div class="prep">
+      ${fieldChart()}
       <div class="lurows">${lu.slots.map(s => `
         <div class="lurow${luSel === s.order ? ' sel' : ''}" data-slot="${s.order}">
           <span class="lo">${s.order}</span>
@@ -1089,154 +1087,145 @@ function viewTeam(v) {
             `<option value="${p}"${p === s.slot ? ' selected' : ''}>${p}</option>`).join('')}</select>
           <span class="lf ${fitCls(s.fit)}">${s.fit}${s.pen ? ` <i>-${s.pen}</i>` : ''}</span>
           <span class="la">${axis(s.ovr, s.pot)}</span>
-        </div>`).join('')}</div>
-      <div class="lubench">
-        <div class="lab">벤치</div>
-        ${lu.bench.length ? lu.bench.map(b => `<button class="lb" data-bench="${b.pid}">
-          ${esc(b.name)}<i>${b.nat}</i></button>`).join('') : '<div class="empty">—</div>'}
-        <div class="lab" style="margin-top:14px">선발 로테이션</div>
-        <div class="lurot">${lu.rotation.map(p => `<button class="lb rot"
-          data-rot="${p.pid}">${p.order}<i>${esc(p.name)}</i></button>`).join('')}</div>
-        <div class="lab" style="margin-top:14px">불펜 보직</div>
+        </div>`).join('')}
+        <div class="luhint">${luSel === null ? '타순 둘을 차례로 누르면 바뀐다 · 벤치를 누르면 그 자리에 들어간다' : `${luSel}번과 바꿀 자리를 고른다`}</div>
+      </div>
+    </div>
+    <div class="prep3">
+      <div class="pcol">${icon('pinch', 'pcol-ic')}<span class="pcnt">${lu.bench.length}</span>
+        ${lu.bench.length ? lu.bench.map(b => `<button class="lb" data-bench="${b.pid}">${esc(b.name)}<i>${b.nat}</i></button>`).join('') : '<div class="empty">벤치 없음</div>'}</div>
+      <div class="pcol">${icon('ball', 'pcol-ic')}<span class="pcnt">${lu.rotation.length}</span>
+        <div class="lurot">${lu.rotation.map(p => `<button class="lb rot ${luRot === p.pid ? 'sel' : ''}" data-rot="${p.pid}">${p.order}<i>${esc(p.name)}</i></button>`).join('')}</div></div>
+      <div class="pcol">${icon('glove', 'pcol-ic')}<span class="pcnt">${lu.bullpen.length}</span>
         <div class="lupen">${lu.bullpen.map(p => `<div class="pnrow">
           <span class="pnn">${esc(p.name)}${p.locked ? '<em>지정</em>' : ''}</span>
-          <select class="lp" data-pen="${p.pid}">${lu.penRoles.map(r =>
-            `<option value="${r.key}"${r.key === p.role ? ' selected' : ''}>${r.label}</option>`
-          ).join('')}</select>
-        </div>`).join('')}</div>
-        <button class="quiet luauto" id="luAuto">자동 편성으로</button>
-      </div>
-    </div>`));
-
-  // 투수 운용. 오늘 누가 던질 수 있는지가 보여야 보직을 정하는 뜻이 있다.
-  const ps = G.pitcherStatus();
-  const forcedPid = ps.forced_pid;
-  const prow = (p, isRot) => `<div class="prow ${p.ready ? '' : 'off'}${
-      isRot && p.pid === forcedPid ? ' pick' : ''}" data-pid="${p.pid}"${
-      isRot && p.ready ? ` data-sp="${p.pid}"` : ''}>
-    <span class="pr-role ${isRot && ((forcedPid ? p.pid === forcedPid
-      : p.turn === 0 && !ps.pen_day_next)) ? 'next' : ''}">${
-      isRot ? (p.pid === forcedPid ? '다음 선발' :
-        (!forcedPid && !ps.pen_day_next && p.turn === 0 ? '다음 선발' : `${p.turn}일 뒤`))
-      : esc(p.role)}</span>
-    <span class="pr-name">${esc(p.name)}<i>스태미나 ${p.stamina}</i></span>
-    <span class="pr-state">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>`
-      : p.ready ? '<em class="ok">등판 가능</em>'
-      : `<em class="rest">${p.rest_left}일 휴식</em>`}</span>
-    <span class="pr-last">${p.consec ? `<b class="warn">연투 ${p.consec}일</b>` : ''}${
-      p.days_off != null ? `<span>${p.days_off}일 전 등판</span>` : ''}</span>
-  </div>`;
-  g.appendChild(sect('투수 운용',
-    `불펜 ${ps.ready}/${ps.total} 가능${ps.bullpen_day ? ' · 오늘은 불펜데이' : ''}`,
-    `<div class="pstat">
-      <div><div class="lab">선발 로테이션</div>
-        ${ps.rotation.map(p => prow(p, true)).join('')}
-        <div class="spbar">
-          <button id="spPen" class="${ps.pen_day_next ? 'on' : ''}">불펜데이로 간다</button>
-          ${(ps.forced || ps.pen_day_next) ? '<button id="spClr" class="quiet">순번대로</button>' : ''}
-          <i>${ps.pen_day_next ? '다음 경기는 오프너가 나간다. 순번은 그대로 밀린다.'
-            : ps.forced ? `다음 경기 선발은 ${esc(ps.forced)}.`
-            : '선발을 눌러 다음 경기에 앞세울 수 있다.'}</i>
-        </div>
-        ${ps.thin ? `<p class="note">${ps.bullpen_day
-          ? '던질 선발이 없다. 롱릴리프가 오프너로 나간다.'
-          : '선발에 빈자리가 있다. 순번이 돌아오면 불펜이 메운다.'}</p>` : ''}</div>
-      <div><div class="lab">불펜</div>
-        ${ps.bullpen.map(p => prow(p, false)).join('')}
-        <p class="note">4타자 이하로 막으면 다음 날 바로 나올 수 있다.
-          길게 던지거나 사흘 연투하면 하루 이상 쉰다.</p></div>
-    </div>`));
-
-  // 경기 중 결정은 감독이 한다. 우리는 그 성향만 정한다.
-  const tc = G.tactics();
-  g.appendChild(sect('감독 지시', '', `<div class="tacs">${tc.rows.map(r => `
-    <div class="tac">
-      <div class="tk">${esc(r.label)}<i>${esc(r.hint)}</i></div>
-      <div class="tsteps">${r.steps.map((s, i) =>
-        `<button data-tk="${r.key}" data-tv="${i}" class="${i === r.value ? 'on' : ''}">${esc(s)}</button>`
-      ).join('')}</div>
-    </div>`).join('')}</div>`));
-
-  const block = (title, list, kind) => {
-    if (!list.length) return;
-    g.appendChild(sect(title, `${list.length} · ${AXIS_KEY}`, table(
-      kind === 'B' ? BAT_HEAD(live) : PIT_HEAD(live),
-      list.map(p => (kind === 'B' ? batRow : pitRow)(p, live)),
-      (row) => openPlayer(row.p.pid))));
-  };
-  block('라인업', r.lineup, 'B');
-  block('벤치', r.bench, 'B');
-  block('선발 로테이션', r.rotation, 'P');
-  block('불펜', r.bullpen, 'P');
-  // 병역. 1군에서 쓴 선수만 대표팀에 뽑히고, 금메달이면 2년이 돌아온다.
-  const ml = G.military();
-  const milRow = (p, kind) => `<div class="mrow">
-    <span class="mn">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
-    ${kind === 'serving' ? `<span class="mk">${p.kind}</span><span class="ml2">${p.left}년 남음</span>`
-      : kind === 'due' ? `<span class="mk ${p.active ? 'on' : ''}">${p.active ? '1군' : '2군'}</span>
-          <span class="ml2 ${p.due <= 1 ? 'urg' : ''}">${p.due === 0 ? '올겨울 입대' : `${p.due}년 뒤`}</span>`
-      : `<span class="mk ok">면제</span><span class="ml2">${p.natl ? `대표 ${p.natl}회` : ''}</span>`}
-  </div>`;
-  g.appendChild(sect('병역', ml.calendar.length
-    ? ml.calendar.map(c => `${c.year} ${c.meets.join('·')}`).join('  ·  ') : '',
-    `<div class="mil3">
-      <div><div class="lab">미필 <span class="dim">${ml.due.length}</span></div>
-        <div class="mlist">${ml.due.length ? ml.due.map(p => milRow(p, 'due')).join('')
-          : '<div class="empty">—</div>'}</div></div>
-      <div><div class="lab">복무 중 <span class="dim">${ml.serving.length}</span></div>
-        <div class="mlist">${ml.serving.length ? ml.serving.map(p => milRow(p, 'serving')).join('')
-          : '<div class="empty">—</div>'}</div></div>
-      <div><div class="lab">면제 <span class="dim">${ml.exempt.length}</span></div>
-        <div class="mlist">${ml.exempt.length ? ml.exempt.map(p => milRow(p, 'exempt')).join('')
-          : '<div class="empty">—</div>'}</div>
-        <p class="note">대표팀은 그 시즌 1군 성적으로 뽑는다.
-          ${ml.ageLimit}세 이하가 원칙이고 와일드카드가 셋이다.
-          아시안게임 금메달과 올림픽 동메달 이상이 면제다. WBC는 면제가 없다.</p></div>
-    </div>`));
-
-  // 1군 등록과 2군. 올려두고 안 쓰면 퇴보하고, 2군에서는 매일 뛴다.
-  const fm = G.farmMoves();
-  const roleCls = { 주전:'r1', 선발:'r1', 불펜:'r2', 대기:'r3' };
-  g.appendChild(sect('1군 · 2군', `등록 ${fm.count} / ${fm.max}`, `<div class="fm2">
-    <div>
-      <div class="lab">1군 등록</div>
-      <div class="fmlist">${fm.active.map(p => `<div class="fmrow">
-        <span class="fr ${roleCls[p.role] || ''}">${p.role}</span>
-        <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
-        <span class="fs">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>` : (p.stat ? esc(p.stat) : '')}</span>
-        <span class="fb">
-          <button data-down="${p.pid}">2군</button>
-          <button data-rel="${p.pid}" class="q">방출</button></span>
-      </div>`).join('')}</div>
+          <select class="lp" data-pen="${p.pid}">${lu.penRoles.map(rr =>
+            `<option value="${rr.key}"${rr.key === p.role ? ' selected' : ''}>${rr.label}</option>`).join('')}</select>
+        </div>`).join('')}</div></div>
     </div>
-    <div>
-      <div class="lab">2군 <span class="dim">${fm.farm.length}명</span></div>
-      <div class="fmlist">${fm.farm.map(p => `<div class="fmrow">
-        <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
-        <span class="fa2">${axis(p.ovr, p.pot)}</span>
-        <span class="fb">${p.wait ? `<span class="dim">${p.wait}일 대기</span>`
-          : `<button data-up="${p.pid}">1군</button>`}</span>
-      </div>`).join('')}</div>
-    </div>
-  </div>`));
+    <div class="prepbar"><button class="quiet luauto" id="luAuto">자동 편성으로</button></div>`));
 
-  if (r.injured.length) g.appendChild(sect('부상자', `${r.injured.length}`, table(
-    ['선수','P','나이','능력 / 잠재력','복귀까지','계약'],
-    r.injured.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-      `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
-      `<b class="m mark">${p.injury_days}일</b>`,
-      p.contract ? `<span class="m dim">${p.contract.text}</span>` : '—'] })),
-    (row) => openPlayer(row.p.pid))));
+    // 투수 운용. 오늘 누가 던질 수 있는가.
+    const prow = (p, isRot) => `<div class="prow ${p.ready ? '' : 'off'}${
+        isRot && p.pid === forcedPid ? ' pick' : ''}" data-pid="${p.pid}"${
+        isRot && p.ready ? ` data-sp="${p.pid}"` : ''}>
+      <span class="pr-role ${isRot && ((forcedPid ? p.pid === forcedPid
+        : p.turn === 0 && !ps.pen_day_next)) ? 'next' : ''}">${
+        isRot ? (p.pid === forcedPid ? '다음 선발' :
+          (!forcedPid && !ps.pen_day_next && p.turn === 0 ? '다음 선발' : `${p.turn}일 뒤`))
+        : esc(p.role)}</span>
+      <span class="pr-name">${esc(p.name)}<i>스태미나 ${p.stamina}</i></span>
+      <span class="pr-state">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>`
+        : p.ready ? '<em class="ok">등판 가능</em>'
+        : `<em class="rest">${p.rest_left}일 휴식</em>`}</span>
+      <span class="pr-last">${p.consec ? `<b class="warn">연투 ${p.consec}일</b>` : ''}${
+        p.days_off != null ? `<span>${p.days_off}일 전 등판</span>` : ''}</span>
+    </div>`;
+    g.appendChild(sect('', `불펜 ${ps.ready}/${ps.total} 가능${ps.bullpen_day ? ' · 오늘은 불펜데이' : ''}`,
+      `<div class="pstat">
+        <div class="lead">${icon('ball', 'lead-ic')}
+          ${ps.rotation.map(p => prow(p, true)).join('')}
+          <div class="spbar">
+            <button id="spPen" class="${ps.pen_day_next ? 'on' : ''}">불펜데이로 간다</button>
+            ${(ps.forced || ps.pen_day_next) ? '<button id="spClr" class="quiet">순번대로</button>' : ''}
+            <i>${ps.pen_day_next ? '다음 경기는 오프너가 나간다.' : ps.forced ? `다음 경기 선발은 ${esc(ps.forced)}.` : '선발을 누르면 다음 경기에 앞세운다.'}</i>
+          </div>
+          ${ps.thin ? `<p class="note">${ps.bullpen_day ? '던질 선발이 없다. 롱릴리프가 오프너로 나간다.' : '선발에 빈자리가 있다. 순번이 돌아오면 불펜이 메운다.'}</p>` : ''}</div>
+        <div class="lead">${icon('glove', 'lead-ic')}
+          ${ps.bullpen.map(p => prow(p, false)).join('')}</div>
+      </div>`));
 
-  const farm = G.farm().rows;
-  g.appendChild(sect('2군', `${farm.length} · ${AXIS_KEY}`, table(
-    ['선수','P','나이','능력 / 잠재력','확신도','출신','지명'],
-    farm.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
-      `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
-      `<span class="m dim">${p.confidence}%</span>`,
-      p.origin ? `<span class="tag hs">${p.origin[0]}</span>` : '<span class="dim">—</span>',
-      `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
-    (row) => openPlayer(row.p.pid))));
+    // 감독 성향. 경기 중 결정은 감독이 한다.
+    const tc = G.tactics();
+    g.appendChild(sect('', '', `<div class="tacs">${tc.rows.map(rr => `
+      <div class="tac">
+        <div class="tk">${esc(rr.label)}<i>${esc(rr.hint)}</i></div>
+        <div class="tsteps">${rr.steps.map((s2, i) =>
+          `<button data-tk="${rr.key}" data-tv="${i}" class="${i === rr.value ? 'on' : ''}">${esc(s2)}</button>`).join('')}</div>
+      </div>`).join('')}</div>`));
+  }
+
+  if (teamTab === 'roster') {
+    if (live) {
+      const ts = G.leagueTeamStats().rows.find(x => x.is_user);
+      const f = G.form(null, 10);
+      const st = G.standings().rows.find(x => x.is_user);
+      const n = G.standings().rows.length || 10;
+      const rk = (x) => `<i class="rkc ${x <= 3 ? 'top' : x >= n - 2 ? 'low' : ''}">${x}위</i>`;
+      const tile = (val, cap, rank = null) => `<div class="htile"><b class="m">${val}</b><span>${cap}${rank ? rk(rank) : ''}</span></div>`;
+      g.appendChild(sect('', '', `<div class="htiles t8">
+        ${tile(`${st.w}–${st.l}`, '전적')}${tile(ts.avg, '타율', ts.rank.avg)}${tile(ts.hr, '홈런', ts.rank.hr)}${tile(ts.sb, '도루', ts.rank.sb)}
+        ${tile(ts.era, 'ERA', ts.rank.era)}${tile(ts.whip, 'WHIP')}${tile(ts.pk, '탈삼진', ts.rank.k)}${tile(`${f.home[0]}–${f.home[1]} <small>홈</small>${f.away[0]}–${f.away[1]} <small>원정</small>`, '홈 · 원정')}
+      </div>`));
+    }
+    // 타자 한 표, 투수 한 표. 그룹은 첫 칸이 말한다.
+    const grpCell = (t, cls) => `<span class="grp ${cls}">${t}</span>`;
+    const bats = r.lineup.map(p => ({ p, grp: grpCell('선발', 'g1') })).concat(r.bench.map(p => ({ p, grp: grpCell('벤치', 'g2') })));
+    const pits = r.rotation.map(p => ({ p, grp: grpCell('선발', 'g1') })).concat(r.bullpen.map(p => ({ p, grp: grpCell(p.pen || '불펜', 'g2') })));
+    g.appendChild(sect('', `${bats.length} · ${AXIS_KEY}`, `<div class="lead">${icon('bat', 'lead-ic')}</div>` ));
+    g.lastChild.appendChild(table(['', ...BAT_HEAD(live)], bats.map(({ p, grp }) => { const row = batRow(p, live); row.cells.unshift(grp); return row; }), (row) => openPlayer(row.p.pid)));
+    g.appendChild(sect('', `${pits.length}`, `<div class="lead">${icon('ball', 'lead-ic')}</div>`));
+    g.lastChild.appendChild(table(['', ...PIT_HEAD(live)], pits.map(({ p, grp }) => { const row = pitRow(p, live); row.cells.unshift(grp); return row; }), (row) => openPlayer(row.p.pid)));
+    if (r.injured.length) {
+      g.appendChild(sect('', `${r.injured.length}`, `<div class="lead">${icon('bolt', 'lead-ic hurt')}</div>`));
+      g.lastChild.appendChild(table(['선수','P','나이','능력 / 잠재력','복귀까지','계약'],
+        r.injured.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+          `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
+          `<b class="m mark">${p.injury_days}일</b>`,
+          p.contract ? `<span class="m dim">${p.contract.text}</span>` : '—'] })),
+        (row) => openPlayer(row.p.pid)));
+    }
+  }
+
+  if (teamTab === 'farm') {
+    const fm = G.farmMoves();
+    const roleCls = { 주전:'r1', 선발:'r1', 불펜:'r2', 대기:'r3' };
+    g.appendChild(sect('', `등록 ${fm.count} / ${fm.max}`, `<div class="fm2">
+      <div class="lead">${icon('star', 'lead-ic')}<span class="pcnt">1군 ${fm.active.length}</span>
+        <div class="fmlist">${fm.active.map(p => `<div class="fmrow">
+          <span class="fr ${roleCls[p.role] || ''}">${p.role}</span>
+          <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+          <span class="fs">${p.hurt ? `<em class="mark">✚${p.hurt}일</em>` : (p.stat ? esc(p.stat) : '')}</span>
+          <span class="fb"><button data-down="${p.pid}">2군</button><button data-rel="${p.pid}" class="q">방출</button></span>
+        </div>`).join('')}</div></div>
+      <div class="lead">${icon('pinch', 'lead-ic')}<span class="pcnt">2군 ${fm.farm.length}</span>
+        <div class="fmlist">${fm.farm.map(p => `<div class="fmrow">
+          <span class="fn2">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+          <span class="fa2">${axis(p.ovr, p.pot)}</span>
+          <span class="fb">${p.wait ? `<span class="dim">${p.wait}일 대기</span>` : `<button data-up="${p.pid}">1군</button>`}</span>
+        </div>`).join('')}</div></div>
+    </div>`));
+
+    const farm = G.farm().rows;
+    g.appendChild(sect('', `${farm.length} · ${AXIS_KEY}`, `<div class="lead">${icon('pinch', 'lead-ic')}</div>`));
+    g.lastChild.appendChild(table(['선수','P','나이','능력 / 잠재력','확신도','출신','지명'],
+      farm.map(p => ({ p, cells: [nameCell(p), `<span class="m dim">${p.slot}</span>`,
+        `<span class="m">${p.age}</span>`, axis(p.ovr, p.pot),
+        `<span class="m dim">${p.confidence}%</span>`,
+        p.origin ? `<span class="tag hs">${p.origin[0]}</span>` : '<span class="dim">—</span>',
+        `<span class="m dim">${p.draft ? '#' + p.draft.overall : '—'}</span>`] })),
+      (row) => openPlayer(row.p.pid)));
+
+    const ml = G.military();
+    const milRow = (p, kind) => `<div class="mrow">
+      <span class="mn">${esc(p.name)}<i>${p.slot} · ${p.age}세</i></span>
+      ${kind === 'serving' ? `<span class="mk">${p.kind}</span><span class="ml2">${p.left}년 남음</span>`
+        : kind === 'due' ? `<span class="mk ${p.active ? 'on' : ''}">${p.active ? '1군' : '2군'}</span>
+            <span class="ml2 ${p.due <= 1 ? 'urg' : ''}">${p.due === 0 ? '올겨울 입대' : `${p.due}년 뒤`}</span>`
+        : `<span class="mk ok">면제</span><span class="ml2">${p.natl ? `대표 ${p.natl}회` : ''}</span>`}
+    </div>`;
+    g.appendChild(sect('', ml.calendar.length ? ml.calendar.map(c => `${c.year} ${c.meets.join('·')}`).join('  ·  ') : '',
+      `<div class="mil3">
+        <div><span class="pcnt">미필 ${ml.due.length}</span>
+          <div class="mlist">${ml.due.length ? ml.due.map(p => milRow(p, 'due')).join('') : '<div class="empty">—</div>'}</div></div>
+        <div><span class="pcnt">복무 중 ${ml.serving.length}</span>
+          <div class="mlist">${ml.serving.length ? ml.serving.map(p => milRow(p, 'serving')).join('') : '<div class="empty">—</div>'}</div></div>
+        <div><span class="pcnt">면제 ${ml.exempt.length}</span>
+          <div class="mlist">${ml.exempt.length ? ml.exempt.map(p => milRow(p, 'exempt')).join('') : '<div class="empty">—</div>'}</div>
+          <p class="note">대표팀은 그 시즌 1군 성적으로 뽑는다. ${ml.ageLimit}세 이하, 와일드카드 셋. 아시안게임 금 · 올림픽 동 이상이 면제. WBC 는 면제가 없다.</p></div>
+      </div>`));
+  }
+
   v.appendChild(g);
   const move = (fn, pid, ok) => { const r = fn(pid);
     if (r.error === 'full') toast('', '1군 등록이 꽉 찼다', 'warn');
@@ -1300,7 +1289,7 @@ function viewTeam(v) {
   const sp2 = $('#spClr'); if (sp2) sp2.onclick = () => {
     G.clearNextStarter(); autosave(); render();
   };
-  v.querySelectorAll('.dpos.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
+  v.querySelectorAll('.fcp.click').forEach(e => e.onclick = () => openPlayer(+e.dataset.pid));
 }
 
 /* ── 리그 ── */
