@@ -592,24 +592,51 @@ function gsResult(box, onDone) {
   if (!gsState) openGameShell(aw.team, hm.team, box.park, box.crowd, box.cap);
   gsScore({ a: aw.runs, h: hm.runs, inn: null, outs: null });
   document.getElementById('gsInn').textContent = '경기 종료';
+  const me = G.state().user_team.name;
+  const mine = hm.team === me ? 'home' : aw.team === me ? 'away' : null;
+  const myS = mine === 'home' ? hm : mine === 'away' ? aw : null, opS = mine === 'home' ? aw : hm;
+  const won = myS ? myS.runs > opS.runs : null, tie = myS ? myS.runs === opS.runs : false;
   // 오늘의 장면. 홈런 · 득점 · 다이빙 캐치 · 주루사. 많으면 뒤쪽 여섯.
   const P = box.plays || [];
   const hl = P.filter(p => (p.runs || 0) > 0 || p.res === 'HR' || p.dive === 'catch' || /주루사|태그업 아웃|홈 송구/.test(p.desc || '')).slice(-6);
   const canNext = G.state().phase === 'regular' && !G.state().notices.some(n => n.kind === 'phase');
-  gsBody(`<div class="gs-res">
+  /* 결정 — 승·패·세이브·홀드 투수. 칩 하나에 이름과 기록. */
+  const decs = [...aw.pitchers.map(p => ({ ...p, team: aw.team })), ...hm.pitchers.map(p => ({ ...p, team: hm.team }))]
+    .filter(p => p.dec).sort((x, y) => '승패세홀'.indexOf(x.dec) - '승패세홀'.indexOf(y.dec));
+  /* 오늘의 선수 — 안타·홈런·타점을 합쳐 상위 셋. */
+  const stars = [...aw.batters.map(b => ({ ...b, team: aw.team })), ...hm.batters.map(b => ({ ...b, team: hm.team }))]
+    .map(b => ({ ...b, sc: b.h + b.hr * 2 + b.rbi * 1.5 })).filter(b => b.sc >= 2)
+    .sort((x, y) => y.sc - x.sc).slice(0, 3);
+  const bline = (b) => [b.ab ? `${b.ab}타수 ${b.h}안타` : '', b.hr ? `${b.hr}홈런` : '', b.rbi ? `${b.rbi}타점` : '', b.bb ? `${b.bb}볼넷` : ''].filter(Boolean).join(' · ');
+  const ptable = (S) => `<div class="gs-side"><div class="tchd">${cap(S.team, 22)}<b>${esc(short(S.team))} 투수</b></div>
+    <table class="gs-tb"><thead><tr><th></th><th>IP</th><th>H</th><th>R</th><th>K</th><th>BB</th><th>NP</th></tr></thead><tbody>
+    ${S.pitchers.map(p => `<tr><td><span class="name">${esc(p.name)}</span>${p.dec ? `<i class="dec d${'승패세홀'.indexOf(p.dec)}">${p.dec}</i>` : ''}</td>
+      <td class="m">${p.ip}</td><td class="m">${p.h}</td><td class="m ${p.r ? '' : 'dim'}">${p.r}</td><td class="m">${p.k}</td><td class="m">${p.bb}</td><td class="m dim">${p.np}</td></tr>`).join('')}</tbody></table>
+    <div class="tchd">${cap(S.team, 22)}<b>${esc(short(S.team))} 타자</b></div>
+    <table class="gs-tb"><thead><tr><th></th><th>AB</th><th>H</th><th>HR</th><th>RBI</th><th>BB</th><th>K</th></tr></thead><tbody>
+    ${S.batters.map(b => `<tr><td><span class="name">${esc(b.name)}</span><span class="sub">${b.slot}</span></td>
+      <td class="m">${b.ab}</td><td class="m ${b.h ? '' : 'dim'}">${b.h}</td><td class="m ${b.hr ? 'mark' : 'dim'}">${b.hr}</td><td class="m ${b.rbi ? '' : 'dim'}">${b.rbi}</td><td class="m dim">${b.bb}</td><td class="m dim">${b.k}</td></tr>`).join('')}</tbody></table></div>`;
+  gsBody(`<div class="gs-res wide">
+      ${myS ? `<div class="gs-verdict ${tie ? 'tie' : won ? 'w' : 'l'}"><b>${tie ? '무승부' : won ? '승리' : '패배'}</b>
+        <span>${esc(whyOf(box, mine, won))}</span></div>` : ''}
       <div class="gs-final">
-        <span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
-        <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span>
+        <span class="gs-fteam">${cap(aw.team, 40)}${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
+        <i>:</i><b class="m">${hm.runs}</b><span class="gs-fteam">${cap(hm.team, 40)}${esc(short(hm.team))}</span>
       </div>
       ${lineScore(box)}
-      ${hl.length ? `<div class="gs-hl">${hl.map(p => `<div class="gs-hlrow">
-        <span class="m">${p.inning}${p.half === 'top' ? '초' : '말'}</span><b>${esc(p.batter || '')}</b>
+      ${decs.length ? `<div class="gs-decs">${decs.map(p => `<span class="ptag dec d${'승패세홀'.indexOf(p.dec)}"><b>${p.dec}</b>${cap(p.team, 18)}${esc(p.name)}<i class="m">${p.ip}이닝 ${p.r}실점 ${p.k}K</i></span>`).join('')}</div>` : ''}
+      ${stars.length ? `<div class="gs-stars">${stars.map(b => `<div class="pcard"><span class="gs-star">${icon('star')}</span>${cap(b.team, 30)}
+        <span class="pc-main"><b>${esc(b.name)}</b><i>${bline(b)}</i></span></div>`).join('')}</div>` : ''}
+      ${hl.length ? `<div class="lead">${icon('bolt', 'lead-ic')}<span class="pcnt">장면 ${hl.length}</span></div>
+      <div class="gs-hl">${hl.map(p => `<div class="gs-hlrow">
+        <span class="m">${p.inning}${p.half === 'top' ? '초' : '말'}</span>${cap(p.half === 'top' ? aw.team : hm.team, 18)}<b>${esc(p.batter || '')}</b>
         <span>${esc(p.desc || '')}</span>${p.runs ? `<em>+${p.runs}</em>` : ''}</div>`).join('')}</div>` : ''}
       <div class="hl-btn">
         ${canNext ? '<button class="go" id="gsNext">다음 날</button>' : ''}
         <button class="quiet" id="gsFull">다시 보기</button>
         <button class="quiet" id="gsDone">구단으로</button>
       </div>
+      <div class="gs-box">${ptable(aw)}${ptable(hm)}</div>
     </div>`);
   document.getElementById('gsFull').onclick = () => openReplay(box);
   document.getElementById('gsDone').onclick = () => { closeGame(); if (onDone) onDone(); };

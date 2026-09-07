@@ -1776,3 +1776,28 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .prow .pn{white-space:nowrap} .prow .pn.wide{width:auto;min-width:44px;font-family:var(--kr);font-size:14px}
 .mbody .row{padding:6px 0}
 .mbody .row{align-items:center} .mbody .row .prow{flex:1}
+
+/* ── 경기 결과 ── */
+.gs-res.wide{max-width:760px}
+.gs-verdict{display:flex;align-items:center;gap:14px;padding:12px 16px;border-radius:2px;background:var(--s2);border-left:4px solid var(--fg3);margin-bottom:6px}
+.gs-verdict b{font-size:22px;font-weight:800;white-space:nowrap} .gs-verdict span{font-size:16px;color:var(--fg2)}
+.gs-verdict.w{border-left-color:var(--pos)} .gs-verdict.w b{color:var(--pos)}
+.gs-verdict.l{border-left-color:var(--neg)} .gs-verdict.l b{color:var(--neg)}
+.gs-fteam{display:inline-flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:var(--fg)}
+.gs-decs{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:0 0 12px}
+.ptag.dec b{font-family:var(--mono);padding:0 5px;border-radius:2px;background:var(--s3);color:var(--fg)} .ptag.dec i{font-style:normal;color:var(--fg2)}
+.ptag.dec.d0 b{background:rgba(83,185,135,.25);color:var(--pos)} .ptag.dec.d1 b{background:rgba(216,94,94,.25);color:var(--neg)} .ptag.dec.d2 b{background:rgba(76,142,217,.25);color:var(--accent)}
+.gs-tb .dec{font-style:normal;font-family:var(--mono);font-size:14px;font-weight:700;margin-left:6px;padding:0 4px;border-radius:2px;background:var(--s3)}
+.gs-tb .dec.d0{color:var(--pos)} .gs-tb .dec.d1{color:var(--neg)} .gs-tb .dec.d2{color:var(--accent)}
+.gs-stars{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.gs-stars .pcard{margin:0;position:relative} .gs-star{position:absolute;right:8px;top:8px;color:#e0a03c} .gs-star .ic{width:16px;height:16px}
+.gs-stars .pc-main i{font-family:var(--kr)}
+.gs-hlrow{grid-template-columns:44px 18px auto 1fr auto}
+.gs-box{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;margin-top:20px}
+.gs-side .tchd{margin:14px 0 2px} .gs-side .tchd b{font-size:16px}
+.gs-tb{width:100%;border-collapse:collapse;font-size:14px}
+.gs-tb th{font-family:var(--mono);font-weight:500;color:var(--fg3);text-align:right;padding:3px 4px;border-bottom:1px solid var(--line)}
+.gs-tb td{padding:4px;text-align:right;border-bottom:1px solid var(--line2);white-space:nowrap}
+.gs-tb th:first-child,.gs-tb td:first-child{text-align:left} .gs-tb td .sub{margin-left:5px}
+.gs-tb tr:last-child td{border-bottom:0}
+@media(max-width:700px){.gs-stars{grid-template-columns:1fr}.gs-box{grid-template-columns:1fr}.gs-verdict{flex-direction:column;align-items:flex-start;gap:4px}}
