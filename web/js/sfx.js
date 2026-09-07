@@ -85,7 +85,7 @@ export class Sfx {
     o.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.02);
   }
 
-  /** 짧은 톤. 심판 콜 대신 — 스트라이크는 높게 두 번, 볼은 낮게 한 번, 아웃은 딱 끊고, 세이프는 밝게. */
+  /** 짧은 판정 톤을 만드는 기본 파형. */
   _tone(f, dur, gain = 0.2, type = 'square', at = 0, slide = null) {
     const c = this.ctx, t = c.currentTime + at;
     const o = c.createOscillator(); o.type = type; o.frequency.setValueAtTime(f, t);
@@ -97,8 +97,15 @@ export class Sfx {
   }
   call(kind) {
     if (!this.live) return;
-    if (kind === 'strike') { this._tone(1180, 0.07, 0.16); this._tone(1560, 0.09, 0.16, 'square', 0.08); }
-    else if (kind === 'strike3') { this._tone(1180, 0.07, 0.2); this._tone(1560, 0.07, 0.2, 'square', 0.08); this._tone(2080, 0.16, 0.22, 'square', 0.16); }
+    // 스트라이크는 낮은 단발음. 삼진은 같은 질감으로 조금 더 묵직하게.
+    if (kind === 'strike') {
+      this._burst(0.055, { f: 650, q: 0.5, gain: 0.13, type: 'lowpass' });
+      this._thump(145, 90, 0.055, 0.07);
+    }
+    else if (kind === 'strike3') {
+      this._burst(0.09, { f: 520, q: 0.5, gain: 0.18, type: 'lowpass' });
+      this._thump(160, 80, 0.10, 0.11);
+    }
     else if (kind === 'ball') this._tone(520, 0.11, 0.13, 'triangle');
     else if (kind === 'foul') this._tone(880, 0.05, 0.1, 'triangle');
     else if (kind === 'out') { this._tone(300, 0.12, 0.22, 'square', 0, 180); this._burst(0.05, { f: 900, q: 1.2, gain: 0.25, at: 0.0 }); }

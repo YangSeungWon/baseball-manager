@@ -166,7 +166,7 @@ export class LiveView {
     this.tl = null; this.resolve = null;
     this.hist = new Map();               // 오늘 타자 성적
     this.line = { top: [], bottom: [], hits: { top: 0, bottom: 0 }, err: { top: 0, bottom: 0 } };   // 전광판
-    this.velos = [];                     // 이 투수의 구속 추이
+    this.maxFastball = 0;                // 이 투수의 최고 직구 구속
     this.pitName = null;
     this.seq = []; this.zh = 1;
     this.pnp0 = 0;
@@ -219,7 +219,6 @@ export class LiveView {
               <div class="lv-pstat"><span>투구수 <b class="m lv-np">0</b></span>
                 <span>최고 <b class="m lv-vmax">—</b></span>
                 <span class="lv-tired"><i></i></span></div>
-              <svg class="lv-spark" viewBox="0 0 120 28" preserveAspectRatio="none"></svg>
               <div class="lv-bits lv-pbits"></div>
             </div>
             <div class="lv-who bat"><span class="lab">타자</span>
@@ -267,7 +266,7 @@ export class LiveView {
     this.stage = q('.lv-stage');
     this.el = { cap: q('.lv-cap-main'), capSub: q('.lv-cap-sub'), flash: q('.lv-flash'),
       ask: q('.lv-ask'), pn: q('.lv-pn'), ph: q('.lv-ph'), pt: q('.lv-pt'), pv: q('.lv-pv'),
-      np: q('.lv-np'), vmax: q('.lv-vmax'), tired: q('.lv-tired i'), spark: q('.lv-spark'), pbits: q('.lv-pbits'),
+      np: q('.lv-np'), vmax: q('.lv-vmax'), tired: q('.lv-tired i'), pbits: q('.lv-pbits'),
       bn: q('.lv-bn'), bh: q('.lv-bh'), today: q('.lv-today'), bbits: q('.lv-bbits'),
       zone: q('.lv-zone'), log: q('.lv-log'), pause: q('.lv-pause'), ap: q('.lv-ap'),
       bugPn: q('.lv-bug-pn'), bugPc: q('.lv-bug-pc'), bugBn: q('.lv-bug-bn'), bugBl: q('.lv-bug-bl'),
@@ -452,7 +451,7 @@ export class LiveView {
       for (const pos of Object.keys(POS_KR)) { const w = spot(pos);
         S.fielders[pos] = { pos, name: S.def[pos] || null, x: w[0], y: w[1], home: w, alpha: 1 }; }
     }
-    if (rec.pos && rec.pos.P && rec.pos.P !== this.pitName) { this.pitName = rec.pos.P; this.velos = []; }
+    if (rec.pos && rec.pos.P && rec.pos.P !== this.pitName) { this.pitName = rec.pos.P; this.maxFastball = 0; }
     this.el.pn.textContent = rec.pos && rec.pos.P ? rec.pos.P : this.el.pn.textContent;
     this.el.bugPn.textContent = this.el.pn.textContent;
   }
@@ -471,7 +470,7 @@ export class LiveView {
     S.fielders.P = nf;
     tl.add(0.8, 3.0, (k) => { nf.wait = false; nf.alpha = 1; nf.x = lerp(pen[0], MOUND[0], k); nf.y = lerp(pen[1], MOUND[1], k); nf.moving = k < 1; });
     tl.add(3.8, 0.8, null);
-    this.pitName = name; this.velos = []; this._spark();
+    this.pitName = name; this.maxFastball = 0;
     this.el.pn.textContent = name; this.el.bugPn.textContent = name; this.el.bugPc.textContent = '';
     this.el.np.textContent = 0; this.el.vmax.textContent = '—';
   }
@@ -481,7 +480,7 @@ export class LiveView {
 
   _flash(text, cls = '', sub = '') {
     if (cls === 'out') this.sfx.call('out'); else if (cls === 'safe') this.sfx.call('safe'); else if (cls === 'k') this.sfx.call('strike3');
-    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : cls === 'cmd' ? 2.0 : cls === 'score' ? 2.6 : 1.6;
+    this.S.flash = text; this.S.flashT = cls === 'inn' ? 3.4 : (cls === 'cmd' || cls === 'err') ? 2.0 : cls === 'score' ? 2.6 : 1.6;
     this.el.flash.innerHTML = text ? `<b>${text}</b>${sub ? `<small>${sub}</small>` : ''}` : '';
     this.el.flash.className = 'lv-flash' + (text ? ' on ' + cls : '');
   }
@@ -535,7 +534,7 @@ export class LiveView {
       this._cap(`${rec.inning}회 ${rec.half === 'top' ? '초' : '말'}`, '');
     }
     if (rec.pitcher && rec.pitcher !== this.pitName) {
-      this.pitName = rec.pitcher; this.velos = [];
+      this.pitName = rec.pitcher; this.maxFastball = 0;
       if (S.fielders.P) S.fielders.P.name = rec.pitcher;
       this.el.pn.textContent = rec.pitcher;
     }
@@ -640,7 +639,7 @@ export class LiveView {
     tl.at(tArr, () => {
       if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
       else if (q.r === 'F') this.sfx.crack(0.3, true);
-      // 판정 소리. 스트라이크는 높게 두 번, 볼은 낮게 한 번 — 소리만으로 갈린다.
+      // 판정 소리. 스트라이크는 짧고 낮게 울린다.
       if (q.r === 'S' || q.r === 'W') { if (!(opts.last && S.s >= 3)) setTimeout(() => this.sfx.call('strike'), 120); }
       else if (q.r === 'B') setTimeout(() => this.sfx.call('ball'), 120);
       else if (q.r === 'F') setTimeout(() => this.sfx.call('foul'), 200);
@@ -649,9 +648,9 @@ export class LiveView {
     });
     tl.at(tArr, () => {
       this.seq.push(q); this._zone(rec);
-      // 구속 추이는 직구 계열만 그린다. 변화구를 섞으면 톱니가 될 뿐이다.
-      if (q.t === 'FF' || q.t === 'SI' || q.t === 'FC') { this.velos.push(v); this._spark(); }
-      this.el.vmax.textContent = this.velos.length ? Math.max(...this.velos) : '—';
+      // 최고 구속은 직구 계열을 기준으로 표시한다.
+      if (q.t === 'FF' || q.t === 'SI' || q.t === 'FC') this.maxFastball = Math.max(this.maxFastball, v);
+      this.el.vmax.textContent = this.maxFastball || '—';
       this.el.pt.textContent = PT_KR[q.t] || q.t; this.el.pv.innerHTML = `${v}<i>km/h</i>`;
       this.el.np.textContent = this.pnp0 + i + 1;
       this.el.bugPc.textContent = `${this.pnp0 + i + 1}구 · ${PT_KR[q.t] || q.t} ${v}`;
@@ -692,18 +691,6 @@ export class LiveView {
     if (!this.o.zoneHtml) return;
     this.el.zone.innerHTML = this.o.zoneHtml(this.seq, rec.zh || 1);
   }
-  _spark() {
-    const vs = this.velos.slice(-40);
-    if (vs.length < 2) { this.el.spark.innerHTML = ''; return; }
-    const lo = Math.min(...vs) - 2, hi = Math.max(...vs) + 2;
-    const pts = vs.map((v, i) => `${(i / (vs.length - 1) * 118 + 1).toFixed(1)},${(27 - (v - lo) / (hi - lo) * 15).toFixed(1)}`);
-    const last = vs[vs.length - 1], first5 = vs.slice(0, 5), avg0 = first5.reduce((a, b) => a + b, 0) / first5.length;
-    const d = Math.round(last - avg0);
-    this.el.spark.innerHTML = `<polyline points="${pts.join(' ')}"/>
-      <text x="1" y="8">직구 구속</text><text x="119" y="8" text-anchor="end">${d === 0 ? '변화 없음' : (d > 0 ? '+' : '') + d + ' km/h'}</text>`;
-    this.el.spark.title = `직구 구속 추이 · 처음 ${Math.round(avg0)} → 지금 ${last}`;
-  }
-
   /* ── 타석 ── */
   _pa(tl, rec) {
     const S = this.S;
@@ -917,7 +904,7 @@ export class LiveView {
       // 닿았는데 놓쳤다. 공이 튀어 달아난다.
       const tE = tC + Ti;
       pickup = [icpt[0] + (rec.ang > 0 ? 3 : -3), icpt[1] + 4]; pickT = tE + 1.4;
-      tl.at(tE, () => this._flash('실책', 'err'));
+      tl.at(tE, () => this._flash('실책!', 'err'));
       tl.add(tE, 1.0, (k) => { S.ball = { x: lerp(icpt[0], pickup[0], k), y: lerp(icpt[1], pickup[1], k), z: 0.6 * Math.abs(Math.sin(Math.PI * 2 * k)) * (1 - k), vis: true }; this._trail(); });
       move(F, icpt, pickup, tE + 0.3, pickT);
       tl.at(pickT, () => this._hold(F));

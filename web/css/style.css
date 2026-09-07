@@ -1254,7 +1254,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 
 /* ── 경기 중계 — 공 하나하나 ───────────────────────────────
    왼쪽은 구장, 오른쪽은 중계 자막이 보여 주는 것들: 투수·타자, 구종·구속,
-   투구수와 구속 추이, 존, 문자중계. 폰에서는 위아래로 쌓인다. */
+   투구수와 최고 구속, 존, 문자중계. 폰에서는 위아래로 쌓인다. */
 .lv{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:100%;min-height:0;align-content:start}
 .lv-main{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
 .lv-stage{position:relative;background:#0a1017;border-radius:2px;overflow:hidden;
@@ -1274,7 +1274,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-flash.on{animation:lvFlash 1.6s cubic-bezier(.2,.8,.3,1) forwards}
 .lv-flash.k{color:#ffd45e} .lv-flash.hr{color:#ff8a5b;font-size:52px}
 .lv-flash.out{color:#ff6b6b} .lv-flash.run{color:#53b987;font-size:52px}
-.lv-flash.err{color:#e8c23a} .lv-flash.safe{color:#53b987} .lv-flash.hbp{color:#d85e5e}
+.lv-flash.err{color:#e8c23a}
+.lv-flash.err.on{animation-duration:2s} .lv-flash.safe{color:#53b987} .lv-flash.hbp{color:#d85e5e}
 @keyframes lvFlash{0%{opacity:0;transform:translate(-50%,-50%) scale(.7)}
   12%{opacity:1;transform:translate(-50%,-50%) scale(1.05)}
   70%{opacity:1;transform:translate(-50%,-50%) scale(1)}
@@ -1317,10 +1318,6 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   background:linear-gradient(90deg,#53b987 0%,#e8c23a 55%,#d85e5e 100%)}
 .lv-tired i{position:absolute;right:0;top:0;bottom:0;width:100%;background:var(--line2);transition:width .6s}
 .lv-tired::after{content:'피로';position:absolute;right:0;top:-15px;font-size:10px;color:var(--fg3)}
-.lv-spark{width:100%;height:28px;margin-top:8px;display:block}
-.lv-spark polyline{fill:none;stroke:var(--accent);stroke-width:1.6;vector-effect:non-scaling-stroke}
-.lv-spark text{fill:var(--fg3);font-size:7px;font-family:var(--mono)}
-.lv-spark:empty{display:none}
 .lv-today{font-size:14px;color:var(--fg2);margin-top:2px}
 .lv-bits{margin-top:4px}
 .lv-bits .ax.sm{width:100%}
@@ -1537,8 +1534,6 @@ button .ic+span{margin-left:6px}
 .wk-dec{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:14px;color:var(--fg)}
 .wk-dec .m{color:var(--fg2);margin-right:8px} .wk-dec .then{color:var(--fg2)}
 
-.lv-spark text{fill:var(--fg2);font-size:8px;font-family:var(--kr)}
-.lv-spark{height:34px}
 
 .lv-season{font-size:14px;color:var(--fg2)} .lv-season b{color:var(--fg);font-weight:700}
 
