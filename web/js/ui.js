@@ -870,43 +870,49 @@ function viewHome(v) {
   const s = G.state();
   const st = G.standings().rows;
   const me = st.find(r => r.is_user);
+  const n = st.length || 10;
+  // 순위 칩. 상위 셋은 초록, 하위 셋은 빨강. 숫자 하나로 리그 안의 자리를 말한다.
+  const rk = (r) => `<i class="rkc ${r <= 3 ? 'top' : r >= n - 2 ? 'low' : ''}">${r}위</i>`;
 
-  /* 새 소식. 편지함으로 끌고 가는 대신 여기에 굵직한 것만 얹는다.
-     읽으러 갈 사람은 가고, 아닌 사람은 홈에서 흐름을 안 놓친다. */
+  /* 첫 화면의 한 덩어리 — 다음 상대, 우리 흐름, 직전 경기. 제목 없이 자리로 읽힌다. */
+  const sch0 = s.phase === 'regular' ? G.schedule(8).rows : [];
+  const f0 = G.form(null, 10);
+  if (sch0.length || me) {
+    const nx = sch0[0], rest = sch0.slice(1, 5);
+    const opp = nx ? st.find(r => r.team === nx.opponent) : null;
+    const lb = lastBox;
+    v.appendChild(sect('', '', `<div class="hero">
+      ${nx ? `<div class="hero-next">
+        <span class="nx-side ${nx.is_home ? 'h' : 'a'}">${nx.is_home ? '홈' : '원정'}<small>${nx.day}일차</small></span>
+        ${cap(nx.opponent, 56)}
+        <span class="nx-op"><b>${esc(short(nx.opponent))}</b>
+          ${opp ? `<i>${opp.rank}위 · ${opp.w}–${opp.l}</i>` : ''}</span>
+        ${rest.length ? `<span class="nx-rest">${rest.map(r =>
+          `<span><b class="m">${r.day}</b>${r.is_home ? '' : '@'}${esc(short(r.opponent))}</span>`).join('')}</span>` : ''}
+      </div>` : '<div class="hero-next"></div>'}
+      ${me ? `<div class="hero-me">
+        <span class="big">${me.w}<i>–</i>${me.l}${me.d ? `<i>–</i>${me.d}` : ''}</span>
+        <span class="hero-rank">${rk(me.rank)}${me.gb !== '-' ? `<em class="m">${me.gb} 게임차</em>` : ''}${me.playoff ? '<em class="mark">★ 포스트시즌권</em>' : ''}</span>
+        ${formStrip(f0.recent)}
+      </div>` : ''}
+      ${lb ? `<button class="hero-last" id="rpOpen">
+        <span class="lgs"><span>${esc(short(lb.away.team))}</span><b class="m">${lb.away.runs}</b><i>:</i><b class="m">${lb.home.runs}</b><span>${esc(short(lb.home.team))}</span></span>
+        <span class="lgl">${icon('play')}다시 보기</span></button>` : ''}
+    </div>`));
+  }
+
+  /* 새 소식. 아이콘이 종류를 말한다. 제목은 없다. */
   const mail = G.mail(40);
-  const news = mail.rows.filter(m => !m.read)
-    .sort((a, b) => (b.pri - a.pri)).slice(0, 4);
+  const news = mail.rows.filter(m => !m.read).sort((a, b) => (b.pri - a.pri)).slice(0, 4);
   if (news.length) {
     const box = el('div', 'news');
     box.innerHTML = news.map(m => `<div class="nrow ${m.kind}">
         <span class="nic">${MAIL_ICON[m.kind] || '·'}</span>
-        <span class="ntx"><b>${esc(m.title)}</b>
-          ${m.body ? `<span>${esc(m.body)}</span>` : ''}</span>
+        <span class="ntx"><b>${esc(m.title)}</b>${m.body ? `<span>${esc(m.body)}</span>` : ''}</span>
       </div>`).join('')
-      + `<button class="linky nall">편지함에서 모두 보기${mail.unread > news.length
-          ? ` (${mail.unread})` : ''}</button>`;
-    v.appendChild(sect('새 소식', '', box));
+      + `<button class="linky nall">편지함${mail.unread ? ` <b class="badge">${mail.unread}</b>` : ''}</button>`;
+    v.appendChild(sect('', '', box));
     box.querySelector('.nall').onclick = () => { tab = 'inbox'; render(); };
-  }
-
-  // 오늘의 경기. 다음에 누구와 붙는지가 이 화면에서 제일 궁금한 것이다.
-  const sch0 = s.phase === 'regular' ? G.schedule(8).rows : [];
-  if (sch0.length) {
-    const n = sch0[0], rest = sch0.slice(1, 5);
-    const opp = st.find(r => r.team === n.opponent);
-    const f0 = G.form(null, 10);
-    v.appendChild(sect('다음 경기', `${n.day}일차`, `<div class="next">
-      <div class="nx-main">
-        <span class="nx-side ${n.is_home ? 'h' : 'a'}">${n.is_home ? '홈' : '원정'}</span>
-        ${cap(n.opponent, 42)}
-        <span class="nx-op"><b>${esc(short(n.opponent))}</b>
-          ${opp ? `<i>${opp.rank}위 · ${opp.w}–${opp.l} · 최근 ${opp.pct}</i>` : ''}</span>
-        <span class="nx-form">${formStrip(f0.recent)}</span>
-      </div>
-      ${rest.length ? `<div class="nx-rest">${rest.map(r =>
-        `<span><b class="m">${r.day}</b> ${r.is_home ? '' : '@'}${esc(short(r.opponent))}</span>`
-      ).join('')}</div>` : ''}
-    </div>`));
   }
 
   if (s.phase === 'regular' && s.day > 0) monthSection(v);
@@ -918,59 +924,45 @@ function viewHome(v) {
     const ts = G.leagueTeamStats().rows.find(r => r.is_user);
     const f = G.form(null, 10);
     const own = G.ownerStatus();
-    left.appendChild(sect('시즌 현황', `${s.day} / ${s.total_days}일`, `
-      <div class="head-line">
-        <span class="big">${me.w}<i>–</i>${me.l}${me.d ? `<i>–</i>${me.d}` : ''}</span>
-        <span class="head-sub"><b class="m">${me.pct}</b> 승률
-          · <b class="m">${me.rank}위</b>${me.gb !== '-' ? ` · <b class="m">${me.gb}</b> 게임차` : ''}
-          ${me.playoff ? '<span class="mark">· 포스트시즌권</span>' : ''}</span>
-        ${formStrip(f.recent)}
-      </div>
-      <div class="statgrid">
-        <div><span>득점</span><b class="m">${(me.rs / (me.w + me.l + (me.d||0)) || 0).toFixed(2)}</b></div>
-        <div><span>실점</span><b class="m">${(me.ra / (me.w + me.l + (me.d||0)) || 0).toFixed(2)}</b></div>
-        <div><span>피타고라스</span><b class="m">${me.pyth}</b></div>
-        <div><span>홈</span><b class="m">${f.home[0]}–${f.home[1]}</b></div>
-        <div><span>원정</span><b class="m">${f.away[0]}–${f.away[1]}</b></div>
-        <div><span>팀 타율</span><b class="m">${ts.avg}<i>${ts.rank.avg}위</i></b></div>
-        <div><span>팀 홈런</span><b class="m">${ts.hr}<i>${ts.rank.hr}위</i></b></div>
-        <div><span>팀 ERA</span><b class="m">${ts.era}<i>${ts.rank.era}위</i></b></div>
-      </div>
-      <div class="owner ${own.ok === false ? 'bad' : ''}">
-        <span class="lab">구단주 요구</span>
-        <b>${esc(own.demand)}</b>
-        <span class="sub">${esc(own.text)} · 잔여 ${own.remaining}경기</span>
+    const gp = (me.w + me.l + (me.d || 0)) || 1;
+    const tile = (val, cap, rank = null, cls = '') => `<div class="htile ${cls}"><b class="m">${val}</b><span>${cap}${rank ? rk(rank) : ''}</span></div>`;
+    left.appendChild(sect('', '', `
+      <div class="htiles">
+        ${tile((me.rs / gp).toFixed(2), '득점 / 경기')}
+        ${tile((me.ra / gp).toFixed(2), '실점 / 경기')}
+        ${tile(`${f.home[0]}–${f.home[1]}`, '홈')}
+        ${tile(`${f.away[0]}–${f.away[1]}`, '원정')}
+        ${tile(ts.avg, '팀 타율', ts.rank.avg)}
+        ${tile(ts.hr, '팀 홈런', ts.rank.hr)}
+        ${tile(ts.era, '팀 ERA', ts.rank.era)}
+        ${tile(me.pyth, '피타고라스 승률')}
+        <div class="htile owner ${own.ok === false ? 'bad' : ''}">${icon('owner')}
+          <div class="owner-main"><b>${esc(own.demand)}</b><span>${esc(own.text)}</span></div>
+          <div class="meter"><i style="width:${Math.round((1 - own.remaining / (s.total_days || 144)) * 100)}%"></i><span>잔여 ${own.remaining}경기</span></div></div>
       </div>`));
 
     const L = G.teamLeaders(null, 4);
     const two = el('div', 'grid g2');
-    const leadList = (rows) => rows.length ? rows.map(x =>
+    const leadList = (rows, ic) => `<div class="lead">${ic}${rows.length ? rows.map(x =>
       `<div class="row click" data-pid="${x.pid}"><span><span class="name">${esc(x.name)}</span>
         <span class="sub">${x.slot}</span></span>
        <span><span class="m">${esc(x.line)}</span>
-        <b class="m war">${x.war}</b></span></div>`).join('') : '<div class="empty">—</div>';
-    two.appendChild(sect('팀 타격', 'WAR 순', leadList(L.batting)));
-    two.appendChild(sect('팀 투구', 'WAR 순', leadList(L.pitching)));
+        <b class="m war">${x.war}<small>WAR</small></b></span></div>`).join('') : '<div class="empty">—</div>'}</div>`;
+    two.appendChild(sect('', '', leadList(L.batting, icon('bat', 'lead-ic'))));
+    two.appendChild(sect('', '', leadList(L.pitching, icon('ball', 'lead-ic'))));
     left.appendChild(two);
   }
 
   const rec = G.recentResults(8).rows;
   const day = G.dayResults();
-  if (lastBox) {
-    const r = lastBox, aw = r.away, hm = r.home;
-    left.appendChild(sect('직전 경기', '', `<div class="lastgame">
-      <div class="lgs"><span>${esc(short(aw.team))}</span><b class="m">${aw.runs}</b>
-        <i>:</i><b class="m">${hm.runs}</b><span>${esc(short(hm.team))}</span></div>
-      <button class="go" id="rpOpen">경기 다시 보기</button></div>`));
-  }
   const two2 = el('div', 'grid g2');
-  two2.appendChild(sect('최근 경기', '', rec.length
+  two2.appendChild(sect('', '', `<div class="lead">${icon('star', 'lead-ic')}${rec.length
     ? rec.slice().reverse().map(r => `<div class="row">
         <span><span class="res ${r.result === '승' ? 'w' : r.result === '무' ? 'd' : 'l'}">${r.result}</span>
-          ${r.home ? '' : '@'} ${esc(short(r.opponent))}</span>
+          <span class="m dim">${r.day}일</span> ${r.home ? '' : '@'}${esc(short(r.opponent))}</span>
         <span class="m">${r.score}</span></div>`).join('')
-    : '<div class="empty">—</div>'));
-  two2.appendChild(sect(day.rows.length ? `${day.day}일차 리그 결과` : '리그 결과', '',
+    : '<div class="empty">아직 치른 경기가 없다</div>'}</div>`));
+  two2.appendChild(sect(day.rows.length ? `${day.day}일차 리그` : '', '',
     day.rows.length ? day.rows.map(r => `<div class="row ${r.user ? 'me' : ''}">
         <span>${esc(short(r.away))} <span class="dim">@</span> ${esc(short(r.home))}
           ${r.dh ? '<span class="tag dh">DH</span>' : ''}
@@ -981,11 +973,10 @@ function viewHome(v) {
   left.appendChild(two2);
 
   const right = el('div', 'grid');
-  let table_st = st, stTitle = '순위';
+  let table_st = st, stTitle = '';
   if (!table_st.length) { const ls = G.lastStandings(); table_st = ls.rows; stTitle = `${ls.year} 최종 순위`; }
-  // 하루가 지나면 순위가 움직인다. 그 움직임이 보여야 하루를 넘긴 보람이 있다.
-  const mv = (n) => !n ? '<span class="mv flat">–</span>'
-    : n > 0 ? `<span class="mv up">▲${n}</span>` : `<span class="mv dn">▼${-n}</span>`;
+  const mv = (x) => !x ? '<span class="mv flat">–</span>'
+    : x > 0 ? `<span class="mv up">▲${x}</span>` : `<span class="mv dn">▼${-x}</span>`;
   const hasMove = table_st.some(r => r.move);
   if (table_st.length) right.appendChild(sect(stTitle, '',
     table(['팀', ...(hasMove ? [''] : []), 'W','L','PCT','GB'],
@@ -997,21 +988,17 @@ function viewHome(v) {
       `<span class="m dim">${r.gb ?? '-'}</span>`] })), (row) => openTeam(row.team_id))));
 
   const ros = G.roster();
-  right.appendChild(sect('부상자', `${ros.injured.length}`, ros.injured.length
+  right.appendChild(sect('', '', `<div class="lead">${icon('bolt', 'lead-ic hurt')}${ros.injured.length
     ? ros.injured.sort((a,b) => a.injury_days - b.injury_days).map(p =>
       `<div class="row click" data-pid="${p.pid}"><span>${esc(p.name)}
         <span class="sub">${p.slot}</span></span>
        <b class="m mark">${p.injury_days}일</b></div>`).join('')
-    : '<div class="empty">—</div>'));
+    : '<div class="empty">부상자 없음</div>'}</div>`));
 
-  const sch = G.schedule(6).rows;
-  if (sch.length) right.appendChild(sect('다음 경기', '', sch.map(r =>
-    `<div class="row"><span class="m dim">${r.day}일</span>
-     <span>${r.is_home ? '' : '@'} ${esc(short(r.opponent))}</span></div>`).join('')));
-
-  right.appendChild(sect('구단', '', `
-    <div class="kv"><span>연봉</span><b class="m">${ros.payroll}억</b></div>
-    <div class="kv"><span>예산</span><b class="m">${ros.budget}억</b></div>`));
+  const pay = ros.budget ? Math.round(ros.payroll / ros.budget * 100) : 0;
+  right.appendChild(sect('', '', `<div class="htile fin">${icon('won')}
+    <b><span class="m">${ros.payroll}</span>억 <small>/ ${ros.budget}억</small></b>
+    <div class="meter ${pay > 100 ? 'over' : pay > 90 ? 'tight' : ''}"><i style="width:${Math.min(100, pay)}%"></i><span>소진 ${pay}%</span></div></div>`));
 
   g.appendChild(left); g.appendChild(right); v.appendChild(g);
   v.querySelectorAll('[data-pid]').forEach(r => r.onclick = () => openPlayer(+r.dataset.pid));

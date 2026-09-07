@@ -1581,3 +1581,47 @@ button .ic+span{margin-left:6px}
 
 .scouthead{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:4px;margin-bottom:6px}
 .scouthead .scoutkey{margin-left:49px;grid-template-columns:1fr 58px}
+
+/* ── 홈 — 제목 없이 자리로 읽힌다 ── */
+.hero{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:18px;align-items:center}
+.hero-next{display:flex;align-items:center;gap:14px;flex-wrap:wrap;min-width:0}
+.hero-next .nx-side{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 10px}
+.hero-next .nx-side small{font-size:14px;font-weight:500;color:var(--fg2);font-family:var(--mono)}
+.hero-next .nx-op b{font-size:28px}
+.hero-next .nx-rest{flex-basis:100%;padding-top:4px;border:0}
+.hero-me{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding-left:18px;border-left:1px solid var(--line2)}
+.hero-me .big{font-family:var(--mono);font-size:40px;font-weight:800;line-height:1}
+.hero-me .big i{font-style:normal;color:var(--fg2);margin:0 2px}
+.hero-rank{display:flex;align-items:baseline;gap:10px;font-size:14px;color:var(--fg2)}
+.hero-rank em{font-style:normal}
+.hero-last{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 18px;background:var(--s2);border:1px solid var(--line)}
+.hero-last:hover{background:var(--hover)}
+.hero-last .lgs b{font-size:28px}
+.hero-last .lgl{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--fg2)}
+.rkc{font-style:normal;font-family:var(--mono);font-size:14px;font-weight:700;padding:1px 6px;border-radius:2px;
+  background:var(--s3);color:var(--fg);margin-left:6px}
+.rkc.top{background:rgba(83,185,135,.18);color:var(--pos)} .rkc.low{background:rgba(216,94,94,.18);color:var(--neg)}
+.htiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.htile{background:var(--s2);border-radius:2px;padding:12px 12px 10px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.htile>b{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.htile>b small{font-size:14px;color:var(--fg2);font-weight:500;margin:0 8px 0 3px;font-family:var(--kr)}
+.htile>span{font-size:14px;color:var(--fg2);display:flex;align-items:center;gap:6px}
+.htile .ic{width:22px;height:22px;color:var(--fg2)}
+.htile.owner{grid-column:1/-1;flex-direction:row;align-items:center;gap:14px;padding:10px 14px}
+.htile.owner .owner-main{display:flex;flex-direction:column;gap:2px;min-width:0}
+.htile.owner .owner-main b{font-size:18px;font-weight:700;font-family:var(--kr)}
+.htile.owner .owner-main span{font-size:14px;color:var(--fg2)}
+.htile.owner.bad .owner-main b{color:var(--neg)}
+.htile.owner .meter{flex:1;margin:0 0 0 auto;max-width:260px;height:8px}
+.htile.owner .meter span{top:-20px}
+.htile.fin>b{font-size:22px}
+.lead{position:relative;padding-top:26px}
+.lead-ic{position:absolute;left:0;top:0;width:20px;height:20px;color:var(--fg2)}
+.lead-ic.hurt{color:var(--neg)}
+.lead .war small{font-size:11px;color:var(--fg2);margin-left:3px;font-weight:500}
+.nall .badge{margin-left:4px}
+@media(max-width:1020px){
+  .hero{grid-template-columns:1fr}
+  .hero-me{padding-left:0;border-left:0;padding-top:12px;border-top:1px solid var(--line2)}
+  .htiles{grid-template-columns:repeat(2,1fr)}
+}
