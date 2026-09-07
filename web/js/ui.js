@@ -697,22 +697,45 @@ function weekReport(r) {
   const last = games.filter(g => g.box).pop(); if (last) lastBox = last.box;
   const me = G.state().user_team.name;
   const w = games.filter(g => g.result === '승').length, l = games.filter(g => g.result === '패').length;
-  const rows = games.map(g => {
-    if (!g.box) return `<div class="wk-g rain"><span class="m">${g.day}일</span><b>${esc(short(g.opponent))}</b><span>${g.result}</span></div>`;
+  const t = games.length - w - l - games.filter(g => !g.box).length;
+  let rf = 0, ra = 0;
+  const DEC_IC = (what) => /투수 교체/.test(what) ? 'hook' : /대타/.test(what) ? 'pinch' : /번트/.test(what) ? 'bunt'
+    : /도루/.test(what) ? 'steal' : /고의사구/.test(what) ? 'ibb' : 'glove';
+  const tally = {};
+  const detail = games.map(g => {
+    if (!g.box) return { g, dec: [] };
     const mine = g.box.home.team === me ? 'home' : 'away';
-    const won = g.result === '승';
-    const dec = decisionsOf(g.box, mine);
+    const my = g.box[mine], op = g.box[mine === 'home' ? 'away' : 'home'];
+    rf += my.runs; ra += op.runs;
+    const dec = decisionsOf(g.box, mine).map(d => ({ ...d, ic: DEC_IC(d.what) }));
+    for (const d of dec) tally[d.ic] = (tally[d.ic] || 0) + 1;
+    return { g, mine, won: g.result === '승', dec };
+  });
+  const st = G.standings().rows.find(x => x.is_user);
+  const DEC_KR = { hook: '투수 교체', pinch: '대타', bunt: '번트', steal: '도루', ibb: '고의사구', glove: '기타' };
+  /* 첫 줄 — 한 주를 숫자 넷으로. 전적, 득실, 순위, 감독이 쓴 손. */
+  const tiles = `<div class="ptiles t4">
+    <div class="htile ${w > l ? 'good' : l > w ? 'bad' : ''}">${icon('trophy')}<b><span class="m">${w}승 ${l}패${t ? ` ${t}무` : ''}</span></b>
+      <div class="form">${detail.map(d => `<b class="${d.g.result === '승' ? 'w' : d.g.result === '패' ? '' : 'd'}"></b>`).join('')}</div></div>
+    <div class="htile">${icon('bat')}<b><span class="m">${rf}</span><small>득</small><span class="m">${ra}</span><small>실</small></b><p>${rf - ra >= 0 ? '+' : ''}${rf - ra}</p></div>
+    ${st ? `<div class="htile">${icon('rank')}<b><span class="m">${st.rank}</span>위</b><p>${st.w}–${st.l} · ${st.gb === '-' ? '선두' : `${st.gb} 경기 차`}</p></div>` : ''}
+    <div class="htile">${icon('owner')}<b><span class="m">${Object.values(tally).reduce((x, y) => x + y, 0)}</span><small>번 손을 썼다</small></b>
+      <div class="alrow">${Object.entries(tally).map(([k, n]) => `<span class="lb">${icon(k)}${DEC_KR[k]}<i>${n}</i></span>`).join('') || '<span class="dim">없다</span>'}</div></div>
+  </div>`;
+  /* 경기 하나에 카드 하나. 상대 모자, 점수, 승패, 승부처 한 줄, 감독의 손은 아이콘 칩. */
+  const rows = detail.map(({ g, mine, won, dec }) => {
+    if (!g.box) return `<div class="wk-g rain"><span class="m">${g.day}일</span>${cap(g.opponent, 24)}<b>${esc(short(g.opponent))}</b><span>${g.result}</span></div>`;
     return `<div class="wk-g ${won ? 'w' : g.result === '패' ? 'l' : ''}">
-      <div class="wk-head"><span class="m">${g.day}일</span><b>${mine === 'home' ? '' : '@'}${esc(short(g.opponent))}</b>
+      <div class="wk-head"><span class="m">${g.day}일</span>${cap(g.opponent, 24)}<b>${mine === 'home' ? '' : '@'}${esc(short(g.opponent))}</b>
         <em class="m">${g.score}</em><i>${g.result}</i></div>
       <div class="wk-why">${esc(whyOf(g.box, mine, won))}</div>
-      ${dec.length ? `<div class="wk-dec">${dec.map(d => `<div><span class="m">${d.inn}</span>${esc(d.what)} <span class="then">${esc(d.then)}</span></div>`).join('')}</div>`
+      ${dec.length ? `<div class="wk-dec">${dec.map(d => `<span class="wk-d">${icon(d.ic)}<span class="m">${d.inn}</span>${esc(d.what.replace(/^투수 교체 — /, '').replace(/^고의사구 /, ''))}<i>${esc(d.then.replace(/^→ /, ''))}</i></span>`).join('')}</div>`
                    : '<div class="wk-dec dim">감독이 손을 쓰지 않았다</div>'}
     </div>`;
   }).join('');
   modal(`<div class="wk">
-    <div class="wk-top"><b>이번 주</b><span class="m">${w}승 ${l}패${games.length - w - l ? ` ${games.length - w - l}무` : ''}</span>
-      <span class="wk-note">감독에게 맡긴 ${games.length}경기. 감독이 쓴 손과 승부처.</span></div>
+    <div class="wk-top"><b>이번 주</b><span class="wk-note">감독에게 맡긴 ${games.length}경기</span></div>
+    ${tiles}
     ${rows}
     <div class="hl-btn"><button class="go" id="wkOk">확인</button>${last ? '<button class="quiet" id="wkLast">마지막 경기 다시 보기</button>' : ''}</div>
   </div>`);

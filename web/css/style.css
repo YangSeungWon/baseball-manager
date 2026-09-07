@@ -1523,18 +1523,18 @@ button .ic+span{margin-left:6px}
 
 /* ── 주간 보고 ── */
 .wk{display:flex;flex-direction:column;gap:10px;min-width:min(680px,90vw)}
-.wk-top{display:flex;align-items:baseline;gap:12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.wk-top{display:flex;align-items:baseline;gap:12px;padding:16px 0 0}
 .wk-top b{font-size:22px} .wk-top .m{font-size:22px;font-weight:700}
 .wk-note{margin-left:auto;font-size:14px;color:var(--fg2)}
 .wk-g{background:var(--s2);border-radius:2px;padding:10px 12px;border-left:4px solid var(--line)}
 .wk-g.w{border-left-color:var(--pos)} .wk-g.l{border-left-color:var(--neg)}
 .wk-g.rain{display:flex;gap:10px;color:var(--fg2)}
-.wk-head{display:flex;align-items:baseline;gap:10px;font-size:16px}
+.wk-head{display:flex;align-items:center;gap:10px;font-size:16px}
 .wk-head b{font-size:18px} .wk-head em{font-style:normal;margin-left:auto;font-size:18px;font-weight:700}
 .wk-head i{font-style:normal;font-weight:700;min-width:20px}
 .wk-g.w .wk-head i{color:var(--pos)} .wk-g.l .wk-head i{color:var(--neg)}
 .wk-why{font-size:16px;margin-top:4px}
-.wk-dec{display:flex;flex-direction:column;gap:2px;margin-top:6px;font-size:14px;color:var(--fg)}
+.wk-dec{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:14px;color:var(--fg)}
 .wk-dec .m{color:var(--fg2);margin-right:8px} .wk-dec .then{color:var(--fg2)}
 
 .lv-spark text{fill:var(--fg2);font-size:8px;font-family:var(--kr)}
@@ -1801,3 +1801,12 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .gs-tb th:first-child,.gs-tb td:first-child{text-align:left} .gs-tb td .sub{margin-left:5px}
 .gs-tb tr:last-child td{border-bottom:0}
 @media(max-width:700px){.gs-stars{grid-template-columns:1fr}.gs-box{grid-template-columns:1fr}.gs-verdict{flex-direction:column;align-items:flex-start;gap:4px}}
+
+.wk{padding:0 16px 16px}
+.ptiles.t4{grid-template-columns:1fr 1fr 1fr 1.6fr}
+.htile.good>b{color:var(--pos)} .htile.bad>b{color:var(--neg)}
+.htile .form{margin-top:4px} .htile .form b{width:14px;height:8px}
+.wk-d{display:inline-flex;align-items:center;gap:6px;background:var(--s3);border-radius:2px;padding:4px 8px}
+.wk-d .ic{width:14px;height:14px;color:var(--fg2)} .wk-d .m{color:var(--fg2)} .wk-d i{font-style:normal;color:var(--fg2)}
+.wk-d i::before{content:'→ ';color:var(--fg3)}
+@media(max-width:700px){.ptiles.t4{grid-template-columns:1fr 1fr}}
