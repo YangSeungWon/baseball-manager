@@ -371,11 +371,11 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .ax.big i,.ax.big u{top:5px;height:16px;border-radius:2px}
 .ax.big::before{background:linear-gradient(90deg,var(--line) 1px,transparent 1px) 0 0/16.667% 100%}
 .axkey{display:flex;justify-content:space-between;width:var(--axis-w);
-  font-family:var(--mono);font-size:10px;color:var(--fg3);margin-top:2px}
+  font-family:var(--mono);font-size:14px;color:var(--fg3);margin-top:2px}
 .attrrow{display:grid;grid-template-columns:80px 1fr;gap:12px;align-items:center;
   padding:5px 0;border-bottom:1px solid var(--line2)}
 .attrrow:last-child{border-bottom:0}
-.attrrow>span:first-child{font-size:14px;color:var(--fg2)}
+.attrrow>span:first-child{font-size:14px;color:var(--fg)}
 .axlegend{display:flex;gap:16px;font-size:14px;color:var(--fg3);margin-bottom:8px;
   flex-wrap:wrap}
 .axlegend b{display:inline-block;width:16px;height:8px;vertical-align:middle;
@@ -1746,3 +1746,22 @@ tr.cut td{border-bottom:2px solid var(--accent)}
 .mk.k-injury .ic{color:var(--neg)} .mk.k-milestone .ic{color:#e0a03c} .mk.k-owner .ic{color:var(--accent)} .mk.k-game .ic{color:var(--pos)}
 @media(max-width:620px){.mk span{display:none}}
 .mail .mbody{padding:0} .tcell .pn{width:18px;text-align:right;margin-right:2px}
+
+/* ── 선수 상세 ── */
+.mh-main{display:flex;flex-direction:column;gap:6px;min-width:0}
+.mh-main h2{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.mh-team{display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:500;color:var(--fg2)}
+.ptags{display:flex;flex-wrap:wrap;gap:4px}
+.ptag{display:inline-flex;align-items:center;gap:4px;background:var(--s2);border-radius:2px;padding:3px 8px;font-size:14px;color:var(--fg2)}
+.ptag.m{font-family:var(--mono);color:var(--fg)} .ptag .ic{width:14px;height:14px}
+.ptag.warn{color:#d8a24a} .ptag.bad{color:var(--neg)} .ptag.gold{color:#e0a03c;font-weight:700}
+.ptiles{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:8px}
+.ptiles .htile .ax{width:100%;margin:2px 0}
+.ptiles .htile.bad>b{color:var(--neg)}
+.attrgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+.attrcol .attrrow{grid-template-columns:72px 1fr}
+.attrcol .arsenal{margin:4px 0}
+.mbody .axkey{width:auto;justify-content:flex-end;gap:14px;margin-top:-8px}
+.scout .report{margin-top:4px} .scout .prs{margin-top:10px;flex-direction:row;flex-wrap:wrap}
+.mbody .lead{margin-bottom:4px}
+@media(max-width:700px){.ptiles{grid-template-columns:1fr 1fr}.attrgrid{grid-template-columns:1fr}.mbody .axkey{justify-content:space-between}}

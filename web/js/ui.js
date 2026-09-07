@@ -2318,13 +2318,17 @@ const ATTR_KO = { contact:'컨택', avoid_k:'삼진회피', discipline:'선구�
 function openPlayer(pid) {
   const p = G.player(pid);
   if (p.error) return;
-  const attrs = Object.entries(p.attrs).map(([k, v]) =>
-    `<div class="attrrow"><span>${ATTR_KO[k] || k}</span>${axis(v, { lo:v.pot_lo, hi:v.pot_hi })}</div>`).join('');
+  const row = (k, v) => `<div class="attrrow"><span>${ATTR_KO[k] || k}</span>${axis(v, { lo:v.pot_lo, hi:v.pot_hi })}</div>`;
+  const keys = Object.keys(p.attrs);
+  const BATK = ['contact','avoid_k','discipline','gap_power','hr_power'];
+  const grpA = keys.filter(k => p.kind === 'B' ? BATK.includes(k) : true);
+  const grpB = keys.filter(k => !grpA.includes(k));
+  const attrCol = (ks, ic, t) => ks.length ? `<div class="attrcol"><div class="lead">${icon(ic, 'lead-ic')}<span class="pcnt">${t}</span></div>${ks.map(k => row(k, p.attrs[k])).join('')}</div>` : '';
   const bh = ['연도','팀','나이','G','AVG','OBP','SLG','HR','RBI','WAR'];
   const ph = ['연도','팀','나이','G','IP','W','L','ERA','K','WAR'];
   const seasons = p.seasons.length ? `<table><thead><tr>${(p.kind === 'B' ? bh : ph)
     .map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${p.seasons.map(s =>
-    `<tr><td class="m">${s.year}</td><td>${esc(short(s.team))}</td><td class="m">${s.age}</td>
+    `<tr><td class="m">${s.year}</td><td><span class="tcell">${cap(s.team, 20)}${esc(short(s.team))}</span></td><td class="m">${s.age}</td>
      <td class="m">${s.g}</td>` + (p.kind === 'B'
       ? `<td class="m">${s.avg}</td><td class="m">${s.obp}</td><td class="m">${s.slg}</td>
          <td class="m">${s.hr}</td><td class="m">${s.rbi}</td>`
@@ -2332,47 +2336,54 @@ function openPlayer(pid) {
          <td class="m">${s.era}</td><td class="m">${s.k}</td>`) +
     `<td class="m"><b>${s.war}</b></td></tr>`).join('')}</tbody></table>` : '';
   const awards = p.awards && Object.keys(p.awards).length
-    ? Object.entries(p.awards).map(([k, v]) => `<span class="tag hs">${k}×${v}</span>`).join('') : '';
+    ? Object.entries(p.awards).map(([k, v]) => `<span class="ptag gold">${icon('trophy')}${k}${v > 1 ? ` ×${v}` : ''}</span>`).join('') : '';
   const bindShare = () => { const b = $('#mshare'); if (b) b.onclick = () => makeCard(p); };
   const pcol = p.team ? capOf(p.team).color : '#3b4655';
+  /* 머리 — 이름 아래에 칩. 번호·나이·자리·손·출신·지명·병역·부상. 글자 크기는 하나. */
+  const mil = p.mil && p.mil.s !== 'done' ? (p.mil.s === 'serving'
+      ? `<span class="ptag warn">${p.mil.kind === 'sangmu' ? '상무' : '현역'} ${p.mil.left}년</span>`
+      : p.mil.s === 'exempt' ? `<span class="ptag">병역 면제</span>`
+      : p.mil.due === 0 ? `<span class="ptag warn">올겨울 입대</span>` : `<span class="ptag">미필 · ${p.mil.due}년</span>`) : '';
+  const chips = [
+    p.number ? `<span class="ptag m">${p.number}번</span>` : '',
+    `<span class="ptag">${p.age}세</span>`, `<span class="ptag">${p.slot}</span>`,
+    `<span class="ptag">${p.hand}${p.kind === 'P' ? '투' : '타'}</span>`,
+    p.origin ? `<span class="ptag">${esc(p.origin)}</span>` : '',
+    p.draft ? `<span class="ptag">${p.draft.year ? p.draft.year + ' ' : ''}#${p.draft.overall}</span>` : '',
+    mil, p.injury_days ? `<span class="ptag bad">${icon('hurt')}${p.injury_days}일</span>` : '', awards].join('');
+  const conf = p.confidence;
+  const c = p.contract;
   modal(`
-    <div class="mhead"><div class="mhead-p">${avatar(p, pcol, 52, false, p.team ? franchiseOf(p.team) : null)}
-      <div><h2>${esc(p.name)}${p.fullName ? `<small class="fullname">${esc(p.fullName)}</small>` : ''}${awards}</h2>
-      <div class="meta">${p.number ? `<b class="m">${p.number}번</b> · ` : ''}${p.age} · ${p.slot} · ${p.hand}${p.kind === 'P' ? 'T' : 'B'}
-        ${p.origin ? ' · ' + p.origin : ''}${p.draft ? ` · #${p.draft.overall}` : ''}
-        ${p.mil && p.mil.s !== 'done' ? ` · <span class="milt ${p.mil.s}">${p.mil.s === 'serving'
-          ? `${p.mil.kind === 'sangmu' ? '상무' : '현역'} ${p.mil.left}년`
-          : p.mil.s === 'exempt' ? '병역 면제'
-          : p.mil.due === 0 ? '올겨울 입대' : `미필 · ${p.mil.due}년`}</span>` : ''}
-        ${p.injury_days ? ` · <span class="mark">✚${p.injury_days}</span>` : ''}</div></div></div>
+    <div class="mhead"><div class="mhead-p">${avatar(p, pcol, 60, false, p.team ? franchiseOf(p.team) : null)}
+      <div class="mh-main"><h2>${esc(p.name)}${p.fullName ? `<small class="fullname">${esc(p.fullName)}</small>` : ''}
+        ${p.team ? `<span class="mh-team">${cap(p.team, 22)}${esc(short(p.team))}</span>` : ''}</h2>
+      <div class="ptags">${chips}</div></div></div>
       <span class="mbtns"><button id="mshare" class="quiet">카드 만들기</button>
       <button id="mx" class="quiet">닫기</button></span></div>
     <div class="mbody stack">
-      <div class="grid g2">
-        <div>
-          <div class="lab" style="margin-bottom:6px">능력 / 잠재력</div>
-          <div class="axkey" style="margin:0 0 6px auto">${AXIS_KEY.split(' · ').map(x => `<span>${x}</span>`).join('')}</div>
-          ${attrs}
-        </div>
-        <div>
-          <div class="kv"><span>종합</span>${axis(p.ovr, p.pot)}</div>
-          ${p.arsenal ? `<div class="arsenal">${p.arsenal.map(a =>
-            `<span><b>${a.kr}</b>${a.kmh}</span>`).join('')}</div>` : ''}
-          <div class="kv"><span>확신도</span><b class="m">${p.confidence}%</b></div>
-          <div class="kv"><span>계약</span><b class="m">${p.contract ? p.contract.text : '—'}</b></div>
-          <div class="kv"><span>연봉</span><b class="m">${p.contract ? p.contract.salary + '억' : '—'}</b></div>
-          <div class="kv"><span>서비스</span><b class="m">${p.service}</b></div>
-          <div class="kv"><span>통산 WAR</span><b class="m">${p.career_war ?? '—'}</b></div>
-          <div class="kv"><span>부상</span><b class="m">${p.injuries.count} · ${p.injuries.days}일</b></div>
-          ${p.traits && p.traits.length ? `<div class="prs">
-            <div class="lab">성향</div>
-            ${p.traits.map(t => `<span class="pt ${t.level}${t.good ? ' g' : ' b'}">${esc(t.text)}</span>`).join('')}
-          </div>` : `<div class="prs"><div class="lab">성향</div>
-            <span class="pt none">겪어본 게 없어 아직 모른다</span></div>`}
-          <div style="margin-top:16px" class="report">${esc(p.comment)}</div>
-        </div>
+      <div class="ptiles">
+        <div class="htile">${icon('star')}<b><span class="m">${typeof p.ovr === 'object' ? `${p.ovr.lo}–${p.ovr.hi}` : p.ovr}</span><small>종합</small></b>${axis(p.ovr, p.pot)}
+          <div class="meter ${conf < 40 ? 'tight' : ''}"><i style="width:${conf}%"></i><span>확신 ${conf}%</span></div></div>
+        <div class="htile">${icon('won')}<b>${c ? `<span class="m">${c.salary}</span>억` : '<span class="dim">—</span>'}</b>
+          <p>${c ? esc(c.text) : '계약 없음'}</p><p>서비스 ${p.service}년</p></div>
+        <div class="htile">${icon('trophy')}<b><span class="m">${p.career_war ?? '—'}</span><small>통산 WAR</small></b>
+          <p>${p.seasons.length}시즌</p></div>
+        <div class="htile ${p.injuries.count >= 3 ? 'bad' : ''}">${icon('hurt')}<b><span class="m">${p.injuries.count}</span><small>회 부상</small></b>
+          <p>누적 ${p.injuries.days}일</p></div>
       </div>
-      ${p.splits ? `<div><div class="lab" style="margin-bottom:6px">스플릿</div>
+      <div class="attrgrid">
+        ${p.kind === 'B' ? attrCol(grpA, 'bat', '타격') + attrCol(grpB, 'glove', '수비 · 주루')
+          : attrCol(grpA, 'ball', '투구') + (p.arsenal ? `<div class="attrcol"><div class="lead">${icon('bolt', 'lead-ic')}<span class="pcnt">구종</span></div>
+            <div class="arsenal">${p.arsenal.map(a => `<span><b>${a.kr}</b>${a.kmh}</span>`).join('')}</div></div>` : '')}
+      </div>
+      <div class="scout">
+        <div class="lead">${icon('eye', 'lead-ic')}<span class="pcnt">스카우트</span></div>
+        <div class="report">${esc(p.comment)}</div>
+        <div class="prs">${p.traits && p.traits.length
+          ? p.traits.map(t => `<span class="pt ${t.level}${t.good ? ' g' : ' b'}">${esc(t.text)}</span>`).join('')
+          : '<span class="pt none">성향은 겪어본 게 없어 아직 모른다</span>'}</div>
+      </div>
+      ${p.splits ? `<div><div class="lead">${icon('shift', 'lead-ic')}<span class="pcnt">스플릿</span></div>
         <table><thead><tr>${(p.splits.kind === 'B'
           ? ['구분','PA','AVG','OBP','SLG','HR','RBI','BB','K']
           : ['구분','IP','ERA','WHIP','K/9','H','HR','BB','K'])
@@ -2391,8 +2402,8 @@ function openPlayer(pid) {
             리그와 본인 통산으로 되돌리면 <b>${s.est}</b> 쯤이 맞다
             <i>신뢰 ${s.trust}%</i></p>`;
         })() : ''}</div>` : ''}
-      ${seasons ? `<div><div class="lab" style="margin-bottom:6px">연도별</div>${seasons}</div>` : ''}
-      ${p.events && p.events.length ? `<div><div class="lab" style="margin-bottom:6px">이력</div>` +
+      ${seasons ? `<div><div class="lead">${icon('rank', 'lead-ic')}<span class="pcnt">연도별</span></div>${seasons}</div>` : ''}
+      ${p.events && p.events.length ? `<div><div class="lead">${icon('news', 'lead-ic')}<span class="pcnt">이력</span></div>` +
         p.events.map(e => `<div class="row"><span class="m dim">${e.year}</span><span>${esc(e.text)}</span></div>`).join('')
         + '</div>' : ''}
     </div>`);
