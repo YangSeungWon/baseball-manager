@@ -1945,3 +1945,8 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
 @media(max-width:900px) and (max-height:500px){
   .lv-bug-strip{display:none}.lv-cap{min-height:0;padding:4px 8px}.lv-cap-sub{display:none}
 }
+
+/* Optional 3D broadcast shares the existing stage and controls. */
+.lv-stage canvas[hidden]{display:none}
+.lv-3d-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;background:rgba(8,18,27,.9);color:#eee9db;border-radius:6px;font-size:13px;max-width:85%;text-align:center;z-index:4}
+.lv-3d-status[hidden]{display:none}

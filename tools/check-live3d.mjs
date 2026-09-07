@@ -1,0 +1,96 @@
+// PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve, extname } from 'node:path';
+import assert from 'node:assert/strict';
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const root = resolve('web');
+const server = createServer(async (req, res) => {
+  const path = resolve(root, '.' + new URL(req.url, 'http://localhost').pathname.replace(/\/$/, '/index.html'));
+  if (!path.startsWith(root + '/')) { res.writeHead(403).end(); return; }
+  try { const b = await readFile(path); res.setHeader('Content-Type', ({ '.js':'text/javascript', '.html':'text/html', '.css':'text/css', '.json':'application/json', '.png':'image/png' })[extname(path)] || 'application/octet-stream'); res.end(b); }
+  catch { res.writeHead(404).end(); }
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+const url = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
+try {
+  const errors = [];
+  for (const [width,height] of [[390,844],[1440,1000]]) {
+    const page = await browser.newPage({viewport:{width,height}});
+    page.on('pageerror', e=>errors.push(e.message));
+    await page.goto(url); await page.locator('#btnNew').waitFor();
+    assert.equal(await page.evaluate(()=>performance.getEntriesByType('resource').some(r=>r.name.includes('/vendor/three/'))),false,'Three is lazy');
+    await page.evaluate(async()=>{
+      const {LiveView}=await import('/js/live.js');
+      document.querySelector('#boot').hidden=true;
+      document.querySelector('#modal').hidden=false;document.querySelector('#modal').classList.add('full');
+      document.querySelector('#modalBody').innerHTML='<div class="gs"><div class="gs-top">3D 경기</div><div class="gs-body" id="test3d"></div></div>';
+      const lv=window.lv=new LiveView(document.querySelector('#test3d'),{home:'전주 재규어스',away:'대구 나이츠',colors:{home:'#427c33',away:'#cf3d46'},park:{},speed:1});
+      lv.S.half='top';lv.S.inning=1;lv.S.batter={name:'김타자',hand:'R',alpha:1};
+      const pos={P:[0,18.44],C:[0,-1.6],'1B':[24,25],'2B':[13,38],SS:[-13,38],'3B':[-24,25],LF:[-45,75],CF:[0,95],RF:[45,75]};
+      for(const [p,[x,y]] of Object.entries(pos))lv.S.fielders[p]={pos:p,x,y,alpha:1};
+      lv.setView('three');
+    });
+    await page.waitForFunction(()=>!!window.lv.three,{},{timeout:20000});
+    await page.waitForTimeout(500);
+    assert.equal(await page.locator('.lv-three').isVisible(),true);
+    assert.equal(await page.locator('.lv-c').isVisible(),false);
+    const info=await page.evaluate(()=>({calls:lv.three.renderer.info.render.calls,triangles:lv.three.renderer.info.render.triangles}));
+    assert.ok(info.triangles>1000, 'actual geometry rendered');
+    console.log(width,info);
+    await page.screenshot({path:`/tmp/dugout-three-${width}-pitch.png`});
+    await page.evaluate(()=>{lv.S.ball={x:25,y:65,z:12,vis:true};lv.S.trail=[[0,0,1],[8,20,9],[18,40,15],[25,65,12]];});
+    await page.waitForTimeout(1200);
+    await page.screenshot({path:`/tmp/dugout-three-${width}-field.png`});
+    assert.equal(await page.evaluate(()=>lv.three.fieldShot),true);
+    for(const view of ['top','persp','three']) {
+      await page.evaluate(v=>lv.setView(v),view);
+      assert.equal(await page.locator('.lv-three').isVisible(),view==='three');
+      assert.equal(await page.locator('.lv-c').isVisible(),view!=='three');
+    }
+    await page.setViewportSize({width:320,height:568});
+    await page.waitForTimeout(150);
+    assert.equal(await page.evaluate(()=>document.querySelector('#modalBody').scrollWidth>innerWidth),false,'no overflow');
+    await page.evaluate(()=>lv.three.renderer.forceContextLoss());
+    await page.waitForFunction(()=>lv.view==='persp');
+    assert.equal(await page.locator('.lv-c').isVisible(),true,'context loss fallback');
+    await page.evaluate(()=>lv.destroy());
+    assert.equal(await page.locator('.lv-three').count(),0,'canvas disposed');
+    await page.close();
+  }
+  // Exercise the real game flow with a persisted third-view preference.
+  const game=await browser.newPage({viewport:{width:390,height:844}});
+  game.on('pageerror',e=>errors.push(e.message));
+  await game.goto(url);await game.locator('#btnNew').waitFor();
+  await game.evaluate(()=>localStorage.setItem('dugout.view','three'));
+  await game.reload();await game.locator('#btnNew').click();await game.locator('#guidePlay').click();
+  await game.locator('.lv-three').waitFor({state:'visible',timeout:20000});
+  await game.locator('.lv-pre-go').click();
+  await game.waitForFunction(()=>document.querySelector('.lv-mgr').hidden===false);
+  await game.waitForTimeout(1800);
+  await game.locator('.lv-record-details summary').click();
+  await game.locator('[data-v="persp"]').click();
+  await game.locator('[data-v="three"]').click();
+  assert.equal(await game.evaluate(()=>localStorage.getItem('dugout.view')),'three');
+  await game.locator('.lv-record-details summary').click();
+  await game.locator('.lv-end').click();await game.locator('#gsDone').waitFor({timeout:20000});
+  await game.locator('#gsDone').click();
+  assert.equal(await game.locator('.lv-three').count(),0);
+  await game.close();
+  // Closing during the async import must not create an orphan WebGL canvas.
+  const closing=await browser.newPage();
+  closing.on('pageerror',e=>errors.push(e.message));
+  await closing.route('**/js/live3d.js',async route=>{await new Promise(r=>setTimeout(r,200));await route.continue();});
+  await closing.goto(url);await closing.locator('#btnNew').waitFor();
+  await closing.evaluate(async()=>{
+    const {LiveView}=await import('/js/live.js');
+    const root=document.createElement('div');document.body.appendChild(root);
+    const lv=new LiveView(root,{home:'홈',away:'원정',colors:{home:'#427c33',away:'#cf3d46'},park:{},view:'three'});
+    lv.destroy();
+  });
+  await closing.waitForTimeout(500);assert.equal(await closing.locator('.lv-three').count(),0);
+  await closing.close();
+  assert.deepEqual(errors,[]);
+  console.log('PASS: lazy loading, WebGL geometry, both cameras, all three modes, resize, context loss, disposal, persisted preference, real game finish, close during load');
+} finally { await browser.close(); await new Promise(r=>server.close(r)); }

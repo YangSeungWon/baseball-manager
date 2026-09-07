@@ -155,11 +155,11 @@ export class LiveView {
    */
   constructor(root, opts) {
     this.o = opts; this.root = root;
-    this.view = opts.view === 'top' ? 'top' : 'persp';
+    this.view = ['top', 'three'].includes(opts.view) ? opts.view : 'persp';
     this.auto = opts.speed === 'auto' || opts.speed == null;   // 배속은 상황이 정한다
     this.speed = this.auto ? 2 : (opts.speed || 1);
     this.paused = false;
-    this.views = { top: new TopView(), persp: new PerspView() };
+    this.views = { top: new TopView(), persp: new PerspView(), three: new PerspView() };
     this.dims = BIP.parkDims(opts.park);
     this.fill = opts.crowd && opts.cap ? clamp(opts.crowd / opts.cap, .08, 1) : 0.62;
     this.S = this._blank();
@@ -172,6 +172,7 @@ export class LiveView {
     this.pnp0 = 0;
     this.sfx = new Sfx();
     this._build();
+    if (this.view === 'three') this._ensure3d();
     if (opts.sound) this.setSound(true);          // 클릭 안에서 만들어졌으니 지금 열 수 있다
     this._last = performance.now();
     this._raf = requestAnimationFrame(() => this._frame());
@@ -189,6 +190,7 @@ export class LiveView {
       <div class="lv-main">
         <div class="lv-stage ${this.view}">
           <canvas class="lv-c"></canvas>
+          <div class="lv-3d-status" role="status" hidden></div>
           <div class="lv-bug">
             <div class="lv-bug-top">
               <div class="lv-bug-teams">
@@ -236,7 +238,8 @@ export class LiveView {
             <button class="lv-mobile-skip quiet">이 장면 넘기기</button>
             <span class="lv-seg lv-view">
               <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">입체</button>
-              <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">위에서</button></span>
+              <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">위에서</button>
+              <button data-v="three" class="${this.view === 'three' ? 'on' : ''}">3D 중계</button></span>
             <span class="lv-seg lv-spd"><button data-s="auto" class="${this.auto ? 'on' : ''}">자동</button>${[1, 2, 4, 8].map(s =>
               `<button data-s="${s}" class="${!this.auto && s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
             <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리" aria-pressed="${!!this.o.sound}">${SND_ICON}</button></span>
@@ -293,7 +296,7 @@ export class LiveView {
     setTimeout(() => this._size(), 250);           // 글꼴·레이아웃이 자리잡은 뒤 한 번 더
   }
 
-  destroy() { cancelAnimationFrame(this._raf); window.removeEventListener('resize', this._onResize); this._dead = true; this.sfx.destroy(); }
+  destroy() { cancelAnimationFrame(this._raf); window.removeEventListener('resize', this._onResize); this._dead = true; this.three?.dispose(); this.sfx.destroy(); }
 
   setSound(on) {
     this.sfx.enable(on);
@@ -304,10 +307,39 @@ export class LiveView {
   }
 
   setView(v) {
-    this.view = v; this.stage.classList.toggle('top', v === 'top'); this.stage.classList.toggle('persp', v !== 'top');
+    if (!['top', 'persp', 'three'].includes(v)) return;
+    this.view = v; this.stage.classList.toggle('top', v === 'top'); this.stage.classList.toggle('persp', v === 'persp');
+    this.stage.classList.toggle('three', v === 'three');
+    if (this.three) this.three.canvas.hidden = v !== 'three';
+    this.cv.hidden = v === 'three' && !!this.three;
+    this.root.querySelector('.lv-3d-status').hidden = true;
     this.root.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('on', b.dataset.v === v));
     try { localStorage.setItem('dugout.view', v); } catch {}
     this._size();
+    if (v === 'three') this._ensure3d();
+  }
+  async _ensure3d() {
+    if (this.three || this._loading3d || this._dead) return;
+    const status = this.root.querySelector('.lv-3d-status');
+    status.textContent = '3D 구장 준비 중…'; status.hidden = false;
+    this._loading3d = true;
+    try {
+      const { Live3D } = await import('./live3d.js');
+      if (this._dead) return;
+      this.three = new Live3D(this.stage, this.dims, this.o, () => this._fail3d());
+      this.three.resize(this.cw, this.ch);
+      this.three.canvas.hidden = this.view !== 'three';
+      this.cv.hidden = this.view === 'three';
+      status.hidden = true;
+    } catch (error) {
+      if (!this._dead) this._fail3d();
+    } finally { this._loading3d = false; }
+  }
+  _fail3d() {
+    this.three?.dispose(); this.three = null;
+    if (this.view === 'three') this.setView('persp');
+    const status = this.root.querySelector('.lv-3d-status');
+    status.textContent = '3D를 표시할 수 없어 기존 보기로 돌아왔습니다.'; status.hidden = false;
   }
   setSpeed(s, manual = false) {
     if (manual) { this.auto = false; try { localStorage.setItem('dugout.speed', s); } catch {} }
@@ -378,6 +410,7 @@ export class LiveView {
     this.cv.width = Math.round(w * dpr); this.cv.height = Math.round(h * dpr);
     this.cv.style.height = h + 'px'; this.cv.style.width = w + 'px';
     this.dpr = dpr; this.cw = w; this.ch = h;
+    this.three?.resize(w, h);
     this._bg = null;                              // 배경은 크기가 바뀔 때만 다시 그린다
   }
 
@@ -1245,6 +1278,9 @@ export class LiveView {
 
   /* ── 그리기 ────────────────────────────────────────────── */
   _draw() {
+    if (this.view === 'three' && this.three) {
+      this.three.render(this.S, this.o.colors, this.line, this._last / 1000); return;
+    }
     const ctx = this.ctx, V = this.views[this.view];
     if (!this.cw) return;
     const sc = this.cw / V.W * this.dpr;

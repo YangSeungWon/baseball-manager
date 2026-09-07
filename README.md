@@ -25,6 +25,8 @@ web/            정적 배포본 (GitHub Pages 가 이 폴더를 서빙한다)
     api.js        JSON API — UI 가 소비하는 유일한 경계면
   js/ui.js      화면
   js/live.js    경기 중계 — 투구 · 타구 · 수비 · 주루를 실제 시간으로 그린다
+  js/live3d.js  선택형 Three.js 중계 렌더러 (경기 상태를 읽기만 한다)
+  vendor/three/ Three.js 고정 버전 ES 모듈과 MIT 라이선스
   js/save.js    자동저장 직렬화
 
 proto/          Python 참조 구현 + 검증 하네스 + 설계 문서
@@ -85,6 +87,7 @@ node --test tools/check-game.mjs
 # Playwright가 설치된 환경. 필요하면 PLAYWRIGHT_MODULE과 CHROMIUM_PATH를 지정한다.
 node tools/check-ui.mjs
 node tools/check-live-ui.mjs
+node tools/check-live3d.mjs
 python3 tools/package-itch.py /tmp/dugout-itch.zip
 ```
 
@@ -93,3 +96,18 @@ python3 tools/package-itch.py /tmp/dugout-itch.zip
 - 복구 저장본은 구단 교체 또는 자동 진행 직전에 갱신됩니다. 별도 기기에 보관하려면 파일로 내보내세요.
 - [홍보 글·영상 구성·플레이테스트 계획](docs/PROMOTION.md)
 - [현재 웹 세이브 설계](proto/DESIGN_SAVE.md)
+
+## 경기 보기
+
+기존 **입체**, **위에서** 보기와 함께 **3D 중계**를 선택할 수 있습니다.
+모바일에서는 경기 아래 **기록 · 화면 설정**을 열면 보기 버튼이 나옵니다.
+기본값은 입체이며, 선택한 보기는 다음 경기에도 유지됩니다.
+
+3D 중계는 Three.js 0.185.1을 선택 시점에 불러옵니다. 외부 CDN이나 별도 빌드는
+필요 없으며 GitHub Pages와 배포 ZIP에 동일한 모듈이 포함됩니다.
+구장·조명·선수는 코드로 만든 초기 모델이며, 투구와 타구에 따라 카메라가 전환됩니다.
+경기 결과와 공·선수 좌표는 기존 중계 타임라인을 공유합니다.
+WebGL을 사용할 수 없거나 컨텍스트가 유실되면 기존 보기로 복귀합니다.
+
+`check-live3d.mjs`는 소프트웨어 WebGL로 모드 전환, 실제 경기 종료, 저장된 보기,
+크기 변경, 컨텍스트 유실과 로딩 중 종료를 검증합니다. 실제 휴대폰 GPU 성능은 별도 확인이 필요합니다.
