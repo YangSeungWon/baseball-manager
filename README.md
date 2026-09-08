@@ -139,3 +139,19 @@ node tools/check-inning-ui.mjs  # 동일한 Playwright 환경 변수 사용
 [Keystone Productions](https://keystoneproductions.net/the-essential-guide-to-camera-positions-in-baseball-broadcasts/)와
 [WBSC 제작 지침](https://static.wbsc.org/assets/cms/documents/806d5c14-26d4-76df-4bf8-f600181f458c.pdf)을 참고하고 게임 화면에 맞게 조정했습니다.
 단장 모드의 3D 투구 간 대기는 일반 3.4초, 파울 4.2초(1배속)입니다.
+
+### 타자 편
+
+시작 화면에서 **타자로 뒤집기**를 고르면 두 점 뒤진 9회 말, 1사 1·2루에서
+타선을 이어 플레이합니다. 상대 투수의 성향과 최근 투구를 보고 노릴 구종,
+짧은 스윙·장타 스윙을 선택한 뒤 **스윙한다 / 지켜본다**로 한 구를 진행합니다.
+현재 구종은 선택 후 공개됩니다. 상대 투구 생성은 사용자의 선택을 읽지 않습니다.
+
+3아웃 전에 3득점하면 끝내기 성공입니다. 동점으로 이닝이 끝나면 성공으로
+처리하지 않으며, 최대 30구입니다. 투수 편과 마찬가지로 같은 시드 재도전과
+새 상대 도전을 제공하고 단장 세이브는 사용하지 않습니다.
+
+```sh
+node --test tools/check-batting.mjs
+node tools/check-batting-ui.mjs
+```

@@ -369,6 +369,7 @@ addEventListener('scroll', () => {
 }, { passive: true });
 
 async function boot() {
+  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter'); };
   $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;
