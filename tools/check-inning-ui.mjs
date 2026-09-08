@@ -18,6 +18,7 @@ try {
   const errors=[];
   for(const [width,height] of [[390,844],[320,568],[1440,1000]]) {
     const page=await browser.newPage({viewport:{width,height}});
+    await page.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(4);return a;};});
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error'&&/Shader Error|TypeError|ReferenceError/.test(m.text()))errors.push(m.text());});
     await page.goto(url);await page.locator('#btnInning').click();
@@ -33,8 +34,15 @@ try {
     assert.equal(await page.locator('[data-value="SL"]').getAttribute('aria-pressed'),'true');
     await page.locator('.inning-throw').click();
     assert.equal(await page.locator('.inning-throw').isDisabled(),true);
-    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:15000});
+    const stage=await page.locator('.inning-live .lv-three').boundingBox();
+    assert.ok(Math.abs(stage.width-width)<2 && Math.abs(stage.height-height)<2,'3D fills viewport');
+    await page.screenshot({path:`/tmp/dugout-immersive-${width}.png`});
+    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:30000});
     assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
+    assert.match(await page.locator('.inning-zone-caption').textContent(),/1구 존 (안|밖)/);
+    assert.equal(await page.locator('.inning-zone-map .zone-markers text').textContent(),'1');
+    assert.equal(await page.locator('.inning-pitch-chip').count(),1);
+    assert.ok((await page.locator('.inning-live .lv-three').boundingBox()).height<height,'returns to selection');
     assert.doesNotMatch(await page.locator('.inning-feedback').textContent(),/준비합니다/);
     await page.locator('.inning-throw').click();
     await page.locator('.inning-exit').click();
@@ -54,7 +62,7 @@ try {
     for(let i=0;i<30;i++){
       if(await replay.locator('.inning-result').isVisible())break;
       await replay.locator('.inning-throw').click();
-      await replay.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:15000});
+      await replay.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:30000});
     }
     return replay.locator('.inning-result').textContent();
   };

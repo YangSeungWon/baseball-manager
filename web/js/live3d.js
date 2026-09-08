@@ -44,6 +44,8 @@ export class Live3D {
     this.batchStadium();
     this.ball = this.mesh(this.sphere, '#fff8df', this.scene, [.20, .20, .20]);
     this.ball.castShadow = true;
+    // A restrained bright material keeps the small ball readable against seats and grass.
+    this.ball.material = new T.MeshStandardMaterial({color:'#fff8df',emissive:'#fff1c9',emissiveIntensity:.35,roughness:.55});
     this.trailGeo = new T.BufferGeometry();
     this.trailGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(26 * 3), 3));
     this.trail = new T.Line(this.trailGeo, new T.LineBasicMaterial({ color: '#fff2bc', transparent: true, opacity: .35 }));
@@ -214,6 +216,7 @@ export class Live3D {
     if(pose==='jump')arms[0].rotation.z=2.7;
   }
   resize(w,h) {
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5, Math.sqrt(700000 / Math.max(1,w*h))));
     this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   render(S,colors,line,time) {
@@ -242,7 +245,7 @@ export class Live3D {
     if(kind==='between')kind=(S.s+S.b)%2?'batter':'pitcher';
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
-    if(kind==='pitch') {eye=point(-7,76,7);aim=point(0,6,1);fov=16;}
+    if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
     else if(kind==='field') {eye=point(0,-24,43);aim=point((ball?.x||0)*.55,26+(ball?.y||0)*.45,Math.max(1,(ball?.z||0)*.35));fov=56;}
     else if(kind==='base') {const [x,y]=shot.target;eye=point(x<0?-47:47,0,11);aim=point(x,y,1);fov=35;}
     else if(kind==='batter') {eye=point(S.batter?.hand==='L'?-34:34,-2,4);aim=point(0,0,1.1);fov=18;}

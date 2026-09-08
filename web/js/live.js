@@ -379,6 +379,8 @@ export class LiveView {
       : Math.max(220, (this.o.maxH ? this.o.maxH() : window.innerHeight - 230));
     let w = Math.max(200, Math.floor(r.width)), h = Math.round(w / V.aspect());
     if (h > maxH) { h = maxH; w = Math.round(h * V.aspect()); }
+    if (this.o.stageHeight && this.view === 'three') { w = Math.max(200, Math.floor(r.width)); h = this.o.stageHeight(); }
+    if (this.o.immersive?.() && this.view === 'three') { w = window.innerWidth; h = window.innerHeight; }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     // 좁은 화면에서는 패널을 구장 밖으로 내린다. 구장 위에 얹으면 필드가 안 보인다.
     const narrow = window.innerWidth <= 900;

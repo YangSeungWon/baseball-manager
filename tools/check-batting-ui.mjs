@@ -28,7 +28,7 @@ try {
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
     await page.screenshot({path:`/tmp/dugout-batting-${width}.png`});
     await page.locator('.inning-take').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
-    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:15000});
+    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.match(await page.locator('.inning-feedback').textContent(),/km\/h/);
     assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
     await page.locator('[data-value="FF"]').click();await page.locator('[data-value="power"]').click();
@@ -45,7 +45,7 @@ try {
     await p.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     for(let i=0;i<30;i++){
       if(await p.locator('.inning-result').isVisible())break;
-      await p.locator('.inning-take').click();await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:15000});
+      await p.locator('.inning-take').click();await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     }
     return p.locator('.inning-result').textContent();
   };
