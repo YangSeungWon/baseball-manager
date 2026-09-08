@@ -62,7 +62,8 @@ export function openInningMode(role='pitcher') {
     const q=event?.pitch,inside=q&&Math.abs(q.x)<=1&&Math.abs(q.z)<=1;
     const mark=q?`<circle cx="${100+q.x*38}" cy="${96-q.z*40}" r="9" fill="${inside?'#f0cc76':'#88bddb'}" stroke="#142c37" stroke-width="2"/><text x="${100+q.x*38}" y="${100-q.z*40}" text-anchor="middle" font-size="11" font-weight="700" fill="#132630">${event.after.count}</text>`:'';
     root.querySelectorAll('.zone-markers').forEach(g=>g.innerHTML=target+mark);
-    if(event)$('.inning-zone-caption').textContent=`${event.after.count}구 ${inside?'존 안':'존 밖'} · ${event.label}${event.call==='W'?' — 존 밖이어도 헛스윙은 스트라이크입니다.':''}`;
+    if(event)$('.inning-zone-caption').textContent=`${event.after.count}구 ${inside?'존 안':'존 밖'} · ${event.label}${event.call==='W'&&!inside?' — 존 밖이어도 헛스윙은 스트라이크입니다.':''}`;
+    else $('.inning-zone-caption').textContent=batting?'이번 공은 아직 모릅니다. 투구 후 위치가 표시됩니다.':'그림에서 코스를 선택하세요. 점선 원은 목표, 숫자 점은 실제 위치입니다.';
   }
   function selection() {
     zone(shown);
