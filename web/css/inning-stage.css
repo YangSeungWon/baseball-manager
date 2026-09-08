@@ -97,3 +97,29 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 
 .inning-mode .zone-high{left:50%;top:16%}
 .inning-mode.has-batting-dock .inning-options[data-group=location]{grid-template-columns:repeat(5,minmax(0,1fr))}
+/* Read the plan spatially: location pad, pitch trajectories, then swing style. */
+.inning-mode.has-batting-dock .batting-plan-grid{display:grid;grid-template-columns:132px minmax(0,1fr);gap:10px;align-items:center}
+.inning-mode.has-batting-dock .batting-plan-tools{min-width:0}
+.inning-mode.has-batting-dock .inning-options[data-group=location]{display:grid;grid-template-columns:repeat(3,44px);grid-template-rows:repeat(3,44px);gap:0;margin:0;background:linear-gradient(90deg,transparent 32%,#769b8a44 33%,transparent 34%,transparent 65%,#769b8a44 66%,transparent 67%),linear-gradient(transparent 32%,#769b8a44 33%,transparent 34%,transparent 65%,#769b8a44 66%,transparent 67%);border-radius:9px;outline:1px solid #789c8a55}
+.inning-mode.has-batting-dock [data-group=location] button{border:0;background:#19353d88;border-radius:5px;font-size:13px;padding:2px}
+.inning-mode.has-batting-dock [data-group=location] [data-value=high]{grid-area:1/2}
+.inning-mode.has-batting-dock [data-group=location] [data-value=in]{grid-area:2/1}
+.inning-mode.has-batting-dock [data-group=location] [data-value=any]{grid-area:2/2;font-size:12px}
+.inning-mode.has-batting-dock [data-group=location] [data-value=out]{grid-area:2/3}
+.inning-mode.has-batting-dock [data-group=location] [data-value=low]{grid-area:3/2}
+.inning-mode.has-batting-dock [data-group=location] [aria-pressed=true]{background:#739e80;color:#0d252a;box-shadow:inset 0 0 0 2px #cae4b4}
+.inning-mode.has-batting-dock .inning-options[data-group=target]{grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px}
+.inning-mode.has-batting-dock .batting-plan-tools button{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px;font-size:13px;min-height:50px;line-height:1.15}
+.inning-mode.has-batting-dock .inning-pitch-icon,.inning-mode .batting-choice-icon{display:inline-block;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7}
+.inning-mode.has-batting-dock .batting-plan-tools [data-group=approach] button{min-height:44px}
+.inning-mode.has-batting-dock .batting-plan-tools [data-group=approach] svg{height:18px}
+.inning-mode.has-batting-dock .inning-live-zone,.inning-mode.has-batting-dock .inning-look,.inning-mode.has-batting-dock .inning-feedback{bottom:282px}
+.inning-mode.has-batting-dock .batting-action-row{gap:0;border:1px solid #86a59d66;border-radius:8px;overflow:hidden;background:#172f37}
+.inning-mode.has-batting-dock .batting-action-row button{display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 2px;border:0;border-radius:0;background:transparent;color:#b1c3bd;font-size:14px}
+.inning-mode.has-batting-dock .batting-action-row button[aria-pressed=true]{background:#3c5556;color:#fff;box-shadow:inset 0 -3px #c0d3c6}
+.inning-mode.has-batting-dock .batting-action-row svg{width:18px;height:18px}
+.inning-mode.has-batting-dock .batting-decision .inning-throw:not(:disabled){background:#f0d08e;color:#213238;border:1px solid #ffe2a6;font-weight:800;box-shadow:0 2px 8px #0003}
+.inning-mode.has-batting-dock.is-deciding .batting-action-row button{color:#f2e2bf;background:#35534c}
+.inning-mode.has-batting-dock.is-deciding .batting-action-row button[aria-pressed=true]{background:#f0d08e;color:#213238;box-shadow:none}
+@media(max-height:500px){.inning-mode.has-batting-dock .inning-look{bottom:196px}.inning-mode.has-batting-dock .inning-live-zone,.inning-mode.has-batting-dock .inning-feedback{bottom:100px}}
+.inning-mode.is-intro .inning-look,.inning-mode.is-intro .inning-live-zone,.inning-mode.is-intro .inning-plan-toggle{visibility:hidden}

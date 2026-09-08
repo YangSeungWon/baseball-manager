@@ -19,7 +19,7 @@ try {
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
     const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
-    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});
+    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
     const stage=await page.locator('.lv-three').boundingBox();assert.ok(Math.abs(stage.width-width)<2&&Math.abs(stage.height-height)<2);
     assert.equal(await page.locator('.inning-controls').isVisible(),true);
     assert.equal(await page.locator('.inning-feedback').textContent(),'');
