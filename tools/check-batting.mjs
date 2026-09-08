@@ -11,7 +11,7 @@ test('taking a pitch respects the strike zone and the third strike ends the at-b
 test('opponent pitch is independent of player selection',()=>{
   for(let seed=0;seed<100;seed++) {
     const a=new BattingGame(seed*7919),b=new BattingGame(seed*7919);
-    assert.deepEqual(a.pitch(choice).pitch,b.pitch({target:'CH',approach:'power',action:'take'}).pitch);
+    assert.deepEqual(a.pitch(choice).pitch,b.pitch({target:'CH',approach:'power',action:'take',location:'low'}).pitch);
   }
 });
 test('three-run home run wins from the starting situation',()=>{
@@ -30,4 +30,14 @@ test('same choices replay exactly, all runs finish, bad input cannot mutate stat
     assert.throws(()=>a.pitch(choice));
   }
   const g=new BattingGame(1),s=g.snapshot();assert.throws(()=>g.pitch({...choice,action:'bad'}));assert.deepEqual(g.snapshot(),s);
+});
+
+test('location prediction changes contact, never the committed pitch or take judgment',()=>{
+  const play=(location,action='swing')=>{const g=new BattingGame(1);rolls(g,[.1,.1,.9,.1,.5,.5,.1,.1]);return g.pitch({...choice,location,action});};
+  const inside=play('in'),outside=play('out'),low=play('low');
+  assert.deepEqual(inside.pitch,outside.pitch);assert.deepEqual(inside.pitch,low.pitch);
+  assert.equal(inside.result,'F');assert.equal(low.result,'F');assert.equal(outside.result,'W');
+  assert.match(inside.explanation,/예상한 코스로/);assert.match(outside.explanation,/코스와 달라/);
+  assert.equal(play('in','take').result,play('out','take').result);
+  const g=new BattingGame(4),before=g.snapshot();assert.throws(()=>g.pitch({...choice,location:'bad'}));assert.deepEqual(g.snapshot(),before);
 });

@@ -2045,3 +2045,8 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
   .is-playing .inning-score{top:66px;width:min(300px,calc(100% - 160px))}
   .is-playing .inning-feedback{max-height:32vh;overflow:auto}
 }
+
+/* Leave room for all pitch numbers in the current plate appearance. */
+.inning-zone-row{flex-wrap:wrap}.inning-zone-map{width:200px;height:200px}.inning-zone-caption{flex:1 1 150px}.inning-live-zone{width:170px}
+@media(max-width:900px){.inning-zone-map{width:200px;height:200px}.is-playing .inning-live-zone{width:156px}}
+@media(max-height:500px){.is-playing .inning-live-zone{width:128px}}
