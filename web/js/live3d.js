@@ -51,6 +51,36 @@ export class Live3D {
     this.trail = new T.Line(this.trailGeo, new T.LineBasicMaterial({ color: '#fff2bc', transparent: true, opacity: .35 }));
     this.trail.frustumCulled = false; this.scene.add(this.trail);
     host.prepend(this.canvas);
+    this.look={yaw:0,pitch:0};
+    if(opts.playerRole==='batter') {
+      this.canvas.setAttribute('aria-label','타자 시점 구장');
+      this.canvas.style.touchAction='none';
+      this.lookInput=new AbortController();
+      const listen=(name,fn)=>this.canvas.addEventListener(name,fn,{signal:this.lookInput.signal});
+      listen('pointerdown',e=>{
+        if(e.button!==0||!this.opts.canLook?.()||this.drag)return;
+        this.drag={id:e.pointerId,x:e.clientX,y:e.clientY};this.canvas.setPointerCapture(e.pointerId);
+      });
+      listen('pointermove',e=>{
+        if(this.drag?.id!==e.pointerId)return;
+        if(!this.opts.canLook?.()){this.resetLook();return;}
+        this.look.yaw=clamp(this.look.yaw-(e.clientX-this.drag.x)*.006,-Math.PI,Math.PI);
+        this.look.pitch=clamp(this.look.pitch-(e.clientY-this.drag.y)*.006,-1.35,.85);
+        this.drag.x=e.clientX;this.drag.y=e.clientY;
+      });
+      const end=e=>{if(this.drag?.id===e.pointerId)this.drag=null;};
+      listen('pointerup',end);listen('pointercancel',end);listen('lostpointercapture',end);
+    }
+  }
+  resetLook() {
+    if(this.drag&&this.canvas.hasPointerCapture(this.drag.id))this.canvas.releasePointerCapture(this.drag.id);
+    this.drag=null;this.look.yaw=0;this.look.pitch=0;
+  }
+  lookAtPlate() {
+    if(!this.opts.canLook?.())return;
+    const centered=Math.abs(this.look.yaw)<.01&&Math.abs(this.look.pitch)<.01;
+    this.resetLook();
+    if(centered){this.look.yaw=this.batterHand==='L'?-1.22:1.22;this.look.pitch=-1.05;}
   }
   material(color) {
     if (!this.materials.has(color)) this.materials.set(color, new T.MeshStandardMaterial({ color, roughness: .86 }));
@@ -228,7 +258,8 @@ export class Live3D {
     }
     (S.exiting||[]).forEach((f,i)=>this.updatePlayer('exit'+i,f,f.color||defense,'run',S));
     S.runners.forEach((r,i)=>this.updatePlayer('r'+i,r,offense,'run',S));
-    if(S.batter)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
+    const firstPerson=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
+    if(S.batter&&!firstPerson)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     this.updatePlayer('ump',{x:0,y:-3.2},'#27343f','crouch',S);
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     this.ball.scale.setScalar(this.opts.playerRole==='batter'?.12:.20);this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
@@ -243,10 +274,18 @@ export class Live3D {
   direct(S,time) {
     const shot=S.broadcast || {kind:S.trail.length>1?'field':S.batter?'pitch':'beauty'};
     let kind=shot.kind;
-    if(kind==='between')kind=(S.s+S.b)%2?'batter':'pitcher';
+    if(this.opts.playerRole==='batter'&&['pitch','between','batter','pitcher'].includes(kind))kind='batting';
+    else if(kind==='between')kind=(S.s+S.b)%2?'batter':'pitcher';
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
-    if(kind==='pitch'&&this.opts.playerRole==='batter') {eye=point(.8,-2.8,1.7);aim=point(0,15,1.4);fov=48;}
+    if(kind==='batting') {
+      this.batterHand=S.batter?.hand||'R';
+      eye=point(this.batterHand==='L'?.85:-.85,-.25,1.65);
+      if(!this.opts.canLook?.())this.resetLook();
+      const yaw=(this.batterHand==='L'?-.045:.045)+this.look.yaw,pitch=-.025+this.look.pitch;
+      aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
+      fov=65;
+    }
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
     else if(kind==='field') {eye=point(0,-24,43);aim=point((ball?.x||0)*.55,26+(ball?.y||0)*.45,Math.max(1,(ball?.z||0)*.35));fov=56;}
     else if(kind==='base') {const [x,y]=shot.target;eye=point(x<0?-47:47,0,11);aim=point(x,y,1);fov=35;}
@@ -257,7 +296,7 @@ export class Live3D {
     // Switch between fixed camera positions by cut; pan only within a shot.
     const changed=kind!==this.cameraKind;
     this.camera.position.copy(eye);
-    if(changed)this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
+    if(changed||kind==='batting')this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
     this.camera.fov=fov;this.camera.updateProjectionMatrix();this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
   }
@@ -290,6 +329,7 @@ export class Live3D {
     this.boardTexture.needsUpdate=true;
   }
   dispose() {
+    this.lookInput?.abort();
     this.canvas.removeEventListener('webglcontextlost',this.onLost);
     const geometries=new Set(),materials=new Set();
     this.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});
