@@ -15,7 +15,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   const root=document.createElement('section');root.className='inning-mode';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','9회 말, 두 점 차');
   root.innerHTML=`<div class="inning-shell"><header class="inning-head"><button class="inning-sound" aria-label="소리 켜기" aria-pressed="false"></button><button class="inning-exit" aria-label="나가기" title="나가기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
   <div class="inning-presentation"><div class="inning-score"></div><div class="inning-live"></div>
-  <div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
+  <div class="inning-batter-entry" role="status" hidden></div><div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
   <div class="inning-history sr-only" aria-label="현재 타석 투구 기록"></div></div>
   <div class="inning-controls" id="inningPlan"><div class="inning-opponent"></div>
   ${batting?`<fieldset class="inning-picks"><legend class="sr-only">노릴 공과 타격 방식</legend>
@@ -29,11 +29,13 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   <button class="go inning-throw">이 공 던지기</button></fieldset>`}
   <div class="inning-result" hidden></div></div></div>`;
   document.body.append(root);
-  if(batting){root.classList.add('has-batting-dock');root.insertAdjacentHTML('beforeend','<div class="batting-decision"><div class="batting-decision-title"><strong class="sr-only">기본 행동</strong><span class="batting-time" aria-hidden="true">2.5초 변경</span></div><div class="batting-clock" aria-hidden="true"><i></i></div><div class="batting-action-row"><button class="batting-swing" aria-pressed="true">스윙</button><button class="batting-take" aria-pressed="false">지켜보기</button></div><button class="go inning-throw">투구</button></div>');}
+  if(batting){root.classList.add('has-batting-dock');root.insertAdjacentHTML('beforeend','<div class="batting-decision"><div class="batting-decision-title"><strong class="sr-only">기본 행동</strong><span class="batting-time" aria-hidden="true">2.5초 변경</span></div><div class="batting-clock" aria-hidden="true"><i></i></div><div class="batting-action-row"><button class="batting-swing" aria-pressed="true">스윙</button><button class="batting-take" aria-pressed="false">지켜보기</button></div><button class="go inning-throw">준비 완료</button></div>');}
   const $=s=>root.querySelector(s);
   root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ (batting?'노릴 공':'투구 선택')+'</span></button>');
   if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));root.append(action);}
   if(batting){
+    $('.inning-presentation').append($('.inning-opponent'));
+    for(const [group,label] of [['location','예상 코스'],['target','노릴 구종'],['approach','타격 방식']])$('[data-group='+group+']').setAttribute('aria-label',label);
     root.insertAdjacentHTML('beforeend','<button class="inning-look" aria-label="홈플레이트 보기 / 정면으로" title="홈플레이트 보기 / 정면으로"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12v7l-6 5-6-5zM4 3h16"/></svg></button>');
     $('.inning-look').onclick=()=>lv?.three?.lookAtPlate();
   }
@@ -53,7 +55,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     $('.batting-time').textContent=phase==='read'?'2.5초':phase==='ready'?'2.5초 변경':'투구 중';
     $('.batting-clock i').style.transform='scaleX(1)';
     for(const action of ['swing','take']){const button=$('.batting-'+action);button.disabled=phase==='warm';button.setAttribute('aria-pressed',String(choice.action===action));}
-    $('.inning-throw').disabled=phase!=='ready';$('.inning-throw').textContent=phase==='ready'?'투구':phase==='read'?plan+' 유지':'…';
+    $('.inning-throw').disabled=phase!=='ready';$('.inning-throw').textContent=phase==='ready'?'준비 완료':phase==='read'?plan+' 유지':'…';
   }
   const runTimeline=tl=>new Promise(resolve=>{lv.tl=tl;lv.resolve=resolve;});
   async function readPitch(pitch){
@@ -128,6 +130,32 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=false;$('.inning-result').hidden=true;
     $('.inning-feedback').textContent='';paint();selection();history();dock();root.scrollTop=0;$('.inning-throw').focus({preventScroll:true});
   }
+  async function changeBatter(e) {
+    const S=lv.S,tl=new Timeline(),out=['K','OUT'].includes(e.result),next=!e.after.done;
+    if(!out&&!next)return;
+    S.batter=null;S.ball=null;S.hold=null;S.trail=[];S.swing=0;
+    S.broadcast={kind:'change'};S.changePlayers=[];
+    root.classList.add('is-changing');
+    if(out){
+      const departing={name:e.before.batter.name,x:-.85,y:.1,pose:e.result==='K'?'dejected':'walk'};
+      S.changePlayers.push(departing);
+      tl.add(0,2.8,k=>{departing.x=-.85-5.65*k;departing.y=.1-3.1*k;departing.gone=k===1;});
+    }
+    if(next){
+      const enter=out?1.6:.3,arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:true};
+      S.changePlayers.push(arriving);
+      tl.at(enter,()=>{
+        sync(e.after);S.batter=null;events=[];shown=null;zone();history();paint();
+        arriving.wait=false;$('.inning-batter-entry').textContent=e.after.batter.name+' · 타석 입장';
+        $('.inning-batter-entry').hidden=false;
+      });
+      tl.add(enter,2.8,k=>{arriving.x=-6.5+5.65*k;arriving.y=-4+4.1*k;});
+      tl.at(enter+2.8,()=>{arriving.pose='bat';});
+      tl.add(enter+2.8,.7,null);
+    }
+    await runTimeline(tl);
+    S.changePlayers=[];root.classList.remove('is-changing');$('.inning-batter-entry').hidden=true;
+  }
   function finish() {
     root.classList.add('is-finished');
     $('.inning-picks').hidden=true;const box=$('.inning-result');box.hidden=false;
@@ -194,6 +222,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
       await runTimeline(tl);
       if(dead)return;
       events.push(e);runEvents.push(e);shown=e;
+      if(e.terminal){await changeBatter(e);if(dead)return;}
       if(e.terminal&&!game.done){events=[];shown=null;}
       zone(shown);history();
       if(['1B','2B','HR'].includes(e.result))lv.line.hits.bottom++;

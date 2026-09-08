@@ -23,7 +23,7 @@ try {
     const {InningGame}=await import('/js/inning-game.js');InningGame.prototype.random=()=>.99;
   });
   for(const entry of ['#btnInning','#btnBatting']) {
-    await page.locator(entry).click();await page.locator('.inning-plan-toggle').click();
+    await page.locator(entry).click();if(entry==='#btnInning')await page.locator('.inning-plan-toggle').click();
     if(entry==='#btnInning')await page.locator('[data-value="chase"]').click();
     else {
       await page.locator('[data-group="location"] [data-value="low"]').click();
@@ -38,7 +38,7 @@ try {
       assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),Array.from({length:n},(_,i)=>String(i+1)));
       assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),n);
     }
-    await page.locator('.inning-plan-toggle').click();await page.locator('.inning-zone-slot').scrollIntoViewIfNeeded();
+    if(entry==='#btnInning'){await page.locator('.inning-plan-toggle').click();await page.locator('.inning-zone-slot').scrollIntoViewIfNeeded();}
     await page.screenshot({path:`/tmp/dugout-zone-${entry.slice(1)}.png`});
     await play();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});

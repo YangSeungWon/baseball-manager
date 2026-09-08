@@ -238,7 +238,8 @@ export class Live3D {
     legs[0].rotation.x=stride;legs[1].rotation.x=-stride;
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
     body.position.y=pose==='crouch'?-.42:0;body.rotation.set(0,0,0);
-    p.bat.visible=pose==='bat';p.glove.visible=pose!=='bat';
+    p.bat.visible=['bat','walk','dejected'].includes(pose);p.glove.visible=!p.bat.visible;
+    if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
     if(pose==='bat') {arms[0].rotation.x=-1.1;arms[1].rotation.x=-2.1+(S.swing||0)*2.8;body.rotation.y=(S.swing||0)*1.7;}
     if(pose==='crouch') {legs[0].rotation.x=-.7;legs[1].rotation.x=-.7;arms[0].rotation.x=-.7;}
@@ -258,6 +259,7 @@ export class Live3D {
     }
     (S.exiting||[]).forEach((f,i)=>this.updatePlayer('exit'+i,f,f.color||defense,'run',S));
     S.runners.forEach((r,i)=>this.updatePlayer('r'+i,r,offense,'run',S));
+    (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
     const firstPerson=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
     if(S.batter&&!firstPerson)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     this.updatePlayer('ump',{x:0,y:-3.2},'#27343f','crouch',S);
@@ -287,6 +289,7 @@ export class Live3D {
       fov=65;
     }
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
+    else if(kind==='change') {eye=point(-3,-12,6);aim=point(-3,-1,1);fov=60;}
     else if(kind==='field') {eye=point(0,-24,43);aim=point((ball?.x||0)*.55,26+(ball?.y||0)*.45,Math.max(1,(ball?.z||0)*.35));fov=56;}
     else if(kind==='base') {const [x,y]=shot.target;eye=point(x<0?-47:47,0,11);aim=point(x,y,1);fov=35;}
     else if(kind==='batter') {eye=point(S.batter?.hand==='L'?-34:34,-2,4);aim=point(0,0,1.1);fov=18;}
