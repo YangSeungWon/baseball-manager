@@ -37,7 +37,7 @@ try {
   await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:30000});
   assert.equal(await page.evaluate(()=>playedSeed),42);
   assert.match(await page.locator('.inning-result').textContent(),/끝내기 승리/);
-  assert.match(await page.locator('.inning-feedback').textContent(),/선택해 둔 스윙을/);
+  assert.match(await page.locator('.inning-feedback').textContent(),/홈런/);
   await page.locator('[data-share]').click();
   assert.match(await page.evaluate(()=>shared.url),/challenge=b1-42$/);
   assert.match(await page.evaluate(()=>shared.text),/1구 · 3득점 · 1안타/);

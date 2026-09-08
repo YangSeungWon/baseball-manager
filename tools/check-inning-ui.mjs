@@ -27,6 +27,7 @@ try {
     const save=await page.evaluate(()=>localStorage.getItem('dugout.save.v1'));
     await page.locator('.inning-live .lv-three').waitFor({state:'visible',timeout:20000});
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false,'no horizontal overflow');
+    await page.locator('.inning-plan-toggle').click();
     for(const button of await page.locator('.inning-picks button').all())assert.ok((await button.boundingBox()).height>=44);
     await page.screenshot({path:`/tmp/dugout-inning-${width}.png`});
     await page.locator('[data-value="SL"]').click();
@@ -39,10 +40,10 @@ try {
     await page.screenshot({path:`/tmp/dugout-immersive-${width}.png`});
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:30000});
     assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
-    assert.match(await page.locator('.inning-zone-caption').textContent(),/1구 존 (안|밖)/);
+    assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),1);
     assert.equal(await page.locator('.inning-zone-map .zone-markers text').textContent(),'1');
     assert.equal(await page.locator('.inning-pitch-chip').count(),1);
-    assert.ok((await page.locator('.inning-live .lv-three').boundingBox()).height<height,'returns to selection');
+    assert.ok((await page.locator('.inning-live .lv-three').boundingBox()).height>=height-1,'ballpark stays full screen');
     assert.doesNotMatch(await page.locator('.inning-feedback').textContent(),/준비합니다/);
     await page.locator('.inning-throw').click();
     await page.locator('.inning-exit').click();

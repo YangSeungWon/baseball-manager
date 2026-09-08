@@ -1,0 +1,54 @@
+/* Match HUD: the ballpark stays full screen, including between pitches. */
+body .inning-mode{padding:0;overflow:hidden;background:#10232c}
+.inning-mode .inning-shell{display:block;max-width:none;margin:0}
+.inning-mode .inning-presentation{position:fixed;inset:0;z-index:1;border:0;border-radius:0;box-shadow:none}
+.inning-mode .inning-live,.inning-mode .inning-live .lv,.inning-mode .inning-live .lv-main,.inning-mode .inning-live .lv-stage{width:100%;height:100%;border-radius:0}
+.inning-mode .inning-live canvas{max-width:none}
+.inning-mode .inning-head{position:fixed;z-index:20;top:max(10px,env(safe-area-inset-top));right:10px;left:auto;display:flex;gap:4px;margin:0;padding:0;border:0;pointer-events:auto}
+.inning-mode .inning-head button{width:44px;height:44px;min-height:44px;padding:10px;border:1px solid #8da9a055;border-radius:50%;background:#102732cc;color:#e2ebe5}
+.inning-mode button svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:middle}
+.inning-mode .inning-score{position:absolute;top:max(10px,env(safe-area-inset-top));left:10px;width:250px;max-width:calc(100% - 118px);padding:8px 10px;background:#102732e8;border:1px solid #83a39c66;border-radius:9px;z-index:10;font-size:14px}
+.inning-mode .inning-scoreline{flex-wrap:nowrap;gap:8px}
+.inning-mode .inning-frame{padding:0;border:0;font-size:16px;white-space:nowrap}
+.inning-mode .inning-score strong{font-size:24px;margin:0 4px}
+.inning-mode .inning-counts{gap:6px;flex-wrap:nowrap;margin-top:7px}
+.inning-mode .inning-counts>span:first-child{gap:8px}
+.inning-mode .inning-counts>span:first-child>span{gap:3px;font-size:12px}
+.inning-mode .inning-counts i{width:8px;height:8px}
+.inning-mode .inning-diamond{width:32px;height:27px;flex-shrink:0}
+.inning-mode .inning-diamond i{width:10px;height:10px}.inning-mode .inning-diamond .base1{top:13px}.inning-mode .inning-diamond .base2{left:11px}.inning-mode .inning-diamond .base3{top:13px}
+.inning-mode .inning-counts>small{position:absolute;top:calc(100% + 4px);right:0;background:#102732c9;border-radius:4px;padding:1px 5px;font-size:12px}
+.inning-mode .inning-feedback{position:absolute;z-index:10;bottom:158px;left:12px;right:auto;width:calc(100% - 166px);max-width:300px;min-height:0;max-height:none;overflow:visible;border:0;border-radius:8px;padding:8px 10px;background:#102732d9;font-size:22px;color:#f2d69b}
+.inning-mode .inning-feedback:empty{display:none}
+.inning-mode .inning-verdict{display:flex;flex-wrap:wrap;gap:3px 10px}.inning-mode .inning-verdict strong{font-size:22px}.inning-mode .inning-verdict span{font-size:14px}
+.inning-mode .inning-live-zone{display:block;position:absolute;top:auto;bottom:100px;right:12px;left:auto;width:132px;padding:4px;background:#102732b8;border:1px solid #a0b9ad77;border-radius:8px;z-index:12}
+.inning-mode .inning-live-zone[hidden]{display:none}
+.inning-mode .inning-plan-toggle{position:fixed;z-index:25;bottom:100px;left:12px;display:flex;align-items:center;gap:8px;min-height:44px;padding:8px 12px;font-size:15px;color:#dce8e1;border:1px solid #a5bca366;border-radius:9px;background:#102732df}
+.inning-mode .inning-plan-toggle[aria-expanded=true]{background:#386b59;border-color:#b1d9bd}
+.inning-mode .inning-controls{display:none;position:fixed;z-index:24;left:12px;bottom:154px;width:350px;max-width:calc(100% - 24px);max-height:calc(100dvh - 270px);overflow:auto;padding:14px!important;margin:0;background:#102732f7;border:1px solid #8aada0;border-radius:12px;visibility:visible;pointer-events:auto;box-shadow:0 8px 32px #0005}
+.inning-mode.is-planning .inning-controls{display:block}
+.inning-mode .inning-opponent{padding:0 0 8px;margin:0 0 8px;gap:10px;font-size:14px}.inning-mode .inning-opponent b{font-size:16px}.inning-mode .inning-opponent span{color:#b2cbbb}
+.inning-mode .inning-label{font-size:14px;margin:8px 0 6px}
+.inning-mode .inning-options{gap:6px;margin-bottom:8px}.inning-mode .inning-options button{font-size:15px;min-height:44px}
+.inning-mode .inning-zone-row{justify-content:center}.inning-mode .inning-zone-map{width:180px;height:180px}.inning-mode .inning-pitch-icon{width:14px;height:22px}
+.inning-mode .batting-decision{position:fixed;z-index:30;bottom:max(10px,env(safe-area-inset-bottom));left:50%;right:auto;transform:translateX(-50%);width:min(440px,calc(100% - 24px));padding:8px;background:#102732ed;border:1px solid #8cac9e88;border-radius:12px;display:grid;grid-template-columns:1fr 1.05fr;column-gap:8px}
+.inning-mode .batting-decision[hidden]{display:none}
+.inning-mode .batting-decision-title{position:absolute;right:8px;bottom:calc(100% + 5px);font-size:16px}
+.inning-mode .batting-time{visibility:hidden;background:#102732df;border-radius:5px;padding:1px 7px}.inning-mode.is-deciding .batting-time{visibility:visible}
+.inning-mode .batting-clock{grid-column:1/-1;margin:0 0 6px;height:3px}
+.inning-mode .batting-action-row{display:flex;gap:6px;min-width:0;grid-column:1}
+.inning-mode .batting-decision{grid-template-columns:2fr 1fr}
+.inning-mode .batting-decision button{min-height:48px;font-size:16px;padding:6px;border-radius:7px}
+.inning-mode .batting-decision .inning-throw{margin:0;width:100%;grid-column:2;font-size:16px;min-height:48px}
+.inning-mode .batting-decision .inning-throw:disabled{font-size:13px;color:#cbded6}
+.inning-mode .pitching-action{position:fixed;z-index:30;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px))}
+.inning-mode .pitching-action .inning-throw{position:static;width:100%;transform:none;min-height:52px}
+.inning-mode.is-playing .inning-plan-toggle{visibility:hidden}
+.inning-mode.is-deciding .inning-live-zone,.inning-mode.is-deciding .inning-feedback{visibility:hidden}
+.inning-mode.is-finished .inning-controls{display:block;left:50%;bottom:20px;transform:translateX(-50%);width:420px;max-height:calc(100dvh - 130px);padding:0!important;background:#102732f5}
+.inning-mode.is-finished .inning-opponent,.inning-mode.is-finished .inning-plan-toggle,.inning-mode.is-finished .inning-feedback,.inning-mode.is-finished .inning-live-zone,.inning-mode.is-finished .pitching-action{display:none}
+.inning-mode .inning-result{border:0;margin:0;padding:20px}.inning-mode .inning-result-kicker{display:none}
+@media(max-width:360px){.inning-mode .inning-score{padding:7px}.inning-mode .inning-counts>span:first-child{gap:5px}.inning-mode .inning-counts>span:first-child>span{gap:2px}.inning-mode .inning-counts i{width:7px;height:7px}.inning-mode .inning-diamond i{width:9px;height:9px}.inning-mode .inning-score strong{font-size:22px}}
+@media(max-height:500px){.inning-mode .batting-decision{left:auto;right:12px;transform:none;width:330px}.inning-mode .inning-live-zone{right:12px;bottom:98px;width:120px}.inning-mode .inning-feedback{bottom:100px;left:160px}.inning-mode .inning-plan-toggle{bottom:14px}.inning-mode .inning-controls{bottom:68px;max-height:calc(100dvh - 86px)}.inning-mode.is-finished .inning-controls{bottom:12px;max-height:calc(100dvh - 24px)} }
+
+.inning-mode.has-zone:not(.is-playing) .inning-live-zone{display:block}.inning-mode .inning-live-zone[hidden]{display:none!important}

@@ -23,12 +23,12 @@ try {
     const {InningGame}=await import('/js/inning-game.js');InningGame.prototype.random=()=>.99;
   });
   for(const entry of ['#btnInning','#btnBatting']) {
-    await page.locator(entry).click();
+    await page.locator(entry).click();await page.locator('.inning-plan-toggle').click();
     if(entry==='#btnInning')await page.locator('[data-value="chase"]').click();
     else {
       await page.locator('[data-group="location"] [data-value="low"]').click();
       assert.equal(await page.locator('.inning-zone-map .zone-prediction').count(),1);
-      assert.match(await page.locator('.inning-choice-note').textContent(),/낮은 공 예상/);
+      assert.equal(await page.locator('[data-group="location"] [data-value="low"]').getAttribute('aria-pressed'),'true');
     }
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     const play=async()=>{await page.locator('.inning-throw').click();if(entry==='#btnBatting')await page.locator('.batting-take').click();};
@@ -38,12 +38,12 @@ try {
       assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),Array.from({length:n},(_,i)=>String(i+1)));
       assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),n);
     }
-    await page.locator('.inning-zone-slot').scrollIntoViewIfNeeded();
+    await page.locator('.inning-plan-toggle').click();await page.locator('.inning-zone-slot').scrollIntoViewIfNeeded();
     await page.screenshot({path:`/tmp/dugout-zone-${entry.slice(1)}.png`});
     await play();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.equal(await page.locator('.inning-zone-map .zone-pitch').count(),0,'walk changes batter and clears previous pitches');
-    assert.match(await page.locator('.inning-zone-caption').textContent(),/1구부터/);
+    assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),0);
     await play();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),['1']);

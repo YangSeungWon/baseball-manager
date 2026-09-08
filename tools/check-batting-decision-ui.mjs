@@ -31,14 +31,13 @@ try {
     assert.deepEqual(await page.evaluate(()=>decisions),[],'no result resolved yet');
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
     for(const selector of ['.batting-swing','.batting-take']){const b=await page.locator(selector).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
-    await page.screenshot({path:`/tmp/dugout-decision-${width}.png`});
     if(width===320){await page.locator('.batting-swing').click();}
     else if(width===390){await page.locator('.batting-take').click();}
     else if(width===844){await page.locator('.inning-exit').click();await page.waitForTimeout(2700);assert.deepEqual(await page.evaluate(()=>decisions),[]);await page.close();continue;}
     // Desktop exercises timeout: a decision must still be made without input.
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     assert.deepEqual(await page.evaluate(()=>decisions),[width===320?'swing':'take']);
-    if(width===1440)assert.match(await page.locator('.inning-feedback').textContent(),/선택해 둔 지켜보기를/);
+
     assert.equal(await page.locator('.inning-mode').evaluate(e=>e.classList.contains('is-deciding')),false);
     await page.locator('.inning-exit').click();await page.close();
   }
