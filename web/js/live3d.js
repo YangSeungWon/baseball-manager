@@ -2,6 +2,7 @@
 // All animation follows LiveView's state; this module never advances the game.
 import * as T from '../vendor/three/three.module.min.js';
 import { fence } from './core/bip.js';
+import { buildSurroundings } from './ballpark3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
 
@@ -30,14 +31,16 @@ export class Live3D {
     this.box = new T.BoxGeometry(1, 1, 1);
     this.sphere = new T.SphereGeometry(1, 10, 8);
     this.cylinder = new T.CylinderGeometry(1, 1, 1, 10);
-    this.scene.add(new T.HemisphereLight('#d6e9ff', '#586449', 2.1));
-    const sun = new T.DirectionalLight('#ffe8c0', 3.1);
+    this.ambient = new T.HemisphereLight('#d6e9ff', '#586449', 2.1); this.scene.add(this.ambient);
+    const sun = this.sun = new T.DirectionalLight('#ffe8c0', 3.1);
     sun.position.set(-42, 75, 25); sun.castShadow = true;
     Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 200 });
     sun.target.position.set(0, 0, -28); this.scene.add(sun.target);
     sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -.0005; sun.shadow.normalBias = .025;
     this.scene.add(sun);
     this.stadium(dims, opts);
+    this.fenceAt = a => fence(a, dims);
+    buildSurroundings(this, opts);
     this.batchStadium();
     this.ball = this.mesh(this.sphere, '#fff8df', this.scene, [.20, .20, .20]);
     this.ball.castShadow = true;
@@ -134,10 +137,10 @@ export class Live3D {
       }
     }
     const cf=fence(0,dims);
-    this.boardCanvas=document.createElement('canvas');this.boardCanvas.width=1024;this.boardCanvas.height=256;
+    this.boardCanvas=document.createElement('canvas');this.boardCanvas.width=1024;this.boardCanvas.height=512;
     this.boardTexture=new T.CanvasTexture(this.boardCanvas);this.boardTexture.colorSpace=T.SRGBColorSpace;this.textures.push(this.boardTexture);
-    const board=new T.Mesh(new T.PlaneGeometry(28,7),new T.MeshBasicMaterial({map:this.boardTexture}));board.position.set(0,14,-cf-12);this.scene.add(board);
-    this.mesh(this.box,'#14272e',this.scene,[29,8,1],[0,14,-cf-12.6]);
+    const board=new T.Mesh(new T.PlaneGeometry(34,13),new T.MeshBasicMaterial({map:this.boardTexture}));board.position.set(0,17,-cf-12);this.scene.add(board);
+    this.mesh(this.box,'#14272e',this.scene,[35,14,1],[0,17,-cf-12.6]);
     this.opts=opts;
   }
   batchStadium() {
@@ -146,7 +149,7 @@ export class Live3D {
     this.scene.updateMatrixWorld(true);
     const groups=new Map(), originals=[];
     this.scene.traverse(m=>{
-      if(!m.isMesh || m.isInstancedMesh || !m.material.isMeshStandardMaterial)return;
+      if(!m.isMesh || m.isInstancedMesh || !m.material.isMeshStandardMaterial || m.userData.noBatch)return;
       let geo=m.geometry.clone();
       if(geo.index){const indexed=geo;geo=geo.toNonIndexed();indexed.dispose();}
       geo.applyMatrix4(m.matrixWorld);
@@ -228,25 +231,58 @@ export class Live3D {
     this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
     const trail=S.trail.slice(-26),attr=this.trailGeo.attributes.position;
     trail.forEach(([x,y,z],i)=>attr.setXYZ(i,x,z,-y));attr.needsUpdate=true;this.trailGeo.setDrawRange(0,trail.length);this.trail.visible=trail.length>1;
-    // Hold the field shot through the play; return home for the next pitch.
-    if(S.pitcherWind>0 || S.batter!==this.lastBatter)this.fieldShot=false;
-    if(trail.length>1)this.fieldShot=true;
-    this.lastBatter=S.batter;
-    const field=this.fieldShot||!S.batter;
-    const target=field?point(clamp(b?.x||0,-35,35)*.25,42,0):point(0,9,1);
-    const eye=field?new T.Vector3(30,78,65):new T.Vector3(9,9,22);
-    const dt=this.lastTime==null?.016:clamp(time-this.lastTime,0,.1);this.lastTime=time;
-    const blend=1-Math.exp(-dt*4);
-    this.camera.position.lerp(eye,blend);this.aim.lerp(target,blend);this.camera.lookAt(this.aim);
-    const score=[line.top.reduce((a,b)=>a+b,0),line.bottom.reduce((a,b)=>a+b,0)];
-    const label=`${S.inning||1} ${S.half||'top'} ${score.join(':')}`;
-    if(label!==this.boardLabel) {
-      this.boardLabel=label;const c=this.boardCanvas.getContext('2d');c.fillStyle='#102730';c.fillRect(0,0,1024,256);
-      c.textAlign='center';c.fillStyle='#c5b58a';c.font='24px sans-serif';c.fillText('PROJECT DUGOUT  /  LIVE',512,48);
-      c.fillStyle='#f5f0da';c.font='bold 64px sans-serif';c.fillText(`${this.opts.away.split(' ')[0]}  ${score[0]} : ${score[1]}  ${this.opts.home.split(' ')[0]}`,512,143);
-      c.fillStyle='#7db89c';c.font='28px sans-serif';c.fillText(`${S.inning||1}회 ${S.half==='bottom'?'말':'초'}`,512,211);this.boardTexture.needsUpdate=true;
-    }
+    if (this.crowdClock) this.crowdClock.value = time;
+    this.direct(S,time);
+    this.scoreboard(S,line);
     this.renderer.render(this.scene,this.camera);
+  }
+  direct(S,time) {
+    const shot=S.broadcast || {kind:S.trail.length>1?'field':S.batter?'pitch':'beauty'};
+    let kind=shot.kind;
+    if(kind==='between')kind=(S.s+S.b)%2?'batter':'pitcher';
+    const ball=S.ball?.vis?S.ball:null;
+    let eye,aim,fov;
+    if(kind==='pitch') {eye=point(-7,76,7);aim=point(0,6,1);fov=16;}
+    else if(kind==='field') {eye=point(0,-24,43);aim=point((ball?.x||0)*.55,26+(ball?.y||0)*.45,Math.max(1,(ball?.z||0)*.35));fov=56;}
+    else if(kind==='base') {const [x,y]=shot.target;eye=point(x<0?-47:47,0,11);aim=point(x,y,1);fov=35;}
+    else if(kind==='batter') {eye=point(S.batter?.hand==='L'?-34:34,-2,4);aim=point(0,0,1.1);fov=18;}
+    else if(kind==='pitcher') {eye=point(-38,5,6);aim=point(0,18.44,1.2);fov=17;}
+    else {kind='beauty';eye=point(65,-65,72);aim=point(0,42,2);fov=62;}
+    const dt=this.lastTime==null?.016:clamp(time-this.lastTime,0,.1);this.lastTime=time;
+    // Switch between fixed camera positions by cut; pan only within a shot.
+    const changed=kind!==this.cameraKind;
+    this.camera.position.copy(eye);
+    if(changed)this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
+    this.camera.fov=fov;this.camera.updateProjectionMatrix();this.camera.lookAt(this.aim);
+    this.cameraKind=kind;this.fieldShot=kind==='field';
+  }
+  scoreboard(S,line) {
+    const snapshot={inning:S.inning,half:S.half,b:S.b,s:S.s,outs:S.outs,batter:S.batter?.name||'',pitcher:S.fielders.P?.name||'',top:line.top,bottom:line.bottom,hits:line.hits,err:line.err};
+    const label=JSON.stringify(snapshot);if(label===this.boardLabel)return;
+    this.boardLabel=label;this.boardSnapshot=JSON.parse(label);
+    const c=this.boardCanvas.getContext('2d'),w=1024;c.fillStyle='#0a2026';c.fillRect(0,0,w,512);
+    c.textAlign='left';c.fillStyle='#b7c5b5';c.font='bold 26px sans-serif';c.fillText(this.opts.park?.name||'PROJECT DUGOUT',30,40);
+    c.textAlign='right';c.fillStyle='#75d8aa';c.font='22px sans-serif';c.fillText('LIVE   '+(S.inning||1)+'회 '+(S.half==='bottom'?'말':'초'),990,40);
+    const n=Math.max(9,line.top.length,line.bottom.length),start=Math.max(0,n-12),count=n-start,step=690/(count+3),x=i=>250+i*step;
+    c.textAlign='center';c.font='22px monospace';c.fillStyle='#889d98';
+    for(let i=start;i<n;i++)c.fillText(i+1,x(i-start),92);
+    ['R','H','E'].forEach((t,i)=>c.fillText(t,x(count+i),92));
+    for(const [row,half,name] of [[0,'top',this.opts.away],[1,'bottom',this.opts.home]]) {
+      const y=153+row*65,arr=line[half];c.textAlign='left';c.fillStyle=S.half===half?'#f5d782':'#dae2d7';c.font='bold 29px sans-serif';c.fillText(name.split(' ')[0],30,y);
+      c.textAlign='center';c.font='bold 31px monospace';
+      for(let i=start;i<n;i++)c.fillText(arr[i]??'–',x(i-start),y);
+      [arr.reduce((a,b)=>a+b,0),line.hits[half],line.err[half]].forEach((v,i)=>c.fillText(v,x(count+i),y));
+    }
+    c.fillStyle='#304a4e';c.fillRect(28,248,968,2);
+    let dx=40;c.textAlign='left';c.font='bold 26px monospace';
+    for(const [title,value,max,color] of [['B',S.b,3,'#68d79b'],['S',S.s,2,'#f1cf62'],['O',S.outs,2,'#ec8175']]) {
+      c.fillStyle='#cad6cf';c.fillText(title,dx,299);dx+=42;
+      for(let i=0;i<max;i++){c.beginPath();c.arc(dx,289,9,0,Math.PI*2);c.fillStyle=i<value?color:'#294349';c.fill();dx+=30;}dx+=45;
+    }
+    c.font='24px sans-serif';c.fillStyle='#91b3aa';c.fillText('타자',32,370);c.fillText('투수',540,370);
+    c.font='bold 31px sans-serif';c.fillStyle='#edf0df';c.fillText(S.batter?.name||'선수 교대',32,416);c.fillText(S.fielders.P?.name||'준비 중',540,416);
+    c.font='20px sans-serif';c.fillStyle='#7b9e98';c.fillText(this.opts.crowd!=null?'관중 '+this.opts.crowd.toLocaleString()+'명':'PROJECT DUGOUT',32,479);
+    this.boardTexture.needsUpdate=true;
   }
   dispose() {
     this.canvas.removeEventListener('webglcontextlost',this.onLost);

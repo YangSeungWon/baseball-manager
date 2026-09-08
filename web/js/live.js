@@ -126,7 +126,7 @@ class PerspView {
 }
 
 /* ── 타임라인 ────────────────────────────────────────────── */
-class Timeline {
+export class Timeline {
   constructor() { this.items = []; this.end = 0; this.t = 0; }
   /** t0 부터 dur 동안 f(k) 를 부른다. 끝나면 done() */
   add(t0, dur, f, done = null) {
@@ -553,6 +553,7 @@ export class LiveView {
       const newHalf = S.half !== rec.half || S.inning !== rec.inning;
       this._side(rec, tl);
       if (newHalf) {
+        S.broadcast = { kind: 'beauty' };
         // 공수 교대 — 이닝 카드. 다음 타순과 불펜을 보여 주는 동안 야수들이 들어가고 나온다.
         this._cap('', '');
         this._innCard(rec);
@@ -655,7 +656,7 @@ export class LiveView {
     const end = [clamp(q.x, -2.4, 2.4) * 0.216, 0, clamp(0.76 + q.z * 0.26 * zh, 0.05, 1.9)];
     const bend = { SL: [0.16, 0], CU: [0.05, 0.45], CH: [0, 0.18], FS: [0, 0.28], KN: [0.2, 0.25], SI: [-0.1, 0.08], FC: [0.08, 0.02] }[q.t] || [0, 0];
     const side = rec.th === 'L' ? -1 : 1;
-    tl.at(t0, () => this._hold(S.fielders.P));
+    tl.at(t0, () => { S.broadcast = { kind: 'pitch' }; this._hold(S.fielders.P); });
     tl.add(t0, 0.9, (k) => { S.pitcherWind = k; });
     tl.at(t0 + 0.9, () => { S.hold = null; });
     const tArr = t0 + 0.9 + T;
@@ -669,6 +670,7 @@ export class LiveView {
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.
     if (q.r === 'W' || q.r === 'F' || q.r === 'X') tl.add(tArr - 0.16, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
     if (q.r === 'W') tl.at(tArr - 0.12, () => this.sfx.whiff());
+    if (q.r !== 'X') tl.at(tArr + 0.7, () => { S.broadcast = { kind: 'between' }; });
     tl.at(tArr, () => {
       if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
       else if (q.r === 'F') this.sfx.crack(0.3, true);
@@ -727,6 +729,7 @@ export class LiveView {
   /* ── 타석 ── */
   _pa(tl, rec) {
     const S = this.S;
+    S.broadcast = { kind: 'batter' };
     S.b = 0; S.s = 0; this.seq = []; this.zh = rec.zh || 1;
     this.pnp0 = (rec.pnp || 0) - (rec.np || 0);
     this.el.np.textContent = this.pnp0; this.el.bugPc.textContent = `${this.pnp0}구`;
@@ -750,7 +753,7 @@ export class LiveView {
     this._zone(rec);
     if (this.o.onCount) this.o.onCount(0, 0);
     const seq = rec.seq && rec.seq.length ? rec.seq : [{ x: 0, z: 0, t: rec.pt || 'FF', v: rec.velo || 140, r: 'X' }];
-    let t = 0.4, tArr = 0;
+    let t = this.view === 'three' ? 1.4 : 0.4, tArr = 0;
     // 타구 소리의 세기. 담장을 넘기면 1, 빗맞은 땅볼은 0.2 근처.
     const hit = rec.res === 'HR' ? 1
       : rec.bbt === 'GB' ? clamp(0.15 + ((rec.ev || 26) - 18) / 30, 0.1, 0.7)
@@ -759,7 +762,7 @@ export class LiveView {
     seq.forEach((q, i) => {
       const last = i === seq.length - 1;
       tArr = this._pitch(tl, q, i, t, rec, { last, hit });
-      t = tArr + (q.r === 'F' ? 1.7 : q.r === 'X' ? 0 : 1.1);
+      t = tArr + (q.r === 'X' ? 0 : this.view === 'three' ? (q.r === 'F' ? 4.2 : 3.4) : q.r === 'F' ? 1.7 : 1.1);
     });
     const res = rec.res;
     if (res === 'K') {
@@ -881,6 +884,7 @@ export class LiveView {
                    : 0.9 + peak * 4 * u * (1 - u);
       S.ball = { x: endPt[0] * u, y: endPt[1] * u, z, vis: true }; this._trail();
     };
+    tl.at(tC, () => { S.broadcast = { kind: 'field' }; });
     tl.add(tC, Tf, flight);
     let ballAt = L.slice();                    // 공이 처음 멎는 자리
     // 시프트. 내야수들은 이 타자에게 옮겨 서 있었다.
@@ -1110,6 +1114,7 @@ export class LiveView {
   _throw(tl, from, to, t0, Fl) {
     const S = this.S;
     const d = dist2(from, to), arc = clamp(d / 14, 0.8, 4.5);
+    tl.at(t0, () => { if (Object.values(BASE).some(b => dist2(b, to) < 2)) S.broadcast = { kind: 'base', target: to.slice() }; });
     tl.add(t0, Fl, (k) => { S.hold = null; S.ball = { x: lerp(from[0], to[0], k), y: lerp(from[1], to[1], k), z: 1.4 + arc * 4 * k * (1 - k), vis: true }; this._trail(); },
       () => {
         // 받는 사람 — 그 베이스에 가장 가까운 야수. 없으면 공은 그냥 사라진다.
@@ -1208,7 +1213,8 @@ export class LiveView {
   }
 
   _ibb(tl, rec) {
-    const S = this.S; S.b = 0; S.s = 0; this.seq = [];
+    const S = this.S; S.broadcast = { kind: 'batter' };
+    S.b = 0; S.s = 0; this.seq = [];
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1 };
     this._cap(`${rec.batter}  고의사구`, '');
     let t = 0.2, tArr = 0;
@@ -1219,7 +1225,8 @@ export class LiveView {
   }
 
   _bunt(tl, rec) {
-    const S = this.S; S.b = 0; S.s = 0; this.seq = [];
+    const S = this.S; S.broadcast = { kind: 'batter' };
+    S.b = 0; S.s = 0; this.seq = [];
     S.batter = { name: rec.batter, hand: rec.bh || 'R', alpha: 1, bunt: true };
     const tArr = this._pitch(tl, { x: 0.1, z: -0.2, t: 'FF', v: rec.velo || 142, r: 'X' }, 0, 0.3, rec, { last: true });
     const b = { ...rec, bbt: 'GB', hang: 1.5, ev: 9, fre: 0.25, fv: 6.6, reach: true,

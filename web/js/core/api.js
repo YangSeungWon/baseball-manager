@@ -1028,7 +1028,7 @@ export class Game {
         return { pid:b.pid, name:b.name, slot:b.position, ab:L.ab, h:L.h, hr:L.hr, rbi:L.rbi, bb:L.bb, k:L.k };
       })});
     return { home:side(box.H), away:side(box.A), park: box.H.team.park,
-             crowd: box.crowd ?? null, cap: box.cap ?? null, plays: box.plays };
+             day: box.day ?? null, crowd: box.crowd ?? null, cap: box.cap ?? null, plays: box.plays };
   }
   runPostseason() {
     if (this.phase !== POSTSEASON) return { error:'wrong_phase' };

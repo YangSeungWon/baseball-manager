@@ -369,6 +369,7 @@ addEventListener('scroll', () => {
 }, { passive: true });
 
 async function boot() {
+  $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;
   resumePanel();
@@ -2384,7 +2385,7 @@ function watchDay() {
         openGameShell(p.away, p.home, p.park, p.crowd, p.cap);
         const host = gsBody('');
         lv = mountLive(host, { ...liveOpts(p.home, p.away, p.park, p.crowd, p.cap),
-          onLog: logSink(seen, () => lv), onEnd: bail,
+          day: p.day, onLog: logSink(seen, () => lv), onEnd: bail,
           command: w.command, cancel: w.cancel });          // 감독 패널 — 다음 타석 전에 엔진이 꺼내 쓴다
         const x = document.getElementById('gsX'); if (x) x.onclick = bail;
         $('#modal').onclick = (e) => { if (e.target.id === 'modal') bail(); };
@@ -2900,7 +2901,7 @@ function openReplay(box) {
   const seen = [];
   const end = () => { stop = true; if (lv) { lv.skip(); } };
   lv = mountLive(host, { ...liveOpts(box.home.team, box.away.team, box.park, box.crowd, box.cap),
-    onLog: logSink(seen, () => lv), onEnd: end });
+    day: box.day, onLog: logSink(seen, () => lv), onEnd: end });
   const x = document.getElementById('gsX');
   if (x) x.onclick = () => { stop = true; closeGame(); };
   (async () => {

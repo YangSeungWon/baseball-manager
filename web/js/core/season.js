@@ -268,7 +268,7 @@ export class Season {
         (this.teams[hi].team_id === watchId || this.teams[ai].team_id === watchId);
       // 지켜보는 경기면 먼저 구장과 관중부터 보여 준다.
       if (mine) yield { play: { evt: 'start', home: this.teams[hi].name, away: this.teams[ai].name,
-                                park: home0.park, crowd, cap: cap0, dh: !!dh } };
+                                park: home0.park, day, crowd, cap: cap0, dh: !!dh } };
       const [H, A, plays] = mine
         ? yield* playGameGen(this.teams[hi], this.teams[ai], this.rng, called || 11, watch, fill)
         : playGame(this.teams[hi], this.teams[ai], this.rng, called || 11, fill);
@@ -289,7 +289,7 @@ export class Season {
       const keep = keepPlays !== null &&
         (this.teams[hi].team_id === keepPlays || this.teams[ai].team_id === keepPlays);
       out.push({ hi, ai, hr: H.runs, ar: A.runs, dh: !!dh, called: !!called,
-                 box: keep ? { H, A, plays, crowd, cap: cap0 } : null });
+                 box: keep ? { H, A, plays, day, crowd, cap: cap0 } : null });
     }
     this.curDay++;
     return out;

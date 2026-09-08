@@ -19,6 +19,7 @@ try {
   for (const [width,height] of [[390,844],[1440,1000]]) {
     const page = await browser.newPage({viewport:{width,height}});
     page.on('pageerror', e=>errors.push(e.message));
+    page.on('console',m=>{if(m.type()==='error' && /Shader Error|VALIDATE_STATUS/.test(m.text()))errors.push(m.text());});
     await page.goto(url); await page.locator('#btnNew').waitFor();
     assert.equal(await page.evaluate(()=>performance.getEntriesByType('resource').some(r=>r.name.includes('/vendor/three/'))),false,'Three is lazy');
     await page.evaluate(async()=>{
@@ -44,6 +45,20 @@ try {
     await page.waitForTimeout(1200);
     await page.screenshot({path:`/tmp/dugout-three-${width}-field.png`});
     assert.equal(await page.evaluate(()=>lv.three.fieldShot),true);
+    const coverage=await page.evaluate(()=>{
+      const r=lv.three,S=lv.S;const shots={};
+      for(const kind of ['pitch','batter','pitcher','field','base','beauty']) {
+        S.broadcast={kind,target:[19.4,19.4]};r.direct(S,10);shots[kind]=r.cameraKind;
+      }
+      S.b=2;S.s=1;S.outs=1;S.fielders.P.name='김선발';
+      lv.line.top=[0,1,0,0,0,0,0,0,0,0,2,0,1];lv.line.hits.top=7;lv.line.err.bottom=1;
+      r.scoreboard(S,lv.line);
+      return {shots,board:r.boardSnapshot,crowd:r.crowdCount,seats:r.seatCount};
+    });
+    assert.deepEqual(Object.keys(coverage.shots),Object.values(coverage.shots));
+    assert.equal(coverage.board.b,2);assert.equal(coverage.board.pitcher,'김선발');
+    assert.equal(coverage.board.top.length,13);assert.equal(coverage.board.err.bottom,1);
+    assert.ok(coverage.crowd>0 && coverage.crowd<coverage.seats);
     for(const view of ['top','persp','three']) {
       await page.evaluate(v=>lv.setView(v),view);
       assert.equal(await page.locator('.lv-three').isVisible(),view==='three');
@@ -59,6 +74,20 @@ try {
     assert.equal(await page.locator('.lv-three').count(),0,'canvas disposed');
     await page.close();
   }
+  const variant=await browser.newPage();variant.on('pageerror',e=>errors.push(e.message));
+  await variant.goto(url);await variant.locator('#btnNew').waitFor();
+  const variants=await variant.evaluate(async()=>{
+    const {Live3D}=await import('/js/live3d.js');const {parkDims}=await import('/js/core/bip.js');
+    const records=[];
+    for(const dome of [false,true]) {
+      const opts={home:'전주 재규어스',away:'대구 나이츠',park:{dome},colors:{home:'#427c33',away:'#cf3d46'},crowd:0,cap:14000,day:12};
+      const v=new Live3D(document.body,parkDims(opts.park),opts,()=>{});v.resize(390,244);
+      records.push({mode:v.atmosphere,crowd:v.crowdCount});v.dispose();
+    }
+    return records;
+  });
+  assert.equal(variants[0].crowd,0);assert.equal(variants[1].mode,'indoor');assert.equal(variants[1].crowd,0);
+  await variant.close();
   // Exercise the real game flow with a persisted third-view preference.
   const game=await browser.newPage({viewport:{width:390,height:844}});
   game.on('pageerror',e=>errors.push(e.message));

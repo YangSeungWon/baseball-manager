@@ -1950,3 +1950,17 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
 .lv-stage canvas[hidden]{display:none}
 .lv-3d-status{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:12px 18px;background:rgba(8,18,27,.9);color:#eee9db;border-radius:6px;font-size:13px;max-width:85%;text-align:center;z-index:4}
 .lv-3d-status[hidden]{display:none}
+
+.inning-entry{display:flex;align-items:center;justify-content:space-between;gap:24px;margin:24px 0;padding:24px;background:linear-gradient(115deg,#203e42,#1b2936);border:1px solid #41646a;border-radius:8px}
+.inning-entry small{color:#9bc8b9}.inning-entry h2{margin:8px 0;font-size:26px}.inning-entry p{margin:0;color:var(--fg2)}
+.inning-mode{position:fixed;inset:0;z-index:1500;background:#101d26;overflow:auto;overscroll-behavior:contain;padding:16px max(12px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom))}
+.inning-shell{max-width:720px;margin:auto}.inning-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.inning-head small{color:#8db9ad}.inning-head h1{font-size:24px;margin:4px 0 10px}.inning-head button{min-height:44px}
+.inning-score{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:#20303c;border-radius:6px;padding:10px 14px;margin:8px 0;font-size:14px}.inning-score b{grid-row:span 2;align-self:center}.inning-score strong{font-size:25px;color:#f2dfae;margin:0 8px}.inning-score em{float:right;font-style:normal;color:#9cb3bf}
+.inning-live .lv{display:block;height:auto}.inning-live .lv-main{display:block}.inning-live .lv-stage{border-radius:6px}.inning-live .lv-main>:not(.lv-stage),.inning-live .lv-side,.inning-live .lv-stage>:not(canvas):not(.lv-flash):not(.lv-3d-status){display:none!important}
+.inning-feedback{min-height:48px;padding:12px 2px;color:#f0d7a3;font-size:14px;line-height:1.5}
+.inning-opponent{display:flex;align-items:center;gap:12px;margin-bottom:8px}.inning-opponent b{white-space:nowrap}.inning-opponent b span{display:block;font-size:11px;color:#8eb7ac}.inning-opponent p{font-size:13px;color:#adbfc8;margin:0;line-height:1.45}
+.inning-picks{border:0;padding:0;margin:0;min-width:0}.inning-options{display:flex;gap:8px;margin-bottom:8px}.inning-options button{flex:1;min-height:44px;background:#22333f;border:1px solid #435660;border-radius:5px;color:#d6e2e7;padding:9px 4px;font-size:14px}.inning-options button small{display:block;font-size:11px;color:#91a9b7;margin-top:3px}.inning-options button[aria-pressed=true]{background:#294c4b;border-color:#87c2a7;color:#f0fff7;box-shadow:inset 0 0 0 1px #87c2a7}
+.inning-throw{width:100%;min-height:48px}.inning-picks:disabled{opacity:.55}.inning-rule{font-size:12px;color:#809aa8;text-align:center;margin:10px 0}.inning-result{padding:16px;background:#20383d;border:1px solid #527d75;border-radius:8px;text-align:center}.inning-result h2{margin:0 0 8px;color:#f2dfae}.inning-result p{color:#bdd0d5}.inning-result>div{display:flex;gap:8px}.inning-result button{flex:1;min-height:48px}
+@media(max-width:600px){.inning-entry{flex-direction:column;align-items:stretch;padding:18px;gap:16px}.inning-mode{padding-top:10px}.inning-head h1{font-size:21px}.inning-score{font-size:12px}.inning-score strong{font-size:22px;margin:0 4px}.inning-opponent p{font-size:12px}}
+
+.inning-throw{background:#4b8d78;border:1px solid #80bfa7;color:#fff;font-weight:700}.inning-throw:hover{background:#5a9d88}.inning-throw:disabled{cursor:wait}
