@@ -235,6 +235,7 @@ export class Live3D {
     const trail=S.trail.slice(-26),attr=this.trailGeo.attributes.position;
     trail.forEach(([x,y,z],i)=>attr.setXYZ(i,x,z,-y));attr.needsUpdate=true;this.trailGeo.setDrawRange(0,trail.length);this.trail.visible=trail.length>1;
     if (this.crowdClock) this.crowdClock.value = time;
+    if(this.crowdEnergy){const r=S.crowdReaction,age=r?(performance.now()-r.at)/1000:99;this.crowdEnergy.value=r?.cue==='cheer'?r.strength*Math.min(1,age*3)*Math.max(0,1-age/7):r?.cue==='contact'?.15*Math.max(0,1-age/3):0;}
     this.direct(S,time);
     this.scoreboard(S,line);
     this.renderer.render(this.scene,this.camera);

@@ -11,7 +11,7 @@ export function openInningMode(role='pitcher') {
   const backgrounds=[document.querySelector('#boot'),document.querySelector('#app')].filter(Boolean),inert=backgrounds.map(e=>e.inert);
   backgrounds.forEach(e=>e.inert=true);document.body.style.overflow='hidden';
   const root=document.createElement('section');root.className='inning-mode';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label','9회 말, 두 점 차');
-  root.innerHTML=`<div class="inning-shell"><header class="inning-head"><div><small>한 이닝 승부 · ${batting?'타자':'투수'} 편</small><h1>9회 말, 두 점 차</h1></div><button class="quiet inning-exit">나가기</button></header>
+  root.innerHTML=`<div class="inning-shell"><header class="inning-head"><div><small>한 이닝 승부 · ${batting?'타자':'투수'} 편</small><h1>9회 말, 두 점 차</h1></div><div class="inning-head-actions"><button class="quiet inning-sound" aria-pressed="false">소리 켜기</button><button class="quiet inning-exit">나가기</button></div></header>
   <div class="inning-presentation"><div class="inning-score"></div><div class="inning-live"></div>
   <div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
   <div class="inning-history" aria-label="최근 투구 기록"></div></div>
@@ -33,6 +33,10 @@ export function openInningMode(role='pitcher') {
   $('.inning-live-zone').innerHTML=zoneSvg+'<span>투구 위치</span>';
 
   let seed=crypto.getRandomValues(new Uint32Array(1))[0],game,lv,busy=false,dead=false,events=[],shown=null,scrollBefore=0,choice=batting?{target:'any',approach:'contact'}:{type:'FF',zone:'out',intent:'attack'};
+  let sound=true;try{sound=localStorage.getItem('dugout.sfx')!=='0';}catch{}
+  let ambience='idle',intensity=.5;
+  function soundLabel(){const on=!!lv?.sfx.on;$('.inning-sound').textContent=on?'소리 끄기':'소리 켜기';$('.inning-sound').setAttribute('aria-pressed',String(on));}
+  function atmosphere(cue,k=.5){ambience=cue;intensity=k;lv.sfx.stadium(cue,k);lv.S.crowdReaction={cue,strength:k,at:performance.now()};}
   const opt={home:batting?'나의 타선':'홈 타자들',away:batting?'상대 마무리':'나의 마무리',park:{name:'라스트아웃 파크',capacity:18000},crowd:16000,cap:18000,colors:{home:'#cf7756',away:'#427c83'},view:'three',speed:1,sound:false,playerRole:role,stageHeight:()=>innerWidth<=900?Math.max(105,Math.min(132,innerHeight*.17)):Math.min(430,innerHeight*.48),immersive:()=>busy&&!dead,maxH:()=>Math.min(440,innerHeight*.53)};
   function sync(state) {
     for(const f of Object.values(lv.S.fielders))if(f.home){f.x=f.home[0];f.y=f.home[1];}
@@ -78,7 +82,7 @@ export function openInningMode(role='pitcher') {
   function start(same=false) {
     if(lv){lv.skip();lv.destroy();}
     if(!same)seed=crypto.getRandomValues(new Uint32Array(1))[0];game=batting?new BattingGame(seed):new InningGame(seed);busy=false;events=[];shown=null;root.classList.remove('is-playing');
-    lv=new LiveView($('.inning-live'),opt);
+    lv=new LiveView($('.inning-live'),opt);lv.sfx.stadiumOnly=true;lv.setSound(sound);lv.sfx.mute(document.hidden);ambience='idle';atmosphere('idle');soundLabel();
     lv.S.inning=9;lv.S.half='bottom';lv.line.top=[0,0,0,0,0,0,0,0,2];
     const positions={P:[0,18.44],C:[0,-1.6],'1B':[24,25],'2B':[13,38],SS:[-13,38],'3B':[-24,25],LF:[-45,75],CF:[0,95],RF:[45,75]};
     for(const [pos,[x,y]] of Object.entries(positions))lv.S.fielders[pos]={pos,name:pos==='P'?(batting?game.pitcher.name:'나의 마무리'):pos,x,y,home:[x,y],alpha:1};
@@ -91,12 +95,15 @@ export function openInningMode(role='pitcher') {
     box.innerHTML=`<h2>${batting?(game.won?'끝내기 승리!':game.outs>=3?(game.runs===2?'동점에서 이닝 종료':'뒤집지 못했다'):'투구 제한에 도달했다'):(game.won?'막아냈다!':game.runs>=2?'리드를 지키지 못했다':'투구 제한에 도달했다')}</h2><p>${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}</p><small class="inning-result-kicker">${game.won?'MISSION COMPLETE':'한 번 더, 다른 선택으로'}</small><div><button class="go" data-retry>같은 상황 재도전</button><button class="quiet" data-new>새 상대 도전</button></div>`;
     box.querySelector('[data-retry]').onclick=()=>start(true);box.querySelector('[data-new]').onclick=()=>start(false);box.querySelector('button').focus({preventScroll:true});box.scrollIntoView({block:'nearest',behavior:'smooth'});
   }
-  function close(){if(dead)return;dead=true;lv?.skip();lv?.destroy();root.remove();backgrounds.forEach((e,i)=>e.inert=inert[i]);document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',key);opened=false;origin?.focus();}
+  function close(){if(dead)return;dead=true;lv?.skip();lv?.destroy();root.remove();backgrounds.forEach((e,i)=>e.inert=inert[i]);document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);opened=false;origin?.focus();}
   function key(e){if(e.key==='Escape'){e.preventDefault();close();}if(e.key==='Tab'){const buttons=[...root.querySelectorAll('button:not(:disabled)')].filter(e=>e.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}
+  function visibility(){if(dead)return;lv.sfx.mute(document.hidden||lv.speed>2);if(!document.hidden&&lv.sfx.on)lv.sfx.stadium(busy?ambience:'idle',intensity);}
+  document.addEventListener('visibilitychange',visibility);
+  $('.inning-sound').onclick=()=>{sound=!lv.sfx.on;lv.setSound(sound);visibility();if(sound)lv.sfx.stadium(ambience,intensity);soundLabel();};
   document.addEventListener('keydown',key);$('.inning-exit').onclick=close;
   root.querySelectorAll('[data-group] button').forEach(b=>b.onclick=()=>{if(busy)return;const group=b.parentElement;choice[group.dataset.group]=b.dataset.value;group.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));selection();});
   const play=async(action='swing')=>{
-    if(busy||dead||game.done)return;busy=true;scrollBefore=root.scrollTop;root.classList.add('is-playing');$('.inning-live-zone').hidden=true;lv._size();$('.inning-picks').disabled=true;$('.inning-feedback').textContent='승부 중…';
+    if(busy||dead||game.done)return;atmosphere('pitch');busy=true;scrollBefore=root.scrollTop;root.classList.add('is-playing');$('.inning-live-zone').hidden=true;lv._size();$('.inning-picks').disabled=true;$('.inning-feedback').textContent='승부 중…';
     try {
       const e=game.pitch(batting?{...choice,action}:choice),tl=new Timeline(),S=lv.S;
       const rec={batter:e.before.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
@@ -104,6 +111,12 @@ export function openInningMode(role='pitcher') {
       lv.pnp0=e.before.count;lv.seq=[];
       const arrival=lv._pitch(tl,{...e.pitch,r},0,.65,rec,{last:true});
       tl.at(arrival,()=>{zone(r==='X'?{...e,label:'타격'}:e);$('.inning-live-zone').hidden=false;$('.inning-live-zone span').textContent=(Math.abs(e.pitch.x)<=1&&Math.abs(e.pitch.z)<=1?'존 안':'존 밖')+' · '+(r==='X'?'타격':e.label);});
+      const react=()=>{
+        const positive=e.after.done?e.after.won:batting?['1B','2B','HR','BB'].includes(e.result):['OUT','K'].includes(e.result);
+        if(e.after.done||e.terminal)atmosphere(positive?'cheer':'groan',e.after.done?1:e.result==='HR'?.85:e.scored>0?.75:.45);
+        else atmosphere(r==='F'?'foul':'idle');
+      };
+      tl.at(arrival,()=>{if(r==='X')atmosphere('contact');else react();});
       if(r!=='X')tl.at(arrival,()=>{$('.inning-feedback').textContent=e.label+' — '+e.explanation;lv._flash(e.label,e.result==='K'?'k':'');});
       if(r==='X') {
         const angle=e.angle*Math.PI/180,depth=e.result==='HR'?135:e.result==='2B'?90:e.result==='1B'?65:70;
@@ -112,7 +125,7 @@ export function openInningMode(role='pitcher') {
         tl.add(arrival,duration,k=>{S.ball={x:end[0]*k,y:end[1]*k,z:1+22*4*k*(1-k),vis:true};lv._trail();});
         const f=Object.values(S.fielders).filter(x=>['LF','CF','RF'].includes(x.pos)).sort((a,b)=>Math.hypot(a.x-end[0],a.y-end[1])-Math.hypot(b.x-end[0],b.y-end[1]))[0],from=[f.x,f.y];
         tl.add(arrival,duration,k=>{f.x=from[0]+(end[0]-from[0])*k;f.y=from[1]+(end[1]-from[1])*k;});
-        tl.at(arrival+duration,()=>{S.ball=null;S.trail=[];lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':'');});
+        tl.at(arrival+duration,()=>{S.ball=null;S.trail=[];react();lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':'');});
       }
       if(e.movements.length) {
         const runStart=arrival+(r==='X'?.3:.7),duration=3.4;

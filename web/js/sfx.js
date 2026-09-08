@@ -44,7 +44,7 @@ export class Sfx {
   /** 켠다. 반드시 사용자 제스처 안에서 처음 불러야 한다. */
   enable(on) {
     this.on = on;
-    if (!on) { this.stopSong(); this._stopCrowd(); return; }
+    if (!on) { this._stopStadium(); this.stopSong(); this._stopCrowd(); if (this.master) this.master.gain.setTargetAtTime(0, this.ctx.currentTime, .03); return; }
     if (!this.ctx) {
       try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.on = false; return; }
       this.master = this.ctx.createGain(); this.master.gain.value = 0.9; this.master.connect(this.ctx.destination);
@@ -58,11 +58,12 @@ export class Sfx {
       }
       this.noise = buf;
     }
-    if (this.ctx.state === 'suspended') this.ctx.resume();
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
+    this.mute(this.muted);
     if (this.crowdLevel) this.crowd(this.crowdLevel);
   }
   /** 빠른 배속에서는 소리가 뭉개진다. 잠깐 입을 다문다. */
-  mute(m) { this.muted = m; if (this.master) this.master.gain.setTargetAtTime(m ? 0 : 0.9, this.ctx.currentTime, 0.05); }
+  mute(m) { this.muted = m; if (this.master) this.master.gain.setTargetAtTime(m || !this.on ? 0 : 0.9, this.ctx.currentTime, 0.05); }
   get live() { return this.on && this.ctx && !this.muted; }
 
   _burst(dur, { f = 1500, q = 1, gain = 0.5, type = 'bandpass', sweep = null, at = 0 } = {}) {
@@ -97,6 +98,7 @@ export class Sfx {
   }
   call(kind) {
     if (!this.live) return;
+    if (this.stadiumOnly && !['strike', 'strike3'].includes(kind)) return;
     // 스트라이크는 낮은 단발음. 삼진은 같은 질감으로 조금 더 묵직하게.
     if (kind === 'strike') {
       this._burst(0.055, { f: 650, q: 0.5, gain: 0.13, type: 'lowpass' });
@@ -217,6 +219,62 @@ export class Sfx {
     this.crowdG.gain.setTargetAtTime(this.crowdBase * 0.35, t, 0.3);
     this.crowdG.gain.setTargetAtTime(this.crowdBase, t + 3, 1.5);
   }
+  /** 한 이닝 현장음. 멜로디 없이 관중의 호흡과 박수로 승부에 반응한다. */
+  _stopStadium() {
+    clearInterval(this.stadiumTimer);this.stadiumTimer = null;
+    if (this.stadiumBus && this.ctx) this.stadiumBus.gain.setTargetAtTime(0, this.ctx.currentTime, .04);
+    this.stadiumBus = null;
+  }
+  stadium(cue = 'idle', strength = .5) {
+    this._stopStadium();
+    this.stadiumCue = cue;
+    if (!this.live || !this.crowdG) return;
+    const t = this.ctx.currentTime, k = clamp(strength, 0, 1);
+    // 직전 반응의 예약을 지우고 현재 플레이의 응원으로 이어 간다.
+    for (const param of [this.crowdG.gain, this.crowdF.frequency, ...(this.crowdVoices || []).map(v => v.o.frequency)]) {
+      if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(t);
+      else param.cancelScheduledValues(t);
+    }
+    const presets = {
+      idle: [1.4, 1700, 1, 0], pitch: [1.8, 1900, 1.04, 0],
+      contact: [2.8, 2200, 1.12, 2.8], cheer: [4 + k * 5, 2800, 1.2, 2 + k * 3],
+      groan: [2.4, 1000, .84, 1.5], foul: [1.8, 1800, 1.05, .9],
+    };
+    const [gain, cutoff, pitch, hold] = presets[cue] || presets.idle;
+    this.crowdG.gain.setTargetAtTime(this.crowdBase * gain, t, cue === 'pitch' ? .22 : .16);
+    this.crowdF.frequency.setTargetAtTime(cutoff, t, .2);
+    for (const v of this.crowdVoices || []) {
+      v.o.frequency.setTargetAtTime(v.f0 * pitch, t, .25);
+      if (hold) v.o.frequency.setTargetAtTime(v.f0, t + hold, 1.2);
+    }
+    if (hold) {
+      this.crowdG.gain.setTargetAtTime(this.crowdBase, t + hold, 1.2);
+      this.crowdF.frequency.setTargetAtTime(1500, t + hold, 1.2);
+    }
+    const bus = this.ctx.createGain();bus.connect(this.master);this.stadiumBus = bus;
+    if (cue === 'cheer') {
+      for (let i = 0; i < 12 + Math.floor(k * 20); i++) {
+        this._burstTo(bus, .055 + Math.random() * .04, {f: 1100 + Math.random() * 700, q: .6, gain: .07 + k * .06, at: .15 + Math.random() * hold});
+      }
+    }
+    // 타석의 응원은 공을 던질 때도 이어진다. 나팔 없이 낮은 북·박수·구호.
+    let next = t + (hold || .1), beat = 0;
+    const tick = () => {
+      if (!this.live || this.ctx.state !== 'running') { next = this.ctx.currentTime + .1; return; }
+      if (next < this.ctx.currentTime) next = this.ctx.currentTime + .05;
+      while (next < this.ctx.currentTime + .2) {
+        const at = next - this.ctx.currentTime;
+        if (beat % 4 === 0) {
+          this._burstTo(bus, .16, {f: 140, type: 'lowpass', gain: .18, at, attack: .012});
+          this.sing(bus, next, .32, 155, beat % 8 === 0 ? 'o' : 'a', .07);
+        }
+        if (beat % 4 === 2 || beat % 8 === 7) for (let j = 0; j < 4; j++)
+          this._burstTo(bus, .07, {f: 1200 + j * 140, q: .6, gain: .065, at: at + j * .018});
+        next += .28; beat++;
+      }
+    };
+    this.stadiumTimer = setInterval(tick, 100);tick();
+  }
   /* ── 응원 ──────────────────────────────────────────────
      KBO 응원은 북 · 박수 · 나팔 · 떼창이다. 실제 응원가는 쓸 수 없으니 멜로디는
      구단 이름에서 뽑은 고유한 모티프다. 홈팀 타석 동안 돌고, 타석이 끝나면 멈춘다.
@@ -300,5 +358,5 @@ export class Sfx {
     src.connect(flt); flt.connect(g); g.connect(dest); src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.02);
   }
 
-  destroy() { this.stopSong(); this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
+  destroy() { this.on = false; this._stopStadium(); this.stopSong(); this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
 }

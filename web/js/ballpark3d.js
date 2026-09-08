@@ -56,13 +56,13 @@ export function buildSurroundings(v, opts) {
   const heads=new T.InstancedMesh(v.sphere,v.material('#cda37e'),occupied.length);
   const palette=[opts.colors.home,opts.colors.away,'#c8d4d0','#d3ba87','#36515e','#967768'];
   occupied.forEach((q,i)=>{d.position.copy(p(q.x,q.y,q.z+.5));d.rotation.set(0,q.angle,0);d.scale.set(.6,.7,.4);d.updateMatrix();shirts.setMatrixAt(i,d.matrix);shirts.setColorAt(i,new T.Color(palette[Math.floor(rand()*palette.length)]));d.position.y+=.54;d.scale.set(.20,.23,.20);d.updateMatrix();heads.setMatrixAt(i,d.matrix);});
-  v.crowdClock={value:0};
+  v.crowdClock={value:0};v.crowdEnergy={value:0};
   for(const mesh of [shirts,heads]) {
     mesh.material=mesh.material.clone();
     mesh.material.onBeforeCompile=shader=>{
-      shader.uniforms.crowdClock=v.crowdClock;
-      shader.vertexShader='uniform float crowdClock;\n'+shader.vertexShader;
-      shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += .035 * sin(crowdClock * 1.7 + instanceMatrix[3].x * .8 + instanceMatrix[3].z);');
+      shader.uniforms.crowdClock=v.crowdClock;shader.uniforms.crowdEnergy=v.crowdEnergy;
+      shader.vertexShader='uniform float crowdClock; uniform float crowdEnergy;\n'+shader.vertexShader;
+      shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.y += (crowdEnergy * (.35 + .22 * sin(crowdClock * 7.0 + instanceMatrix[3].x)) + .035 * sin(crowdClock * 1.7 + instanceMatrix[3].x * .8 + instanceMatrix[3].z)) / max(.01, length(instanceMatrix[1].xyz));');
     };
   }
   v.scene.add(shirts,heads);v.crowdCount=occupied.length;v.seatCount=places.length;
