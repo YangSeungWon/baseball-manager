@@ -28,6 +28,7 @@ try {
     await page.locator(entry).click();
     assert.equal(await page.locator('.inning-sound').getAttribute('aria-pressed'),'true');
     await page.waitForFunction(()=>audioInstances.at(-1).ctx.state==='running');
+    assert.equal(await page.evaluate(()=>audioInstances.at(-1).crowdVoices.length),0,'stadium bed has no sustained pitched oscillators');
     for(const cls of ['.inning-sound','.inning-exit']){const box=await page.locator(cls).boundingBox();assert.ok(box.height>=44&&box.x+box.width<=320);}
     await page.locator('.inning-throw').click();
     await page.waitForFunction(()=>audioCues.includes('pitch'));

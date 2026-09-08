@@ -1997,3 +1997,51 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
 
 .inning-head-actions{display:flex;gap:6px;flex-shrink:0}.inning-head-actions button{padding:8px 10px;font-size:12px}.inning-sound[aria-pressed=true]{color:#b5dfc6;border-color:#69937f}
 @media(max-width:360px){.inning-head{gap:5px}.inning-head h1{font-size:18px}.inning-head-actions{gap:4px}.inning-head-actions button{padding:8px;font-size:11px}}
+
+/* Readable match text at every viewport size; allow content to wrap. */
+.inning-mode{font-size:16px;line-height:1.5}
+.inning-head small,.is-playing .inning-head small{font-size:13px;letter-spacing:0}
+.inning-head-actions button{font-size:14px}
+.inning-score{font-size:16px}
+.inning-frame,.inning-counts>small{font-size:14px}
+.inning-scoreline{flex-wrap:wrap;gap:8px 12px}
+.inning-score .inning-goal{font-size:15px;line-height:1.5;max-width:none;color:#d2e1df}
+.inning-counts>span:first-child>span{font-size:13px}
+.inning-counts>small{white-space:nowrap;color:#b9cdd4}
+.inning-feedback{font-size:16px;line-height:1.6}
+.inning-verdict{flex-wrap:wrap;gap:4px 12px}
+.inning-verdict strong{font-size:23px}
+.inning-verdict span{font-size:15px;color:#c2d6dd}
+.inning-feedback p{font-size:16px;line-height:1.65;margin-top:8px;color:#d4dfe2}
+.inning-history{flex-wrap:wrap;gap:8px;padding:12px}
+.inning-history>span:first-child{flex-basis:100%;font-size:14px;color:#b9d0d8}
+.inning-pitch-chip{flex:0 0 auto;padding:8px 10px;gap:4px}
+.inning-pitch-chip small{font-size:14px;color:#b9d0d8}
+.inning-pitch-chip b{font-size:16px}
+.inning-opponent{flex-wrap:wrap;gap:8px}
+.inning-opponent b{font-size:18px}
+.inning-opponent b span,.inning-options button small{font-size:14px;color:#b3d0cd}
+.inning-opponent p{font-size:15px;line-height:1.6;color:#c4d4dc}
+.inning-label{font-size:15px;flex-wrap:wrap;gap:4px 8px;margin:12px 0 8px}
+.inning-label small{font-size:13px;color:#b7ccd4}
+.inning-options button{font-size:15px;line-height:1.5}
+.inning-choice-note,.inning-zone-caption,.inning-rule,.inning-decision-note{font-size:15px;line-height:1.65;color:#c1d5dc}
+.inning-choice-note{margin:12px 0}
+.inning-rule{text-align:left;margin:16px 0 4px}
+.inning-zone-row{align-items:flex-start}
+.inning-zone-map .zone-target{font-size:13px}
+.inning-live-zone>span{font-size:14px;line-height:1.4}
+.inning-result-kicker{font-size:14px;letter-spacing:0}
+@media(max-width:600px){
+  .inning-score .inning-goal{flex-basis:100%;margin-left:0}
+  .inning-counts{flex-wrap:wrap;gap:8px}
+  .inning-counts>span:first-child{gap:8px}
+  .is-playing .inning-score{top:88px}
+  .is-playing .inning-live-zone{top:230px;bottom:auto}
+  .inning-feedback{padding:12px}
+}
+@media(max-height:500px){
+  .is-playing .inning-live-zone{top:80px;bottom:auto;width:104px}
+  .is-playing .inning-score{top:66px;width:min(300px,calc(100% - 160px))}
+  .is-playing .inning-feedback{max-height:32vh;overflow:auto}
+}

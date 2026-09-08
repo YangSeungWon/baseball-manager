@@ -154,10 +154,10 @@ export class Sfx {
       lp.connect(g); g.connect(this.master);
       // 포먼트 셋 — '아' 에 가까운 열린 소리
       const forms = [[420, 2.2, 1.0], [900, 2.6, 0.55], [2200, 3, 0.18]].map(([f, q, w]) => {
-        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+        const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = this.stadiumOnly ? .7 : q;
         const wg = c.createGain(); wg.gain.value = w; bp.connect(wg); wg.connect(lp); return bp; });
       this.crowdVoices = [];
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < (this.stadiumOnly ? 0 : 12); i++) {
         const o = c.createOscillator(); o.type = 'sawtooth';
         const f0 = 150 + Math.random() * 260; o.frequency.value = f0;
         // 저마다 천천히 흔들린다 — 한 사람의 소리가 아니라 무리의 소리
@@ -173,7 +173,13 @@ export class Sfx {
       // 낮은 웅성거림 — 노이즈는 바닥에만 조금
       const src = c.createBufferSource(); src.buffer = this.noise; src.loop = true;
       const nf = c.createBiquadFilter(); nf.type = 'lowpass'; nf.frequency.value = 500;
-      const ng = c.createGain(); ng.gain.value = 0.35; src.connect(nf); nf.connect(ng); ng.connect(g); src.start();
+      const ng = c.createGain(); ng.gain.value = 0.35; src.connect(nf); nf.connect(ng); ng.connect(g);
+      // 한 이닝에서는 지속적인 톱니파 대신 넓게 거른 소음으로 관중의 숨결을 만든다.
+      if (this.stadiumOnly) {
+        const murmur = c.createGain(); murmur.gain.value = .9; src.connect(murmur);
+        for (const bp of forms) murmur.connect(bp);
+      }
+      src.start();
       this.crowdG = g; this.crowdSrc = src; this.crowdF = lp;
     }
     this.crowdBase = 0.03 + level * 0.09;
@@ -266,7 +272,7 @@ export class Sfx {
         const at = next - this.ctx.currentTime;
         if (beat % 4 === 0) {
           this._burstTo(bus, .16, {f: 140, type: 'lowpass', gain: .18, at, attack: .012});
-          this.sing(bus, next, .32, 155, beat % 8 === 0 ? 'o' : 'a', .07);
+          this._burstTo(bus, .32, {f: beat % 8 === 0 ? 480 : 650, q: .6, gain: .16, at, attack: .07});
         }
         if (beat % 4 === 2 || beat % 8 === 7) for (let j = 0; j < 4; j++)
           this._burstTo(bus, .07, {f: 1200 + j * 140, q: .6, gain: .065, at: at + j * .018});
