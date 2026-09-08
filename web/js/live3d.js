@@ -238,6 +238,7 @@ export class Live3D {
     legs[0].rotation.x=stride;legs[1].rotation.x=-stride;
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
     body.position.y=pose==='crouch'?-.42:0;body.rotation.set(0,0,0);
+    p.glove.position.set(0,-.51,.04);
     p.bat.visible=['bat','walk','dejected'].includes(pose);p.glove.visible=!p.bat.visible;
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
@@ -265,10 +266,13 @@ export class Live3D {
     if(S.batter&&!firstPerson)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     this.updatePlayer('ump',{x:0,y:-3.2},'#27343f','crouch',S);
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
-    if(b&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
+    if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
     }
-    if(S.hold&&S.fieldPlay?.phase==='caught'){const f=this.players.get('f'+S.hold.pos);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);b.x=hand.x;b.y=-hand.z;b.z=hand.y;}}
+    if(S.hold&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='caught'){const f=this.players.get('f'+S.hold.pos);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);b.x=hand.x;b.y=-hand.z;b.z=hand.y;}}
+    if(b&&S.fieldPlay?.physical&&['catch','force-out'].includes(S.fieldPlay.phase)){
+      const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);f.glove.position.copy(f.glove.parent.worldToLocal(point(b.x,b.y,b.z)));}
+    }
     this.ball.scale.setScalar(this.opts.playerRole==='batter'?.12:.20);this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
     const trail=S.trail.slice(-26),attr=this.trailGeo.attributes.position;
     trail.forEach(([x,y,z],i)=>attr.setXYZ(i,x,z,-y));attr.needsUpdate=true;this.trailGeo.setDrawRange(0,trail.length);this.trail.visible=trail.length>1;

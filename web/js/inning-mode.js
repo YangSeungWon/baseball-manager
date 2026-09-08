@@ -1,3 +1,4 @@
+import { sampleField, FIELD_POSITIONS } from './field-sim.js';
 import { pitchPressure, releaseMarker } from './pitch-control.js';
 import { InningGame, PITCHES } from './inning-game.js';
 import { BattingGame } from './batting-game.js';
@@ -166,7 +167,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     if(!same)seed=crypto.getRandomValues(new Uint32Array(1))[0];game=batting?new BattingGame(seed):new InningGame(seed);busy=false;events=[];runEvents=[];shown=null;root.classList.remove('is-playing','is-finished');plan(false);
     lv=new LiveView($('.inning-live'),opt);lv.sfx.stadiumOnly=true;lv.setSound(sound);lv.sfx.mute(document.hidden);ambience='idle';atmosphere('idle');soundLabel();
     lv.S.inning=9;lv.S.half='bottom';lv.line.top=[0,0,0,0,0,0,0,0,2];
-    const positions={P:[0,18.44],C:[0,-1.6],'1B':[24,25],'2B':[13,38],SS:[-13,38],'3B':[-24,25],LF:[-45,75],CF:[0,95],RF:[45,75]};
+    const positions=FIELD_POSITIONS;
     for(const [pos,[x,y]] of Object.entries(positions))lv.S.fielders[pos]={pos,name:pos==='P'?(batting?game.pitcher.name:'나의 마무리'):pos,x,y,home:[x,y],alpha:1};
     sync(game.snapshot());lv.S.broadcast={kind:'pitch'};
     $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=false;$('.inning-result').hidden=true;
@@ -187,7 +188,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     if(batting)dock();else $('.pitch-breathe').disabled=false;
   }
   async function changeBatter(e) {
-    const S=lv.S,tl=new Timeline(),out=['K','OUT'].includes(e.result),next=!e.after.done;
+    const S=lv.S,tl=new Timeline(),out=['K','OUT'].includes(e.result)&&!e.fieldPlay?.events.some(x=>x.type==='force-out'),next=!e.after.done;
     if(!out&&!next)return;
     S.batter=null;S.ball=null;S.hold=null;S.trail=[];S.swing=0;
     S.broadcast={kind:'change'};S.changePlayers=[];
@@ -226,7 +227,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
         if(navigator.share){try{await navigator.share({title:'DUGOUT · '+result.title,text:result.text,url:result.url});return;}catch(e){if(e.name==='AbortError')return;}}
         if(await copyChallenge(full))status.textContent='결과와 도전 링크를 복사했습니다. 원하는 곳에 붙여넣으세요.';else fallback();
       };
-      box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b1-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
+      box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b2-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
     }
     box.querySelector('[data-retry]').onclick=()=>start(true);box.querySelector('[data-new]').onclick=()=>start(false);box.querySelector('button').focus({preventScroll:true});box.scrollIntoView({block:'nearest',behavior:'smooth'});
   }
@@ -258,37 +259,36 @@ export function openInningMode(role='pitcher',initialSeed=null) {
       tl.at(arrival,()=>{if(r==='X')atmosphere('contact');else react();});
       if(r!=='X')tl.at(arrival,()=>{$('.inning-feedback').textContent=e.label;lv._flash(e.label,e.result==='K'?'k':'');});
       if(r==='X') {
-        const angle=e.angle*Math.PI/180,depth=e.result==='HR'?135:e.result==='2B'?90:e.result==='1B'?65:70;
-        const end=[Math.sin(angle)*depth,Math.cos(angle)*depth],duration=3;
-        const caught=e.result==='OUT',homer=e.result==='HR';
-        const f=Object.values(S.fielders).filter(x=>['LF','CF','RF'].includes(x.pos)).sort((a,b)=>Math.hypot(a.x-end[0],a.y-end[1])-Math.hypot(b.x-end[0],b.y-end[1]))[0],from=[f.x,f.y];
-        const stop=caught?end:[end[0]+(end[0]>=0?-5:5),end[1]+5];
-        tl.at(arrival,()=>{S.hold=null;S.broadcast={kind:'field'};S.fieldPlay={phase:'flight',fielder:f.pos};});
-        tl.add(arrival,duration,k=>{S.fieldPlay.progress=k;S.ball={x:end[0]*k,y:end[1]*k,z:(caught?1.8:0.12)*k+1-k+22*4*k*(1-k),vis:true};lv._trail();});
-        if(!homer){
-          tl.add(arrival,duration,k=>{f.x=from[0]+(stop[0]-from[0])*k;f.y=from[1]+(stop[1]-from[1])*k;});
-          tl.at(arrival+duration-.8,()=>{S.broadcast={kind:'catch',target:end};f.pose=caught?'catch':'field';});
-        }
-        tl.at(arrival+duration,()=>{
-          S.trail=[];zone(e);react();lv._flash(e.label,caught?'out':homer?'hr':'');
-          S.fieldPlay={phase:caught?'caught':homer?'home-run':'bounce',fielder:f.pos};
-          if(caught){S.ball=null;S.hold=f;f.pose='caught';}
-          else if(homer)S.ball=null;
+        const play=e.fieldPlay,last=play.frames.at(-1),key=play.events.find(x=>['catch','pickup','home-run'].includes(x.type));
+        tl.at(arrival,()=>{S.hold=null;S.broadcast={kind:'field'};S.fieldPlay={physical:true,phase:'flight',fielder:play.handler};});
+        tl.add(arrival,play.duration,k=>{
+          const frame=sampleField(play,k*play.duration);S.fieldPlay.time=k*play.duration;S.ball={x:frame.x,y:frame.y,z:frame.z,vis:true};S.trail=[];
+          for(const f of frame.fielders)Object.assign(S.fielders[f.pos],{x:f.x,y:f.y});
+          lv._trail();
         });
-        if(caught){
-          tl.add(arrival+duration,1.6,null);
-        }else if(!homer){
-          // A hit lands beyond the glove, then stays visible while the fielder chases it.
-          tl.add(arrival+duration,1.6,k=>{S.ball={x:end[0]+Math.sin(angle)*9*k,y:end[1]+Math.cos(angle)*9*k,z:.12+Math.abs(Math.sin(k*Math.PI*2))*1.4*(1-k),vis:true};f.x=stop[0]+(end[0]+Math.sin(angle)*9-stop[0])*k;f.y=stop[1]+(end[1]+Math.cos(angle)*9-stop[1])*k;lv._trail();});
-          tl.at(arrival+duration+1.6,()=>{S.fieldPlay.phase='pickup';f.pose='crouch';lv._hold(f);});
-          tl.add(arrival+duration+1.6,.7,null);
+        if(key&&key.type!=='home-run')tl.at(arrival+Math.max(0,key.t-.8),()=>{S.broadcast={kind:'catch',target:[key.x,key.y]};});
+        for(const event of play.events)tl.at(arrival+event.t,()=>{
+          S.fieldPlay.phase=event.type;S.fieldPlay.fielder=event.fielder||play.handler;
+          if(event.fielder)S.fielders[event.fielder].pose=['catch','force-out'].includes(event.type)?'caught':event.type==='pickup'?'crouch':'field';
+          if(event.type==='throw')S.broadcast={kind:'base',target:[19.4,19.4]};
+        });
+        tl.at(arrival+play.duration,()=>{
+          S.trail=[];zone(e);react();lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':'');
+          S.ball=e.result==='HR'?null:{x:last.x,y:last.y,z:last.z,vis:true};
+        });
+        if(play.events.some(x=>x.type==='force-out')){
+          const runner=lv._runner(e.before.batter.name,0);
+          tl.at(arrival+.33,()=>{S.batter=null;S.runners.push(runner);});
+          tl.add(arrival+.33,Math.max(.01,play.duration-.33),k=>{const u=Math.min(1,k*(play.duration-.33)/3.92);runner.x=19.4*u;runner.y=19.4*u;});
         }
-
+        tl.add(arrival+play.duration,1.4,null);
       }
+
       if(e.movements.length) {
-        const runStart=arrival+(r==='X'?.3:.7),duration=3.4;
+        const runStart=arrival+(r==='X'?.33:.7);
         for(const m of e.movements){let runner=m.from===0?lv._runner(e.before.batter.name,0):S.runners.find(x=>x.base===m.from);if(!runner)continue;if(m.from===0){S.runners.push(runner);tl.at(runStart,()=>{S.batter=null;});}
           const path=Array.from({length:m.to-m.from+1},(_,i)=>BASE[m.from+i]);
+          const duration=path.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-path[i][0],p[1]-path[i][1]),0)/7;
           tl.add(runStart,duration,k=>{const a=Math.min(path.length-2,Math.floor(k*(path.length-1))),u=k===1?1:k*(path.length-1)-a;runner.x=path[a][0]+(path[a+1][0]-path[a][0])*u;runner.y=path[a][1]+(path[a+1][1]-path[a][1])*u;});
         }
       }

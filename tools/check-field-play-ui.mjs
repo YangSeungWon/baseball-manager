@@ -19,7 +19,8 @@ try {
  await page.evaluate(async()=>{
   localStorage.setItem('dugout.sfx','0');window.hit=false;
   const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.resolvePitch;
-  BattingGame.prototype.resolvePitch=function(c){return resolve.call(this,c,[0,.1,.1,.5,window.hit?.1:.99,.5,.5,.5,.99,.99]);};
+  BattingGame.prototype.resolvePitch=function(c){const e=resolve.call(this,c,[0,.1,.1,.5,window.hit?.3:.41,window.hit?.5:.79,.5,.5,.99,.99]);window.playTrace=e.fieldPlay;return e;};
+  window.sampleTrace=(await import('/js/field-sim.js')).sampleField;
   const {Live3D}=await import('/js/live3d.js');const direct=Live3D.prototype.direct;Live3D.prototype.direct=function(S,t){window.state3d=S;window.scene3d=this;return direct.call(this,S,t);};
  });
  await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();
@@ -30,8 +31,12 @@ try {
  assert.match(await page.locator('.inning-batter-entry').textContent(),/타석 입장/);
  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
  const swing=async()=>{await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();await page.locator('.batting-swing').click();};
- await swing();await page.waitForFunction(()=>state3d.fieldPlay?.phase==='caught',{},{timeout:20000});
- assert.ok(await page.evaluate(()=>state3d.hold?.pos));
+ await swing();
+ await page.waitForFunction(()=>state3d.fieldPlay?.time>.5);
+ assert.ok(await page.evaluate(()=>{const b=sampleTrace(playTrace,state3d.fieldPlay.time);return Math.hypot(b.x-state3d.ball.x,b.y-state3d.ball.y,b.z-state3d.ball.z)<1e-7;}),'render uses adjudication trace');
+ await page.waitForFunction(()=>state3d.fieldPlay?.phase==='catch',{},{timeout:20000});
+ assert.ok(await page.evaluate(()=>state3d.ball?.vis));
+ assert.ok(await page.evaluate(()=>state3d.ball.y>120),'catch actually occurs near center-field fence');
  await page.waitForFunction(()=>scene3d.cameraKind==='catch');
  await page.screenshot({path:'/tmp/dugout-field-catch.png'});
  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});

@@ -1,3 +1,4 @@
+import { contactFlight } from './field-sim.js';
 import { controlledPitch, releaseLabel } from './pitch-control.js';
 // A small, independent pitching challenge. Never reads/writes the GM save or RNG.
 export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed:133},CH:{name:'체인지업',speed:128}};
@@ -21,12 +22,11 @@ export class InningGame {
     const swing=roll[1]<(inZone?.73+this.strikes*.05:this.batter.chase+(this.strikes===2?.13:0)-(this.balls===3?.1:0));
     const fooled=(type==='CH'&&this.history.at(-1)?.type==='FF'?.13:0)+(type==='SL'&&zone==='out'?.08:0);
     const contact=clamp(this.batter.contact+(inZone?.03:-.19)+repeated*.09-fooled,.22,.94);
-    let result,terminal=false;
+    let result,terminal=false,fieldPlay=null;
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<.30) result='F';
-    else {const hitChance=clamp(.35+repeated*.09+(this.batter.style==='장타형'?.06:0)-(inZone?0:.10)-fooled*.35,.1,.6);
-      result=roll[4]<hitChance?(roll[5]<.15?'HR':roll[5]<.40?'2B':'1B'):'OUT';terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1)});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}
@@ -53,6 +53,6 @@ export class InningGame {
     this.won=this.outs>=3 && this.runs<2;
     this.done=this.won||this.runs>=2||this.count>=30;
     const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
-    return {before,after:this.snapshot(),call,result,label:names[result],explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result],explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
   }
 }

@@ -15,7 +15,7 @@ test('opponent pitch is independent of player selection',()=>{
   }
 });
 test('three-run home run wins from the starting situation',()=>{
-  const g=new BattingGame(3);rolls(g,[0,0,0,.9,0,0]);
+  const g=new BattingGame(3);rolls(g,[0,0,0,.9,0,.5]);
   const e=g.pitch({target:'FF',approach:'power',action:'swing'});
   assert.equal(e.result,'HR');assert.equal(g.runs,3);assert.equal(g.won,true);assert.equal(g.done,true);assert.equal(e.movements.length,3);
 });

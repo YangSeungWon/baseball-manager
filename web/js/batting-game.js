@@ -1,3 +1,4 @@
+import { contactFlight } from './field-sim.js';
 import { InningGame, PITCHES } from './inning-game.js';
 const ARMS=[
   {name:'강태오',style:'직구파',fast:.64,hint:'직구 비중이 높습니다. 빠른 공을 노려보세요.'},
@@ -39,13 +40,12 @@ export class BattingGame extends InningGame {
     const matched=target===type,power=approach==='power';
     const read=target==='any'?0:matched?.15:-.17;
     const contact=clamp(.83+read+locationRead-(power?.17:0)-(inZone?0:.27),.15,.98);
-    let result;
+    let result,fieldPlay=null;
     if(action==='take')result=inZone?'S':'B';
     else if(roll[2]>contact)result='W';
     else if(roll[3]<(power?.20:.32))result='F';
     else {
-      const hit=clamp(.38+locationRead*.5+(matched?.15:0)-(target!=='any'&&!matched?.08:0)-(inZone?0:.18),.1,.72);
-      result=roll[4]<hit?(roll[5]<(power?.32:.07)?'HR':roll[5]<(power?.64:.26)?'2B':'1B'):'OUT';
+      fieldPlay=contactFlight(roll,{power,bonus:locationRead*.5+(matched?.1:0)-(inZone?0:.12)});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','2B','1B'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}
@@ -69,6 +69,6 @@ export class BattingGame extends InningGame {
     let explanation=action==='take'?(inZone?'지켜본 공이 존 안에 들어왔습니다.':'존 밖의 공을 잘 참았습니다.'):
       !inZone?'존 밖으로 빠지는 공에 배트가 나갔습니다.':matched?'노렸던 구종입니다. 준비한 스윙으로 승부했습니다.':target!=='any'?'예상과 다른 구종에 대응해야 했습니다.':power?'크게 돌렸습니다. 장타와 헛스윙의 위험을 함께 감수합니다.':'짧은 스윙으로 공을 맞히는 데 집중했습니다.';
     if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
-    return {before,after:this.snapshot(),call,result,label:names[result],explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result],explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }
