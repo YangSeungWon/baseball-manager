@@ -20,8 +20,12 @@ try {
     const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);
     await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.decidePitch;window.decisions=[];BattingGame.prototype.decidePitch=function(action){decisions.push(action);return resolve.call(this,action);};});
-    await page.locator('#btnBatting').click();await page.locator('.inning-throw').click();
-    await page.locator('.batting-decision').waitFor({state:'visible'});
+    await page.locator('#btnBatting').click();
+    if(width===1440)await page.locator('.batting-take').click();
+    const before=await page.locator('.batting-swing').boundingBox();
+    await page.locator('.inning-throw').click();
+    await page.locator('.is-deciding .batting-decision').waitFor({state:'visible'});
+    if(width<=900){const after=await page.locator('.batting-swing').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
     assert.match(await page.locator('.inning-score').textContent(),/0\/30구/);
     assert.equal(await page.locator('.zone-pitch').count(),0,'no landing point before decision');
     assert.deepEqual(await page.evaluate(()=>decisions),[],'no result resolved yet');
@@ -34,8 +38,8 @@ try {
     // Desktop exercises timeout: a decision must still be made without input.
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     assert.deepEqual(await page.evaluate(()=>decisions),[width===320?'swing':'take']);
-    if(width===1440)assert.match(await page.locator('.inning-feedback').textContent(),/판단 시간이 지나/);
-    assert.equal(await page.locator('.batting-decision').isVisible(),false);
+    if(width===1440)assert.match(await page.locator('.inning-feedback').textContent(),/선택해 둔 지켜보기를/);
+    assert.equal(await page.locator('.inning-mode').evaluate(e=>e.classList.contains('is-deciding')),false);
     await page.locator('.inning-exit').click();await page.close();
   }
   assert.deepEqual(errors,[]);console.log('PASS: timed swing/take, timeout, no result or location leak, close cancels decision, mobile/landscape/desktop');

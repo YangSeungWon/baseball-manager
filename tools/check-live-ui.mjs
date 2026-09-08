@@ -19,7 +19,7 @@ try {
   for (const [width,height] of [[390,844],[320,568],[844,390],[1440,1000]]) {
     const page = await browser.newPage({ viewport:{width,height} });
     page.on('pageerror', e => {errors.push(e.message);console.error(e.stack)});
-    await page.goto(url); await page.locator('#btnNew').click(); await page.locator('#guidePlay').click();
+    await page.goto(url); await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').click(); await page.locator('#guidePlay').click();
     const start = page.locator('.lv-pre-go'); await start.waitFor();
     const pos = await start.boundingBox(); assert.ok(pos.y >= 0 && pos.y+pos.height <= height, 'playball visible '+width);
     if(width===390) await page.screenshot({path:'/tmp/dugout-live-pre.png'});
@@ -54,7 +54,7 @@ try {
   }
   const decision = await browser.newPage({viewport:{width:320,height:568}});
   decision.on('pageerror', e => errors.push(e.message));
-  await decision.goto(url); await decision.locator('#btnNew').waitFor();
+  await decision.goto(url); await decision.locator('.manager-entry>summary').click(); await decision.locator('#btnNew').waitFor();
   await decision.evaluate(async () => {
     const { LiveView } = await import('/js/live.js');
     document.querySelector('#boot').hidden = true;

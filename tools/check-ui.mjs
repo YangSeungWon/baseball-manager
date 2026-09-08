@@ -18,7 +18,7 @@ try {
   const page = await browser.newPage({ viewport:{ width:1440, height:1000 } });
   const errors = []; page.on('pageerror', e => { errors.push(e.message); console.error(e.stack); });
   page.setDefaultTimeout(10000);
-  await page.goto(url); await page.locator('#btnNew').waitFor();
+  await page.goto(url); await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').waitFor();
   await page.screenshot({ path:'/tmp/dugout-boot.png', fullPage:true });
   await page.locator('#btnNew').click(); await page.locator('#guidePlayer').click();
   await page.locator('#watchPlayer').click();
@@ -46,7 +46,7 @@ try {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth);
   assert.equal(overflow, false, 'mobile home overflow');
   const mobile = await browser.newPage({ viewport:{ width:390, height:844 } });
-  await mobile.goto(url); await mobile.locator('#btnNew').waitFor();
+  await mobile.goto(url); await mobile.locator('.manager-entry>summary').click(); await mobile.locator('#btnNew').waitFor();
   await mobile.screenshot({ path:'/tmp/dugout-mobile-boot.png', fullPage:true });
   assert.equal(await mobile.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'mobile boot overflow');
   await page.addInitScript(() => { const fixture = sessionStorage.getItem('test-fixture'); if (fixture !== null) { localStorage.setItem('dugout.save.v1', fixture); sessionStorage.removeItem('test-fixture'); } });
@@ -80,7 +80,7 @@ try {
   await page.reload(); await page.locator('#resumeMain').click(); await page.locator('#rawSave').waitFor();
   assert.equal(await page.evaluate(() => localStorage.getItem('dugout.save.v1')), '{broken');
   await page.keyboard.press('Escape');
-  await page.locator('#btnNew').click(); await page.locator('#confirmNew').click();
+  await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').click(); await page.locator('#confirmNew').click();
   assert.equal(await page.evaluate(() => localStorage.getItem('dugout.save.recovery')), '{broken');
   assert.deepEqual(errors, [], 'browser errors');
   console.log('PASS: boot, guide, watch, modal, weekly sim, reload/resume, cancel, all tabs, mobile, draft comparison/pick, corrupt-save preservation');

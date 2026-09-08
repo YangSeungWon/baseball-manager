@@ -20,7 +20,7 @@ try {
     const page = await browser.newPage({viewport:{width,height}});
     page.on('pageerror', e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error' && /Shader Error|VALIDATE_STATUS/.test(m.text()))errors.push(m.text());});
-    await page.goto(url); await page.locator('#btnNew').waitFor();
+    await page.goto(url); await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').waitFor();
     assert.equal(await page.evaluate(()=>performance.getEntriesByType('resource').some(r=>r.name.includes('/vendor/three/'))),false,'Three is lazy');
     await page.evaluate(async()=>{
       const {LiveView}=await import('/js/live.js');
@@ -75,7 +75,7 @@ try {
     await page.close();
   }
   const variant=await browser.newPage();variant.on('pageerror',e=>errors.push(e.message));
-  await variant.goto(url);await variant.locator('#btnNew').waitFor();
+  await variant.goto(url); await variant.locator('.manager-entry>summary').click();await variant.locator('#btnNew').waitFor();
   const variants=await variant.evaluate(async()=>{
     const {Live3D}=await import('/js/live3d.js');const {parkDims}=await import('/js/core/bip.js');
     const records=[];
@@ -91,7 +91,7 @@ try {
   // Exercise the real game flow with a persisted third-view preference.
   const game=await browser.newPage({viewport:{width:390,height:844}});
   game.on('pageerror',e=>errors.push(e.message));
-  await game.goto(url);await game.locator('#btnNew').waitFor();
+  await game.goto(url); await game.locator('.manager-entry>summary').click();await game.locator('#btnNew').waitFor();
   await game.evaluate(()=>localStorage.setItem('dugout.view','three'));
   await game.reload();await game.locator('#btnNew').click();await game.locator('#guidePlay').click();
   await game.locator('.lv-three').waitFor({state:'visible',timeout:20000});
@@ -111,7 +111,7 @@ try {
   const closing=await browser.newPage();
   closing.on('pageerror',e=>errors.push(e.message));
   await closing.route('**/js/live3d.js',async route=>{await new Promise(r=>setTimeout(r,200));await route.continue();});
-  await closing.goto(url);await closing.locator('#btnNew').waitFor();
+  await closing.goto(url); await closing.locator('.manager-entry>summary').click();await closing.locator('#btnNew').waitFor();
   await closing.evaluate(async()=>{
     const {LiveView}=await import('/js/live.js');
     const root=document.createElement('div');document.body.appendChild(root);

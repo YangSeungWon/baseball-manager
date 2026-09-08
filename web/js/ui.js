@@ -369,7 +369,10 @@ addEventListener('scroll', () => {
 }, { passive: true });
 
 async function boot() {
-  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter'); };
+  const {challengeSeed}=await import('./inning-share.js');
+  const seed=challengeSeed(location.search);
+  if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
+  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',seed); };
   $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;

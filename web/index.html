@@ -3,21 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Project Dugout · 야구단 운영 시뮬레이션</title>
-<meta name="description" content="지명부터 우승까지, 당신이 만드는 구단의 이야기. 설치·가입 없이 즐기는 무료 야구단 운영 시뮬레이션.">
+<title>DUGOUT · 2.5초, 칠까 참을까?</title>
+<meta name="description" content="9회 말, 두 점 차. 날아오는 공을 보고 2.5초 안에 스윙하거나 참으세요. 무료 3D 웹 야구 게임. 결과를 공유하고 같은 상황에 도전하세요.">
 <link rel="canonical" href="https://baseball.ysw.kr/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
-<meta property="og:title" content="Project Dugout · 지명부터 우승까지">
-<meta property="og:description" content="스카우트 리포트를 읽고, 선수를 키우고, 승부처에서 결정하세요. 설치·가입 없이 무료로 플레이.">
+<meta property="og:title" content="DUGOUT · 2.5초, 칠까 참을까?">
+<meta property="og:description" content="9회 말, 두 점 차. 2.5초 안에 칠지 참을지 결정하세요. 결과를 공유하고 친구에게 같은 상황을 건네보세요.">
 <meta property="og:url" content="https://baseball.ysw.kr/">
 <meta property="og:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Project Dugout — 지명부터 우승까지, 당신이 만드는 구단의 이야기">
+<meta property="og:image:alt" content="DUGOUT — 2.5초, 칠까 참을까? 9회 말 두 점 차의 웹 야구 게임">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Project Dugout · 지명부터 우승까지">
-<meta name="twitter:description" content="당신이 만드는 구단의 이야기. 설치·가입 없이 무료로 플레이.">
+<meta name="twitter:title" content="DUGOUT · 2.5초, 칠까 참을까?">
+<meta name="twitter:description" content="날아오는 공을 보고 2.5초 안에 결정하세요. 무료 · 설치·가입 없음.">
 <meta name="twitter:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
 <link rel="stylesheet" href="css/style.css">
 <meta name="theme-color" content="#0e151c">
@@ -38,11 +38,13 @@
         <g class="lg-post"><path d="M32 56v10M76 56v10M120 56v10M164 56v10M208 56v10M252 56v10"/></g>
       </svg>
     </h1>
-    <p class="goal">구단 선택</p>
+    <p class="goal">2.5초 승부</p>
   </div>
-  <p class="boot-intro">지명부터 우승까지, 당신이 만드는 구단의 이야기.<span>리포트를 읽고, 선수를 키우고, 승부처에서 결정하세요. 무료 · 설치·가입 없음</span></p>
-  <section class="inning-entry"><div><small>1~3분 · 한 이닝 승부</small><h2>9회 말, 두 점 차.</h2><p>투수로 위기를 막거나, 타자로 경기를 뒤집어보세요.</p></div><div class="inning-entry-actions"><button class="go" id="btnInning">투수로 막아내기 →</button><button class="go" id="btnBatting">타자로 뒤집기 →</button></div></section>
+  <section class="batting-hero"><div class="batting-hero-copy"><p class="hero-kicker">무료 웹 야구 · 설치·가입 없음</p><h2>2.5초.<br>칠까, 참을까?</h2><p>9회 말, 두 점 차.<br>날아오는 공을 읽고, 당신의 스윙으로 뒤집으세요.</p><p id="challengeInvite" class="challenge-invite" hidden>친구와 같은 상황입니다. 다른 선택으로 뒤집어보세요.</p><button class="go" id="btnBatting">타석에 서기 →</button><span class="hero-footnote">행동을 미리 고르고 · 2.5초 동안 변경 가능</span></div><img src="media/batting-gameplay.jpg" alt="타자 뒤쪽에서 바라본 3D 구장과 날아오는 공" width="1200" height="800"></section>
+  <div class="batting-how"><span><b>01</b> 구종·코스·행동 선택</span><span><b>02</b> 2.5초 안에 결정</span><span><b>03</b> 결과 공유 · 친구 도전</span></div>
+  <div class="other-modes"><button id="btnInning" class="quiet">투수로 막아내기</button><span>구단을 운영하고 싶다면 아래 단장 모드도 즐겨보세요.</span></div>
   <div id="resumePanel" class="resume-panel" hidden></div>
+  <details class="manager-entry"><summary>단장 모드 · 구단 운영하기</summary>
   <div class="boot-main">
     <div class="bootleft">
       <div class="lab" id="listLabel"></div>
@@ -60,6 +62,7 @@
     </div>
     <aside id="dossier" class="dossier"></aside>
   </div>
+  </details>
 </div>
 
 <div id="app" hidden>
