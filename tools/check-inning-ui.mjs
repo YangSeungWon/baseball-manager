@@ -34,6 +34,8 @@ try {
     await page.locator('[data-value="chase"]').click();
     assert.equal(await page.locator('[data-value="SL"]').getAttribute('aria-pressed'),'true');
     await page.locator('.inning-throw').click();
+    await page.locator('.is-releasing').waitFor();
+    await page.locator('.inning-throw').click();
     assert.equal(await page.locator('.inning-throw').isDisabled(),true);
     const stage=await page.locator('.inning-live .lv-three').boundingBox();
     assert.ok(Math.abs(stage.width-width)<2 && Math.abs(stage.height-height)<2,'3D fills viewport');
@@ -69,7 +71,7 @@ try {
   };
   const first=await run();assert.match(first,/재도전/);assert.doesNotMatch(first,/다시 시작/);
   await replay.locator('[data-retry]').click();assert.match(await replay.locator('.inning-score').textContent(),/0\/30구/);
-  assert.equal(await run(),first,'same seed and choices reproduce outcome');
+  assert.match(await run(),/재도전/,'retry accepts another release sequence');
   await replay.locator('[data-new]').click();assert.match(await replay.locator('.inning-score').textContent(),/0\/30구/);
   await replay.locator('.inning-exit').click();await replay.close();
   assert.deepEqual(errors,[]);console.log('PASS: inning entry, 320/390/desktop, touch targets, one pitch, duplicate lock, close during pitch, reopen, save isolation');

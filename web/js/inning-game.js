@@ -1,3 +1,4 @@
+import { controlledPitch, releaseLabel } from './pitch-control.js';
 // A small, independent pitching challenge. Never reads/writes the GM save or RNG.
 export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed:133},CH:{name:'체인지업',speed:128}};
 const BATTERS=[{name:'김도윤',style:'공격형',chase:.52,contact:.72,hint:'초구부터 적극적입니다. 바깥으로 유인해 보세요.'},{name:'박시우',style:'선구형',chase:.25,contact:.77,hint:'유인구를 잘 참습니다. 스트라이크를 먼저 잡으세요.'},{name:'이준서',style:'장타형',chase:.42,contact:.67,hint:'맞으면 멀리 갑니다. 같은 구종 반복을 조심하세요.'}];
@@ -7,14 +8,16 @@ export class InningGame {
   random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
   get batter(){return BATTERS[(this.seed+this.order)%BATTERS.length];}
   snapshot(){return {outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
-  pitch({type,zone,intent}) {
+  pitch({type,zone,intent,release}) {
     if(this.done)throw new Error('Challenge already finished');
-    if(!PITCHES[type]||!['in','out','low'].includes(zone)||!['attack','chase'].includes(intent))throw new Error('Invalid pitch selection');
+    if(!PITCHES[type]||!['in','out','low','high'].includes(zone)||!['attack','chase'].includes(intent))throw new Error('Invalid pitch selection');
+    if(release!==undefined&&(!Number.isFinite(release)||Math.abs(release)>1))throw new Error('Invalid release');
     const before=this.snapshot(),roll=Array.from({length:10},()=>this.random());
     const repeated=this.history.slice(-2).filter(p=>p.type===type).length;
     const fatigue=Math.max(0,this.count-15)*.009;
     const strikeChance=clamp((intent==='attack'?.80:.20)-(type==='FF'?0:.06)-(zone==='low'?.04:0)-fatigue,.07,.9);
-    const inZone=roll[0]<strikeChance;
+    const control=release===undefined?null:controlledPitch(zone,intent,release,roll[0]*2-1,roll[6]*2-1);
+    const inZone=control?Math.abs(control.x)<=1&&Math.abs(control.z)<=1:roll[0]<strikeChance;
     const swing=roll[1]<(inZone?.73+this.strikes*.05:this.batter.chase+(this.strikes===2?.13:0)-(this.balls===3?.1:0));
     const fooled=(type==='CH'&&this.history.at(-1)?.type==='FF'?.13:0)+(type==='SL'&&zone==='out'?.08:0);
     const contact=clamp(this.batter.contact+(inZone?.03:-.19)+repeated*.09-fooled,.22,.94);
@@ -49,7 +52,7 @@ export class InningGame {
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
     this.won=this.outs>=3 && this.runs<2;
     this.done=this.won||this.runs>=2||this.count>=30;
-    const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):(inZone?0:1.5);
-    return {before,after:this.snapshot(),call,result,label:names[result],explanation,terminal,movements,scored,choice:q,pitch:{x,z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
+    const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
+    return {before,after:this.snapshot(),call,result,label:names[result],explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
   }
 }

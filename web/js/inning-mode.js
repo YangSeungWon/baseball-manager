@@ -1,3 +1,4 @@
+import { pitchPressure, releaseMarker } from './pitch-control.js';
 import { InningGame, PITCHES } from './inning-game.js';
 import { BattingGame } from './batting-game.js';
 import { LiveView, Timeline } from './live.js';
@@ -19,7 +20,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   <div class="inning-history sr-only" aria-label="현재 타석 투구 기록"></div></div>
   <div class="inning-controls" id="inningPlan"><div class="inning-opponent"></div>
   ${batting?`<fieldset class="inning-picks"><legend class="sr-only">노릴 공과 타격 방식</legend>
-  <div class="inning-label">예상 코스</div><div class="inning-options" data-group="location"><button data-value="any" aria-pressed="true">전체 대응</button><button data-value="in" aria-pressed="false">몸쪽</button><button data-value="out" aria-pressed="false">바깥쪽</button><button data-value="low" aria-pressed="false">낮은 공</button></div><div class="inning-zone-slot"></div><div class="inning-label">노릴 구종</div><div class="inning-options" data-group="target"><button data-value="any" aria-pressed="true">모든 공</button>${Object.entries(PITCHES).map(([k,p])=>`<button data-value="${k}" aria-pressed="false">${pitchIcon(k)}${p.name}</button>`).join('')}</div>
+  <div class="inning-label">예상 코스</div><div class="inning-options" data-group="location"><button data-value="any" aria-pressed="true">전체</button><button data-value="in" aria-pressed="false">몸쪽</button><button data-value="out" aria-pressed="false">바깥쪽</button><button data-value="low" aria-pressed="false">낮게</button><button data-value="high" aria-pressed="false">높게</button></div><div class="inning-zone-slot"></div><div class="inning-label">노릴 구종</div><div class="inning-options" data-group="target"><button data-value="any" aria-pressed="true">모든 공</button>${Object.entries(PITCHES).map(([k,p])=>`<button data-value="${k}" aria-pressed="false">${pitchIcon(k)}${p.name}</button>`).join('')}</div>
   <div class="inning-label">타격 방식</div><div class="inning-options" data-group="approach"><button data-value="contact" aria-pressed="true">컨택</button><button data-value="power" aria-pressed="false">장타</button></div>
 
   </fieldset>`:`<fieldset class="inning-picks"><legend class="sr-only">다음 투구 선택</legend>
@@ -32,7 +33,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   if(batting){root.classList.add('has-batting-dock');root.insertAdjacentHTML('beforeend','<div class="batting-decision"><div class="batting-decision-title"><strong class="sr-only">기본 행동</strong><span class="batting-time" aria-hidden="true">2.5초 변경</span></div><div class="batting-clock" aria-hidden="true"><i></i></div><div class="batting-action-row"><button class="batting-swing" aria-pressed="true">스윙</button><button class="batting-take" aria-pressed="false">지켜보기</button></div><button class="go inning-throw">준비 완료</button></div>');}
   const $=s=>root.querySelector(s);
   root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ (batting?'노릴 공':'투구 선택')+'</span></button>');
-  if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));root.append(action);}
+  if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));action.insertAdjacentHTML('afterbegin','<button class="pitch-breathe">숨 고르기</button><div class="pitch-release" hidden><div class="pitch-release-label">릴리스 <span></span></div><div class="pitch-meter"><i class="pitch-perfect"></i><i class="pitch-needle"></i></div></div>');root.append(action);}
   if(batting){
     $('.inning-presentation').append($('.inning-opponent'));
     for(const [group,label] of [['location','예상 코스'],['target','노릴 구종'],['approach','타격 방식']])$('[data-group='+group+']').setAttribute('aria-label',label);
@@ -42,12 +43,13 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   const plan=open=>{root.classList.toggle('is-planning',open);$('.inning-plan-toggle').setAttribute('aria-expanded',String(open));};
   $('.inning-plan-toggle').onclick=()=>{if(!busy)plan(!root.classList.contains('is-planning'));};
   const zoneSvg=`<svg viewBox="0 0 200 200" aria-hidden="true"><path d="M80 184h40v7l-20 8-20-8z" fill="#a5b9b6"/><rect x="62" y="56" width="76" height="80" rx="2" fill="#29444d" stroke="#e1e9d9" stroke-width="2"/><path d="M87.3 56v80M112.7 56v80M62 82.7h76M62 109.3h76" stroke="#819b9f" stroke-dasharray="3 3" opacity=".6"/><g class="zone-markers"></g></svg>`;
-  $('.inning-zone-slot').innerHTML=`<div class="inning-zone-row"><div class="inning-zone-map" ${batting?'':'data-group="zone"'}>${zoneSvg}${batting?'':'<button data-value="in" aria-pressed="false" class="zone-target zone-in">몸쪽</button><button data-value="out" aria-pressed="true" class="zone-target zone-out">바깥쪽</button><button data-value="low" aria-pressed="false" class="zone-target zone-low">낮게</button>'}</div></div>`;
+  $('.inning-zone-slot').innerHTML=`<div class="inning-zone-row"><div class="inning-zone-map" ${batting?'':'data-group="zone"'}>${zoneSvg}${batting?'':'<button data-value="in" aria-pressed="false" class="zone-target zone-in">몸쪽</button><button data-value="out" aria-pressed="true" class="zone-target zone-out">바깥쪽</button><button data-value="low" aria-pressed="false" class="zone-target zone-low">낮게</button><button data-value="high" aria-pressed="false" class="zone-target zone-high">높게</button>'}</div></div>`;
   $('.inning-live-zone').innerHTML=zoneSvg+'<span class="sr-only">투구 위치</span>';$('.inning-live-zone').hidden=false;
 
   let seed=Number.isInteger(initialSeed)&&initialSeed>=0&&initialSeed<=0xffffffff?initialSeed:crypto.getRandomValues(new Uint32Array(1))[0],game,lv,busy=false,dead=false,events=[],runEvents=[],shown=null,scrollBefore=0,choice=batting?{target:'any',approach:'contact',location:'any',action:'swing'}:{type:'FF',zone:'out',intent:'attack'};
   let sound=true;try{sound=localStorage.getItem('dugout.sfx')!=='0';}catch{}
-  let ambience='idle',intensity=.5,cancelDecision=null,chooseDecision=null;
+  let ambience='idle',intensity=.5,cancelDecision=null,chooseDecision=null,releaseNow=null,calm=false;
+  if(!batting)$('.pitch-breathe').onclick=()=>breathe();
   function dock(phase='ready'){
     if(!batting)return;const plan=choice.action==='take'?'지켜보기':'스윙';
     $('.batting-decision').hidden=false;
@@ -58,6 +60,27 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     $('.inning-throw').disabled=phase!=='ready';$('.inning-throw').textContent=phase==='ready'?'준비 완료':phase==='read'?plan+' 유지':'…';
   }
   const runTimeline=tl=>new Promise(resolve=>{lv.tl=tl;lv.resolve=resolve;});
+  async function breathe(){
+    if(busy||calm||dead||game.done)return;
+    busy=true;plan(false);$('.inning-picks').disabled=true;$('.inning-throw').disabled=true;
+    const button=$('.pitch-breathe');button.disabled=true;button.textContent='후—';root.classList.add('is-breathing');
+    const tl=new Timeline();tl.add(0,1.8,k=>button.style.setProperty('--breath',String(1-k)));
+    await runTimeline(tl);if(dead)return;
+    calm=true;busy=false;root.classList.remove('is-breathing');button.textContent='호흡 안정';
+    $('.inning-picks').disabled=false;$('.inning-throw').disabled=false;
+  }
+  async function releasePitch(){
+    const pressure=pitchPressure(game.snapshot()),meter=$('.pitch-release');
+    meter.hidden=false;lv.S.broadcast={kind:'pitch'};root.classList.add('is-releasing');$('.inning-throw').disabled=false;$('.inning-throw').textContent='지금 놓기';$('.pitch-breathe').disabled=true;
+    meter.querySelector('span').textContent=calm?'안정':pressure>.65?'긴장':pressure>.4?'집중':'여유';
+    return new Promise(resolve=>{
+      const begin=performance.now(),duration=1900;let raf,timer,settled=false,displayed=-1;
+      const finish=v=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);cancelDecision=null;releaseNow=null;meter.hidden=true;root.classList.remove('is-releasing');$('.inning-throw').disabled=true;resolve(v);};
+      releaseNow=()=>finish(displayed);cancelDecision=()=>finish(null);
+      const tick=()=>{const p=Math.min(1,(performance.now()-begin)/duration),v=releaseMarker(p,pressure,calm);displayed=v;$('.pitch-needle').style.left=((v+1)*50)+'%';lv.S.pitcherWind=Math.min(1,p*2);if(p>=1)finish(1);else raf=requestAnimationFrame(tick);};
+      timer=setTimeout(()=>finish(1),duration);tick();
+    });
+  }
   async function readPitch(pitch){
     const plannedAction=choice.action;dock('warm');
     const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
@@ -99,13 +122,14 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   function zone(event=null) {
     const selected=busy&&event?event.choice:choice;
     const aimX=batting?0:(selected.zone==='in'?-1:selected.zone==='out'?1:0)*(selected.intent==='chase'?1.4:.8);
-    const aimZ=batting?0:selected.zone==='low'?(selected.intent==='chase'?-1.4:-.8):0;
-    const area={in:[62,56,38,80],out:[100,56,38,80],low:[62,109,76,27]}[selected.location];
+    const aimZ=batting?0:selected.zone==='low'?(selected.intent==='chase'?-1.4:-.8):selected.zone==='high'?(selected.intent==='chase'?1.4:.8):0;
+    const area={in:[62,56,38,80],out:[100,56,38,80],low:[62,109,76,27],high:[62,56,76,27]}[selected.location];
     const target=batting?(area?`<rect class="zone-prediction" x="${area[0]}" y="${area[1]}" width="${area[2]}" height="${area[3]}" fill="#a6d9b9" fill-opacity=".22" stroke="#a6d9b9" stroke-width="2" stroke-dasharray="4 3"/>`:''):`<circle cx="${100+aimX*38}" cy="${96-aimZ*40}" r="12" fill="none" stroke="#a6d9b9" stroke-width="2" stroke-dasharray="4 3"/>`;
     const q=event?.pitch,inside=q&&Math.abs(q.x)<=1&&Math.abs(q.z)<=1;
     const pitches=event&&!events.some(e=>e.after.count===event.after.count)?[...events,event]:events;
     root.classList.toggle('has-zone',pitches.length>0||!batting||selected.location!=='any');
     const leaders=[];
+    if(event?.control){const t=event.control.target;leaders.push(`<path class="zone-release-error" d="M${100+t.x*38} ${96-t.z*40}L${100+event.pitch.x*38} ${96-event.pitch.z*40}" stroke="#f39d78" stroke-width="2"/>`);}
     const marks=layoutPitchMarkers(pitches).map(({event:e,x,y,labelX,labelY},i)=>{
       const color=Math.abs(e.pitch.x)<=1&&Math.abs(e.pitch.z)<=1?'#f0cc76':'#88bddb';
       const moved=Math.hypot(x-labelX,y-labelY)>1;
@@ -128,7 +152,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     for(const [pos,[x,y]] of Object.entries(positions))lv.S.fielders[pos]={pos,name:pos==='P'?(batting?game.pitcher.name:'나의 마무리'):pos,x,y,home:[x,y],alpha:1};
     sync(game.snapshot());lv.S.broadcast={kind:'pitch'};
     $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=false;$('.inning-result').hidden=true;
-    $('.inning-feedback').textContent='';paint();selection();history();dock();root.scrollTop=0;$('.inning-throw').focus({preventScroll:true});
+    $('.inning-feedback').textContent='';if(!batting){calm=false;$('.pitch-breathe').disabled=false;$('.pitch-breathe').textContent='숨 고르기';$('.inning-throw').textContent='투구 시작';}paint();selection();history();dock();root.scrollTop=0;$('.inning-throw').focus({preventScroll:true});
   }
   async function changeBatter(e) {
     const S=lv.S,tl=new Timeline(),out=['K','OUT'].includes(e.result),next=!e.after.done;
@@ -186,7 +210,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     try {
       let e,resumeAt=0;
       if(batting){const pitch=game.preparePitch(choice),picked=await readPitch(pitch);if(dead||!picked?.action)return;resumeAt=picked.time;e=game.decidePitch(picked.action);if(picked.expired)e.explanation='선택해 둔 '+(picked.action==='swing'?'스윙을':'지켜보기를')+' 그대로 실행했습니다. '+e.explanation;}
-      else e=game.pitch(choice);
+      else {const release=await releasePitch();if(dead||release===null)return;e=game.pitch({...choice,release});resumeAt=1.55;calm=false;}
       const tl=new Timeline(),S=lv.S;
       e.pitchNumber=events.length+1;
       const rec={batter:e.before.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
@@ -227,11 +251,11 @@ export function openInningMode(role='pitcher',initialSeed=null) {
       zone(shown);history();
       if(['1B','2B','HR'].includes(e.result))lv.line.hits.bottom++;
       sync(e.after);lv.S.broadcast={kind:game.done?'beauty':'between'};
-      $('.inning-feedback').innerHTML=`<div class="inning-verdict"><strong>${e.label}</strong><span>${PITCHES[e.pitch.t].name} · ${e.pitch.v} km/h</span></div>`;paint();if(game.done)finish();
+      $('.inning-feedback').innerHTML=`<div class="inning-verdict"><strong>${e.label}</strong><span>${PITCHES[e.pitch.t].name} · ${e.pitch.v} km/h${e.control?' · '+e.control.label:''}</span></div>`;paint();if(game.done)finish();
     } catch(error){if(!dead){root.classList.add('is-finished');$('.inning-feedback').textContent='화면을 다시 준비합니다. 같은 상황에서 재시작하세요.';$('.inning-result').hidden=false;$('.inning-result').innerHTML='<button class="go">같은 상황 다시 시작</button>';$('.inning-result button').onclick=()=>start(true);}console.error(error);}
-    finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;dock();$('.inning-picks').disabled=false;$('.inning-throw').focus({preventScroll:true});}}
+    finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;if(!batting){$('.inning-throw').textContent='투구 시작';$('.pitch-breathe').disabled=calm;$('.pitch-breathe').textContent=calm?'호흡 안정':'숨 고르기';}dock();$('.inning-picks').disabled=false;$('.inning-throw').focus({preventScroll:true});}}
   };
-  $('.inning-throw').onclick=()=>play();
+  $('.inning-throw').onclick=()=>releaseNow?releaseNow():play();
   if(batting)for(const action of ['swing','take'])$('.batting-'+action).onclick=()=>{if(chooseDecision)chooseDecision(action);else if(!busy&&!game.done){choice.action=action;dock();}};
 
   start(true);

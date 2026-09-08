@@ -85,3 +85,15 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .inning-batter-entry{position:absolute;z-index:16;top:29%;left:50%;transform:translateX(-50%);padding:9px 16px;border-left:3px solid #f2d38c;border-radius:4px;background:#102732e8;color:#f3e6c4;font-size:18px;font-weight:700;white-space:nowrap;pointer-events:none}
 .inning-mode .inning-batter-entry[hidden]{display:none}
 .inning-mode.is-changing .inning-live-zone,.inning-mode.is-changing .inning-feedback{visibility:hidden}
+.inning-mode .pitching-action{display:grid;grid-template-columns:1fr 2fr;gap:8px;padding:8px;background:#102732e8;border:1px solid #8cac9e88;border-radius:12px}
+.inning-mode .pitch-breathe{min-height:52px;border-radius:8px;font-size:15px;background:#244c4a;color:#deeee3}
+.inning-mode .pitch-release{grid-column:1/-1;grid-row:1;padding:6px 4px 12px}.inning-mode .pitch-release[hidden]{display:none}
+.inning-mode .pitch-release-label{display:flex;justify-content:space-between;font-size:16px;margin-bottom:12px;color:#f3dfb3}
+.inning-mode .pitch-meter{height:18px;background:linear-gradient(90deg,#835e4d,#294c49 44%,#294c49 56%,#835e4d);position:relative;border-radius:9px;margin:0 8px}
+.inning-mode .pitch-perfect{position:absolute;left:44%;width:12%;height:100%;background:#b6d9a8;border-radius:3px}
+.inning-mode .pitch-needle{position:absolute;top:-5px;width:4px;height:28px;background:white;box-shadow:0 0 5px #000;transform:translateX(-50%)}
+.inning-mode.is-breathing .pitch-breathe{box-shadow:inset 0 0 0 calc(2px + var(--breath,1)*8px) #a1cab766}
+.inning-mode.is-releasing .inning-live-zone{bottom:180px}.inning-mode.is-releasing .inning-plan-toggle{visibility:hidden}
+
+.inning-mode .zone-high{left:50%;top:16%}
+.inning-mode.has-batting-dock .inning-options[data-group=location]{grid-template-columns:repeat(5,minmax(0,1fr))}

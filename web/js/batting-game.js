@@ -10,7 +10,7 @@ export class BattingGame extends InningGame {
   snapshot(){return {...super.snapshot(),pitcher:{...this.pitcher}};}
   preparePitch({target,approach,location='any'}) {
     if(this.done||this.pending)throw new Error('Pitch unavailable');
-    if(!['any','in','out','low'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach))throw new Error('Invalid batting selection');
+    if(!['any','in','out','low','high'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach))throw new Error('Invalid batting selection');
     const roll=Array.from({length:10},()=>this.random());
     this.pending={choice:{target,approach,location},roll};
     return this.delivery(roll);
@@ -31,10 +31,10 @@ export class BattingGame extends InningGame {
   }
   resolvePitch({target,approach,action,location='any'},roll) {
     if(this.done)throw new Error('Challenge already finished');
-    if(!['any','in','out','low'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
+    if(!['any','in','out','low','high'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
     const before=this.snapshot();
     const {t:type,x,z}=this.delivery(roll),inZone=Math.abs(x)<=1&&Math.abs(z)<=1;
-    const locationMatched=location==='low'?z<-.4:location==='in'?x<0:location==='out'?x>0:false;
+    const locationMatched=location==='high'?z>.4:location==='low'?z<-.4:location==='in'?x<0:location==='out'?x>0:false;
     const locationRead=location==='any'?0:locationMatched?.12:-.12;
     const matched=target===type,power=approach==='power';
     const read=target==='any'?0:matched?.15:-.17;
