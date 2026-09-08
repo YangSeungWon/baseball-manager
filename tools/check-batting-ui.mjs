@@ -18,7 +18,7 @@ try {
   const errors=[];
   for(const [width,height] of [[390,844],[320,568],[1440,1000]]) {
     const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(url);await page.locator('#btnBatting').click();await page.locator('.inning-take').waitFor();
+    await page.goto(url);await page.locator('#btnBatting').click();await page.locator('.inning-throw').waitFor();
     await page.evaluate(()=>localStorage.setItem('dugout.save.v1','existing-save'));
     await page.locator('.lv-three').waitFor({state:'visible',timeout:20000});
     assert.match(await page.locator('.inning-head').textContent(),/타자 편/);
@@ -27,7 +27,7 @@ try {
     for(const b of await page.locator('.inning-picks button').all())assert.ok((await b.boundingBox()).height>=44);
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
     await page.screenshot({path:`/tmp/dugout-batting-${width}.png`});
-    await page.locator('.inning-take').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
+    await page.locator('.inning-throw').click();await page.locator('.batting-take').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.match(await page.locator('.inning-feedback').textContent(),/km\/h/);
     assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
@@ -40,12 +40,12 @@ try {
   }
   const p=await browser.newPage({viewport:{width:390,height:844}});p.on('pageerror',e=>errors.push(e.message));
   await p.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(7);return a;};});
-  await p.goto(url);await p.locator('#btnBatting').click();await p.locator('.inning-take').waitFor();
+  await p.goto(url);await p.locator('#btnBatting').click();await p.locator('.inning-throw').waitFor();
   const run=async()=>{
     await p.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     for(let i=0;i<30;i++){
       if(await p.locator('.inning-result').isVisible())break;
-      await p.locator('.inning-take').click();await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
+      await p.locator('.inning-throw').click();await p.locator('.batting-take').click();await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     }
     return p.locator('.inning-result').textContent();
   };

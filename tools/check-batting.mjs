@@ -41,3 +41,14 @@ test('location prediction changes contact, never the committed pitch or take jud
   assert.equal(play('in','take').result,play('out','take').result);
   const g=new BattingGame(4),before=g.snapshot();assert.throws(()=>g.pitch({...choice,location:'bad'}));assert.deepEqual(g.snapshot(),before);
 });
+
+test('prepared delivery waits for a decision, resolves once and consumes no extra randomness',()=>{
+  const a=new BattingGame(7),b=new BattingGame(7),before=a.snapshot();
+  const delivery=a.preparePitch(choice),rng=a.rng;
+  assert.deepEqual(a.snapshot(),before);assert.equal(a.history.length,0);
+  assert.throws(()=>a.preparePitch(choice));assert.throws(()=>a.decidePitch('invalid'));
+  assert.equal(a.rng,rng);assert.deepEqual(a.decidePitch('swing'),b.pitch(choice));assert.equal(a.rng,rng);
+  assert.throws(()=>a.decidePitch('take'));
+  const c=new BattingGame(7);assert.deepEqual(c.preparePitch(choice),delivery);
+  assert.deepEqual(c.decidePitch('take').pitch,delivery);
+});

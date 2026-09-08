@@ -2050,3 +2050,8 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
 .inning-zone-row{flex-wrap:wrap}.inning-zone-map{width:200px;height:200px}.inning-zone-caption{flex:1 1 150px}.inning-live-zone{width:170px}
 @media(max-width:900px){.inning-zone-map{width:200px;height:200px}.is-playing .inning-live-zone{width:156px}}
 @media(max-height:500px){.is-playing .inning-live-zone{width:128px}}
+
+.batting-decision{position:fixed;z-index:30;bottom:max(18px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px));padding:16px;background:#102732f5;border:1px solid #94bcb0;border-radius:12px;box-shadow:0 8px 32px #0007}.batting-decision[hidden]{display:none}.batting-decision-title{display:flex;justify-content:space-between;gap:12px;font-size:20px}.batting-time{font-variant-numeric:tabular-nums;color:#f4d491}.batting-clock{height:5px;background:#38515a;margin:12px 0}.batting-clock i{display:block;height:100%;background:#f4d491;transform-origin:left}.batting-decision p{font-size:14px;color:#c2d5d8;margin:8px 0 12px}.batting-decision>div:last-child{display:flex;gap:10px}.batting-decision button{flex:1;min-height:54px;font-size:18px}.is-deciding .inning-feedback,.is-deciding .inning-live-zone{visibility:hidden}.batting-decision button:focus-visible{outline:3px solid #f4d491;outline-offset:3px}
+@media(max-height:500px){.batting-decision{left:auto;right:12px;transform:none;width:330px;padding:12px}.batting-decision p{margin:4px 0 8px}}
+
+.batting-decision .batting-swing{background:#4b8d78;border:1px solid #9aceb7;color:#fff}

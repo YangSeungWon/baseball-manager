@@ -8,14 +8,32 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class BattingGame extends InningGame {
   get pitcher(){return ARMS[this.seed%ARMS.length];}
   snapshot(){return {...super.snapshot(),pitcher:{...this.pitcher}};}
-  pitch({target,approach,action,location='any'}) {
-    if(this.done)throw new Error('Challenge already finished');
-    if(!['any','in','out','low'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
-    const before=this.snapshot(),roll=Array.from({length:10},()=>this.random());
-    // The pitch is committed without access to the player's target or swing decision.
+  preparePitch({target,approach,location='any'}) {
+    if(this.done||this.pending)throw new Error('Pitch unavailable');
+    if(!['any','in','out','low'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach))throw new Error('Invalid batting selection');
+    const roll=Array.from({length:10},()=>this.random());
+    this.pending={choice:{target,approach,location},roll};
+    return this.delivery(roll);
+  }
+  delivery(roll) {
     const type=roll[0]<this.pitcher.fast?'FF':roll[0]<this.pitcher.fast+(1-this.pitcher.fast)*.58?'SL':'CH';
     const inZone=roll[1]<clamp(.64+(this.balls===3?.17:0)-(this.strikes===2?.20:0),.2,.88);
-    const x=(roll[7]<.5?-1:1)*(inZone?.6:1.6),z=inZone?(roll[6]<1/3?-.7:roll[6]>2/3?.65:0):-1.5;
+    return {t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x:(roll[7]<.5?-1:1)*(inZone?.6:1.6),z:inZone?(roll[6]<1/3?-.7:roll[6]>2/3?.65:0):-1.5};
+  }
+  decidePitch(action) {
+    if(!this.pending||!['swing','take'].includes(action))throw new Error('Invalid batting decision');
+    const {choice,roll}=this.pending;
+    const event=this.resolvePitch({...choice,action},roll);this.pending=null;return event;
+  }
+  pitch(choice) {
+    if(!['swing','take'].includes(choice.action))throw new Error('Invalid batting decision');
+    this.preparePitch(choice);return this.decidePitch(choice.action);
+  }
+  resolvePitch({target,approach,action,location='any'},roll) {
+    if(this.done)throw new Error('Challenge already finished');
+    if(!['any','in','out','low'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
+    const before=this.snapshot();
+    const {t:type,x,z}=this.delivery(roll),inZone=Math.abs(x)<=1&&Math.abs(z)<=1;
     const locationMatched=location==='low'?z<-.4:location==='in'?x<0:location==='out'?x>0:false;
     const locationRead=location==='any'?0:locationMatched?.12:-.12;
     const matched=target===type,power=approach==='power';

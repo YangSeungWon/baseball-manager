@@ -31,20 +31,20 @@ try {
       assert.match(await page.locator('.inning-choice-note').textContent(),/낮은 공 예상/);
     }
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
-    const action=entry==='#btnBatting'?'.inning-take':'.inning-throw';
+    const play=async()=>{await page.locator('.inning-throw').click();if(entry==='#btnBatting')await page.locator('.batting-take').click();};
     for(let n=1;n<=3;n++) {
-      await page.locator(action).click();
+      await play();
       await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
       assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),Array.from({length:n},(_,i)=>String(i+1)));
       assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),n);
     }
     await page.locator('.inning-zone-slot').scrollIntoViewIfNeeded();
     await page.screenshot({path:`/tmp/dugout-zone-${entry.slice(1)}.png`});
-    await page.locator(action).click();
+    await play();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.equal(await page.locator('.inning-zone-map .zone-pitch').count(),0,'walk changes batter and clears previous pitches');
     assert.match(await page.locator('.inning-zone-caption').textContent(),/1구부터/);
-    await page.locator(action).click();
+    await play();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),['1']);
     assert.match(await page.locator('.inning-pitch-chip').textContent(),/1구/);
