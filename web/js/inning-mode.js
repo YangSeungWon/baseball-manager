@@ -1,3 +1,4 @@
+import { leadPosition } from './runner-motion.js';
 import { mountScouting } from './scouting-ui.js';
 import { paceLabel } from './player-traits.js';
 import { sampleField, FIELD_POSITIONS } from './field-sim.js';
@@ -133,7 +134,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     lv.S.fieldPlay=null;
     lv.S.b=state.balls;lv.S.s=state.strikes;lv.S.outs=state.outs;lv.S.ball=null;lv.S.hold=null;lv.S.trail=[];lv.S.pitcherWind=0;lv.S.swing=0;
     lv.S.batter={name:state.batter.name,hand:'R',alpha:1};
-    lv.S.runners=state.bases.flatMap((yes,i)=>{if(!yes)return [];const person=state.baseRunners?.[i]||{name:'주자 '+(i+1)};return [{...lv._runner(person.name,i+1),id:person.id,speed:person.speed}];});
+    lv.S.runners=state.bases.flatMap((yes,i)=>{if(!yes)return [];const person=state.baseRunners?.[i]||{name:'주자 '+(i+1)};return [{...lv._runner(person.name,i+1),...leadPosition(i+1,person),id:person.id,speed:person.speed}];});
     lv.line.bottom=[0,0,0,0,0,0,0,0,state.runs];
   }
   function paint() {
@@ -142,7 +143,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     const dots=(count,max,kind)=>Array.from({length:max},(_,i)=>`<i class="${kind}${i<count?' lit':''}"></i>`).join('');
     const bases=s.bases.map((v,i)=>v?(i+1)+'루':'').filter(Boolean).join(' · ')||'주자 없음';
     $('.inning-score').innerHTML=`<div class="inning-scoreline"><span class="inning-frame" aria-label="9회 말">9 ▾</span><b>나 <strong>${batting?s.runs:2} : ${batting?2:s.runs}</strong> 상대</b></div>
-      <div class="inning-counts"><span aria-label="${s.balls}볼 ${s.strikes}스트라이크 ${s.outs}아웃"><span>B ${dots(s.balls,3,'ball')}</span><span>S ${dots(s.strikes,2,'strike')}</span><span>O ${dots(s.outs,3,'out')}</span></span><button class="inning-diamond" aria-label="${bases} · 주자 정보" title="주자 정보">${s.bases.map((v,i)=>`<i class="base${i+1}${v?' occupied':''}" title="${i+1}루${v?' · '+paceLabel(s.baseRunners[i].speed):''}" data-pace="${v&&s.baseRunners[i].speed>=7.4?'fast':v&&s.baseRunners[i].speed<6.9?'slow':'normal'}"></i>`).join('')}</button><small>${s.count}/30구</small></div>`;
+      <div class="inning-counts"><span aria-label="${s.balls}볼 ${s.strikes}스트라이크 ${s.outs}아웃"><span>B ${dots(s.balls,3,'ball')}</span><span>S ${dots(s.strikes,2,'strike')}</span><span>O ${dots(s.outs,3,'out')}</span></span><button class="inning-diamond" aria-label="${bases} · 주자 정보" title="주자 정보">${s.bases.map((v,i)=>`<i class="base${i+1}${v?' occupied':''}" title="${i+1}루${v?' · '+paceLabel(s.baseRunners[i].speed):''}" data-pace="${v&&s.baseRunners[i].speed>=8.8?'fast':v&&s.baseRunners[i].speed<7.8?'slow':'normal'}"></i>`).join('')}</button><small>${s.count}/30구</small></div>`;
     $('.inning-diamond').onclick=()=>$('.scout-toggle').click();
     $('.inning-opponent').innerHTML=batting?`<b>${s.pitcher.name}</b><span>직구 ${Math.round(s.pitcher.fast*100)}%</span>`:`<b>${s.batter.name}</b><span>${s.batter.style}</span>`;
   }
@@ -237,7 +238,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
         if(navigator.share){try{await navigator.share({title:'DUGOUT · '+result.title,text:result.text,url:result.url});return;}catch(e){if(e.name==='AbortError')return;}}
         if(await copyChallenge(full))status.textContent='결과와 도전 링크를 복사했습니다. 원하는 곳에 붙여넣으세요.';else fallback();
       };
-      box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b4-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
+      box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b5-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
     }
     box.querySelector('[data-retry]').onclick=()=>start(true);box.querySelector('[data-new]').onclick=()=>start(false);box.querySelector('button').focus({preventScroll:true});box.scrollIntoView({block:'nearest',behavior:'smooth'});
   }

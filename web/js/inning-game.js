@@ -6,9 +6,9 @@ export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed
 const BATTERS=[{name:'김도윤',style:'공격형',chase:.52,contact:.72,hint:'초구부터 적극적입니다. 바깥으로 유인해 보세요.'},{name:'박시우',style:'선구형',chase:.25,contact:.77,hint:'유인구를 잘 참습니다. 스트라이크를 먼저 잡으세요.'},{name:'이준서',style:'장타형',chase:.42,contact:.67,hint:'맞으면 멀리 갑니다. 같은 구종 반복을 조심하세요.'}];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class InningGame {
-  constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.baseRunners=[{id:'initial-1',name:'1루 주자',speed:7.4},{id:'initial-2',name:'2루 주자',speed:6.8},null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}
+  constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.baseRunners=[{id:'initial-1',name:'1루 주자',speed:8.7},{id:'initial-2',name:'2루 주자',speed:7.8},null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}
   random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
-  get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[7.5,7,6.4][i],power:[0,0,.12][i]};}
+  get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[9,8.2,7.4][i],power:[0,0,.12][i]};}
   get defense(){return defenseRoster(this.seed);}
   snapshot(){return {defense:this.defense,outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],baseRunners:this.bases.map((v,i)=>v?{...(this.baseRunners[i]||{id:'base-'+i,name:'주자',speed:7})}:null),count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
   pitch({type,zone,intent,release}) {
