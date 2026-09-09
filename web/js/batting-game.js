@@ -45,9 +45,9 @@ export class BattingGame extends InningGame {
     else if(roll[2]>contact)result='W';
     else if(roll[3]<(power?.20:.32))result='F';
     else {
-      fieldPlay=contactFlight(roll,{power,bonus:locationRead*.5+(matched?.1:0)-(inZone?0:.12)});result=fieldPlay.result;
+      fieldPlay=contactFlight(roll,{power,bonus:locationRead*.5+(matched?.1:0)-(inZone?0:.12),bases:before.baseRunners,batter:before.batter,outs:before.outs});result=fieldPlay.result;
     }
-    const call=result;let terminal=['OUT','HR','2B','1B'].includes(result);this.count++;
+    const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}
     if((result==='S'||result==='W')&&++this.strikes===3){result='K';terminal=true;}
     if(result==='F'&&this.strikes<2)this.strikes++;
@@ -56,19 +56,24 @@ export class BattingGame extends InningGame {
     if(result==='BB') {
       if(this.bases[0]){if(this.bases[1]){if(this.bases[2])move(3,4);this.bases[2]=true;move(2,3);}this.bases[1]=true;move(1,2);}
       this.bases[0]=true;move(0,1);
-    } else if(['1B','2B','HR'].includes(result)) {
-      const steps=result==='HR'?4:result==='2B'?2:1,next=[false,false,false];
-      for(let i=2;i>=0;i--)if(this.bases[i]){const to=Math.min(4,i+1+steps+(steps===1&&i===1&&roll[8]<.65?1:0)+(steps===1&&i===0&&roll[9]<.3&&!this.bases[1]?1:0));move(i+1,to);if(to<4)next[to-1]=true;}
-      move(0,steps);if(steps<4)next[steps-1]=true;this.bases=next;
-    } else if(result==='OUT'||result==='K')this.outs++;
+    } else if(fieldPlay){
+      scored=fieldPlay.running.scored;movements.push(...fieldPlay.running.movements);this.outs+=fieldPlay.running.outs;
+      this.baseRunners=fieldPlay.running.bases;this.bases=this.baseRunners.map(Boolean);
+    } else if(result==='K')this.outs++;
+    if(result==='BB'){
+      const next=before.baseRunners.map(r=>r?{...r}:null);
+      for(const m of movements)if(m.from>0)next[m.from-1]=null;
+      for(const m of movements)if(m.to<4)next[m.to-1]=m.from===0?{id:before.batter.id,name:before.batter.name,speed:before.batter.speed}:before.baseRunners[m.from-1];
+      this.baseRunners=next;
+    }
     this.runs+=scored;
     this.history.push({type,action,target,approach,location});
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
     this.won=this.runs>=3;this.done=this.won||this.outs>=3||this.count>=30;
-    const names={S:'스트라이크',W:'헛스윙',B:'볼',F:'파울',K:'삼진',BB:'볼넷!',OUT:'아웃', '1B':'안타!','2B':'2루타!',HR:'홈런!'};
+    const names={S:'스트라이크',W:'헛스윙',B:'볼',F:'파울',K:'삼진',BB:'볼넷!',OUT:'아웃', '1B':'안타!','2B':'2루타!','3B':'3루타!',FC:'야수 선택',HR:'홈런!'};
     let explanation=action==='take'?(inZone?'지켜본 공이 존 안에 들어왔습니다.':'존 밖의 공을 잘 참았습니다.'):
       !inZone?'존 밖으로 빠지는 공에 배트가 나갔습니다.':matched?'노렸던 구종입니다. 준비한 스윙으로 승부했습니다.':target!=='any'?'예상과 다른 구종에 대응해야 했습니다.':power?'크게 돌렸습니다. 장타와 헛스윙의 위험을 함께 감수합니다.':'짧은 스윙으로 공을 맞히는 데 집중했습니다.';
     if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result],explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }

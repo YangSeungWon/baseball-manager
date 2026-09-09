@@ -16,7 +16,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
   const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(url+'/?challenge=b2-42');
+  await page.goto(url+'/?challenge=b3-42');
   await page.locator('#challengeInvite').waitFor({state:'visible'});
   assert.equal(await page.locator('.manager-entry').getAttribute('open'),null);
   assert.match(await page.title(),/2.5초/);
@@ -39,9 +39,9 @@ try {
   assert.match(await page.locator('.inning-result').textContent(),/끝내기 승리/);
   assert.match(await page.locator('.inning-feedback').textContent(),/홈런/);
   await page.locator('[data-share]').click();
-  assert.match(await page.evaluate(()=>shared.url),/challenge=b2-42$/);
+  assert.match(await page.evaluate(()=>shared.url),/challenge=b3-42$/);
   assert.match(await page.evaluate(()=>shared.text),/1구 · 3득점 · 1안타/);
-  await page.locator('[data-copy]').click();assert.match(await page.evaluate(()=>copied),/challenge=b2-42$/);
+  await page.locator('[data-copy]').click();assert.match(await page.evaluate(()=>copied),/challenge=b3-42$/);
   await page.evaluate(()=>Object.defineProperty(navigator,'share',{value:undefined}));
   await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>copied),/끝내기 성공/);
   const download=page.waitForEvent('download');await page.locator('[data-card]').click();

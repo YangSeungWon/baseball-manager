@@ -270,7 +270,7 @@ export class Live3D {
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
     }
     if(S.hold&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='caught'){const f=this.players.get('f'+S.hold.pos);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);b.x=hand.x;b.y=-hand.z;b.z=hand.y;}}
-    if(b&&S.fieldPlay?.physical&&['catch','force-out'].includes(S.fieldPlay.phase)){
+    if(b&&S.fieldPlay?.physical&&['catch','force-out','tag-out','safe'].includes(S.fieldPlay.phase)){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);f.glove.position.copy(f.glove.parent.worldToLocal(point(b.x,b.y,b.z)));}
     }
     this.ball.scale.setScalar(this.opts.playerRole==='batter'?.12:.20);this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
@@ -302,7 +302,7 @@ export class Live3D {
     else if(kind==='catch'){const [x,y]=shot.target;eye=point(x+10,y-16,8);aim=point(x,y+2,1.5);fov=48;}
     else if(kind==='change') {eye=point(-3,-12,6);aim=point(-3,-1,1);fov=60;}
     else if(kind==='field') {eye=point(0,-24,43);aim=point((ball?.x||0)*.55,26+(ball?.y||0)*.45,Math.max(1,(ball?.z||0)*.35));fov=56;}
-    else if(kind==='base') {const [x,y]=shot.target;eye=point(x<0?-47:47,0,11);aim=point(x,y,1);fov=35;}
+    else if(kind==='base') {const [x,y]=shot.target;eye=this.opts.playerRole?point(x+(x<0?-9:9),y-13,5):point(x<0?-47:47,0,11);aim=point(x,y,1);fov=this.opts.playerRole?44:35;}
     else if(kind==='batter') {eye=point(S.batter?.hand==='L'?-34:34,-2,4);aim=point(0,0,1.1);fov=18;}
     else if(kind==='pitcher') {eye=point(-38,5,6);aim=point(0,18.44,1.2);fov=17;}
     else {kind='beauty';eye=point(65,-65,72);aim=point(0,42,2);fov=62;}

@@ -5,10 +5,10 @@ export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed
 const BATTERS=[{name:'김도윤',style:'공격형',chase:.52,contact:.72,hint:'초구부터 적극적입니다. 바깥으로 유인해 보세요.'},{name:'박시우',style:'선구형',chase:.25,contact:.77,hint:'유인구를 잘 참습니다. 스트라이크를 먼저 잡으세요.'},{name:'이준서',style:'장타형',chase:.42,contact:.67,hint:'맞으면 멀리 갑니다. 같은 구종 반복을 조심하세요.'}];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class InningGame {
-  constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}
+  constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.baseRunners=[{id:'initial-1',name:'1루 주자',speed:7.4},{id:'initial-2',name:'2루 주자',speed:6.8},null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}
   random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
-  get batter(){return BATTERS[(this.seed+this.order)%BATTERS.length];}
-  snapshot(){return {outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
+  get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[7.5,7,6.4][i]};}
+  snapshot(){return {outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],baseRunners:this.bases.map((v,i)=>v?{...(this.baseRunners[i]||{id:'base-'+i,name:'주자',speed:7})}:null),count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
   pitch({type,zone,intent,release}) {
     if(this.done)throw new Error('Challenge already finished');
     if(!PITCHES[type]||!['in','out','low','high'].includes(zone)||!['attack','chase'].includes(intent))throw new Error('Invalid pitch selection');
@@ -26,7 +26,7 @@ export class InningGame {
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<.30) result='F';
-    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1)});result=fieldPlay.result;terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1),bases:before.baseRunners,batter:before.batter,outs:before.outs});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}
@@ -37,13 +37,18 @@ export class InningGame {
     if(result==='BB') {
       if(this.bases[0]){if(this.bases[1]){if(this.bases[2])move(3,4);this.bases[2]=true;move(2,3);}this.bases[1]=true;move(1,2);}
       this.bases[0]=true;move(0,1);
-    } else if(['1B','2B','HR'].includes(result)) {
-      const steps=result==='HR'?4:result==='2B'?2:1,next=[false,false,false];
-      for(let i=2;i>=0;i--)if(this.bases[i]){const to=Math.min(4,i+1+steps+(steps===1&&i===1&&roll[8]<.65?1:0)+(steps===1&&i===0&&roll[9]<.3&&!this.bases[1]?1:0));move(i+1,to);if(to<4)next[to-1]=true;}
-      move(0,steps);if(steps<4)next[steps-1]=true;this.bases=next;
-    } else if(result==='OUT'||result==='K')this.outs++;
+    } else if(fieldPlay){
+      scored=fieldPlay.running.scored;movements.push(...fieldPlay.running.movements);this.outs+=fieldPlay.running.outs;
+      this.baseRunners=fieldPlay.running.bases;this.bases=this.baseRunners.map(Boolean);
+    } else if(result==='K')this.outs++;
+    if(result==='BB'){
+      const next=before.baseRunners.map(r=>r?{...r}:null);
+      for(const m of movements)if(m.from>0)next[m.from-1]=null;
+      for(const m of movements)if(m.to<4)next[m.to-1]=m.from===0?{id:before.batter.id,name:before.batter.name,speed:before.batter.speed}:before.baseRunners[m.from-1];
+      this.baseRunners=next;
+    }
     this.runs+=scored;
-    const names={S:'스트라이크',W:'헛스윙',B:'볼',F:'파울',K:'삼진!',BB:'볼넷',OUT:'아웃!', '1B':'안타','2B':'2루타',HR:'홈런'};
+    const names={S:'스트라이크',W:'헛스윙',B:'볼',F:'파울',K:'삼진!',BB:'볼넷',OUT:'아웃!', '1B':'안타','2B':'2루타','3B':'3루타',FC:'야수 선택',HR:'홈런'};
     const explanation=result==='B'?(intent==='chase'?'타자가 유인구를 참았습니다.':'노린 코스에서 벗어났습니다.'):
       result==='W'||result==='K'?(fooled>0?'구속과 궤적 변화가 타이밍을 흔들었습니다.':'타자와의 승부에서 아웃카운트에 가까워졌습니다.'):
       ['1B','2B','HR'].includes(result)?(repeated===2?'반복한 구종에 타자가 대응했습니다.':'타자가 공을 제대로 맞혔습니다.'):
@@ -53,6 +58,6 @@ export class InningGame {
     this.won=this.outs>=3 && this.runs<2;
     this.done=this.won||this.runs>=2||this.count>=30;
     const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result],explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
   }
 }
