@@ -190,7 +190,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     const S=lv.S,tl=new Timeline(),pitcher=S.fielders.P;S.batter=null;pitcher.x=5;pitcher.y=14;pitcher.pose='walkField';S.broadcast={kind:'entry'};
     $('.inning-batter-entry').textContent=pitcher.name+' · 마운드 입장';$('.inning-batter-entry').hidden=false;
     tl.add(0,3,k=>{pitcher.x=5*(1-k);pitcher.y=14+4.44*k;});
-    tl.at(3,()=>{pitcher.pose='pitch';S.broadcast={kind:'change'};$('.inning-batter-entry').textContent=game.batter.name+' · 타석 입장';});
+    tl.at(3,()=>{lv.sfx.setChant(game.batter.name,game.order+1);pitcher.pose='pitch';S.broadcast={kind:'change'};$('.inning-batter-entry').textContent=game.batter.name+' · 타석 입장';});
     const batter={name:game.batter.name,x:-6.5,y:-4,pose:'walk',wait:true};S.changePlayers=[batter];
     tl.at(3,()=>{batter.wait=false;});tl.add(3,2.8,k=>{batter.x=-6.5+5.65*k;batter.y=-4+4.1*k;});
     tl.at(5.8,()=>{batter.pose='bat';});tl.add(5.8,.5,null);
@@ -213,6 +213,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
       const enter=out?1.6:.3,arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:true};
       S.changePlayers.push(arriving);
       tl.at(enter,()=>{
+        lv.sfx.setChant(e.after.batter.name,game.order+1);
         sync(e.after);S.batter=null;events=[];shown=null;zone();history();paint();
         arriving.wait=false;$('.inning-batter-entry').textContent=e.after.batter.name+' · 타석 입장';
         $('.inning-batter-entry').hidden=false;

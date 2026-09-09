@@ -1,3 +1,4 @@
+import { TerraceChant } from './terrace-chant.js';
 // 소리. 파일이 없다 — 전부 그 자리에서 합성한다.
 //
 // 배트의 '딱' 은 짧은 노이즈와 낮은 '퍽' 이 겹친 것이고, 미트의 '팡' 은 더 짧고
@@ -63,7 +64,7 @@ export class Sfx {
     if (this.crowdLevel) this.crowd(this.crowdLevel);
   }
   /** 빠른 배속에서는 소리가 뭉개진다. 잠깐 입을 다문다. */
-  mute(m) { this.muted = m; if (this.master) this.master.gain.setTargetAtTime(m || !this.on ? 0 : 0.9, this.ctx.currentTime, 0.05); }
+  mute(m) { this.muted = m;if(m)this.chant?.stop(); if (this.master) this.master.gain.setTargetAtTime(m || !this.on ? 0 : 0.9, this.ctx.currentTime, 0.05); }
   get live() { return this.on && this.ctx && !this.muted; }
 
   _burst(dur, { f = 1500, q = 1, gain = 0.5, type = 'bandpass', sweep = null, at = 0 } = {}) {
@@ -226,13 +227,17 @@ export class Sfx {
     this.crowdG.gain.setTargetAtTime(this.crowdBase, t + 3, 1.5);
   }
   /** 한 이닝 현장음. 멜로디 없이 관중의 호흡과 박수로 승부에 반응한다. */
-  _stopStadium() {
+  setChant(name,order=1){this.chantProfile={name,order};this._stopStadium();this.stadium('idle');}
+  _chant(cue,k=.5){if(!this.live||!this.stadiumOnly||!this.chantProfile)return;this.chant??=new TerraceChant(this.ctx,this.master,this.noise);this.chant.setPlayer(this.chantProfile.name,this.chantProfile.order);this.chant.setCue(cue,k);}
+  _stopStadium(keepChant=false) {
+    if(!keepChant)this.chant?.stop();
     clearInterval(this.stadiumTimer);this.stadiumTimer = null;
     if (this.stadiumBus && this.ctx) this.stadiumBus.gain.setTargetAtTime(0, this.ctx.currentTime, .04);
     this.stadiumBus = null;
   }
   stadium(cue = 'idle', strength = .5) {
-    this._stopStadium();
+    const continuing=this.stadiumTimer&&['idle','pitch'].includes(this.stadiumCue)&&['idle','pitch'].includes(cue);
+    if(!continuing)this._stopStadium(true);
     this.stadiumCue = cue;
     if (!this.live || !this.crowdG) return;
     const t = this.ctx.currentTime, k = clamp(strength, 0, 1);
@@ -257,6 +262,8 @@ export class Sfx {
       this.crowdG.gain.setTargetAtTime(this.crowdBase, t + hold, 1.2);
       this.crowdF.frequency.setTargetAtTime(1500, t + hold, 1.2);
     }
+    this._chant(cue,k);
+    if(continuing)return;
     const bus = this.ctx.createGain();bus.connect(this.master);this.stadiumBus = bus;
     if (cue === 'cheer') {
       for (let i = 0; i < 12 + Math.floor(k * 20); i++) {
@@ -270,13 +277,13 @@ export class Sfx {
       if (next < this.ctx.currentTime) next = this.ctx.currentTime + .05;
       while (next < this.ctx.currentTime + .2) {
         const at = next - this.ctx.currentTime;
-        if (beat % 4 === 0) {
+        if (this.chant?.pattern?this.chant.pattern.drums.includes(beat%16):beat%4===0) {
           this._burstTo(bus, .16, {f: 140, type: 'lowpass', gain: .18, at, attack: .012});
           this._burstTo(bus, .32, {f: beat % 8 === 0 ? 480 : 650, q: .6, gain: .16, at, attack: .07});
         }
-        if (beat % 4 === 2 || beat % 8 === 7) for (let j = 0; j < 4; j++)
+        if (this.chant?.pattern?this.chant.pattern.claps.includes(beat%16):beat%4===2||beat%8===7) for (let j = 0; j < 4; j++)
           this._burstTo(bus, .07, {f: 1200 + j * 140, q: .6, gain: .065, at: at + j * .018});
-        next += .28; beat++;
+        next += this.chant?.pattern?30/this.chant.pattern.bpm:.28; beat++;
       }
     };
     this.stadiumTimer = setInterval(tick, 100);tick();
@@ -364,5 +371,5 @@ export class Sfx {
     src.connect(flt); flt.connect(g); g.connect(dest); src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.02);
   }
 
-  destroy() { this.on = false; this._stopStadium(); this.stopSong(); this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
+  destroy() { this.chant?.dispose();this.chant=null;this.on = false; this._stopStadium(); this.stopSong(); this._stopCrowd(); if (this.ctx) { try { this.ctx.close(); } catch {} } this.ctx = null; }
 }
