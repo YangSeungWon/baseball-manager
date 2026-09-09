@@ -9,19 +9,20 @@ const runnerAt=(r,t)=>{
  return {id:r.id,name:r.name,x:count?a[0]+(b[0]-a[0])*u:a[0],y:count?a[1]+(b[1]-a[1])*u:a[1],base:r.from,vis:!(r.outAt!=null&&t>r.outAt+.5)&&!(r.to===4&&t>r.arrival+.2)};
 };
 // Adjudicates one defensive throw. Running and throwing use the same replay trace.
-export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',name:'타자',speed:7},outs=1,defenseSpeed=7.2,armSpeed=30}={}){
+export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',name:'타자',speed:7},outs=1,defenseSpeed=7.2,armSpeed=30,defense}={}){
  const raw=play.frames,last=raw.at(-1),caught=play.events.find(e=>e.type==='catch'),award=play.events.find(e=>e.type==='home-run'||e.type==='ground-rule-double'),pickup=play.events.find(e=>e.type==='pickup');
  const runners=[{...batter,from:0},...bases.flatMap((r,i)=>r?[{...r,from:i+1}]:[])].map((r,i)=>({...r,id:r.id||'runner-'+i,speed:clamp(r.speed||7,4,10),ownSpeed:clamp(r.speed||7,4,10),start:r.from===0?.22:.3,to:r.from}));
  const arrival=(r,to)=>r.start+runningTime((to-r.from)*LEG,r.speed)+Math.max(0,to-r.from-1)*.18;
  const live=last.fielders.map(f=>({...f}));
  const receiverFor=base=>{const pos=['','1B','SS','3B','C'][base===4?4:base],target=RUN_BASES[base];return live.filter(f=>f.pos!==play.handler).sort((a,b)=>(a.pos===pos?-1000:Math.hypot(a.x-target[0],a.y-target[1]))-(b.pos===pos?-1000:Math.hypot(b.x-target[0],b.y-target[1])))[0];};
  const cover=base=>[RUN_BASES[base][0]+.65,RUN_BASES[base][1]+.25];
+ const fSpeed=f=>defense?.[f?.pos]?.speed??defenseSpeed;
  const defensePlan=(base,estimate=false)=>{
   if(!pickup&&!caught)return {time:Infinity,receiver:null,carry:false};
   const receiver=receiverFor(base),carrier=live.find(f=>f.pos===play.handler),target=RUN_BASES[base];
-  const flight=Math.hypot(last.x-target[0],last.y-target[1])/(estimate?armSpeed*.85:armSpeed);
-  const thrown=receiver?Math.max(last.t+(estimate?.6:.35)+flight,last.t+Math.hypot(receiver.x-cover(base)[0],receiver.y-cover(base)[1])/defenseSpeed):Infinity;
-  const carried=carrier?last.t+.2+Math.hypot(carrier.x-target[0],carrier.y-target[1])/defenseSpeed:Infinity;
+  const flight=Math.hypot(last.x-target[0],last.y-target[1])/((defense?.[play.handler]?.arm??armSpeed)*(estimate?.85:1));
+  const thrown=receiver?Math.max(last.t+(estimate?.6:.35)+flight,last.t+Math.hypot(receiver.x-cover(base)[0],receiver.y-cover(base)[1])/fSpeed(receiver)):Infinity;
+  const carried=carrier?last.t+.2+Math.hypot(carrier.x-target[0],carrier.y-target[1])/fSpeed(carrier):Infinity;
   return carried<thrown?{time:carried,receiver:carrier,carry:true}:{time:thrown,receiver,carry:false};
  };
  const throwETA=(base,estimate=false)=>defensePlan(base,estimate).time;
@@ -58,7 +59,7 @@ export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',
  const receiver=contest?.receiver,target=contest?RUN_BASES[contest.r.to]:null,throwStart=last.t+(contest?.carry?.2:.35),ballEnd=contest?.ball||last.t;
  for(let t=last.t+STEP;t<=end+STEP;t+=STEP){
   const time=Math.min(t,end),u=contest?clamp((time-throwStart)/Math.max(.01,ballEnd-throwStart),0,1):0;
-  frames.push({t:time,x:contest?last.x+(target[0]-last.x)*u:last.x,y:contest?last.y+(target[1]-last.y)*u:last.y,z:contest?1.5+(contest.carry?0:Math.sin(u*Math.PI)*1.4):last.z,bounced:last.bounced,wall:last.wall,fielders:live.map(f=>{if(f.pos!==receiver?.pos)return {...f};const spot=contest.carry?target:cover(contest.r.to),d=Math.hypot(spot[0]-f.x,spot[1]-f.y),k=Math.min(1,defenseSpeed*Math.max(0,time-(contest.carry?throwStart:last.t))/Math.max(.001,d));return {...f,x:f.x+(spot[0]-f.x)*k,y:f.y+(spot[1]-f.y)*k};}),runners:runners.map(r=>runnerAt(r,time))});if(time===end)break;
+  frames.push({t:time,x:contest?last.x+(target[0]-last.x)*u:last.x,y:contest?last.y+(target[1]-last.y)*u:last.y,z:contest?1.5+(contest.carry?0:Math.sin(u*Math.PI)*1.4):last.z,bounced:last.bounced,wall:last.wall,fielders:live.map(f=>{if(f.pos!==receiver?.pos)return {...f};const spot=contest.carry?target:cover(contest.r.to),d=Math.hypot(spot[0]-f.x,spot[1]-f.y),k=Math.min(1,fSpeed(f)*Math.max(0,time-(contest.carry?throwStart:last.t))/Math.max(.001,d));return {...f,x:f.x+(spot[0]-f.x)*k,y:f.y+(spot[1]-f.y)*k};}),runners:runners.map(r=>runnerAt(r,time))});if(time===end)break;
  }
  const events=play.events.filter(e=>e.t<=end);
  if(contest){events.push({type:contest.carry?'carry':'throw',t:throwStart,x:last.x,y:last.y,z:1.5,fielder:play.handler,base:contest.r.to});events.push({type:contest.out?(contest.force?'force-out':'tag-out'):'safe',t:contest.end,x:target[0],y:target[1],z:1.5,fielder:receiver.pos,base:contest.r.to,runner:contest.r.id,runnerArrival:contest.r.arrival,ballArrival:contest.ball});}

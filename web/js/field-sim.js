@@ -3,7 +3,7 @@ import {fence,parkDims} from './core/bip.js';
 export const FIELD_POSITIONS={P:[0,18.44],C:[0,-1.6],'1B':[24,25],'2B':[13,38],SS:[-13,38],'3B':[-24,25],LF:[-45,75],CF:[0,95],RF:[45,75]};
 const dt=1/30,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // One deterministic trace is used both for adjudication and replay. No outcome input.
-export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITIONS,runSpeed=7.2,reaction=.35,park=null,bases,batter,outs}={}){
+export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITIONS,runSpeed=7.2,reaction=.35,park=null,bases,batter,outs,defense}={}){
  const dims=parkDims(park),wallHeight=dims.real?.fH||3,rad=Math.PI/180,a=angle*rad,l=launch*rad;
  let x=0,y=0,z=1,vx=Math.sin(a)*Math.cos(l)*speed,vy=Math.cos(a)*Math.cos(l)*speed,vz=Math.sin(l)*speed,bounced=false,wall=false;
  const path=[{t:0,x,y,z,bounced,wall}],events=[];
@@ -20,7 +20,7 @@ export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITI
   path.push({t,x,y,z,bounced,wall});
  }
  const defenders=Object.entries(positions).filter(()=>true).map(([pos,p])=>{
-  const velocity=runSpeed*(pos==='P'?.8:1),delay=reaction+(pos==='P'?.2:0);
+  const velocity=defense?.[pos]?.speed??runSpeed*(pos==='P'?.8:1),delay=defense?.[pos]?.reaction??reaction+(pos==='P'?.2:0);
   const target={...(path.find(b=>b.t>=delay&&b.z<=2.5&&Math.hypot(b.x-p[0],b.y-p[1])<=velocity*(b.t-delay)+.45)||path.at(-1))};
   const radius=Math.hypot(target.x,target.y),limit=fence(Math.atan2(target.x,target.y)/rad,dims)-.3;if(radius>limit){target.x*=limit/radius;target.y*=limit/radius;}
   return {pos,x:p[0],y:p[1],velocity,delay,target};
@@ -44,11 +44,11 @@ export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITI
  }
  if(!outcome)outcome='LIVE';
  const end=frames.at(-1);events.splice(0,events.length,...events.filter(e=>e.t<=end.t));
- return resolveRunning({result:outcome,speed,launch,angle,frames,events,handler,duration:end.t},{bases,batter,outs,defenseSpeed:runSpeed});
+ return resolveRunning({result:outcome,speed,launch,angle,frames,events,handler,duration:end.t},{bases,batter,outs,defenseSpeed:runSpeed,defense});
 }
-export function contactFlight(roll,{power=false,bonus=0,bases,batter,outs}={}){
+export function contactFlight(roll,{power=false,bonus=0,bases,batter,outs,defense}={}){
  const quality=clamp((1-roll[4])*.85+bonus+(power?.15:0),0,1);
- return simulateField({speed:26+quality*28,launch:6+roll[5]*43+(power?7:0),angle:(roll[7]-.5)*80,bases,batter,outs});
+ return simulateField({speed:26+quality*28,launch:6+roll[5]*43+(power?7:0),angle:(roll[7]-.5)*80,bases,batter,outs,defense});
 }
 export function sampleField(play,t){
  const frames=play.frames;let lo=0,hi=frames.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(frames[mid].t<=t)lo=mid;else hi=mid-1;}

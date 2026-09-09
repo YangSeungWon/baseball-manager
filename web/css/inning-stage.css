@@ -123,3 +123,22 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode.has-batting-dock.is-deciding .batting-action-row button[aria-pressed=true]{background:#f0d08e;color:#213238;box-shadow:none}
 @media(max-height:500px){.inning-mode.has-batting-dock .inning-look{bottom:196px}.inning-mode.has-batting-dock .inning-live-zone,.inning-mode.has-batting-dock .inning-feedback{bottom:100px}}
 .inning-mode.is-intro .inning-look,.inning-mode.is-intro .inning-live-zone,.inning-mode.is-intro .inning-plan-toggle{visibility:hidden}
+
+/* Scouting is available between pitches without expanding the choice dock. */
+.inning-mode .inning-scout{position:absolute;top:174px;left:10px;z-index:18;display:flex;align-items:center;gap:6px;max-width:calc(100% - 20px);font-size:14px;color:#eff2de}
+.inning-mode .scout-batter{padding:5px 7px;border-radius:6px;background:#102732e8}
+.inning-mode .scout-toggle{min-width:54px;min-height:44px;padding:4px 8px;background:#183940;border:1px solid #92b2a1;border-radius:7px;color:#eff2de;font-size:14px}
+.inning-mode .scout-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(400px,calc(100% - 24px));max-height:calc(100dvh - 28px);overflow:auto;padding:10px;background:#102732fa;border:1px solid #a9c6ad;border-radius:12px;box-shadow:0 12px 60px #0009;font-size:14px}
+.inning-mode .scout-panel[hidden]{display:none}
+.inning-mode .scout-panel header{display:flex;align-items:center;justify-content:space-between;font-size:16px}
+.inning-mode .scout-panel header button{width:44px;height:44px;font-size:24px;color:#fff;background:transparent;border:0}
+.inning-mode .scout-runners{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-bottom:10px}
+.inning-mode .scout-runners>div,.inning-mode .scout-field>div{display:flex;flex-direction:column;align-items:center;gap:2px;padding:5px 2px;border:1px solid #62857266;border-radius:7px;background:#193c3bd9}
+.inning-mode .scout-field{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;background:radial-gradient(ellipse at bottom,#98714566,#235c4244 60%,transparent 70%)}
+.inning-mode .scout-content strong{color:#c4dfa4;font-weight:600}
+.inning-mode .scout-own{margin-top:10px;line-height:1.5}
+.inning-mode button.inning-diamond{min-width:44px;min-height:44px;background:transparent;border:0;padding:0;cursor:pointer;color:inherit}
+.inning-mode .inning-diamond i[data-pace=fast]{box-shadow:0 0 0 2px #cef4a1}
+.inning-mode .inning-diamond i[data-pace=slow]{background:#d8b985}
+.inning-mode.is-playing .inning-scout,.inning-mode.is-intro .inning-scout,.inning-mode.is-changing .inning-scout,.inning-mode.is-finished .inning-scout{display:none}
+@media(max-height:500px){.inning-mode .inning-scout{top:147px}.inning-mode .scout-panel{width:440px}.inning-mode .scout-field{grid-template-columns:repeat(3,minmax(0,1fr))}}

@@ -20,6 +20,14 @@ try {
     const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
     await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+    await page.locator('.scout-toggle').click();
+    assert.equal(await page.locator('.scout-field [data-position]').count(),9);
+    assert.equal(await page.locator('.scout-runners>div').count(),3);
+    const scout=await page.locator('.scout-panel').boundingBox();assert.ok(scout.x>=0&&scout.y>=0&&scout.x+scout.width<=width&&scout.y+scout.height<=height);
+    await page.screenshot({path:`/tmp/dugout-scout-${width}.png`});
+    await page.keyboard.press('Escape');assert.equal(await page.locator('.scout-panel').isVisible(),false);assert.equal(await page.locator('.inning-mode').count(),1);
+    await page.locator('.inning-diamond').click();assert.equal(await page.locator('.scout-panel').isVisible(),true);
+    await page.getByRole('button',{name:'선수 정보 닫기'}).click();
     const stage=await page.locator('.lv-three').boundingBox();assert.ok(Math.abs(stage.width-width)<2&&Math.abs(stage.height-height)<2);
     assert.equal(await page.locator('.inning-controls').isVisible(),true);
     assert.equal(await page.locator('.inning-feedback').textContent(),'');

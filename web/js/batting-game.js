@@ -39,13 +39,13 @@ export class BattingGame extends InningGame {
     const locationRead=location==='any'?0:locationMatched?.12:-.12;
     const matched=target===type,power=approach==='power';
     const read=target==='any'?0:matched?.15:-.17;
-    const contact=clamp(.83+read+locationRead-(power?.17:0)-(inZone?0:.27),.15,.98);
+    const contact=clamp(.83+(before.batter.contact-.72)+read+locationRead-(power?.17:0)-(inZone?0:.27),.15,.98);
     let result,fieldPlay=null;
     if(action==='take')result=inZone?'S':'B';
     else if(roll[2]>contact)result='W';
     else if(roll[3]<(power?.20:.32))result='F';
     else {
-      fieldPlay=contactFlight(roll,{power,bonus:locationRead*.5+(matched?.1:0)-(inZone?0:.12),bases:before.baseRunners,batter:before.batter,outs:before.outs});result=fieldPlay.result;
+      fieldPlay=contactFlight(roll,{power,bonus:(before.batter.power||0)+locationRead*.5+(matched?.1:0)-(inZone?0:.12),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}

@@ -1,3 +1,4 @@
+import { defenseRoster } from './player-traits.js';
 import { contactFlight } from './field-sim.js';
 import { controlledPitch, releaseLabel } from './pitch-control.js';
 // A small, independent pitching challenge. Never reads/writes the GM save or RNG.
@@ -7,8 +8,9 @@ const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class InningGame {
   constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.baseRunners=[{id:'initial-1',name:'1루 주자',speed:7.4},{id:'initial-2',name:'2루 주자',speed:6.8},null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}
   random(){this.rng=(Math.imul(this.rng,1664525)+1013904223)>>>0;return this.rng/4294967296;}
-  get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[7.5,7,6.4][i]};}
-  snapshot(){return {outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],baseRunners:this.bases.map((v,i)=>v?{...(this.baseRunners[i]||{id:'base-'+i,name:'주자',speed:7})}:null),count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
+  get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[7.5,7,6.4][i],power:[0,0,.12][i]};}
+  get defense(){return defenseRoster(this.seed);}
+  snapshot(){return {defense:this.defense,outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],baseRunners:this.bases.map((v,i)=>v?{...(this.baseRunners[i]||{id:'base-'+i,name:'주자',speed:7})}:null),count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
   pitch({type,zone,intent,release}) {
     if(this.done)throw new Error('Challenge already finished');
     if(!PITCHES[type]||!['in','out','low','high'].includes(zone)||!['attack','chase'].includes(intent))throw new Error('Invalid pitch selection');
@@ -26,7 +28,7 @@ export class InningGame {
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<.30) result='F';
-    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1),bases:before.baseRunners,batter:before.batter,outs:before.outs});result=fieldPlay.result;terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}
