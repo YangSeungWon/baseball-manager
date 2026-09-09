@@ -1,3 +1,4 @@
+import { renderPixelRatio } from './render-quality.js';
 // Optional renderer. Simulation coordinates (x, depth, height) become (x, height, -depth).
 // All animation follows LiveView's state; this module never advances the game.
 import * as T from '../vendor/three/three.module.min.js';
@@ -8,13 +9,13 @@ const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
 
 export class Live3D {
   constructor(host, dims, opts, onLost) {
-    this.renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'low-power' });
+    this.renderer = new T.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     this.canvas = this.renderer.domElement;
     this.canvas.className = 'lv-three';
     this.canvas.setAttribute('aria-label', '3D 야구 경기 중계');
     this.onLost = e => { e.preventDefault(); onLost(); };
     this.canvas.addEventListener('webglcontextlost', this.onLost);
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5));
+    this.renderer.setPixelRatio(renderPixelRatio(innerWidth,innerHeight,devicePixelRatio));
     this.renderer.outputColorSpace = T.SRGBColorSpace;
     this.renderer.toneMapping = T.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -36,7 +37,7 @@ export class Live3D {
     sun.position.set(-42, 75, 25); sun.castShadow = true;
     Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 200 });
     sun.target.position.set(0, 0, -28); this.scene.add(sun.target);
-    sun.shadow.mapSize.set(1024, 1024); sun.shadow.bias = -.0005; sun.shadow.normalBias = .025;
+    sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0005; sun.shadow.normalBias = .025;
     this.scene.add(sun);
     this.stadium(dims, opts);
     this.fenceAt = a => fence(a, dims);
@@ -249,7 +250,7 @@ export class Live3D {
     if(pose==='catch'||pose==='caught'){arms[0].rotation.z=2.7;arms[0].rotation.x=-.3;arms[1].rotation.x=-.4;}
   }
   resize(w,h) {
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5, Math.sqrt(700000 / Math.max(1,w*h))));
+    this.renderer.setPixelRatio(renderPixelRatio(w,h,devicePixelRatio));
     this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   render(S,colors,line,time) {

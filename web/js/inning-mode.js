@@ -181,6 +181,8 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   async function intro(){
     busy=true;root.classList.add('is-intro');$('.inning-picks').disabled=true;$('.inning-throw').disabled=true;
     if(batting){$('.batting-swing').disabled=true;$('.batting-take').disabled=true;}else $('.pitch-breathe').disabled=true;
+    const loadingView=lv;
+    if (!(await loadingView.ready) || dead || lv!==loadingView) return;
     const S=lv.S,tl=new Timeline(),pitcher=S.fielders.P;S.batter=null;pitcher.x=5;pitcher.y=14;pitcher.pose='walkField';S.broadcast={kind:'entry'};
     $('.inning-batter-entry').textContent=pitcher.name+' · 마운드 입장';$('.inning-batter-entry').hidden=false;
     tl.add(0,3,k=>{pitcher.x=5*(1-k);pitcher.y=14+4.44*k;});

@@ -61,15 +61,17 @@ try {
     assert.ok(coverage.crowd>0 && coverage.crowd<coverage.seats);
     for(const view of ['top','persp','three']) {
       await page.evaluate(v=>lv.setView(v),view);
-      assert.equal(await page.locator('.lv-three').isVisible(),view==='three');
-      assert.equal(await page.locator('.lv-c').isVisible(),view!=='three');
+      assert.equal(await page.locator('.lv-three').isVisible(),true);
+      assert.equal(await page.locator('.lv-c').isVisible(),false);
     }
     await page.setViewportSize({width:320,height:568});
     await page.waitForTimeout(150);
     assert.equal(await page.evaluate(()=>document.querySelector('#modalBody').scrollWidth>innerWidth),false,'no overflow');
     await page.evaluate(()=>lv.three.renderer.forceContextLoss());
-    await page.waitForFunction(()=>lv.view==='persp');
-    assert.equal(await page.locator('.lv-c').isVisible(),true,'context loss fallback');
+    await page.waitForFunction(()=>!lv.three);
+    assert.equal(await page.locator('.lv-c').isVisible(),false,'no legacy fallback');
+    await page.locator('.lv-3d-status button').click();
+    await page.waitForFunction(()=>!!lv.three&&document.querySelector('.lv-3d-status').hidden);
     await page.evaluate(()=>lv.destroy());
     assert.equal(await page.locator('.lv-three').count(),0,'canvas disposed');
     await page.close();
@@ -92,17 +94,13 @@ try {
   const game=await browser.newPage({viewport:{width:390,height:844}});
   game.on('pageerror',e=>errors.push(e.message));
   await game.goto(url); await game.locator('.manager-entry>summary').click();await game.locator('#btnNew').waitFor();
-  await game.evaluate(()=>localStorage.setItem('dugout.view','three'));
-  await game.reload();await game.locator('#btnNew').click();await game.locator('#guidePlay').click();
+  await game.evaluate(()=>localStorage.setItem('dugout.view','persp'));
+  await game.reload();await game.locator('.manager-entry>summary').click();await game.locator('#btnNew').click();await game.locator('#guidePlay').click();
   await game.locator('.lv-three').waitFor({state:'visible',timeout:20000});
   await game.locator('.lv-pre-go').click();
   await game.waitForFunction(()=>document.querySelector('.lv-mgr').hidden===false);
   await game.waitForTimeout(1800);
-  await game.locator('.lv-record-details summary').click();
-  await game.locator('[data-v="persp"]').click();
-  await game.locator('[data-v="three"]').click();
-  assert.equal(await game.evaluate(()=>localStorage.getItem('dugout.view')),'three');
-  await game.locator('.lv-record-details summary').click();
+  assert.equal(await game.locator('[data-v]').count(),0);
   await game.locator('.lv-end').click();await game.locator('#gsDone').waitFor({timeout:20000});
   await game.locator('#gsDone').click();
   assert.equal(await game.locator('.lv-three').count(),0);
@@ -121,5 +119,5 @@ try {
   await closing.waitForTimeout(500);assert.equal(await closing.locator('.lv-three').count(),0);
   await closing.close();
   assert.deepEqual(errors,[]);
-  console.log('PASS: lazy loading, WebGL geometry, both cameras, all three modes, resize, context loss, disposal, persisted preference, real game finish, close during load');
+  console.log('PASS: lazy loading, WebGL geometry, both cameras, 3D-only mode, resize, context loss, disposal, ignored legacy preference, real game finish, close during load');
 } finally { await browser.close(); await new Promise(r=>server.close(r)); }

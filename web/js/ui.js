@@ -19,9 +19,9 @@ let simRunning = false, modalReturn = null;
    장면이다. 미리 고르게 하지 않는다 — 일단 띄우고, 언제든 건너뛸 수 있게 한다.
    배속과 시점은 기억한다. */
 const livePrefs = () => {
-  let speed = 'auto', view = 'persp', sound = false;
+  let speed = 'auto', view = 'three', sound = false;
   try { const v = localStorage.getItem('dugout.speed'); speed = v === null || v === 'auto' ? 'auto' : +v;
-        view = localStorage.getItem('dugout.view') || 'persp';
+        view = 'three';
         sound = localStorage.getItem('dugout.sfx') === '1'; } catch {}
   return { speed: speed === 'auto' || [1, 2, 4, 8].includes(speed) ? speed : 'auto', view, sound };
 };

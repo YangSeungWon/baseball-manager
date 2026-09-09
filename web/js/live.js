@@ -155,7 +155,8 @@ export class LiveView {
    */
   constructor(root, opts) {
     this.o = opts; this.root = root;
-    this.view = ['top', 'three'].includes(opts.view) ? opts.view : 'persp';
+    this.view = 'three';
+    this.ready = new Promise(resolve => { this._readyResolve = resolve; });
     this.auto = opts.speed === 'auto' || opts.speed == null;   // 배속은 상황이 정한다
     this.speed = this.auto ? 2 : (opts.speed || 1);
     this.paused = false;
@@ -236,10 +237,6 @@ export class LiveView {
           <div class="lv-card lv-inn" hidden></div>
           <div class="lv-tools">
             <button class="lv-mobile-skip quiet">이 장면 넘기기</button>
-            <span class="lv-seg lv-view">
-              <button data-v="persp" class="${this.view === 'persp' ? 'on' : ''}">입체</button>
-              <button data-v="top" class="${this.view === 'top' ? 'on' : ''}">위에서</button>
-              <button data-v="three" class="${this.view === 'three' ? 'on' : ''}">3D 중계</button></span>
             <span class="lv-seg lv-spd"><button data-s="auto" class="${this.auto ? 'on' : ''}">자동</button>${[1, 2, 4, 8].map(s =>
               `<button data-s="${s}" class="${!this.auto && s === this.speed ? 'on' : ''}">×${s}</button>`).join('')}</span>
             <span class="lv-seg lv-snd"><button class="lv-sndb ${this.o.sound ? 'on' : ''}" title="소리" aria-pressed="${!!this.o.sound}">${SND_ICON}</button></span>
@@ -296,7 +293,7 @@ export class LiveView {
     setTimeout(() => this._size(), 250);           // 글꼴·레이아웃이 자리잡은 뒤 한 번 더
   }
 
-  destroy() { cancelAnimationFrame(this._raf); window.removeEventListener('resize', this._onResize); this._dead = true; this.three?.dispose(); this.sfx.destroy(); }
+  destroy() { this._readyResolve?.(false); cancelAnimationFrame(this._raf); window.removeEventListener('resize', this._onResize); this._dead = true; this.three?.dispose(); this.sfx.destroy(); }
 
   setSound(on) {
     this.sfx.enable(on);
@@ -307,7 +304,7 @@ export class LiveView {
   }
 
   setView(v) {
-    if (!['top', 'persp', 'three'].includes(v)) return;
+    if (v !== 'three') return;
     this.view = v; this.stage.classList.toggle('top', v === 'top'); this.stage.classList.toggle('persp', v === 'persp');
     this.stage.classList.toggle('three', v === 'three');
     if (this.three) this.three.canvas.hidden = v !== 'three';
@@ -321,25 +318,31 @@ export class LiveView {
   async _ensure3d() {
     if (this.three || this._loading3d || this._dead) return;
     const status = this.root.querySelector('.lv-3d-status');
-    status.textContent = '3D 구장 준비 중…'; status.hidden = false;
+    status.textContent = '구장에 입장하는 중…'; status.hidden = false;
+    this.cv.hidden = true; this.stage.setAttribute('aria-busy','true');
     this._loading3d = true;
     try {
-      const { Live3D } = await import('./live3d.js');
+      const attempt=this._loadAttempts||0;this._loadAttempts=attempt+1;
+      const { Live3D } = await import(attempt?'./live3d.js?retry='+attempt:'./live3d.js');
       if (this._dead) return;
       this.three = new Live3D(this.stage, this.dims, this.o, () => this._fail3d());
       this.three.resize(this.cw, this.ch);
       this.three.canvas.hidden = this.view !== 'three';
       this.cv.hidden = this.view === 'three';
-      status.hidden = true;
+      this.three.render(this.S, this.o.colors, this.line, performance.now()/1000);
+      status.hidden = true; this.stage.setAttribute('aria-busy','false');
+      this._readyResolve?.(true);
     } catch (error) {
       if (!this._dead) this._fail3d();
     } finally { this._loading3d = false; }
   }
   _fail3d() {
     this.three?.dispose(); this.three = null;
-    if (this.view === 'three') this.setView('persp');
+    this.cv.hidden = true;
     const status = this.root.querySelector('.lv-3d-status');
-    status.textContent = '3D를 표시할 수 없어 기존 보기로 돌아왔습니다.'; status.hidden = false;
+    status.innerHTML = '<span>3D 구장을 불러오지 못했습니다.</span><button>다시 불러오기</button>'; status.hidden = false;
+    this.stage.setAttribute('aria-busy','false');
+    status.querySelector('button').onclick=()=>this._ensure3d();
   }
   setSpeed(s, manual = false) {
     if (manual) { this.auto = false; try { localStorage.setItem('dugout.speed', s); } catch {} }
@@ -410,6 +413,7 @@ export class LiveView {
     // ResizeObserver 가 매 프레임 부르면 그린 직후마다 지워져 빈 화면이 된다.
     if (this.cw === w && this.ch === h && this.dpr === dpr) return;
     this.cv.width = Math.round(w * dpr); this.cv.height = Math.round(h * dpr);
+    this.stage.style.height = h + 'px';
     this.cv.style.height = h + 'px'; this.cv.style.width = w + 'px';
     this.dpr = dpr; this.cw = w; this.ch = h;
     this.three?.resize(w, h);
@@ -422,7 +426,7 @@ export class LiveView {
     // rAF 의 시각 인자는 performance.now() 보다 앞설 수 있다. 한 시계만 쓴다.
     const now = performance.now();
     const dt = clamp((now - this._last) / 1000, 0, 0.1); this._last = now;
-    if (this.tl && !this.paused && !this.panelPaused) {
+    if (this.tl && this.three && !this.paused && !this.panelPaused) {
       this.tl.step(this.tl.t + dt * this.speed);
       if (this.tl.over) { const r = this.resolve; this.tl = null; this.resolve = null; if (r) r(); }
     }
@@ -432,7 +436,8 @@ export class LiveView {
   }
 
   /** 한 플레이를 보여 준다. 끝나면 resolve. */
-  play(rec) {
+  async play(rec) {
+    if (!(await this.ready) || this._dead) return;
     if (rec.evt === 'lineup') return new Promise((res) => this._preCard(rec, res));
     return new Promise((res) => {
       this.resolve = res; this._rec = rec;
@@ -1287,6 +1292,7 @@ export class LiveView {
 
   /* ── 그리기 ────────────────────────────────────────────── */
   _draw() {
+    if (this.view === 'three' && !this.three) return;
     if (this.view === 'three' && this.three) {
       this.three.render(this.S, this.o.colors, this.line, this._last / 1000); return;
     }

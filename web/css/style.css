@@ -2065,3 +2065,9 @@ progress{width:100%;height:18px;accent-color:var(--accent)}
 @media(min-width:901px){.has-batting-dock:not(.is-playing) .batting-decision{left:auto;right:max(18px,calc((100vw - 1120px)/2));transform:none;width:340px}}
 @media(max-height:500px){.has-batting-dock .batting-decision{right:12px;left:auto;transform:none;width:330px}}
 .batting-decision .inning-throw:disabled{opacity:1;background:transparent;border-color:transparent;color:#d0e2df;box-shadow:none;cursor:default;font-size:14px}.is-playing .inning-head small{color:#e1ede9;background:#102732cc;padding:2px 5px;border-radius:3px;text-shadow:none}
+/* The stadium is the sole match view; loading never exposes the legacy canvas. */
+.lv-3d-status{inset:0;left:0;top:0;transform:none;max-width:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;border-radius:0;background:#102732;font-size:18px;z-index:15}
+.lv-3d-status button{min-height:44px;padding:10px 20px;font-size:16px}
+.lv-stage[aria-busy=true] .lv-3d-status::before{content:'';width:32px;height:32px;border:3px solid #6b908044;border-top-color:#d9dcb0;border-radius:50%;animation:stadium-loading 1s linear infinite}
+@keyframes stadium-loading{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.lv-stage[aria-busy=true] .lv-3d-status::before{animation:none}}
