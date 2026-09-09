@@ -1270,8 +1270,8 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
 .lv-cap:has(.lv-cap-main:empty){display:none}
 .lv-flash{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);
   font-size:40px;font-weight:900;letter-spacing:-.02em;color:#fff;pointer-events:none;
-  opacity:0;text-shadow:0 2px 18px rgba(0,0,0,.6);font-family:var(--kr)}
-.lv-flash.on{animation:lvFlash 1.6s cubic-bezier(.2,.8,.3,1) forwards}
+  z-index:7;opacity:0;text-shadow:0 2px 18px rgba(0,0,0,.6);font-family:var(--kr)}
+.lv-flash.on{opacity:1;animation:lvFlash 1.6s cubic-bezier(.2,.8,.3,1) forwards}
 .lv-flash.k{color:#ffd45e} .lv-flash.hr{color:#ff8a5b;font-size:52px}
 .lv-flash.out{color:#ff6b6b} .lv-flash.run{color:#53b987;font-size:52px}
 .lv-flash.err{color:#e8c23a}

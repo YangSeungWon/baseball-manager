@@ -156,3 +156,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
  .inning-mode.has-batting-dock.is-playing .inning-look{display:none}
 }
 @media(max-height:500px){.inning-mode.has-batting-dock.is-reading .inning-compact-plan:not([hidden]){top:147px}}
+
+/* Result visibility must not depend on motion preferences. */
+.inning-mode .lv-flash{top:50%;font-size:clamp(40px,5vw,72px);white-space:nowrap}
