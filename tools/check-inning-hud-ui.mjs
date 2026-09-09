@@ -48,7 +48,12 @@ try {
     assert.equal(await page.locator('[data-group="target"] [data-value="FF"]').getAttribute('aria-pressed'),'true');
     await page.screenshot({path:`/tmp/dugout-plan-${width}.png`});
     await page.locator('.inning-throw').click();await page.locator('.is-deciding .batting-decision').waitFor();
-    assert.equal(await page.locator('.inning-controls').isVisible(),true);
+    const mobile=width<=900||height<=500;
+    assert.equal(await page.locator('.inning-controls').isVisible(),!mobile);
+    assert.equal(await page.locator('.inning-compact-plan').isVisible(),mobile);
+    assert.equal(await page.locator('.inning-throw').isVisible(),!mobile);
+    if(mobile)for(const name of ['swing','take']){const b=await page.locator('.batting-'+name).boundingBox();assert.ok(b.height>=56&&b.width>=130);}
+    await page.screenshot({path:`/tmp/dugout-decision-${width}.png`});
     await page.locator('.batting-take').click();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     assert.ok((await page.locator('.lv-three').boundingBox()).height>=height-1);

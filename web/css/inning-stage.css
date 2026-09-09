@@ -142,3 +142,17 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .inning-diamond i[data-pace=slow]{background:#d8b985}
 .inning-mode.is-playing .inning-scout,.inning-mode.is-intro .inning-scout,.inning-mode.is-changing .inning-scout,.inning-mode.is-finished .inning-scout{display:none}
 @media(max-height:500px){.inning-mode .inning-scout{top:147px}.inning-mode .scout-panel{width:440px}.inning-mode .scout-field{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.inning-mode .inning-compact-plan{display:none}
+/* Once delivery starts, mobile space belongs to the ball and the two decisions. */
+@media(max-width:900px),(max-height:500px){
+ .inning-mode.has-batting-dock.is-playing:not(.is-finished) .inning-controls{display:none;visibility:hidden;pointer-events:none}
+ .inning-mode.has-batting-dock.is-reading .inning-compact-plan:not([hidden]){display:block;position:fixed;top:174px;left:10px;max-width:calc(100% - 20px);padding:6px 9px;border-radius:6px;background:#102732de;color:#d4e0cb;font-size:14px;z-index:16;pointer-events:none}
+ .inning-mode.has-batting-dock.is-playing .batting-decision{grid-template-columns:1fr}
+ .inning-mode.has-batting-dock.is-playing .batting-decision .inning-throw{display:none}
+ .inning-mode.has-batting-dock.is-playing .batting-action-row{grid-column:1;display:grid;grid-template-columns:1fr 1fr}
+ .inning-mode.has-batting-dock.is-playing .batting-action-row button{min-height:56px;font-size:18px}
+ .inning-mode.has-batting-dock.is-playing .inning-live-zone,.inning-mode.has-batting-dock.is-playing .inning-feedback{bottom:104px}
+ .inning-mode.has-batting-dock.is-playing .inning-look{display:none}
+}
+@media(max-height:500px){.inning-mode.has-batting-dock.is-reading .inning-compact-plan:not([hidden]){top:147px}}

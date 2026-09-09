@@ -28,6 +28,7 @@ export class Live3D {
     this.camera.position.set(9, 9, 22);
     this.aim = point(0, 9, 1);
     this.camera.lookAt(this.aim);
+    this.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
     this.players = new Map(); this.materials = new Map(); this.textures = [];
     this.box = new T.BoxGeometry(1, 1, 1);
     this.sphere = new T.SphereGeometry(1, 10, 8);
@@ -208,9 +209,10 @@ export class Live3D {
     const root=new T.Group();this.scene.add(root);
     const body=new T.Group();root.add(body);
     const shirt=this.mesh(this.cylinder,color,body,[.27,.65,.21],[0,1.05,0]);
-    this.mesh(this.sphere,'#c99976',body,[.17,.21,.17],[0,1.61,0]);
-    const cap=this.mesh(this.sphere,color,body,[.19,.105,.19],[0,1.77,0]);
-    const brim=this.mesh(this.box,color,body,[.34,.04,.24],[0,1.73,.15]);
+    const head=new T.Group();head.position.y=1.55;body.add(head);
+    this.mesh(this.sphere,'#c99976',head,[.17,.21,.17],[0,.06,0]);
+    const cap=this.mesh(this.sphere,color,head,[.19,.105,.19],[0,.22,0]);
+    const brim=this.mesh(this.box,color,head,[.34,.04,.24],[0,.18,.15]);
     this.mesh(this.box,'#25333b',body,[.48,.065,.37],[0,.76,0]);
     const limb=(x,y,length,col) => { const g=new T.Group();g.position.set(x,y,0);body.add(g);this.mesh(this.cylinder,col,g,[.085,length,.085],[0,-length/2,0]);return g; };
     const legs=[limb(-.13,.75,.62,'#e4e2d7'),limb(.13,.75,.62,'#e4e2d7')];
@@ -220,7 +222,7 @@ export class Live3D {
     const bat=this.mesh(this.cylinder,'#d4ad73',arms[1],[.04,1.05,.04],[0,-.9,0]);bat.visible=false;
     body.traverse(m=>{if(m.isMesh)m.castShadow=true;});
     root.scale.setScalar(1.35);
-    const player={root,body,shirt,cap,brim,arms,legs,glove,bat,phase:0,last:null};this.players.set(key,player);return player;
+    const player={root,body,head,shirt,cap,brim,arms,legs,glove,bat,idleSeed:[...key].reduce((n,c)=>n*31+c.charCodeAt(0),0)%997,phase:0,last:null};this.players.set(key,player);return player;
   }
   updatePlayer(key, data, color, pose, S) {
     const p=this.player(key,color), {root,body,arms,legs}=p;
@@ -232,15 +234,17 @@ export class Live3D {
     const moving=dist>.0001;
     if(moving) root.rotation.y=Math.atan2(dx,-dy);
     else if(pose==='pitch'||pose==='field'||pose==='crouch')root.rotation.y=Math.atan2(-x,y);
+    else if(pose==='watch'&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
     else if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
     root.position.set(x,Math.max(0,data.jump||0),-y);
     p.shirt.material=p.cap.material=p.brim.material=this.material(color);
     const stride=moving?Math.sin(p.phase)*.65:0;
     legs[0].rotation.x=stride;legs[1].rotation.x=-stride;
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
-    body.position.y=pose==='crouch'?-.42:0;body.rotation.set(0,0,0);
+    body.position.set(0,pose==='crouch'?-.42:0,0);body.rotation.set(0,0,0);p.head.rotation.set(0,0,0);
     p.glove.position.set(0,-.51,.04);
     p.bat.visible=['bat','walk','dejected'].includes(pose);p.glove.visible=!p.bat.visible;
+    if(pose==='watch'){body.rotation.x=-.08;arms[0].rotation.x=-.15;}
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
     if(pose==='bat') {arms[0].rotation.x=-1.1;arms[1].rotation.x=-2.1+(S.swing||0)*2.8;body.rotation.y=(S.swing||0)*1.7;}
@@ -248,12 +252,28 @@ export class Live3D {
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
     if(pose==='jump')arms[0].rotation.z=2.7;
     if(pose==='catch'||pose==='caught'){arms[0].rotation.z=2.7;arms[0].rotation.x=-.3;arms[1].rotation.x=-.4;}
+    // Secondary motion is visual only: never changes the player's field coordinates.
+    const calm=!moving&&['field','pitch','crouch','bat','run','watch'].includes(pose)&&!(pose==='pitch'&&S.pitcherWind>0)&&!(pose==='bat'&&S.swing>0);
+    if(calm&&!this.reducedMotion){
+      const t=(this.animationTime||0),phase=p.idleSeed*.13,breathe=Math.sin(t*(1.8+p.idleSeed%5*.09)+phase),weight=Math.sin(t*.65+phase);
+      body.position.y+=breathe*.009;body.position.x=weight*.012;body.rotation.z+=weight*.016;
+      arms[0].rotation.x+=breathe*.025;arms[1].rotation.x-=breathe*.02;
+      if(!S.ball?.vis&&pose!=='watch')p.head.rotation.y=Math.sin(t*.43+phase)*.12;
+    }
+    const look=pose==='watch'?data.watch:key.startsWith('f')&&S.ball?.vis?S.ball:null;
+    if(look){
+      const yaw=Math.atan2(look.x-x,y-look.y)-root.rotation.y;
+      p.head.rotation.y=clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.65,.65);
+      p.head.rotation.x=clamp(-Math.atan2((look.z||0)-2.1,Math.max(1,Math.hypot(look.x-x,look.y-y))),-.45,.25);
+    }
+
   }
   resize(w,h) {
     this.renderer.setPixelRatio(renderPixelRatio(w,h,devicePixelRatio));
     this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   render(S,colors,line,time) {
+    this.animationTime=time;
     for(const p of this.players.values())p.root.visible=false;
     const defense=S.half==='top'?colors.home:colors.away,offense=S.half==='top'?colors.away:colors.home;
     for(const [pos,f] of Object.entries(S.fielders)) {

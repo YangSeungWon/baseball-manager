@@ -43,6 +43,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   if(batting){root.classList.add('has-batting-dock');root.insertAdjacentHTML('beforeend','<div class="batting-decision"><div class="batting-decision-title"><strong class="sr-only">기본 행동</strong><span class="batting-time" aria-hidden="true">2.5초 변경</span></div><div class="batting-clock" aria-hidden="true"><i></i></div><div class="batting-action-row"><button class="batting-swing" aria-pressed="true">스윙</button><button class="batting-take" aria-pressed="false">지켜보기</button></div><button class="go inning-throw">준비 완료</button></div>');}
   const $=s=>root.querySelector(s);
   const scouting=mountScouting(root,batting);
+  if(batting)root.insertAdjacentHTML('beforeend','<div class="inning-compact-plan" aria-label="선택한 타격 작전" hidden></div>');
   root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ (batting?'노릴 공':'투구 선택')+'</span></button>');
   if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));action.insertAdjacentHTML('afterbegin','<button class="pitch-breathe">숨 고르기</button><div class="pitch-release" hidden><div class="pitch-release-label">릴리스 <span></span></div><div class="pitch-meter"><i class="pitch-perfect"></i><i class="pitch-needle"></i></div></div>');root.append(action);}
   if(batting){
@@ -103,7 +104,9 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     });
   }
   async function readPitch(pitch){
-    const plannedAction=choice.action;dock('warm');
+    const plannedAction=choice.action;
+    const compact=$('.inning-compact-plan');compact.textContent=[choice.target==='any'?'모든 공':PITCHES[choice.target].name,({any:'전체 코스',in:'몸쪽',out:'바깥쪽',low:'낮게',high:'높게'})[choice.location],choice.approach==='power'?'장타':'컨택'].join(' · ');compact.hidden=false;
+    root.classList.add('is-reading');dock('warm');
     const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
     const arrival=lv._pitch(preview,{...pitch,r:'B'},0,.65,rec,{last:true});
     const release=1.55,flight=arrival-release,from=release+flight*.25,to=release+flight*.55;
@@ -113,7 +116,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     $('.inning-feedback').textContent='';
     const picked=await new Promise(resolve=>{
       const end=performance.now()+2500;let raf,timer,settled=false;
-      const finish=(action,expired=false)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);cancelDecision=null;chooseDecision=null;$('.batting-decision').hidden=true;root.classList.remove('is-deciding');lv.S.battingDecision=false;resolve({action,expired,time:preview.t});};
+      const finish=(action,expired=false)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);cancelDecision=null;chooseDecision=null;$('.batting-decision').hidden=true;root.classList.remove('is-deciding','is-reading');compact.hidden=true;lv.S.battingDecision=false;resolve({action,expired,time:preview.t});};
       cancelDecision=()=>finish(null);
       const choose=action=>finish(performance.now()>=end?plannedAction:action,performance.now()>=end);
       chooseDecision=choose;
@@ -266,10 +269,10 @@ export function openInningMode(role='pitcher',initialSeed=null) {
       tl.at(arrival,()=>{if(r==='X')atmosphere('contact');else react();});
       if(r!=='X')tl.at(arrival,()=>{$('.inning-feedback').textContent=e.label;lv._flash(e.label,e.result==='K'?'k':'');});
       if(r==='X') {
-        const play=e.fieldPlay,last=play.frames.at(-1),key=play.events.find(x=>['catch','pickup','home-run'].includes(x.type));
+        const play=e.fieldPlay,last=play.frames.at(-1),homeRun=play.events.find(x=>x.type==='home-run'),key=play.events.find(x=>['catch','pickup','home-run'].includes(x.type));
         tl.at(arrival,()=>{S.hold=null;S.batter=null;S.broadcast={kind:'field'};S.fieldPlay={physical:true,phase:'flight',fielder:play.handler};});
         tl.add(arrival,play.duration,k=>{
-          const frame=sampleField(play,k*play.duration);S.fieldPlay.time=k*play.duration;S.ball={x:frame.x,y:frame.y,z:frame.z,vis:true};S.trail=[];
+          const frame=sampleField(play,k*play.duration);S.fieldPlay.time=k*play.duration;S.ball={x:frame.x,y:frame.y,z:frame.z,vis:!homeRun||k*play.duration<=homeRun.t+.8};S.trail=[];
           if(frame.runners)S.runners=frame.runners.filter(r=>r.vis).map(r=>({...r,alpha:1}));
           for(const f of frame.fielders)Object.assign(S.fielders[f.pos],{x:f.x,y:f.y});
           lv._trail();
@@ -281,12 +284,17 @@ export function openInningMode(role='pitcher',initialSeed=null) {
           if(['throw','carry'].includes(event.type))S.broadcast={kind:'base',target:BASE[event.base||1]};
           if(['force-out','tag-out'].includes(event.type))lv._flash('아웃','out');
           if(event.type==='safe')lv._flash('세이프','');
+          if(event.type==='home-run'){
+            $('.inning-feedback').textContent='홈런';lv._flash('홈런','hr');react();
+            for(const f of Object.values(S.fielders)){f.pose='watch';f.watch={x:event.x,y:event.y,z:event.z};}
+          }
         });
+        if(homeRun)tl.at(arrival+homeRun.t+.9,()=>{S.broadcast={kind:'beauty'};});
         tl.at(arrival+play.duration,()=>{
-          S.trail=[];zone(e);react();
+          S.trail=[];zone(e);if(!homeRun)react();
           S.ball=e.result==='HR'?null:{x:last.x,y:last.y,z:last.z,vis:true};
         });
-        tl.at(arrival+play.duration+(play.running?.contest ? .8 : 0),()=>lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':''));
+        if(!homeRun)tl.at(arrival+play.duration+(play.running?.contest ? .8 : 0),()=>lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':''));
         tl.add(arrival+play.duration,1.4,null);
       }
 

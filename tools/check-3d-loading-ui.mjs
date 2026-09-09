@@ -33,6 +33,13 @@ try {
  await page.evaluate(async()=>{const {LiveView}=await import('/js/live.js');const host=document.createElement('div');document.body.append(host);window.testView=new LiveView(host,{view:'persp',home:'홈',away:'원정',colors:{home:'#cc7755',away:'#448899'}});await testView.ready;});
  assert.equal(await page.evaluate(()=>testView.view),'three');
  await page.evaluate(()=>testView.setView('top'));assert.equal(await page.evaluate(()=>testView.view),'three');
+ const motion=await page.evaluate(()=>{
+  const v=testView.three,S=testView.S;S.half='bottom';S.fielders={CF:{x:0,y:95},SS:{x:-13,y:38}};
+  const state=JSON.stringify(S.fielders),read=()=>['fCF','fSS'].map(k=>{const p=v.players.get(k);return {body:p.body.position.toArray(),head:p.head.rotation.y,root:p.root.position.toArray()};});
+  v.render(S,testView.o.colors,testView.line,1);const a=read();v.render(S,testView.o.colors,testView.line,2);const b=read();
+  return {a,b,unchanged:state===JSON.stringify(S.fielders)};
+ });
+ assert.ok(motion.unchanged);assert.notDeepEqual(motion.a[0].body,motion.b[0].body);assert.notEqual(motion.b[0].head,motion.b[1].head);assert.deepEqual(motion.a[0].root,motion.b[0].root);
  await page.evaluate(()=>testView.destroy());
- console.log('PASS: 3D only, loading blocks entry, old preferences ignored, DPR 2 resolution, cleanup');
+ console.log('PASS: 3D only, loading blocks entry, old preferences ignored, DPR 2 resolution, independent idle motion without coordinate changes, cleanup');
 } finally {await browser.close();await new Promise(r=>server.close(r));}
