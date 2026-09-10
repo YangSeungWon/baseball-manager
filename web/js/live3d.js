@@ -6,6 +6,7 @@ import { renderPixelRatio } from './render-quality.js';
 import * as T from '../vendor/three/three.module.min.js';
 import { fence } from './core/bip.js';
 import { buildSurroundings } from './ballpark3d.js';
+import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
 
@@ -46,6 +47,7 @@ export class Live3D {
     this.stadium(dims, opts);
     this.fenceAt = a => fence(a, dims);
     buildSurroundings(this, opts);
+    this.mascot=createTeamMascot(this,opts.home);
     this.batchStadium();
     this.ball = this.mesh(this.sphere, '#fff8df', this.scene, [.20, .20, .20]);
     this.ball.castShadow = true;
@@ -170,13 +172,13 @@ export class Live3D {
       const rack=this.mesh(this.box,'#293d4a',this.scene,[8,3,.6],[x,31,-y]);rack.rotation.y=-t;
       for(let i=0;i<6;i++) {
         const lamp=this.mesh(this.box,'#fff2ce',rack,[.10,.24,1.2],[-.38+(i%3)*.38,-.2+Math.floor(i/3)*.4,.5]);
-        lamp.material=this.material('#fff2ce'); lamp.material.emissive.set('#ffe9bc'); lamp.material.emissiveIntensity=1.2;
+        lamp.material=this.material('#fff2ce');this.floodMaterial=lamp.material;lamp.material.emissive.set('#ffe9bc');lamp.material.emissiveIntensity=1.2;
       }
     }
     const cf=fence(0,dims);
     this.boardCanvas=document.createElement('canvas');this.boardCanvas.width=1024;this.boardCanvas.height=512;
     this.boardTexture=new T.CanvasTexture(this.boardCanvas);this.boardTexture.colorSpace=T.SRGBColorSpace;this.textures.push(this.boardTexture);
-    const board=new T.Mesh(new T.PlaneGeometry(34,13),new T.MeshBasicMaterial({map:this.boardTexture}));board.position.set(0,17,-cf-12);this.scene.add(board);
+    const board=new T.Mesh(new T.PlaneGeometry(34,13),new T.MeshBasicMaterial({map:this.boardTexture}));board.position.set(0,17,-cf-12);this.boardPosition=board.position.clone();this.scene.add(board);
     this.mesh(this.box,'#14272e',this.scene,[35,14,1],[0,17,-cf-12.6]);
     this.opts=opts;
   }
@@ -323,6 +325,21 @@ export class Live3D {
     if(catchBall&&p.glove.visible&&!['pitch','watch'].includes(pose))reachPlayerGlove(p,point(catchBall.x,catchBall.y,catchBall.z));
 
   }
+  setGameTime(progress=0){
+    const state=this.skyState;if(!state||state.mode==='indoor')return;
+    const k=clamp(progress,0,1),phase=k<.58?k/.58:(k-.58)/.42;
+    const mix=(a,b,t)=>new T.Color(a).lerp(new T.Color(b),t);
+    const top=k<.58?mix('#73acd2','#334d78',phase):mix('#334d78','#071426',phase);
+    const bottom=k<.58?mix('#d9e4d8','#eea16f',phase):mix('#eea16f','#26364e',phase);
+    const g=state.ctx.createLinearGradient(0,0,0,state.canvas.height);g.addColorStop(0,'#'+top.getHexString());g.addColorStop(1,'#'+bottom.getHexString());state.ctx.fillStyle=g;state.ctx.fillRect(0,0,state.canvas.width,state.canvas.height);state.texture.needsUpdate=true;
+    this.scene.fog.color.copy(bottom);this.scene.background.copy(top);
+    this.sun.intensity=k<.58?3.1+(1.35-3.1)*phase:1.35+(0.12-1.35)*phase;
+    this.sun.color.copy(k<.58?mix('#fff0d8','#ffad72',phase):mix('#ffad72','#9ab7df',phase));
+    this.sun.position.set(-42+70*k,75-58*k,25-10*k);
+    this.ambient.intensity=2.1-1.0*k;this.ambient.color.copy(mix('#d6e9ff','#6f89b4',k));
+    if(this.floodMaterial)this.floodMaterial.emissiveIntensity=.25+2.75*Math.max(0,(k-.38)/.62);
+    this.renderer.toneMappingExposure=1.15+.18*Math.max(0,(k-.55)/.45);this.gameTime=k;
+  }
   resize(w,h) {
     this.renderer.setPixelRatio(renderPixelRatio(w,h,devicePixelRatio));
     this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
@@ -361,6 +378,7 @@ export class Live3D {
     trail.forEach(([x,y,z],i)=>attr.setXYZ(i,x,z,-y));attr.needsUpdate=true;this.trailGeo.setDrawRange(0,trail.length);this.trail.visible=trail.length>1;
     if (this.crowdClock) this.crowdClock.value = time;
     if(this.crowdEnergy){const r=S.crowdReaction,age=r?(performance.now()-r.at)/1000:99;this.crowdEnergy.value=r?.cue==='cheer'?r.strength*Math.min(1,age*3)*Math.max(0,1-age/7):r?.cue==='contact'?.15*Math.max(0,1-age/3):0;}
+    updateTeamMascot(this.mascot,time,this.crowdEnergy?.value||0);
     this.direct(S,time);
     this.scoreboard(S,line);
     this.renderer.render(this.scene,this.camera);
@@ -395,6 +413,7 @@ export class Live3D {
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
     else if(kind==='bat-flip'){eye=point(-4,-6,3);aim=point(0,1,1.3);fov=48;}
     else if(kind==='celebration'){eye=point(-8,-12,5);aim=point(-1,0,1.2);fov=55;}
+    else if(kind==='mound-celebration'){eye=point(-11,6,5.5);aim=point(0,18.2,1.2);fov=48;}
     else if(kind==='entry'){eye=point(-7,7,4);aim=point(2,17,1.1);fov=55;}
     else if(kind==='catch'){const [x,y]=shot.target;eye=point(x+10,y-16,8);aim=point(x,y+2,1.5);fov=48;}
     else if(kind==='change') {eye=point(-3,-12,6);aim=point(-3,-1,1);fov=60;}
@@ -402,6 +421,7 @@ export class Live3D {
     else if(kind==='base') {const [x,y]=shot.target;eye=this.opts.playerRole?point(x+(x<0?-9:9),y-13,5):point(x<0?-47:47,0,11);aim=point(x,y,1);fov=this.opts.playerRole?44:35;}
     else if(kind==='batter') {eye=point(S.batter?.hand==='L'?-34:34,-2,4);aim=point(0,0,1.1);fov=18;}
     else if(kind==='pitcher') {eye=point(-38,5,6);aim=point(0,18.44,1.2);fov=17;}
+    else if(kind==='scoreboard'&&this.boardPosition) {fov=55;const distance=Math.max(34,18/(Math.tan(fov*Math.PI/360)*this.camera.aspect));eye=this.boardPosition.clone().add(new T.Vector3(0,0,distance));aim=this.boardPosition;}
     else {kind='beauty';eye=point(65,-65,72);aim=point(0,42,2);fov=62;}
     const dt=this.lastTime==null?.016:clamp(time-this.lastTime,0,.1);this.lastTime=time;
     // Switch between fixed camera positions by cut; pan only within a shot.
@@ -411,11 +431,20 @@ export class Live3D {
     this.camera.fov=fov;this.camera.updateProjectionMatrix();this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
   }
+  showBoardReplay(play,label='REPLAY') {
+    if(!play?.frames?.length)return;
+    const every=Math.max(1,Math.ceil(play.frames.length/42));
+    this.boardReplay={at:performance.now(),duration:2800,label,frames:play.frames.filter((_,i)=>i%every===0||i===play.frames.length-1).map(f=>({x:f.x,y:f.y,z:f.z||0}))};
+    this.boardLabel='';
+  }
   scoreboard(S,line) {
-    const snapshot={inning:S.inning,half:S.half,b:S.b,s:S.s,outs:S.outs,batter:S.batter?.name||'',pitcher:S.fielders.P?.name||'',top:line.top,bottom:line.bottom,hits:line.hits,err:line.err};
+    const replay=this.boardReplay,age=replay?(performance.now()-replay.at):Infinity,playing=age<replay?.duration;
+    if(replay&&!playing)this.boardReplay=null;
+    const replayStep=playing?Math.floor(age/70):-1;
+    const snapshot={inning:S.inning,half:S.half,b:S.b,s:S.s,outs:S.outs,batter:S.batter?.name||'',pitcher:S.fielders.P?.name||'',top:line.top,bottom:line.bottom,hits:line.hits,err:line.err,lineup:S.lineup||[],battingOrder:S.battingOrder??0,replayStep};
     const label=JSON.stringify(snapshot);if(label===this.boardLabel)return;
     this.boardLabel=label;this.boardSnapshot=JSON.parse(label);
-    const c=this.boardCanvas.getContext('2d'),w=1024;c.fillStyle='#0a2026';c.fillRect(0,0,w,512);
+    const c=this.boardCanvas.getContext('2d'),w=1024;c.fillStyle='#071a20';c.fillRect(0,0,w,512);
     c.textAlign='left';c.fillStyle='#b7c5b5';c.font='bold 26px sans-serif';c.fillText(this.opts.park?.name||'PROJECT DUGOUT',30,40);
     c.textAlign='right';c.fillStyle='#75d8aa';c.font='22px sans-serif';c.fillText('LIVE   '+(S.inning||1)+'회 '+(S.half==='bottom'?'말':'초'),990,40);
     const n=Math.max(9,line.top.length,line.bottom.length),start=Math.max(0,n-12),count=n-start,step=690/(count+3),x=i=>250+i*step;
@@ -429,14 +458,28 @@ export class Live3D {
       [arr.reduce((a,b)=>a+b,0),line.hits[half],line.err[half]].forEach((v,i)=>c.fillText(v,x(count+i),y));
     }
     c.fillStyle='#304a4e';c.fillRect(28,248,968,2);
-    let dx=40;c.textAlign='left';c.font='bold 26px monospace';
-    for(const [title,value,max,color] of [['B',S.b,3,'#68d79b'],['S',S.s,2,'#f1cf62'],['O',S.outs,2,'#ec8175']]) {
-      c.fillStyle='#cad6cf';c.fillText(title,dx,299);dx+=42;
-      for(let i=0;i<max;i++){c.beginPath();c.arc(dx,289,9,0,Math.PI*2);c.fillStyle=i<value?color:'#294349';c.fill();dx+=30;}dx+=45;
+    if(playing){
+      const progress=Math.min(1,age/replay.duration),visible=Math.max(2,Math.ceil(replay.frames.length*progress));
+      c.fillStyle='#ee5f4b';c.fillRect(30,273,126,38);c.fillStyle='#fff';c.textAlign='center';c.font='bold 21px sans-serif';c.fillText('REPLAY',93,300);
+      c.textAlign='left';c.fillStyle='#f3d681';c.font='bold 30px sans-serif';c.fillText(replay.label,180,302);
+      c.strokeStyle='#638e78';c.lineWidth=3;c.beginPath();c.moveTo(510,480);c.lineTo(340,318);c.lineTo(510,270);c.lineTo(680,318);c.closePath();c.stroke();
+      const px=q=>510+q.x*3.15,py=q=>470-Math.min(125,Math.max(0,q.y))*1.48;
+      c.strokeStyle='#f5da79';c.lineWidth=5;c.lineCap='round';c.beginPath();
+      replay.frames.slice(0,visible).forEach((q,i)=>i?c.lineTo(px(q),py(q)):c.moveTo(px(q),py(q)));c.stroke();
+      const q=replay.frames[Math.min(visible-1,replay.frames.length-1)];c.fillStyle='#fff';c.beginPath();c.arc(px(q),py(q),7,0,Math.PI*2);c.fill();
+      c.fillStyle='#76968e';c.font='18px sans-serif';c.fillText('실제 타구 궤적',716,468);
+    }else{
+      let dx=40;c.textAlign='left';c.font='bold 24px monospace';
+      for(const [title,value,max,color] of [['B',S.b,3,'#68d79b'],['S',S.s,2,'#f1cf62'],['O',S.outs,2,'#ec8175']]) {
+        c.fillStyle='#cad6cf';c.fillText(title,dx,294);dx+=39;
+        for(let i=0;i<max;i++){c.beginPath();c.arc(dx,286,8,0,Math.PI*2);c.fillStyle=i<value?color:'#294349';c.fill();dx+=27;}dx+=35;
+      }
+      const lineup=S.lineup||[];c.textAlign='left';c.fillStyle='#83a79f';c.font='19px sans-serif';c.fillText(lineup.length?'NEXT BATTERS':'타자',32,347);c.fillText('ON THE MOUND',620,347);
+      if(lineup.length){for(let j=0;j<3;j++){const i=(snapshot.battingOrder+j)%lineup.length,y=389+j*43;c.fillStyle=j===0?'#f4d67f':'#dbe4dc';c.font=(j===0?'bold 27px':'24px')+' sans-serif';c.fillText((i+1)+'  '+lineup[i],32,y);if(j===0){c.fillStyle='#ee6652';c.fillRect(0,y-25,8,31);}}}
+      else{c.fillStyle='#edf0df';c.font='bold 31px sans-serif';c.fillText(S.batter?.name||'선수 교대',32,402);}
+      c.fillStyle='#edf0df';c.font='bold 33px sans-serif';c.fillText(S.fielders.P?.name||'준비 중',620,402);
+      c.fillStyle='#76968e';c.font='20px sans-serif';c.fillText('PITCHER',620,443);c.fillText(this.opts.crowd!=null?'관중 '+this.opts.crowd.toLocaleString()+'명':'PROJECT DUGOUT',620,480);
     }
-    c.font='24px sans-serif';c.fillStyle='#91b3aa';c.fillText('타자',32,370);c.fillText('투수',540,370);
-    c.font='bold 31px sans-serif';c.fillStyle='#edf0df';c.fillText(S.batter?.name||'선수 교대',32,416);c.fillText(S.fielders.P?.name||'준비 중',540,416);
-    c.font='20px sans-serif';c.fillStyle='#7b9e98';c.fillText(this.opts.crowd!=null?'관중 '+this.opts.crowd.toLocaleString()+'명':'PROJECT DUGOUT',32,479);
     this.boardTexture.needsUpdate=true;
   }
   dispose() {

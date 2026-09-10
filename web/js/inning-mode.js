@@ -8,6 +8,7 @@ import { sampleField, FIELD_POSITIONS } from './field-sim.js';
 import { pitchPressure, releaseMarker } from './pitch-control.js';
 import { InningGame, PITCHES } from './inning-game.js';
 import { BattingGame, battingReadProfile } from './batting-game.js';
+import { FullGame, FULL_STAGE } from './full-game.js';
 import { LiveView, Timeline } from './live.js';
 import { battingResult, resultCard, copyChallenge } from './inning-share.js';
 import { layoutPitchMarkers } from './pitch-zone.js';
@@ -22,8 +23,8 @@ const choiceIcon=kind=>`<svg class="batting-choice-icon" viewBox="0 0 24 24" ari
 })[kind]}</svg>`;
 let opened=false;
 export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
-  const batting=role==='batter';
-  let stage=getStage(batting?initialStage:0);
+  const full=role==='full',batting=role!=='pitcher';
+  let stage=full?FULL_STAGE:getStage(batting?initialStage:0);
   if(opened)return;opened=true;
   const origin=document.activeElement,previousOverflow=document.body.style.overflow;
   const backgrounds=[document.querySelector('#boot'),document.querySelector('#app')].filter(Boolean),inert=backgrounds.map(e=>e.inert);
@@ -31,7 +32,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   const root=document.createElement('section');root.className='inning-mode';root.setAttribute('role','dialog');root.setAttribute('aria-modal','true');root.setAttribute('aria-label',stage.title+' · '+stage.situation);
   root.innerHTML=`<div class="inning-shell"><header class="inning-head"><button class="inning-sound" aria-label="소리 켜기" aria-pressed="false"></button><button class="inning-exit" aria-label="나가기" title="나가기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
   <div class="inning-presentation"><div class="inning-score"></div><div class="inning-live"></div>
-  <div class="inning-batter-entry" role="status" hidden></div><div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
+  <div class="inning-batter-entry" role="status" hidden></div><div class="inning-transition" role="status" hidden></div><div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
   <div class="inning-history sr-only" aria-label="현재 타석 투구 기록"></div></div>
   <div class="inning-controls" id="inningPlan"><div class="inning-opponent"></div>
   ${batting?`<fieldset class="inning-picks"><legend class="sr-only">노릴 공과 타격 방식</legend>
@@ -118,7 +119,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     const plannedAction=choice.action,profile=battingReadProfile(game.batter);
     const compact=$('.inning-compact-plan');compact.textContent=[choice.target==='any'?'모든 공':PITCHES[choice.target].name,({any:'전체 코스',in:'몸쪽',out:'바깥쪽',low:'낮게',high:'높게'})[choice.location],choice.approach==='power'?'장타':'컨택'].join(' · ');compact.hidden=false;
     root.classList.add('is-reading');dock('warm');
-    const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
+    const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:'bottom',inning:game.snapshot().inning??9,zh:1};
     const arrival=lv._pitch(preview,{...pitch,r:'B'},0,.65,rec,{last:true});
     const release=1.55,flight=arrival-release,from=release+flight*profile.from,to=release+flight*profile.to;
     const readZone=$('.inning-live-zone'),readMarkers=readZone.querySelector('.zone-markers');
@@ -154,14 +155,15 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     lv.S.b=state.balls;lv.S.s=state.strikes;lv.S.outs=state.outs;lv.S.ball=null;lv.S.hold=null;lv.S.trail=[];lv.S.pitcherWind=0;lv.S.swing=0;
     lv.S.batter={name:state.batter.name,hand:'R',alpha:1};
     lv.S.runners=state.bases.flatMap((yes,i)=>{if(!yes)return [];const person=state.baseRunners?.[i]||{name:'주자 '+(i+1)};return [{...lv._runner(person.name,i+1),...leadPosition(i+1,person),id:person.id,speed:person.speed}];});
-    lv.line.bottom=[0,0,0,0,0,0,0,0,stage.homeScore+state.runs];
+    if(state.full){lv.S.inning=state.inning;lv.S.half='bottom';lv.S.lineup=state.lineup;lv.S.battingOrder=state.battingOrder;lv.line.top=[...state.awayLine];lv.line.bottom=[...state.homeLine];lv.three?.setGameTime(state.timeProgress);}
+    else lv.line.bottom=[0,0,0,0,0,0,0,0,stage.homeScore+state.runs];
   }
   function paint() {
     const s=game.snapshot();
     scouting.paint(s);
     const dots=(count,max,kind)=>Array.from({length:max},(_,i)=>`<i class="${kind}${i<count?' lit':''}"></i>`).join('');
     const bases=s.bases.map((v,i)=>v?(i+1)+'루':'').filter(Boolean).join(' · ')||'주자 없음';
-    $('.inning-score').innerHTML=`<div class="inning-scoreline"><div class="inning-scoreteams"><div class="${batting?'':'own-team'}" aria-label="${stage.away.name}${batting?'':' · 나의 팀'}"><span>${stage.away.name}</span><strong>${stage.awayScore}</strong></div><div class="${batting?'own-team':''}" aria-label="${stage.home.name}${batting?' · 나의 팀':''}"><span>${stage.home.name}</span><strong>${stage.homeScore+s.runs}</strong></div></div><span class="inning-frame" aria-label="9회 말">${batting?`<small>${stage.id+1}/${STAGES.length}</small>`:''}9 ▾</span></div>
+    $('.inning-score').innerHTML=`<div class="inning-scoreline"><div class="inning-scoreteams"><div class="${batting?'':'own-team'}" aria-label="${stage.away.name}${batting?'':' · 나의 팀'}"><span>${stage.away.name}</span><strong>${s.awayScore??stage.awayScore}</strong></div><div class="${batting?'own-team':''}" aria-label="${stage.home.name}${batting?' · 나의 팀':''}"><span>${stage.home.name}</span><strong>${s.homeScore??stage.homeScore+s.runs}</strong></div></div><span class="inning-frame" aria-label="${s.inning??9}회 말">${!full&&batting?`<small>${stage.id+1}/${STAGES.length}</small>`:''}${s.inning??9} ▾</span></div>
       <div class="inning-counts"><span aria-label="${s.balls}볼 ${s.strikes}스트라이크 ${s.outs}아웃"><span>B ${dots(s.balls,3,'ball')}</span><span>S ${dots(s.strikes,2,'strike')}</span><span>O ${dots(s.outs,3,'out')}</span></span><button class="inning-diamond" aria-label="${bases} · 주자 정보" title="주자 정보">${s.bases.map((v,i)=>`<i class="base${i+1}${v?' occupied':''}" title="${i+1}루${v?' · '+paceLabel(s.baseRunners[i].speed):''}" data-pace="${v&&s.baseRunners[i].speed>=8.8?'fast':v&&s.baseRunners[i].speed<7.8?'slow':'normal'}"></i>`).join('')}</button><small>${s.count}구</small></div>`;
     $('.inning-diamond').onclick=()=>$('.scout-toggle').click();
     if(batting)pitcherTag.paint(s.pitcher);else $('.inning-opponent').innerHTML=`<b>${s.batter.name}</b><span>${s.batter.style}</span>`;
@@ -211,14 +213,14 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   }
   function start(same=false) {
     if(lv){lv.skip();lv.destroy();}
-    if(!same)seed=crypto.getRandomValues(new Uint32Array(1))[0];game=batting?new BattingGame(seed,stage.id):new InningGame(seed);busy=false;events=[];runEvents=[];shown=null;root.classList.remove('is-playing','is-finished');plan(false);
+    if(!same)seed=crypto.getRandomValues(new Uint32Array(1))[0];game=full?new FullGame(seed):batting?new BattingGame(seed,stage.id):new InningGame(seed);busy=false;events=[];runEvents=[];shown=null;root.classList.remove('is-playing','is-finished');plan(false);
     Object.assign(opt,{home:stage.home.name,away:stage.away.name,park:stage.park,colors:stage.colors,cap:stage.park.capacity,crowd:Math.round(stage.park.capacity*.9)});
     root.setAttribute('aria-label',stage.title+' · '+stage.situation);
     lv=new LiveView($('.inning-live'),opt);lv.sfx.stadiumOnly=true;lv.setSound(sound);lv.sfx.mute(document.hidden);ambience='idle';atmosphere('idle');soundLabel();
-    lv.S.inning=9;lv.S.half='bottom';lv.line.top=[0,0,0,0,0,0,0,0,stage.awayScore];
+    const initial=game.snapshot();lv.S.inning=initial.inning??9;lv.S.half='bottom';lv.line.top=initial.full?[...initial.awayLine]:[0,0,0,0,0,0,0,0,stage.awayScore];lv.line.bottom=initial.full?[...initial.homeLine]:lv.line.bottom;
     const positions=FIELD_POSITIONS;
     for(const [pos,[x,y]] of Object.entries(positions))lv.S.fielders[pos]={pos,name:pos==='P'?(batting?game.pitcher.name:'나의 마무리'):game.defense[pos].name,x,y,home:[x,y],alpha:1};
-    sync(game.snapshot());lv.S.broadcast={kind:'pitch'};
+    sync(initial);lv.S.broadcast={kind:'pitch'};
     $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=false;$('.inning-result').hidden=true;
     $('.inning-feedback').textContent='';if(!batting){calm=false;$('.pitch-breathe').disabled=false;$('.pitch-breathe').textContent='숨 고르기';$('.inning-throw').textContent='투구 시작';}paint();selection();history();dock();root.scrollTop=0;$('.inning-throw').focus({preventScroll:true});intro();
   }
@@ -264,12 +266,45 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     await runTimeline(tl);
     S.changePlayers=[];root.classList.remove('is-changing');hideEntry();
   }
+  async function thirdOutScene(e){
+    const S=lv.S,final=e.after.done,duration=final?5.2:1.8,tl=new Timeline();
+    root.classList.add('is-third-out');S.ball=null;S.hold=null;S.trail=[];S.fieldPlay=null;S.outs=e.after.outs;S.b=e.after.balls;S.s=e.after.strikes;
+    if(e.after.full){S.inning=e.after.inning;lv.line.top=[...e.after.awayLine];lv.line.bottom=[...e.after.homeLine];paint();}
+    const leaving={name:e.before.batter.name,x:-.85,y:.1,pose:'dejected',wait:false};
+    S.batter=null;S.changePlayers=final&&e.after.won?[]:[leaving];
+    if(S.changePlayers.length)tl.add(0,Math.min(3,duration),k=>{leaving.x=-.85-6.4*k;leaving.y=.1-4*k;});
+    for(const r of S.runners){r.pose='dejected';const x=r.x,y=r.y;tl.add(0,Math.min(3,duration),k=>{r.x=x+(-7-x)*k;r.y=y+(-4-y)*k;});}
+    if(final&&!e.after.tie&&!e.after.won){
+      atmosphere('groan',1);S.broadcast={kind:'mound-celebration'};
+      const spots=[[0,18.44],[-1.4,17.5],[1.3,17.2],[-2.1,19],[2.1,19],[-.5,20.3],[.9,20.2],[-2.8,17.2],[2.8,17.2]];
+      Object.values(S.fielders).forEach((f,i)=>{const x=f.x,y=f.y,[tx,ty]=spots[i%spots.length],distance=Math.hypot(tx-x,ty-y),travel=Math.max(.8,distance/10),delay=i>5?.35:0;tl.add(delay,Math.min(duration-delay,travel),k=>{f.x=x+(tx-x)*k;f.y=y+(ty-y)*k;f.pose=k<.9?'runCelebrate':i%2?'clap':'celebrate';f.watch={x:0,y:18.44,z:1.3};});});
+    }else if(final&&e.after.won){
+      atmosphere('cheer',1);S.broadcast={kind:'mound-celebration'};
+      tl.add(0,duration,k=>{S.celebrationTime=k*duration;S.celebrants=celebrationPlayers(k*duration,game.pitcher.name).map(q=>({...q,y:q.y+18.44,watch:{x:0,y:18.44,z:1.5}}));});
+    }else{
+      S.broadcast={kind:'change'};Object.entries(S.fielders).filter(([pos])=>['P','C','1B','2B','SS','3B'].includes(pos)).forEach(([pos,f],i)=>{f.pose=i%2?'clap':'watch';f.watch={x:0,y:18.44,z:1.4};});
+    }
+    await runTimeline(tl);if(dead)return;S.celebrants=[];S.changePlayers=[];root.classList.remove('is-third-out');
+  }
+  async function changeInning(e){
+    const S=lv.S,panel=$('.inning-transition'),next=!e.after.done;
+    await thirdOutScene(e);if(dead)return;
+    const tl=new Timeline();
+    root.classList.add('is-changing');S.batter=null;S.runners=[];S.changePlayers=[];S.ball=null;S.hold=null;S.trail=[];S.fieldPlay=null;S.broadcast={kind:'beauty'};
+    const mins=Math.round(15*60+(e.after.timeProgress||0)*210),clock=String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');
+    const light=(e.after.timeProgress||0)<.45?'낮 경기':(e.after.timeProgress||0)<.78?'해 질 무렵':'야간 조명';
+    panel.innerHTML=`<b>${e.after.done?'경기 종료':e.after.inning+'회 말'}</b><span>${stage.away.short} ${e.after.awayScore} : ${e.after.homeScore} ${stage.home.short}</span><small>${clock} · ${light}</small>`;panel.hidden=false;
+    const from=e.before.timeProgress||0,to=e.after.timeProgress||from;tl.add(0,2.2,k=>lv.three?.setGameTime(from+(to-from)*k));
+    await runTimeline(tl);if(dead)return;panel.hidden=true;
+    if(next){sync(e.after);S.batter=null;S.broadcast={kind:'change'};const arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:false};S.changePlayers=[arriving];lv.sfx.setChant(e.after.batter.name,game.order+1);batterEntry('change0',e.after.batter);const enter=new Timeline();enter.add(0,2.8,k=>{arriving.x=-6.5+5.65*k;arriving.y=-4+4.1*k;});enter.at(2.8,()=>{arriving.pose='bat';});enter.add(2.8,.5,null);await runTimeline(enter);if(dead)return;S.changePlayers=[];sync(e.after);S.broadcast={kind:'pitch'};hideEntry();events=[];shown=null;zone();history();paint();}
+    root.classList.remove('is-changing');
+  }
   async function celebrate(e){
     const S=lv.S,tl=new Timeline(),catcher=S.fielders.C,catcherStart=catcher?{x:catcher.x,y:catcher.y}:null;root.classList.add('is-celebrating');
     S.batter=null;S.runners=[];S.changePlayers=[];S.ball=null;S.hold=null;S.trail=[];S.fieldPlay=null;S.looseBat=null;
     const hero=e.result==='HR'?e.before.batter.name:(e.before.baseRunners[2]?.name||e.before.batter.name);
     S.broadcast={kind:'celebration'};S.outs=e.after.outs;S.b=e.after.balls;S.s=e.after.strikes;
-    lv.line.bottom=[0,0,0,0,0,0,0,0,stage.homeScore+e.after.runs];paint();atmosphere('cheer',1);
+    lv.line.bottom=e.after.full?[...e.after.homeLine]:[0,0,0,0,0,0,0,0,stage.homeScore+e.after.runs];paint();atmosphere('cheer',1);
     for(const f of Object.values(S.fielders)){f.pose='watch';f.watch={x:0,y:0,z:1.5};}
     tl.add(0,CELEBRATION_DURATION,k=>{
       const t=k*CELEBRATION_DURATION;S.celebrationTime=t;S.celebrants=celebrationPlayers(t,hero);
@@ -281,20 +316,24 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   function finish() {
     root.classList.add('is-finished');
     $('.inning-picks').hidden=true;const box=$('.inning-result');box.hidden=false;
-    if(batting&&game.won)clearStage(stage.id);
-    const nextStage=batting&&game.won&&stage.id<STAGES.length-1;
+    if(batting&&!full&&game.won)clearStage(stage.id);
+    const nextStage=batting&&!full&&game.won&&stage.id<STAGES.length-1,s=game.snapshot();
     const icon=path=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
-    const replay=`<button class="${nextStage?'quiet':'go'}" data-retry>${icon('M4 10a8 8 0 1 1 0 5M4 4v6h6')}<span>${nextStage?'다시 도전':'같은 상황 재도전'}</span></button><button class="quiet" data-new>${icon('M4 12h16m-6-6 6 6-6 6')}<span>${nextStage?'새 상대':'새 상대 도전'}</span></button>`;
-    box.innerHTML=`<section class="result-overview">${batting?`<small class="result-stage">${stage.id+1} / ${STAGES.length} · ${stage.title}</small>`:''}<h2>${batting?(game.won?(stage.id===STAGES.length-1&&clearedStages().length===STAGES.length?'세 경기 클리어!':'끝내기 승리!'):(stage.homeScore+game.runs===stage.awayScore?'동점에서 이닝 종료':'뒤집지 못했다')):(game.won?'막아냈다!':'리드를 지키지 못했다')}</h2><div class="result-final-score"><span>${stage.home.short}</span><strong>${stage.homeScore+game.runs} : ${stage.awayScore}</strong><span>${stage.away.short}</span></div><p>${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}</p></section><div class="result-replay">${nextStage?`<button class="go" data-next>다음 경기 ${icon('M4 12h16m-6-6 6 6-6 6')}</button><div class="result-other-games">${replay}</div>`:replay}</div>`;
-    if(batting){
+    const replayLabel=full?'다시 경기':'같은 상황 재도전';
+    const replay=`<button class="${nextStage?'quiet':'go'}" data-retry>${icon('M4 10a8 8 0 1 1 0 5M4 4v6h6')}<span>${nextStage?'다시 도전':replayLabel}</span></button><button class="quiet" data-new>${icon('M4 12h16m-6-6 6 6-6 6')}<span>${full?'새 경기':'새 상대 도전'}</span></button>`;
+    const title=full?(s.tie?'무승부':game.won?'경기 승리!':'경기 패배'):(batting?(game.won?(stage.id===STAGES.length-1&&clearedStages().length===STAGES.length?'세 경기 클리어!':'끝내기 승리!'):(stage.homeScore+game.runs===stage.awayScore?'동점에서 이닝 종료':'뒤집지 못했다')):(game.won?'막아냈다!':'리드를 지키지 못했다'));
+    const homeScore=full?s.homeScore:stage.homeScore+game.runs,awayScore=full?s.awayScore:stage.awayScore;
+    const meta=full?`${s.inning}회 · ${game.count}구 · ${game.runs}득점`:`${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}`;
+    box.innerHTML=`<section class="result-overview">${batting?`<small class="result-stage">${full?'9이닝 경기 · '+stage.title:stage.id+1+' / '+STAGES.length+' · '+stage.title}</small>`:''}<h2>${title}</h2><div class="result-final-score"><span>${stage.home.short}</span><strong>${homeScore} : ${awayScore}</strong><span>${stage.away.short}</span></div><p>${meta}</p></section><div class="result-replay">${nextStage?`<button class="go" data-next>다음 경기 ${icon('M4 12h16m-6-6 6 6-6 6')}</button><div class="result-other-games">${replay}</div>`:replay}</div>`;
+    if(batting&&!full){
       const result=battingResult(game.snapshot(),seed,runEvents);
       box.insertAdjacentHTML('beforeend',`<section class="inning-sharing"><button class="quiet" data-share>${icon('M12 15V3m-4 4 4-4 4 4M5 12v8h14v-8')}<span>결과 공유</span></button><div class="result-share-tools"><button class="quiet" data-copy>${icon('M9 8V4h11v13h-4M4 8h11v13H4z')}<span>링크 복사</span></button><button class="quiet" data-card>${icon('M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4')}<span>카드 저장</span></button></div><p class="inning-share-status" role="status"></p><textarea class="inning-share-fallback" aria-label="복사할 결과와 도전 링크" readonly hidden></textarea></section>`);
-      const status=box.querySelector('.inning-share-status'),full=result.text+'\n'+result.url;
-      const fallback=()=>{const field=box.querySelector('textarea');field.hidden=false;field.value=full;field.focus();field.select();status.textContent='아래 결과와 링크를 복사해 주세요.';};
+      const status=box.querySelector('.inning-share-status'),shareText=result.text+'\n'+result.url;
+      const fallback=()=>{const field=box.querySelector('textarea');field.hidden=false;field.value=shareText;field.focus();field.select();status.textContent='아래 결과와 링크를 복사해 주세요.';};
       box.querySelector('[data-copy]').onclick=async()=>{if(await copyChallenge(result.url))status.textContent='같은 상황에 도전하는 링크를 복사했습니다.';else fallback();};
       box.querySelector('[data-share]').onclick=async()=>{
         if(navigator.share){try{await navigator.share({title:'DUGOUT · '+result.title,text:result.text,url:result.url});return;}catch(e){if(e.name==='AbortError')return;}}
-        if(await copyChallenge(full))status.textContent='결과와 도전 링크를 복사했습니다. 원하는 곳에 붙여넣으세요.';else fallback();
+        if(await copyChallenge(shareText))status.textContent='결과와 도전 링크를 복사했습니다. 원하는 곳에 붙여넣으세요.';else fallback();
       };
       box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b6-'+result.stageId+'-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
     }
@@ -318,7 +357,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       S.pitchStyle={type:e.pitch.t,zone:e.choice.zone,intent:e.choice.intent};
       S.batStyle=batting?{...e.choice,pitchX:e.pitch.x,pitchZ:e.pitch.z}:null;
       e.pitchNumber=events.length+1;
-      const rec={batter:e.before.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
+      const rec={batter:e.before.batter.name,bh:'R',th:'R',half:'bottom',inning:e.before.inning??9,zh:1};
       const r=['S','W','B','F'].includes(e.call)?e.call:'X';
       lv.pnp0=e.pitchNumber-1;lv.seq=events.map(e=>e.pitch);
       const arrival=lv._pitch(tl,{...e.pitch,r},0,.65,rec,{last:true});
@@ -359,12 +398,14 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
         });
         if(batting&&homeRun)tl.at(arrival+1.2,()=>{S.broadcast={kind:'field'};});
         if(homeRun)tl.at(arrival+homeRun.t+.9,()=>{S.broadcast={kind:'beauty'};});
+        const highlight=e.result==='HR'||e.result==='3B'||(key?.type==='catch'&&Math.hypot(key.x||0,key.y||0)>55);
         tl.at(arrival+play.duration,()=>{
           S.trail=[];zone(e);if(!homeRun)react();
           S.ball=e.result==='HR'?null:{x:last.x,y:last.y,z:last.z,vis:true};
         });
         if(!homeRun)tl.at(arrival+play.duration+(play.running?.contest ? .8 : 0),()=>lv._flash(e.label,e.result==='OUT'?'out':e.result==='HR'?'hr':''));
-        tl.add(arrival+play.duration,1.4,null);
+        if(highlight)tl.at(arrival+play.duration+.35,()=>{lv.three?.showBoardReplay(play,e.label);S.broadcast={kind:'scoreboard'};});
+        tl.add(arrival+play.duration,highlight?3.2:1.4,null);
       }
 
       if(e.movements.length&&!e.fieldPlay) {
@@ -380,8 +421,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       await runTimeline(tl);
       if(dead)return;
       events.push(e);runEvents.push(e);shown=e;
-      if(batting&&e.after.won){await celebrate(e);if(dead)return;}
-      if(e.terminal&&!(batting&&e.after.won)){await changeBatter(e);if(dead)return;}
+      if(full&&e.halfEnded){await changeInning(e);if(dead)return;}
+      else if(batting&&e.after.won){await celebrate(e);if(dead)return;}
+      else if(e.terminal){await changeBatter(e);if(dead)return;}
       if(e.terminal&&!game.done){events=[];shown=null;}
       zone(shown);history();
       if(['1B','2B','3B','HR'].includes(e.result))lv.line.hits.bottom++;

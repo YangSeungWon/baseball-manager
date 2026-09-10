@@ -53,12 +53,13 @@ try {
       S.b=2;S.s=1;S.outs=1;S.fielders.P.name='김선발';
       lv.line.top=[0,1,0,0,0,0,0,0,0,0,2,0,1];lv.line.hits.top=7;lv.line.err.bottom=1;
       r.scoreboard(S,lv.line);
-      return {shots,board:r.boardSnapshot,crowd:r.crowdCount,seats:r.seatCount};
+      return {shots,board:r.boardSnapshot,crowd:r.crowdCount,seats:r.seatCount,mascot:r.mascot&&{code:r.mascot.id.code,form:r.mascot.id.form,parts:r.mascot.root.children.length}};
     });
     assert.deepEqual(Object.keys(coverage.shots),Object.values(coverage.shots));
     assert.equal(coverage.board.b,2);assert.equal(coverage.board.pitcher,'김선발');
     assert.equal(coverage.board.top.length,13);assert.equal(coverage.board.err.bottom,1);
     assert.ok(coverage.crowd>0 && coverage.crowd<coverage.seats);
+    assert.deepEqual(coverage.mascot.code,'JJ');assert.equal(coverage.mascot.form,'jaguar');assert.ok(coverage.mascot.parts>=8);
     for(const view of ['top','persp','three']) {
       await page.evaluate(v=>lv.setView(v),view);
       assert.equal(await page.locator('.lv-three').isVisible(),true);

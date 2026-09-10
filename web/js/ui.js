@@ -378,6 +378,7 @@ async function boot() {
   $('#btnBatting').before(stageList);paintStages();document.addEventListener('dugout-stage-clear',paintStages);
   if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
   $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',challenge?.stageId===stageId?seed:null,stageId); };
+  $('#btnFullGame').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('full'); };
   $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;

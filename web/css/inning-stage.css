@@ -250,3 +250,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-clock{position:relative}
 .inning-mode.can-check-swing .batting-clock::after{content:'';position:absolute;z-index:2;top:-3px;bottom:-3px;left:calc(100% - var(--take-cutoff));width:2px;border-radius:2px;background:#f2b179;box-shadow:0 0 5px #0008}
 .inning-mode.is-take-locked .batting-take{opacity:.38}
+.inning-mode .inning-transition{position:fixed;z-index:34;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:7px;min-width:220px;padding:18px 24px;border:1px solid #d7c88e;border-radius:10px;background:#102732eF;color:#edf0dc;box-shadow:0 10px 50px #0009;text-align:center;pointer-events:none}
+.inning-mode .inning-transition[hidden]{display:none}
+.inning-mode .inning-transition b{font-size:28px;color:#f1d38a}.inning-mode .inning-transition span{font-size:18px}.inning-mode .inning-transition small{font-size:13px;color:#a9c6bd}

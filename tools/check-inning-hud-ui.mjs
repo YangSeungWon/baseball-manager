@@ -61,6 +61,7 @@ try {
     await page.locator('[data-group="target"] [data-value="FF"]').click();
     assert.equal(await page.locator('[data-group="target"] [data-value="FF"]').getAttribute('aria-pressed'),'true');
     await page.screenshot({path:`/tmp/dugout-plan-${width}.png`});
+    await page.locator('.batting-take').click();
     await page.locator('.inning-throw').click();await page.locator('.is-deciding .batting-decision').waitFor();
     assert.equal(await page.locator('.pitcher-tag').isVisible(),false);assert.equal(await page.locator('.pitcher-details').isVisible(),false);
     const mobile=width<=900||height<=500;

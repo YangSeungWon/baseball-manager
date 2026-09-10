@@ -13,6 +13,7 @@ export function buildSurroundings(v, opts) {
   const sc=skyCanvas.getContext('2d'),grad=sc.createLinearGradient(0,0,0,256);grad.addColorStop(0,top);grad.addColorStop(1,bottom);sc.fillStyle=grad;sc.fillRect(0,0,16,256);
   const skyTex=new T.CanvasTexture(skyCanvas);skyTex.colorSpace=T.SRGBColorSpace;v.textures.push(skyTex);
   const sky=new T.Mesh(new T.SphereGeometry(390,32,16),new T.MeshBasicMaterial({map:skyTex,side:T.BackSide,depthWrite:false,fog:false}));sky.position.y=30;v.scene.add(sky);
+  v.skyState={canvas:skyCanvas,ctx:sc,texture:skyTex,mesh:sky,mode};
   v.scene.fog=new T.Fog(bottom,180,360);
   v.sun.intensity=mode==='overcast'?1.1:mode==='evening'?1.8:mode==='indoor'?1.6:3.1;
   v.sun.color.set(mode==='evening'?'#ffc18a':'#fff0d8');
