@@ -49,6 +49,14 @@ try {
  });
  assert.ok(poses.maxGripGap<.085,'both hands stay together through right- and left-handed swings');
  await page.screenshot({path:'/tmp/dugout-player-poses.png'});
+ const leather=await page.evaluate(()=>{
+  const {a,b,scene,renderer,camera}=preview;a.root.visible=b.root.visible=false;
+  const glove=b.glove.clone(true);glove.position.set(0,0,0);glove.rotation.set(0,0,0);scene.add(glove);
+  camera.position.set(.22,.10,.72);camera.lookAt(0,-.06,0);renderer.render(scene,camera);
+  let grain=false;glove.traverse(o=>{if(o.material?.name==='Leather')grain=!!o.material.map&&!!o.material.normalMap;});return grain;
+ });
+ assert.ok(leather,'leather grain and normal maps are embedded in the GLB');
+ await page.screenshot({path:'/tmp/dugout-glove-detail.png'});
  await page.goto(url+'/?challenge=b6-0-42');await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
  await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  await page.screenshot({path:'/tmp/dugout-player-game.png'});

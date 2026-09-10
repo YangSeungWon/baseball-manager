@@ -2,7 +2,7 @@
 Run: blender -b --python tools/blender/build-player.py
 Coordinates below are game axes: X right, Y up, Z forward.
 """
-import bpy, math
+import bpy, math, random
 from pathlib import Path
 from mathutils import Vector, Matrix
 ROOT=Path(__file__).resolve().parents[2]
@@ -13,7 +13,7 @@ def material(name,hexcolor,rough=.7):
  h=hexcolor.lstrip('#');m=bpy.data.materials.new(name);srgb=[int(h[i:i+2],16)/255 for i in (0,2,4)];m.diffuse_color=tuple(c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4 for c in srgb)+(1,);m.use_nodes=True
  bs=m.node_tree.nodes.get('Principled BSDF');bs.inputs['Base Color'].default_value=m.diffuse_color;bs.inputs['Roughness'].default_value=rough
  return m
-M={k:material(k,c,r) for k,c,r in [('Team','#c96845',.65),('Cream','#eee9d6',.82),('Skin','#c98b62',.68),('Dark','#202d36',.6),('Leather','#9d6234',.9),('Stitch','#d9af6c',.9),('Eye','#faf6e8',.3),('Iris','#49392d',.4)]}
+M={k:material(k,c,r) for k,c,r in [('Team','#c96845',.65),('Cream','#eee9d6',.82),('Skin','#c98b62',.68),('Dark','#202d36',.6),('Leather','#81512e',.87),('Pocket','#593622',.95),('Stitch','#d9af6c',.9),('Eye','#faf6e8',.3),('Iris','#49392d',.4)]}
 parts=[]
 def finish(o,name,mat,bone=None,smooth=True):
  o.name=name;bpy.ops.object.transform_apply(location=True,rotation=True,scale=True);o.data.materials.append(M[mat])
@@ -21,7 +21,7 @@ def finish(o,name,mat,bone=None,smooth=True):
  if bone:o.vertex_groups.new(name=bone).add(list(range(len(o.data.vertices))),1,'REPLACE')
  parts.append(o);return o
 def ell(name,p,s,mat,bone=None):
- bpy.ops.mesh.primitive_uv_sphere_add(segments=16,ring_count=10,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);return finish(o,name,mat,bone)
+ bpy.ops.mesh.primitive_uv_sphere_add(segments=8 if name=='PocketBinding' else 16,ring_count=6 if name=='PocketBinding' else 10,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);return finish(o,name,mat,bone)
 def box(name,p,s,mat,bone=None,bevel=.015):
  bpy.ops.mesh.primitive_cube_add(size=1,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
  if bevel:
@@ -53,6 +53,26 @@ def join(name):
  bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.join();o=bpy.context.object;o.name=name;parts=[];return o
 # A tapered athletic torso with sewn shirt panels and a distinct waist.
 profile('Jersey',0,[(.83,.197,.14),(.96,.21,.152),(1.19,.265,.16),(1.30,.26,.15),(1.355,.21,.105),(1.39,.095,.073)],'Team','Spine')
+# Union the shirt and sloping sleeves into a single cloth surface, then blend
+# shoulder weights. Separate capped sleeve meshes looked like shoulder pads.
+for side in [-1,1]:
+ profile('Sleeve',side*.29,[(1.086,.078,.078),(1.12,.082,.08),(1.23,.086,.089),(1.29,.083,.085),(1.315,.065,.065),(1.325,.015,.02)],'Team',None)
+cloth=join('JerseyCloth')
+remesh=cloth.modifiers.new('Continuous shoulder cloth','REMESH');remesh.mode='VOXEL';remesh.voxel_size=.012;remesh.use_smooth_shade=True;bpy.ops.object.modifier_apply(modifier=remesh.name)
+smooth=cloth.modifiers.new('Relax cloth','SMOOTH');smooth.factor=.7;smooth.iterations=3;bpy.ops.object.modifier_apply(modifier=smooth.name)
+decimate=cloth.modifiers.new('Mobile cloth budget','DECIMATE');decimate.ratio=.30;bpy.ops.object.modifier_apply(modifier=decimate.name)
+cloth.vertex_groups.clear()
+groups={name:cloth.vertex_groups.new(name=name) for name in ['Spine','UpperArmL','UpperArmR']}
+for v in cloth.data.vertices:
+ t=max(0,min(1,(abs(v.co.x)-.19)/.12)) if v.co.z>1.075 else 0
+ weight=t*t*(3-2*t)
+ groups['Spine'].add([v.index],1-weight,'REPLACE')
+ if weight:groups['UpperArmL' if v.co.x<0 else 'UpperArmR'].add([v.index],weight,'REPLACE')
+cloth.data.materials.clear();cloth.data.materials.append(M['Team']);cloth.data.materials.append(M['Cream'])
+for face in cloth.data.polygons:
+ center=sum((cloth.data.vertices[i].co for i in face.vertices),Vector())/len(face.vertices)
+ face.material_index=0
+parts.append(cloth)
 ell('Hips',(0,.79,0),(.215,.09,.15),'Cream','Root')
 box('Belt',(0,.815,0),(.425,.035,.31),'Dark','Root')
 box('Buckle',(0,.815,.165),(.065,.046,.018),'Stitch','Root',.006)
@@ -75,9 +95,6 @@ ell('Nose',(0,1.614,.174),(.028,.04,.026),'Skin','Head')
 box('Smile',(0,1.547,.172),(.063,.009,.007),'Dark','Head',.003)
 for side,suffix in [(-1,'L'),(1,'R')]:
  x=side*.315
- sleeve=profile('Sleeve',x,[(1.086,.082,.079),(1.12,.086,.083),(1.22,.091,.09),(1.30,.091,.089),(1.335,.070,.065),(1.35,.018,.018)],'Team','UpperArm'+suffix)
- sleeve.data.materials.append(M['Cream'])
- for face in sleeve.data.polygons[:16]:face.material_index=1
  profile('Forearm',x,[(.82,.054,.054),(.93,.061,.061),(1.03,.069,.069),(1.085,.06,.06),(1.11,.018,.018)],'Skin','Forearm'+suffix)
  taper('Wristband',(x,.812,0),.045,.058,.058,1,'Dark','Hand'+suffix)
  ell('Palm',(x,.756,.015),(.065,.086,.036),'Skin','Hand'+suffix)
@@ -119,13 +136,51 @@ def dome(name,helmet=False):
    ell('Vent',(side*.216,.155,.015),(.006,.032,.039),'Dark')
  return join(name)
 cap=dome('Cap');helmet=dome('Helmet',True)
-ell('GlovePalm',(0,-.055,.027),(.13,.17,.07),'Leather')
+# Shallow concave pocket, separate finger stalls and open woven web.
+verts=[];faces=[];n=32
+for radius,z in [(0,.027),(.5,.037),(1,.075),(1,.035),(.5,-.015),(0,-.025)]:
+ for i in range(n):
+  angle=i*2*math.pi/n;verts.append(xyz((.108*radius*math.cos(angle),-.055+.125*radius*math.sin(angle),z)))
+for j in range(5):
+ for i in range(n):k=j*n+i;l=j*n+(i+1)%n;faces.append((k,l,l+n,k+n))
+mesh=bpy.data.meshes.new('Pocket');mesh.from_pydata(verts,[],faces);mesh.update();obj=bpy.data.objects.new('Pocket',mesh);bpy.context.collection.objects.link(obj);bpy.context.view_layer.objects.active=obj;obj.select_set(True);finish(obj,'Pocket','Pocket')
 for i in range(4):
- x=(i-1.5)*.06;ell('GloveFinger',(x,-.025,.033),(.044,.175-.012*abs(i-1.5),.061),'Leather')
- box('GloveLace',(x,-.03,.092),(.012,.20,.01),'Stitch',bevel=.004)
-ell('Thumb',(.115,-.095,.042),(.073,.11,.07),'Leather')
-box('Webbing',(.074,-.006,.073),(.08,.095,.022),'Stitch',bevel=.01)
+ x=(i-1.5)*.052
+ ell('FingerStall',(x,-.158,-.027),(.030,.10-.009*abs(i-1.5),.030),'Leather')
+ for y in [-.20,-.17,-.14]:box('FingerStitch',(x,y,.047),(.017,.007,.006),'Stitch',bevel=.002)
+ell('Thumb',(.112,-.065,.022),(.040,.106,.036),'Leather')
+for y in [-.09,-.065,-.04]:box('WebCross',(.093,y,.065),(.09,.009,.009),'Leather',bevel=.003)
+for x in [.065,.092,.12]:box('WebStrand',(x,-.065,.067),(.010,.075,.010),'Leather',bevel=.003)
+curve=bpy.data.curves.new('Pocket piping','CURVE');curve.dimensions='3D';curve.bevel_depth=.005;curve.bevel_resolution=2
+spline=curve.splines.new('POLY');spline.points.add(63)
+for i,point in enumerate(spline.points):
+ a=i*math.pi/32;point.co=(*xyz((.108*math.cos(a),-.055+.125*math.sin(a),.076)),1)
+spline.use_cyclic_u=True
+obj=bpy.data.objects.new('Pocket piping',curve);bpy.context.collection.objects.link(obj);bpy.ops.object.select_all(action='DESELECT');obj.select_set(True);bpy.context.view_layer.objects.active=obj;bpy.ops.object.convert(target='MESH');finish(bpy.context.object,'Pocket piping','Leather')
+for i in range(18):
+ a=i*math.pi/9
+ box('RimStitch',(.103*math.cos(a),-.055+.12*math.sin(a),.078),(.006,.008,.003),'Stitch',bevel=.001)
+box('WristStrap',(0,.065,.005),(.16,.032,.043),'Leather',bevel=.009)
 glove=join('Glove')
+# Small embedded, deterministic leather color and normal maps, authored here.
+bpy.context.view_layer.objects.active=glove;bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.select_all(action='SELECT');bpy.ops.uv.smart_project(island_margin=.025);bpy.ops.object.mode_set(mode='OBJECT')
+rng=random.Random(17);size=128;grain=[rng.random() for _ in range(size*size)];colors=[];normals=[]
+for y in range(size):
+ for x in range(size):
+  i=y*size+x;g=grain[i];shade=.86+g*.20-.16*(g<.10)+.035*math.sin(x*.17)*math.sin(y*.13)
+  colors.extend([.42*shade,.25*shade,.13*shade,1])
+  dx=(grain[y*size+(x+1)%size]-grain[y*size+(x-1)%size])*.22
+  dy=(grain[((y+1)%size)*size+x]-grain[((y-1)%size)*size+x])*.22
+  normal=Vector((-dx,-dy,1)).normalized();normals.extend([normal.x*.5+.5,normal.y*.5+.5,normal.z*.5+.5,1])
+def embedded(name,pixels,noncolor=False):
+ image=bpy.data.images.new(name,width=size,height=size,alpha=True)
+ if noncolor:image.colorspace_settings.name='Non-Color'
+ image.pixels=pixels;image.pack();return image
+color_image=embedded('Leather grain',colors);normal_image=embedded('Leather pores',normals,True)
+for key in ['Leather','Pocket']:
+ mat=M[key];nodes=mat.node_tree.nodes;links=mat.node_tree.links;shader=nodes.get('Principled BSDF')
+ tex=nodes.new('ShaderNodeTexImage');tex.image=color_image;links.new(tex.outputs['Color'],shader.inputs['Base Color'])
+ tex=nodes.new('ShaderNodeTexImage');tex.image=normal_image;normal=nodes.new('ShaderNodeNormalMap');normal.inputs['Strength'].default_value=.45;links.new(tex.outputs['Color'],normal.inputs['Color']);links.new(normal.outputs['Normal'],shader.inputs['Normal'])
 taper('Barrel',(0,-.50,0),.55,.043,.029,1,'Stitch',None)
 taper('Handle',(0,-.115,0),.25,.019,.026,1,'Dark',None)
 ell('Knob',(0,.02,0),(.031,.018,.031),'Dark')
