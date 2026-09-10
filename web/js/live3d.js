@@ -49,6 +49,12 @@ export class Live3D {
     buildSurroundings(this, opts);
     this.mascot=createTeamMascot(this,opts.home);
     this.batchStadium();
+    // Scenery transforms never change; crowd motion happens in the shader.
+    this.scene.updateMatrixWorld(true);
+    this.scene.traverse(o=>{
+      if(!(o.isMesh||o.isLine)||o.userData.noBatch)return;
+      o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;
+    });
     this.ball = this.mesh(this.sphere, '#fff8df', this.scene, [.20, .20, .20]);
     this.ball.castShadow = true;
     // A restrained bright material keeps the small ball readable against seats and grass.
@@ -327,7 +333,8 @@ export class Live3D {
   }
   setGameTime(progress=0){
     const state=this.skyState;if(!state||state.mode==='indoor')return;
-    const k=clamp(progress,0,1),phase=k<.58?k/.58:(k-.58)/.42;
+    const k=clamp(progress,0,1);if(this.gameTime===k)return;
+    const phase=k<.58?k/.58:(k-.58)/.42;
     const mix=(a,b,t)=>new T.Color(a).lerp(new T.Color(b),t);
     const top=k<.58?mix('#73acd2','#334d78',phase):mix('#334d78','#071426',phase);
     const bottom=k<.58?mix('#d9e4d8','#eea16f',phase):mix('#eea16f','#26364e',phase);
@@ -341,7 +348,10 @@ export class Live3D {
     this.renderer.toneMappingExposure=1.15+.18*Math.max(0,(k-.55)/.45);this.gameTime=k;
   }
   resize(w,h) {
-    this.renderer.setPixelRatio(renderPixelRatio(w,h,devicePixelRatio));
+    const ratio=renderPixelRatio(w,h,devicePixelRatio);
+    if(this.renderWidth===w&&this.renderHeight===h&&this.renderRatio===ratio)return;
+    this.renderWidth=w;this.renderHeight=h;this.renderRatio=ratio;
+    if(this.renderer.getPixelRatio()!==ratio)this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();
   }
   render(S,colors,line,time) {

@@ -40,6 +40,15 @@ try {
     const info=await page.evaluate(()=>({calls:lv.three.renderer.info.render.calls,triangles:lv.three.renderer.info.render.triangles}));
     assert.ok(info.triangles>1000, 'actual geometry rendered');
     console.log(width,info);
+    const optim=await page.evaluate(()=>{
+      const v=lv.three;let fixed=0;v.scene.traverse(o=>{if(o.isMesh&&!o.matrixAutoUpdate&&!o.matrixWorldAutoUpdate)fixed++;});
+      v.setGameTime(.4);const version=v.skyState.texture.version;v.setGameTime(.4);
+      const repeatedSkyUpload=v.skyState.texture.version!==version;
+      let calls=0;const set=v.renderer.setSize.bind(v.renderer);v.renderer.setSize=(...args)=>{calls++;return set(...args)};v.resize(lv.cw,lv.ch);v.renderer.setSize=set;
+      return {fixed,repeatedSkyUpload,resizeCalls:calls,animated:v.mascot.root.matrixAutoUpdate};
+    });
+    assert.ok(optim.fixed>20);assert.equal(optim.repeatedSkyUpload,false);assert.equal(optim.resizeCalls,0);assert.equal(optim.animated,true);
+
     await page.screenshot({path:`/tmp/dugout-three-${width}-pitch.png`});
     await page.evaluate(()=>{lv.S.ball={x:25,y:65,z:12,vis:true};lv.S.trail=[[0,0,1],[8,20,9],[18,40,15],[25,65,12]];});
     await page.waitForTimeout(1200);
