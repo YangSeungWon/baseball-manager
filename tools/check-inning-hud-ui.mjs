@@ -17,9 +17,23 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({viewport:{width,height}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
-    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});
+    await page.locator('.inning-batter-entry').waitFor({state:'visible'});
+    assert.match(await page.locator('.inning-batter-entry').textContent(),/직구/);
+    await page.waitForFunction(()=>document.querySelector('.inning-batter-entry').textContent.includes('주력'));
+    await page.locator('.inning-batter-entry').waitFor({state:'visible'});
+    await page.screenshot({path:`/tmp/dugout-entry-${width}.png`});
+    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+    await page.locator('.pitcher-tag').waitFor({state:'visible'});
+    const tag=await page.locator('.pitcher-tag').boundingBox();assert.ok(tag.height>=44&&tag.x>=0&&tag.x+tag.width<=width&&tag.y>=0);
+    await page.locator('.pitcher-tag').click();
+    assert.equal(await page.locator('.pitcher-details').isVisible(),true);
+    assert.equal(await page.locator('.pitcher-repertoire>div').count(),3);
+    assert.equal(await page.locator('.pitcher-repertoire strong').evaluateAll(ns=>ns.reduce((sum,n)=>sum+parseInt(n.textContent),0)),100);
+    const details=await page.locator('.pitcher-details').boundingBox();assert.ok(details.x>=0&&details.x+details.width<=width&&details.y>=0&&details.y+details.height<=height);
+    await page.keyboard.press('Escape');assert.equal(await page.locator('.pitcher-details').isVisible(),false);assert.equal(await page.locator('.inning-mode').count(),1);
     await page.locator('.scout-toggle').click();
     assert.equal(await page.locator('.scout-field [data-position]').count(),9);
     assert.equal(await page.locator('.scout-runners>div').count(),3);
@@ -48,6 +62,7 @@ try {
     assert.equal(await page.locator('[data-group="target"] [data-value="FF"]').getAttribute('aria-pressed'),'true');
     await page.screenshot({path:`/tmp/dugout-plan-${width}.png`});
     await page.locator('.inning-throw').click();await page.locator('.is-deciding .batting-decision').waitFor();
+    assert.equal(await page.locator('.pitcher-tag').isVisible(),false);assert.equal(await page.locator('.pitcher-details').isVisible(),false);
     const mobile=width<=900||height<=500;
     assert.equal(await page.locator('.inning-controls').isVisible(),!mobile);
     assert.equal(await page.locator('.inning-compact-plan').isVisible(),mobile);

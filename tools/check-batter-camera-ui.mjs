@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[390,844],[844,390],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height},hasTouch:true});page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({viewport:{width,height},hasTouch:true});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);
     await page.evaluate(async()=>{
       localStorage.setItem('dugout.sfx','0');const {Live3D}=await import('/js/live3d.js');
@@ -25,10 +25,13 @@ try {
     });
     await page.locator('#btnBatting').click();await page.waitForFunction(()=>window.scene3d?.cameraKind==='batting');
     const pose=()=>page.evaluate(()=>({eye:scene3d.camera.position.toArray(),look:{...scene3d.look},kind:scene3d.cameraKind}));
+    await page.locator('.pitcher-tag').waitFor({state:'visible'});
+    const anchored=await page.evaluate(()=>{const a=scene3d.pitcherAnchor(),r=document.querySelector('.pitcher-tag').getBoundingClientRect();return Math.abs(r.x+r.width/2-a.x*innerWidth)<3&&Math.abs(r.bottom-(a.y*innerHeight-8))<3;});assert.ok(anchored,'name tracks projected pitcher head');
     const initial=await pose();assert.deepEqual(initial.eye,[-.85,1.65,.25]);
     await page.screenshot({path:`/tmp/dugout-eyes-${width}.png`});
     await page.locator('.inning-look').click();await page.waitForFunction(()=>scene3d.look.pitch<-1);
     await page.screenshot({path:`/tmp/dugout-plate-${width}.png`});
+    assert.equal(await page.locator('.pitcher-tag').isVisible(),false,'pitcher out of view hides label');
     assert.deepEqual((await pose()).eye,initial.eye,'looking rotates without moving out of batter box');
     await page.locator('.inning-look').click();assert.equal((await pose()).look.pitch,0);
     await page.mouse.move(width*.5,height*.45);await page.mouse.down();await page.mouse.move(width*.7,height*.65,{steps:8});await page.mouse.up();

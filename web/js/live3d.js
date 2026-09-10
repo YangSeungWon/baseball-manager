@@ -302,6 +302,18 @@ export class Live3D {
     this.direct(S,time);
     this.scoreboard(S,line);
     this.renderer.render(this.scene,this.camera);
+    this.opts.onPitcherAnchor?.(this.pitcherAnchor());
+    this.opts.onEntryAnchor?.(this.playerAnchor(this.opts.entryPlayerKey?.()));
+  }
+  pitcherAnchor(){
+    return this.playerAnchor('fP');
+  }
+  playerAnchor(key){
+    const pitcher=this.players.get(key);if(!pitcher?.root.visible)return null;
+    const world=pitcher.head.localToWorld(new T.Vector3(0,.36,0));
+    if(world.clone().applyMatrix4(this.camera.matrixWorldInverse).z>=0)return null;
+    const p=world.project(this.camera);if(p.z< -1||p.z>1||Math.abs(p.x)>1||Math.abs(p.y)>1)return null;
+    return {x:(p.x+1)/2,y:(1-p.y)/2};
   }
   direct(S,time) {
     const shot=S.broadcast || {kind:S.trail.length>1?'field':S.batter?'pitch':'beauty'};

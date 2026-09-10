@@ -28,7 +28,7 @@ try {
  await page.waitForFunction(()=>window.state3d?.broadcast.kind==='entry');
  assert.equal(await page.evaluate(()=>state3d.batter),null);
  await page.waitForFunction(()=>state3d.broadcast.kind==='change');
- assert.match(await page.locator('.inning-batter-entry').textContent(),/타석 입장/);
+ assert.match(await page.locator('.inning-batter-entry').textContent(),/주력/);
  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
  const swing=async()=>{await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();await page.locator('.batting-swing').click();};
  await swing();
