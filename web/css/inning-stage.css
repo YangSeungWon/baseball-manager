@@ -253,3 +253,16 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .inning-transition{position:fixed;z-index:34;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:7px;min-width:220px;padding:18px 24px;border:1px solid #d7c88e;border-radius:10px;background:#102732eF;color:#edf0dc;box-shadow:0 10px 50px #0009;text-align:center;pointer-events:none}
 .inning-mode .inning-transition[hidden]{display:none}
 .inning-mode .inning-transition b{font-size:28px;color:#f1d38a}.inning-mode .inning-transition span{font-size:18px}.inning-mode .inning-transition small{font-size:13px;color:#a9c6bd}
+
+.inning-mode .match-intro{position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:80px 20px 130px;background:radial-gradient(ellipse at 50% 30%,#294753,#0c1c26 75%);color:#edf0df;pointer-events:none}
+.inning-mode .match-venue{font-size:18px;letter-spacing:.08em;color:#bbd0ca;margin:0}
+.inning-mode .match-pair{display:flex;align-items:center;justify-content:center;gap:22px;width:min(100%,660px)}
+.inning-mode .match-club{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;gap:14px;text-align:center;position:relative}
+.inning-mode .match-club small{font-size:12px;letter-spacing:.2em;color:#abc0bd}
+.inning-mode .match-crest{width:110px;height:120px;display:grid;place-items:center;background:var(--club);clip-path:polygon(0 0,100% 0,100% 74%,50% 100%,0 74%);font:bold 64px Georgia,serif;color:#fff4db}
+.inning-mode .match-club strong{font-size:24px;word-break:keep-all}.inning-mode .match-vs{font:italic 20px Georgia,serif;color:#d4b777}
+.inning-mode .match-own{position:absolute;top:100%;margin-top:8px;color:#f1d38a;font-size:11px;letter-spacing:.12em}
+.inning-mode .match-format{margin:16px 0 0;font-size:16px;color:#d1ddda}.inning-mode .match-starter{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;border-top:1px solid #ffffff20;padding-top:20px;font-size:16px}.inning-mode .match-starter small,.inning-mode .match-starter span{font-size:14px;color:#a9c4bc}
+.inning-mode.is-match-intro .inning-head{z-index:45}.inning-mode.is-match-intro .lv-3d-status{position:fixed;z-index:46;top:auto;bottom:35px;left:50%;transform:translateX(-50%);width:max-content;max-width:90vw}
+@media(max-width:480px){.inning-mode .match-club strong{font-size:20px}.inning-mode .match-crest{width:85px;height:96px;font-size:52px}.inning-mode .match-pair{gap:12px}}
+@media(max-height:500px){.inning-mode .match-intro{padding:25px 20px 55px;gap:10px}.inning-mode .match-crest{width:58px;height:62px;font-size:34px}.inning-mode .match-club{gap:5px}.inning-mode .match-format{margin-top:12px}.inning-mode .match-starter{padding-top:8px}}
