@@ -392,6 +392,14 @@ export class Live3D {
     this.direct(S,time);
     this.scoreboard(S,line);
     this.renderer.render(this.scene,this.camera);
+    if(this.opts.onFlightRead){
+      let read=null;
+      if(S.pitchRead&&S.battingDecision&&this.cameraKind==='batting'&&S.ball?.vis){
+        const p=this.ball.position.clone().project(this.camera);
+        if(p.z>=-1&&p.z<=1&&Math.abs(p.x)<=1&&Math.abs(p.y)<=1)read={x:(p.x+1)/2,y:(1-p.y)/2,clarity:S.pitchRead.clarity};
+      }
+      this.opts.onFlightRead(read);
+    }
     this.opts.onPitcherAnchor?.(this.pitcherAnchor());
     this.opts.onEntryAnchor?.(this.playerAnchor(this.opts.entryPlayerKey?.()));
   }

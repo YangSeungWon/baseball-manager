@@ -268,3 +268,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 @media(max-height:500px){.inning-mode .match-intro{padding:25px 20px 55px;gap:10px}.inning-mode .match-crest{width:58px;height:62px;font-size:34px}.inning-mode .match-club{gap:5px}.inning-mode .match-format{margin-top:12px}.inning-mode .match-starter{padding-top:8px}}
 
 .inning-mode .match-enter{pointer-events:auto;min-height:48px;min-width:180px;font-size:18px}.inning-mode .match-enter:disabled{opacity:.55}
+
+.inning-mode .flight-read{position:fixed;z-index:12;width:var(--read-size,78px);height:var(--read-size,78px);transform:translate(-50%,-50%);border:2px dashed #e9eed0;border-radius:50%;box-shadow:0 0 14px #f4efbb30;pointer-events:none;filter:blur(.6px)}
+.inning-mode .flight-read[hidden]{display:none}
