@@ -31,6 +31,30 @@ try {
   });
   assert.ok(gait.error<.00001,'stance foot remains on the ground throughout the walking cycle');
   assert.ok(gait.maxKnee<=.38,'walking uses a smaller knee lift');assert.equal(gait.x,2);assert.equal(gait.z,-3);
+  const joints=await page.evaluate(async()=>{
+   const T=await import('/vendor/three/three.module.min.js');const {createPlayerFactory}=await import('/js/player-model.js');const {Live3D}=await import('/js/live3d.js');
+   const p=createPlayerFactory()('fP','#427c83'),driver={player:()=>p,reducedMotion:true};
+   const pose=(kind,S={},data={})=>{p.last=null;Live3D.prototype.updatePlayer.call(driver,'fP',{x:0,y:0,...data},'#427c83',kind,S);p.root.updateMatrixWorld(true);};
+   pose('pitch',{pitcherWind:1});const before=p.hands[1].getWorldPosition(new T.Vector3());
+   pose('pitch',{pitcherWind:.999,ball:{x:0,y:-10,z:1,vis:true}});const releaseGap=before.distanceTo(p.hands[1].getWorldPosition(new T.Vector3()));
+   let attachment=0,lengthError=0,groundError=0;const knees=[];
+   for(const z of [.95,1.75,2.65,5]){
+    pose('catch',{}, {catchTarget:{x:-.35,y:-.35,z}});
+    attachment=Math.max(attachment,p.glove.position.distanceTo(p.gloveRest));
+    groundError=Math.max(groundError,Math.abs(Math.min(...p.feet.map(f=>f.getWorldPosition(new T.Vector3()).y))-.116*1.35));
+    const a=p.arms[0].getWorldPosition(new T.Vector3()),b=p.elbows[0].getWorldPosition(new T.Vector3()),c=p.hands[0].getWorldPosition(new T.Vector3());
+    lengthError=Math.max(lengthError,Math.abs(a.distanceTo(b)-p.elbows[0].position.length()*1.35),Math.abs(b.distanceTo(c)-p.hands[0].position.length()*1.35));knees.push(p.knees[0].rotation.x);
+   }
+   pose('catch',{}, {catchTarget:{x:-.35,y:-.35,z:1.75}});
+   const grip=p.glove.localToWorld(new T.Vector3(0,-.055,.027));
+   return {releaseGap,attachment,lengthError,groundError,knees,catchError:grip.distanceTo(new T.Vector3(-.35,1.75,.35))};
+  });
+  assert.ok(joints.releaseGap<.025,'throwing hand remains continuous across release');
+  assert.ok(joints.groundError<.00001,'catching keeps the supporting foot grounded');
+  assert.equal(joints.attachment,0,'glove remains attached even for unreachable targets');
+  assert.ok(joints.lengthError<.00001,'catching does not stretch arm bones');
+  assert.ok(joints.knees[0]>joints.knees[1],'low catches bend the knees');
+  assert.ok(joints.catchError<.015,'reachable ball meets the glove palm');
   for(const motion of ['pitch','bat','field','catch','dive','crouch','walk','run']){
    await page.selectOption('#motion',motion);
    await page.locator('#scrub').fill('450');
@@ -38,6 +62,7 @@ try {
    assert.equal(await page.locator('#progress').textContent(),'45%');
    await page.locator('[data-angle="1.570796"]').click();
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+   if(motion==='catch'){for(const height of ['0.95','1.75','2.65']){await page.selectOption('#height',height);await page.screenshot({path:`/tmp/dugout-catch-${height}-${width}.png`});}}
    if(['pitch','bat','walk','catch'].includes(motion))await page.screenshot({path:`/tmp/dugout-motion-${motion}-${width}.png`});
   }
   await page.selectOption('#motion','bat');await page.selectOption('#hand','L');await page.locator('#reset').click();assert.equal(await page.locator('#progress').textContent(),'0%');

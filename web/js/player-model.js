@@ -29,7 +29,7 @@ export function createPlayerFactory(){
   let currentColor;
   const setColor=c=>{if(c===currentColor)return;currentColor=c;for(const {o,source} of meshes)o.material=material(source,c,skin);};setColor(color);
   root.scale.setScalar(1.35);
-  return {root,body,head,spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
+  return {root,body,head,hips:bone('Root'),spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
  };
 }
 
@@ -43,4 +43,27 @@ export function reachPlayerHand(p,index,target,pole){
  const elbow=origin.clone().addScaledVector(axis,along).addScaledVector(bend,height);
  upper.quaternion.setFromUnitVectors(lower.position.clone().normalize(),elbow.clone().sub(origin).normalize());
  lower.quaternion.setFromUnitVectors(hand.position.clone().normalize(),origin.clone().addScaledVector(axis,distance).sub(elbow).applyQuaternion(upper.quaternion.clone().invert()).normalize());
+}
+
+// Reach with the body and a fixed-length arm; equipment stays attached to the hand.
+export function reachPlayerGlove(p,worldTarget){
+ p.root.updateMatrixWorld(true);
+ const local=p.root.worldToLocal(worldTarget.clone()),low=T.MathUtils.clamp((1.35-local.y)/1.1,0,1);
+ p.body.position.y=-low*.34;
+ p.body.rotation.x=low*.24+T.MathUtils.clamp(local.z*.10,-.12,.18);
+ p.body.rotation.z=-T.MathUtils.clamp(local.x*.22,-.25,.25);
+ for(let i=0;i<2;i++){
+  p.legs[i].rotation.x=-low*.62;p.knees[i].rotation.x=low*1.15;
+  p.feet[i].rotation.x=-(p.legs[i].rotation.x+p.knees[i].rotation.x+p.body.rotation.x);
+ }
+ p.root.updateMatrixWorld(true);
+ const ankle=Math.min(...p.feet.map(foot=>foot.getWorldPosition(new T.Vector3()).y));
+ p.body.position.y+=(p.root.position.y+.116*p.root.scale.y-ankle)/p.root.scale.y;
+ p.root.updateMatrixWorld(true);
+ const target=p.spine.worldToLocal(worldTarget.clone());
+ // Palm center in hand space. Keep the glove socket unchanged even when unreachable.
+ const palm=p.gloveRest.clone().add(new T.Vector3(0,-.055,.027));
+ reachPlayerHand(p,0,target.sub(palm),new T.Vector3(-.65,-.10,.10));
+ p.hands[0].quaternion.copy(p.arms[0].quaternion.clone().multiply(p.elbows[0].quaternion).invert());
+ p.glove.position.copy(p.gloveRest);
 }

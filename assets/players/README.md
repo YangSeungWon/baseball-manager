@@ -28,3 +28,9 @@ Pitching separates leg lift from release/follow-through; runners use bent elbows
 Inspect the runtime poses at `/motions.html`: slow playback, scrubbing, camera rotation,
 and walking/running comparison. Static fielding poses are labeled as such; ball paths
 are omitted. Walking uses its own distance-based cadence, lower knee lift and stance-foot grounding.
+
+Pitching now includes a stride and weight transfer with a continuous release pose;
+batting drives pelvis rotation and rear-foot pivot beneath the upper-body turn.
+Fielders reach for nearby ball targets with a fixed-length arm and grounded crouch.
+The glove socket remains on the hand even when a target exceeds anatomical reach.
+Use the low/chest/high target selector in the motion preview to inspect catching.

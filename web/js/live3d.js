@@ -1,4 +1,4 @@
-import {createPlayerFactory,reachPlayerHand} from './player-model.js';
+import {createPlayerFactory,reachPlayerHand,reachPlayerGlove} from './player-model.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
 // Optional renderer. Simulation coordinates (x, depth, height) become (x, height, -depth).
@@ -228,10 +228,10 @@ export class Live3D {
     p.setColor(color);
     const running=moving&&!['walk','dejected'].includes(pose);
     const stride=moving?Math.sin(p.phase)*(running?.72:.36):0;
-    legs[0].rotation.x=stride;legs[1].rotation.x=-stride;
+    legs[0].rotation.set(stride,0,0);legs[1].rotation.set(-stride,0,0);
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
     body.position.set(0,pose==='crouch'?-.20:0,0);body.rotation.set(0,0,0);p.head.rotation.set(0,0,0);
-    p.glove.position.copy(p.gloveRest);p.spine.rotation.set(0,0,0);
+    p.glove.position.copy(p.gloveRest);p.hips.rotation.set(0,0,0);p.spine.rotation.set(0,0,0);
     for(const hand of p.hands)hand.rotation.set(0,0,0);
     if(moving){body.rotation.x=running?.16:.04;body.position.y-=Math.abs(Math.sin(p.phase))*(running?.025:.012);body.rotation.y=Math.sin(p.phase)*.06;}
     for(let i=0;i<2;i++){
@@ -255,21 +255,31 @@ export class Live3D {
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {
       const w=clamp(S.pitcherWind||0,0,1),releasing=!!S.ball?.vis;
-      const lift=releasing?0:Math.sin(w*Math.PI)*.95;
-      legs[0].rotation.x=-lift;p.knees[0].rotation.x=lift*1.55;
+      const step=releasing?1:T.MathUtils.smoothstep(w,.45,1),follow=releasing?1-w:0;
+      const lift=releasing?0:Math.sin(Math.min(1,w/.75)*Math.PI)*.95;
+      legs[0].rotation.x=-lift-step*.56;p.knees[0].rotation.x=lift*1.5+step*.22;
+      legs[1].rotation.x=follow*.62;p.knees[1].rotation.x=.12*step+follow*.7;
       arms[0].rotation.x=-.95+w*.45;p.elbows[0].rotation.x=-1.15;
       arms[1].rotation.x=releasing?-.3-w*2.5:-.7-w*2.1;
-      arms[1].rotation.z=-.12-w*.35;p.elbows[1].rotation.x=releasing?-.12:-.5-w*.85;
-      p.spine.rotation.y=(releasing?-.24:.32)*Math.sin(w*Math.PI/2);
-      body.rotation.x=releasing?(1-w)*.42:-lift*.08;
-      if(releasing){legs[1].rotation.x=(1-w)*.65;p.knees[1].rotation.x=(1-w)*.8;}
+      arms[1].rotation.z=-.12-w*.35;
+      p.elbows[1].rotation.x=-.12-(releasing?0:Math.sin(w*Math.PI)*.9);
+      p.hips.rotation.y=-step*.16;
+      p.spine.rotation.y=(releasing?0:Math.sin(w*Math.PI)*.32)-step*.12-follow*.15;
+      body.position.z=step*.24;body.rotation.x=step*.10+follow*.32;
+      for(let i=0;i<2;i++)p.feet[i].rotation.x=-(legs[i].rotation.x+p.knees[i].rotation.x+body.rotation.x);
     }
     if(pose==='bat') {
       const swing=clamp(S.swing||0,0,1),drive=Math.sin(swing*Math.PI/2),handed=data.hand==='L'?-1:1;
       body.position.y-=.035;body.rotation.x=.07;
       legs[0].rotation.x=-.13;legs[1].rotation.x=-.18;
       p.knees[0].rotation.x=.24;p.knees[1].rotation.x=.31;
-      p.spine.rotation.y=handed*(-.18+drive*1.5);
+      const rear=handed===1?1:0,front=1-rear;
+      p.hips.rotation.y=handed*drive*.55;
+      p.spine.rotation.y=handed*(-.18+drive*.95);
+      p.knees[rear].rotation.x+=drive*.22;
+      p.feet[rear].rotation.set(drive*.28,handed*drive*.3,0);
+      p.feet[front].rotation.y=-handed*drive*.55;
+      body.position.x=-handed*drive*.045;
       p.head.rotation.y=-p.spine.rotation.y*.65;
       const grip=new T.Vector3(handed*(.10-drive*.20),.27+drive*.07,.20+Math.sin(swing*Math.PI)*.09);
       for(let i=0;i<2;i++){
@@ -284,7 +294,7 @@ export class Live3D {
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
     if(pose==='jump')arms[0].rotation.z=2.7;
     if(pose==='catch'||pose==='caught'){arms[0].rotation.z=2.7;arms[0].rotation.x=-.3;arms[1].rotation.x=-.4;}
-    if(moving&&walking){
+    if((moving&&walking)||pose==='pitch'||pose==='bat'){
       // Plant the lower foot rather than bobbing both soles above the turf.
       root.updateMatrixWorld(true);
       const sole=Math.min(...p.feet.map(foot=>foot.getWorldPosition(new T.Vector3()).y));
@@ -304,6 +314,8 @@ export class Live3D {
       p.head.rotation.y=clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.65,.65);
       p.head.rotation.x=clamp(-Math.atan2((look.z||0)-2.1,Math.max(1,Math.hypot(look.x-x,look.y-y))),-.45,.25);
     }
+    const catchBall=data.catchTarget||(S.ball?.vis&&S.fieldPlay?.fielder&&key==='f'+S.fieldPlay.fielder&&Math.hypot(S.ball.x-x,S.ball.y-y)<2.8?S.ball:null);
+    if(catchBall&&p.glove.visible&&!['pitch','watch'].includes(pose))reachPlayerGlove(p,point(catchBall.x,catchBall.y,catchBall.z));
 
   }
   resize(w,h) {
@@ -337,7 +349,7 @@ export class Live3D {
     }
     if(S.hold&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='caught'){const f=this.players.get('f'+S.hold.pos);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);b.x=hand.x;b.y=-hand.z;b.z=hand.y;}}
     if(b&&S.fieldPlay?.physical&&['catch','force-out','tag-out','safe'].includes(S.fieldPlay.phase)){
-      const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);f.glove.position.copy(f.glove.parent.worldToLocal(point(b.x,b.y,b.z)));}
+      const f=this.players.get('f'+S.fieldPlay.fielder);if(f)reachPlayerGlove(f,point(b.x,b.y,b.z));
     }
     this.ball.scale.setScalar(this.opts.playerRole==='batter'?.12:.20);this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
     const trail=S.trail.slice(-26),attr=this.trailGeo.attributes.position;
