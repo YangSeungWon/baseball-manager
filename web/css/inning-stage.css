@@ -160,7 +160,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 /* Result visibility must not depend on motion preferences. */
 .inning-mode .lv-flash{top:50%;font-size:clamp(40px,5vw,72px);white-space:nowrap}
 
-.inning-mode.has-batting-dock .inning-presentation>.pitcher-tag{position:fixed;transform:translate(-50%,-100%);min-height:44px;max-width:calc(100% - 16px);margin:0;padding:6px 10px;align-items:center;justify-content:center;gap:8px;pointer-events:auto;cursor:pointer;white-space:nowrap;border-color:#abc6a599;box-shadow:0 3px 12px #0005}
+.inning-mode.has-batting-dock .inning-presentation>.pitcher-tag{position:fixed;width:max-content;flex-wrap:nowrap;transform:translate(-50%,-100%);min-height:44px;max-width:calc(100% - 16px);margin:0;padding:6px 10px;align-items:center;justify-content:center;gap:8px;pointer-events:auto;cursor:pointer;white-space:nowrap;border-color:#abc6a599;box-shadow:0 3px 12px #0005}
 .inning-mode .pitcher-tag::after{content:'';position:absolute;left:50%;bottom:-5px;width:7px;height:7px;background:#102732;transform:translateX(-50%) rotate(45deg);border-right:1px solid #abc6a599;border-bottom:1px solid #abc6a599}
 .inning-mode .pitcher-tag[hidden],.inning-mode.is-playing .pitcher-tag,.inning-mode.is-intro .pitcher-tag,.inning-mode.is-changing .pitcher-tag{display:none!important}
 .inning-mode.has-batting-dock .inning-scout{top:126px}
@@ -172,6 +172,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .pitcher-repertoire strong{text-align:right;color:#cee4a5}.inning-mode .pitcher-repertoire small{font-size:13px}
 @media(max-height:500px){.inning-mode.has-batting-dock .inning-scout{top:104px}}
 
-.inning-mode .inning-batter-entry{position:fixed;transform:translate(-50%,-100%);max-width:calc(100% - 24px);padding:8px 12px;white-space:normal;text-align:center}
+.inning-mode .inning-batter-entry{position:fixed;width:max-content;transform:translate(-50%,-100%);max-width:calc(100% - 24px);padding:8px 12px;white-space:nowrap;text-align:center}
 .inning-mode .inning-batter-entry b{display:block;font-size:18px}
 .inning-mode .inning-batter-entry span{display:block;margin-top:3px;font-size:16px;font-weight:400}
