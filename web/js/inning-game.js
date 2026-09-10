@@ -28,7 +28,7 @@ export class InningGame {
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<.30) result='F';
-    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*.06-fooled*.25-(inZone?0:.1),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense,park:this.stage?.park});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}

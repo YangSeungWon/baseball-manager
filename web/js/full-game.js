@@ -1,3 +1,4 @@
+import {InningGame} from './inning-game.js';
 import {BattingGame} from './batting-game.js';
 export const FULL_STAGE={id:'full',title:'고양의 아홉 이닝',situation:'1회부터 경기 종료까지',home:{name:'고양 헌터스',short:'고양'},away:{name:'부산 돌핀스',short:'부산'},homeScore:0,awayScore:0,outs:0,balls:0,strikes:0,bases:[false,false,false],park:{name:'일산야구장',capacity:19400,weather:'clear',fL:98,fC:119,fR:103,fH:2.6,turf:true},colors:{home:'#b8860b',away:'#0d7ac4'},pitcher:{name:'윤지호',style:'변화구파',fast:.36,speedOffset:0}};
 const LINEUP=[
@@ -13,17 +14,24 @@ const LINEUP=[
 ];
 export const FULL_LINEUP=LINEUP;
 export class FullGame extends BattingGame{
- constructor(seed=1){super(seed,0);this.stage={...FULL_STAGE,park:{...FULL_STAGE.park}};this.inning=1;this.awayRuns=0;this.awayLine=[];this.homeLine=[];this.inningHomeStart=0;this.outs=0;this.balls=0;this.strikes=0;this.bases=[false,false,false];this.baseRunners=[null,null,null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;this.tie=false;this.simulateTop();}
- get batter(){const b=LINEUP[this.order%LINEUP.length];return {...b,id:'full-batter-'+this.order};}
- simulateTop(){let x=(this.seed+Math.imul(this.inning,2654435761))>>>0;x=Math.imul(x^(x>>>16),0x7feb352d);x=Math.imul(x^(x>>>15),0x846ca68b);x=(x^(x>>>16))>>>0;const u=x/4294967296,r=u<.65?0:u<.87?1:u<.96?2:u<.99?3:4;this.awayLine[this.inning-1]=r;this.awayRuns+=r;this.stage.awayScore=this.awayRuns;return r;}
- snapshot(){const s=super.snapshot(),home=[...this.homeLine];home[this.inning-1]=this.runs-this.inningHomeStart;return {...s,full:true,inning:this.inning,awayScore:this.awayRuns,homeScore:this.runs,awayLine:[...this.awayLine],homeLine:home,timeProgress:Math.min(1,((this.inning-1)+this.outs/3)/8),tie:this.tie,lineup:LINEUP.map(x=>x.name),battingOrder:this.order%LINEUP.length};}
- resolvePitch(choice,roll){const completed=this.inning,e=super.resolvePitch(choice,roll);this.done=false;this.won=false;this.tie=false;e.halfEnded=false;e.awayScored=0;
-  if(this.inning>=9&&this.runs>this.awayRuns){this.done=true;this.won=true;e.walkoff=true;this.homeLine[this.inning-1]=this.runs-this.inningHomeStart;}
-  else if(this.outs>=3){e.halfEnded=true;e.completedInning=completed;this.homeLine[completed-1]=this.runs-this.inningHomeStart;
-   if(completed>=9&&this.runs!==this.awayRuns){this.done=true;this.won=this.runs>this.awayRuns;}
-   else if(completed>=12){this.done=true;this.tie=true;}
-   else{this.inning++;this.inningHomeStart=this.runs;e.awayScored=this.simulateTop();this.outs=0;this.balls=0;this.strikes=0;this.bases=[false,false,false];this.baseRunners=[null,null,null];if(this.inning>=9&&this.runs>this.awayRuns){this.done=true;this.won=true;e.clinched=true;}}
+ constructor(seed=1){super(seed,0);this.stage={...FULL_STAGE,park:{...FULL_STAGE.park}};this.inning=1;this.half='top';this.awayRuns=0;this.homeRuns=0;this.awayLine=[0];this.homeLine=[];this.orders={top:0,bottom:0};this.hits={top:0,bottom:0};this.histories={top:[],bottom:[]};this.resetHalf();this.count=0;this.tie=false;}
+ resetHalf(){this.outs=0;this.balls=0;this.strikes=0;this.bases=[false,false,false];this.baseRunners=[null,null,null];this.runs=this.half==='top'?this.awayRuns:this.homeRuns;this.order=this.orders[this.half];this.history=this.histories[this.half];this.done=false;this.won=false;}
+ get batter(){const b=LINEUP[this.order%9],names=['서준혁','강태민','오지환','문도현','장우진','신재호','유시온','백민재','조현우'];return {...b,name:this.half==='top'?names[this.order%9]:b.name,id:this.half+'-batter-'+this.order};}
+ get pitcher(){return this.half==='top'?{name:'정우진',style:'균형형',fast:.5,speedOffset:0}:FULL_STAGE.pitcher;}
+ snapshot(){const s=super.snapshot();return {...s,full:true,inning:this.inning,half:this.half,awayScore:this.awayRuns,homeScore:this.homeRuns,awayLine:[...this.awayLine],homeLine:[...this.homeLine],timeProgress:Math.min(1,((this.inning-1)+(this.half==='bottom'?.5:0)+this.outs/6)/9),tie:this.tie,lineup:LINEUP.map((b,i)=>this.half==='top'?['서준혁','강태민','오지환','문도현','장우진','신재호','유시온','백민재','조현우'][i]:b.name),battingOrder:this.order%9,hits:{...this.hits}};}
+ completePitch(e){
+  this.done=false;this.won=false;this.orders[this.half]=this.order;if(['1B','2B','3B','HR'].includes(e.result))this.hits[this.half]++;
+  const line=this.half==='top'?this.awayLine:this.homeLine;line[this.inning-1]=(line[this.inning-1]||0)+e.scored;
+  if(this.half==='top')this.awayRuns=this.runs;else this.homeRuns=this.runs;
+  e.halfEnded=this.outs>=3;e.completedInning=this.inning;
+  if(this.half==='bottom'&&this.inning>=9&&this.homeRuns>this.awayRuns){this.done=true;this.won=true;e.walkoff=true;}
+  else if(e.halfEnded&&this.inning>=9){
+   if(this.half==='top'&&this.homeRuns>this.awayRuns){this.done=true;this.won=true;e.clinched=true;}
+   else if(this.half==='bottom'&&(this.homeRuns!==this.awayRuns||this.inning>=12)){this.done=true;this.won=this.homeRuns>this.awayRuns;this.tie=this.homeRuns===this.awayRuns;}
   }
   e.after=this.snapshot();return e;
  }
+ advanceHalf(){if(this.done||this.outs<3)throw new Error('Half inning is not over');if(this.half==='top')this.half='bottom';else{this.half='top';this.inning++;}(this.half==='top'?this.awayLine:this.homeLine)[this.inning-1]=0;this.resetHalf();}
+ resolvePitch(choice,roll){if(this.half!=='bottom')throw new Error('Pitching half');return this.completePitch(super.resolvePitch(choice,roll));}
+ pitch(choice){if(this.half==='bottom')return super.pitch(choice);return this.completePitch(InningGame.prototype.pitch.call(this,choice));}
 }
