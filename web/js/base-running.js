@@ -1,3 +1,4 @@
+import {commitOnFlight} from './runner-read.js';
 import {RUN_BASES,RUN_ACCELERATION,runningTime,runningRoute,leadDistance,runnerArrival,runnerPosition} from './runner-motion.js';
 export {RUN_BASES,runningTime} from './runner-motion.js';
 const LEG=Math.hypot(19.4,19.4),STEP=1/30;
@@ -25,7 +26,11 @@ export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',
  const throwETA=(base,estimate=false)=>defensePlan(base,estimate).time;
  let forcedChain=true;const forced=new Set([0]);for(let from=1;from<=3;from++){if(!bases[from-1])forcedChain=false;if(forcedChain)forced.add(from);}
  const airHold=play.launch>18&&outs<2;
- for(const r of runners){if(r.from>0&&(airHold||caught&&outs<2)){r.returnAt=.18;r.returnEnd=r.returnAt+runningTime(r.lead,r.speed);r.start=Math.max(r.returnEnd,(caught?.t||play.events.find(e=>e.type==='bounce')?.t||last.t)+.2);}}
+ const commit=airHold?commitOnFlight(raw,defense,defenseSpeed):null;
+ for(const r of runners){if(r.from>0&&(airHold||caught&&outs<2)){
+  if(!caught&&commit!=null){r.start=commit;}
+  else{r.returnAt=.18;r.returnEnd=r.returnAt+runningTime(r.lead,r.speed);r.start=Math.max(r.returnEnd,(caught?.t||play.events.find(e=>e.type==='bounce')?.t||last.t)+.2);}
+ }}
  // A following runner cannot pass a slower runner or reach an occupied bag first.
  for(const r of [...runners].reverse()){
   const ahead=runners.filter(x=>x.from>r.from).sort((a,b)=>a.from-b.from)[0];if(!ahead||caught&&r.from===0)continue;
