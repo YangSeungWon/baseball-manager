@@ -31,6 +31,18 @@ try {
   });
   assert.ok(gait.error<.00001,'stance foot remains on the ground throughout the walking cycle');
   assert.ok(gait.maxKnee<=.38,'walking uses a smaller knee lift');assert.equal(gait.x,2);assert.equal(gait.z,-3);
+  const variants=await page.evaluate(async()=>{
+   const {createPlayerFactory}=await import('/js/player-model.js');const {Live3D}=await import('/js/live3d.js');
+   const p=createPlayerFactory()('fP','#427c83'),driver={player:()=>p,reducedMotion:true};
+   const pose=(kind,S,data={})=>{p.last=null;Live3D.prototype.updatePlayer.call(driver,'fP',{x:0,y:0,hand:'R',...data},'#427c83',kind,S);p.root.updateMatrixWorld(true);return {armX:p.arms[1].rotation.x,armZ:p.arms[1].rotation.z,hips:p.hips.rotation.y,handY:p.hands[1].getWorldPosition(new (p.root.position.constructor)()).y};};
+   const ff=pose('pitch',{pitcherWind:.7,pitchStyle:{type:'FF'}}),sl=pose('pitch',{pitcherWind:.7,pitchStyle:{type:'SL'}}),ch=pose('pitch',{pitcherWind:.7,pitchStyle:{type:'CH'}});
+   const contact=pose('bat',{swing:.8,batStyle:{approach:'contact',pitchZ:0,pitchX:0}}),power=pose('bat',{swing:.8,batStyle:{approach:'power',pitchZ:0,pitchX:0}}),low=pose('bat',{swing:.45,batStyle:{approach:'contact',pitchZ:-.9,pitchX:0}}),high=pose('bat',{swing:.45,batStyle:{approach:'contact',pitchZ:.9,pitchX:0}});
+   return {ff,sl,ch,contact,power,low,high};
+  });
+  assert.ok(Math.abs(variants.ff.armZ-variants.sl.armZ)>.2,'slider uses a lower arm slot');
+  assert.ok(Math.abs(variants.ff.armX-variants.ch.armX)>.2,'changeup uses a softer arm drive');
+  assert.ok(Math.abs(variants.power.hips)>Math.abs(variants.contact.hips)+.1,'power swing turns the hips farther');
+  assert.ok(variants.high.handY>variants.low.handY+.08,'swing plane follows pitch height');
   const joints=await page.evaluate(async()=>{
    const T=await import('/vendor/three/three.module.min.js');const {createPlayerFactory}=await import('/js/player-model.js');const {Live3D}=await import('/js/live3d.js');
    const p=createPlayerFactory()('fP','#427c83'),driver={player:()=>p,reducedMotion:true};

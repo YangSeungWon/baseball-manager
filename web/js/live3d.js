@@ -254,39 +254,42 @@ export class Live3D {
     if(pose==='watch'){body.rotation.x=-.08;arms[0].rotation.x=-.15;}
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {
-      const w=clamp(S.pitcherWind||0,0,1),releasing=!!S.ball?.vis;
+      const w=clamp(S.pitcherWind||0,0,1),releasing=!!S.ball?.vis,style=S.pitchStyle||{},type=style.type||'FF';
+      const slot=type==='SL'?.48:type==='CH'?.14:0,driveScale=type==='CH'?.82:type==='SL'?.92:1;
       const step=releasing?1:T.MathUtils.smoothstep(w,.45,1),follow=releasing?1-w:0;
       const lift=releasing?0:Math.sin(Math.min(1,w/.75)*Math.PI)*.95;
       legs[0].rotation.x=-lift-step*.56;p.knees[0].rotation.x=lift*1.5+step*.22;
       legs[1].rotation.x=follow*.62;p.knees[1].rotation.x=.12*step+follow*.7;
       arms[0].rotation.x=-.95+w*.45;p.elbows[0].rotation.x=-1.15;
-      arms[1].rotation.x=releasing?-.3-w*2.5:-.7-w*2.1;
-      arms[1].rotation.z=-.12-w*.35;
-      p.elbows[1].rotation.x=-.12-(releasing?0:Math.sin(w*Math.PI)*.9);
+      arms[1].rotation.x=(releasing?-.3-w*2.5:-.7-w*2.1)*driveScale;
+      arms[1].rotation.z=-.12-w*.35-slot*(.35+w*.45);
+      p.elbows[1].rotation.x=-.12-(releasing?0:Math.sin(w*Math.PI)*(type==='FF'?.9:type==='SL'?.62:.78));
       p.hips.rotation.y=-step*.16;
       p.spine.rotation.y=(releasing?0:Math.sin(w*Math.PI)*.32)-step*.12-follow*.15;
-      body.position.z=step*.24;body.rotation.x=step*.10+follow*.32;
+      body.position.z=step*.24*driveScale;body.rotation.x=step*.10+follow*.32*driveScale;body.rotation.z+=slot*.14*Math.sin(w*Math.PI);
       for(let i=0;i<2;i++)p.feet[i].rotation.x=-(legs[i].rotation.x+p.knees[i].rotation.x+body.rotation.x);
     }
     if(pose==='bat') {
-      const swing=clamp(S.swing||0,0,1),drive=Math.sin(swing*Math.PI/2),handed=data.hand==='L'?-1:1;
-      body.position.y-=.035;body.rotation.x=.07;
+      const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',drive=Math.sin(swing*Math.PI/2)*(power?1:.76),handed=data.hand==='L'?-1:1;
+      const planeY=clamp(style.pitchZ||0,-1.5,1.5)*.075,planeX=clamp(style.pitchX||0,-1.5,1.5)*.035;
+      const expectY=style.location==='high'?.035:style.location==='low'?-.035:0,load=style.target==='CH'?-.035:style.target==='FF'?.025:0;
+      body.position.y-=power?.055:.025;body.rotation.x=power?.10:.045;
       legs[0].rotation.x=-.13;legs[1].rotation.x=-.18;
       p.knees[0].rotation.x=.24;p.knees[1].rotation.x=.31;
       const rear=handed===1?1:0,front=1-rear;
-      p.hips.rotation.y=handed*drive*.55;
-      p.spine.rotation.y=handed*(-.18+drive*.95);
+      p.hips.rotation.y=handed*drive*(power?.7:.42);
+      p.spine.rotation.y=handed*(-.18+drive*(power?1.08:.72));
       p.knees[rear].rotation.x+=drive*.22;
       p.feet[rear].rotation.set(drive*.28,handed*drive*.3,0);
       p.feet[front].rotation.y=-handed*drive*.55;
       body.position.x=-handed*drive*.045;
       p.head.rotation.y=-p.spine.rotation.y*.65;
-      const grip=new T.Vector3(handed*(.10-drive*.20),.27+drive*.07,.20+Math.sin(swing*Math.PI)*.09);
+      const grip=new T.Vector3(handed*(.10-drive*(power?.25:.14)+planeX),.27+expectY+planeY+drive*(power?.09:.045),.20+load+Math.sin(swing*Math.PI)*(power?.11:.06));
       for(let i=0;i<2;i++){
         const target=grip.clone();target.y+=(i===1?.025:-.025);
         reachPlayerHand(p,i,target,new T.Vector3(i===0?-.55:.55,.03,.02));
         const parent=p.arms[i].quaternion.clone().multiply(p.elbows[i].quaternion);
-        const batAngle=new T.Quaternion().setFromEuler(new T.Euler(.10-drive*.8,0,Math.PI-handed*(.55+drive*1.2)));
+        const batAngle=new T.Quaternion().setFromEuler(new T.Euler(.10+planeY-drive*(power?.95:.58),0,Math.PI-handed*(.55+drive*(power?1.38:.88))));
         p.hands[i].quaternion.copy(parent.invert().multiply(batAngle));
       }
     }

@@ -17,14 +17,18 @@ try{
  function draw(){
   const t=progress,bat=kind==='bat',p=bat?players.bat:players.fielder;
   players.bat.root.visible=bat;players.fielder.root.visible=!bat;
-  const S={pitcherWind:0,swing:0,ball:null};let caption=labels[kind]||'';
+  const course=$('#course').value;
+  const courseX=course==='in'?-.9:course==='out'?.9:0;
+  const courseZ=course==='high'?.9:course==='low'?-.9:0;
+  const S={pitcherWind:0,swing:0,ball:null,pitchStyle:{type:$('#pitchKind').value},batStyle:{approach:$('#batPlan').value,location:course,pitchX:courseX,pitchZ:courseZ,target:'any'}};
+  let caption=labels[kind]||'';
   if(kind==='pitch'){
    // Same .9 s wind-up and decreasing release parameter as LiveView._pitch.
    const seconds=t*1.8;
-   if(seconds<.9){S.pitcherWind=seconds/.9;caption=seconds<.35?'준비':'와인드업';}
+   if(seconds<.9){S.pitcherWind=seconds/.9;caption=seconds<.35?'준비':({FF:'직구',SL:'슬라이더',CH:'체인지업'})[S.pitchStyle.type]+' · 와인드업';}
    else{S.pitcherWind=Math.max(0,1-(seconds-.9)/.43);S.ball={x:0,y:-10,z:1,vis:true};caption=seconds<1.04?'릴리스':'팔로스루';}
   }
-  if(bat){S.swing=t<.2?0:t<.75?(t-.2)/.55:1;caption=t<.2?'타격 준비':t<.46?'스윙':t<.75?'회전':'팔로스루';}
+  if(bat){S.swing=t<.2?0:t<.75?(t-.2)/.55:1;caption=($('#batPlan').value==='power'?'장타':'컨택')+' · '+(t<.2?'타격 준비':t<.46?'스윙':t<.75?'회전':'팔로스루');}
   const catchTarget=kind==='catch'?{x:-.35,y:-.35,z:Number($('#height').value)}:null;
   targetBall.visible=!!catchTarget;if(catchTarget)targetBall.position.set(catchTarget.x,catchTarget.z,-catchTarget.y);
   const locomotion=['run','walk'].includes(kind);
@@ -37,8 +41,8 @@ try{
  }
  const resize=new ResizeObserver(()=>{const {width,height}=stage.getBoundingClientRect();renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();draw();});resize.observe(stage);
  function syncPlay(){$('#play').textContent=playing?'일시정지':'재생';}
- $('#motion').onchange=e=>{kind=e.target.value;progress=0;$('#handLabel').hidden=kind!=='bat';$('#heightLabel').hidden=kind!=='catch';draw();};
- $('#hand').onchange=draw;$('#height').onchange=draw;$('#play').disabled=false;$('#play').onclick=()=>{playing=!playing;syncPlay();};
+ $('#motion').onchange=e=>{kind=e.target.value;progress=0;$('#handLabel').hidden=kind!=='bat';$('#batPlanLabel').hidden=kind!=='bat';$('#courseLabel').hidden=kind!=='bat';$('#pitchKindLabel').hidden=kind!=='pitch';$('#heightLabel').hidden=kind!=='catch';draw();};
+ for(const id of ['hand','height','pitchKind','batPlan','course'])$('#'+id).onchange=draw;$('#play').disabled=false;$('#play').onclick=()=>{playing=!playing;syncPlay();};
  $('#scrub').oninput=e=>{playing=false;syncPlay();progress=Number(e.target.value)/1000;draw();};
  $('#reset').onclick=()=>{progress=0;draw();};document.querySelectorAll('[data-angle]').forEach(b=>b.onclick=()=>{angle=Number(b.dataset.angle);draw();});
  let drag=null;stage.onpointerdown=e=>{if(e.target!==renderer.domElement)return;drag={x:e.clientX,y:e.clientY};stage.setPointerCapture(e.pointerId);};stage.onpointermove=e=>{if(!drag)return;angle-=(e.clientX-drag.x)*.012;elevation=T.MathUtils.clamp(elevation+(e.clientY-drag.y)*.012,.5,4);drag={x:e.clientX,y:e.clientY};draw();};stage.onpointerup=stage.onpointercancel=()=>{drag=null;};

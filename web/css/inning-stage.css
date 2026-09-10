@@ -148,10 +148,10 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 @media(max-width:900px),(max-height:500px){
  .inning-mode.has-batting-dock.is-playing:not(.is-finished) .inning-controls{display:none;visibility:hidden;pointer-events:none}
  .inning-mode.has-batting-dock.is-reading .inning-compact-plan:not([hidden]){display:block;position:fixed;top:174px;left:10px;max-width:calc(100% - 20px);padding:6px 9px;border-radius:6px;background:#102732de;color:#d4e0cb;font-size:14px;z-index:16;pointer-events:none}
- .inning-mode.has-batting-dock.is-playing .batting-decision{grid-template-columns:1fr}
+ .inning-mode.has-batting-dock.is-playing .batting-decision{grid-template-columns:2fr 1fr}
  .inning-mode.has-batting-dock.is-playing .batting-decision .inning-throw{display:none}
- .inning-mode.has-batting-dock.is-playing .batting-action-row{grid-column:1;display:grid;grid-template-columns:1fr 1fr}
- .inning-mode.has-batting-dock.is-playing .batting-action-row button{min-height:56px;font-size:18px}
+ .inning-mode.has-batting-dock.is-playing .batting-action-row{grid-column:1;display:flex}
+ .inning-mode.has-batting-dock.is-playing .batting-action-row button{min-height:48px;font-size:14px}
  .inning-mode.has-batting-dock.is-playing .inning-live-zone,.inning-mode.has-batting-dock.is-playing .inning-feedback{bottom:104px}
  .inning-mode.has-batting-dock.is-playing .inning-look{display:none}
 }
@@ -227,4 +227,16 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .stage-select button[aria-pressed=true]{background:#365e50;border-color:#e4d49c;box-shadow:inset 3px 0 #e4d49c}
 .stage-select b{font-size:17px}.stage-select span{font-size:14px;color:#c2d3c9}
 
+.inning-mode .zone-read{stroke:#102832;stroke-width:1;transition:fill .16s,fill-opacity .16s}
+.inning-mode .zone-read-cover{fill:#66d19e;fill-opacity:.42}
+.inning-mode .zone-read-reward{fill:#f0c765;fill-opacity:.62}
+.inning-mode .zone-read-trade{fill:#d7a85d;fill-opacity:.34}
+.inning-mode .zone-read-risk{fill:#d96d6d;fill-opacity:.34}
+.inning-mode .zone-command{stroke-width:2;stroke-dasharray:4 3}
+.inning-mode .zone-command.is-attack{fill:#66d19e;fill-opacity:.18;stroke:#8be1b8}
+.inning-mode .zone-command.is-chase{fill:#e0a762;fill-opacity:.18;stroke:#efbd7e}
 .inning-mode.is-celebrating .inning-controls,.inning-mode.is-celebrating .batting-decision,.inning-mode.is-celebrating .inning-live-zone,.inning-mode.is-celebrating .inning-feedback{display:none!important}
+.inning-mode.has-batting-dock [data-group=location] .plan-cover{background:#315f50;color:#dff3df}
+.inning-mode.has-batting-dock [data-group=location] .plan-trade{background:#5b5135;color:#f4e2ac}
+.inning-mode.has-batting-dock [data-group=location] .plan-risk:not([aria-pressed=true]){background:#56343a;color:#e7bec0}
+.inning-mode.has-batting-dock [data-group=location] .plan-reward[aria-pressed=true]{background:#d2ad55;color:#182c31;box-shadow:inset 0 0 0 2px #f7e1a0}

@@ -100,7 +100,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     const tl=new Timeline();tl.add(0,1.8,k=>button.style.setProperty('--breath',String(1-k)));
     await runTimeline(tl);if(dead)return;
     calm=true;busy=false;root.classList.remove('is-breathing');button.textContent='호흡 안정';
-    $('.inning-picks').disabled=false;$('.inning-throw').disabled=false;
+    selection();$('.inning-picks').disabled=false;$('.inning-throw').disabled=false;
   }
   async function releasePitch(){
     const pressure=pitchPressure(game.snapshot()),meter=$('.pitch-release');
@@ -162,7 +162,19 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     const aimX=batting?0:(selected.zone==='in'?-1:selected.zone==='out'?1:0)*(selected.intent==='chase'?1.4:.8);
     const aimZ=batting?0:selected.zone==='low'?(selected.intent==='chase'?-1.4:-.8):selected.zone==='high'?(selected.intent==='chase'?1.4:.8):0;
     const area={in:[62,56,38,80],out:[100,56,38,80],low:[62,109,76,27],high:[62,56,76,27]}[selected.location];
-    const target=batting?(area?`<rect class="zone-prediction" x="${area[0]}" y="${area[1]}" width="${area[2]}" height="${area[3]}" fill="#a6d9b9" fill-opacity=".22" stroke="#a6d9b9" stroke-width="2" stroke-dasharray="4 3"/>`:''):`<circle cx="${100+aimX*38}" cy="${96-aimZ*40}" r="12" fill="none" stroke="#a6d9b9" stroke-width="2" stroke-dasharray="4 3"/>`;
+    const coverage=batting&&selected.action!=='take'?(()=>{
+      const power=selected.approach==='power',chosen=selected.location||'any';
+      const cells=Array.from({length:9},(_,i)=>{
+        const col=i%3,row=Math.floor(i/3);
+        const matched=chosen==='any'||chosen==='in'&&col===0||chosen==='out'&&col===2||chosen==='high'&&row===0||chosen==='low'&&row===2;
+        const level=chosen==='any'?(power?'trade':'cover'):matched?(power?'reward':'cover'):'risk';
+        return `<rect class="zone-read zone-read-${level}" data-read="${level}" x="${63+col*25.3}" y="${57+row*26.6}" width="24.3" height="25.6" rx="2"/>`;
+      }).join('');
+      return `<g class="zone-coverage" data-approach="${selected.approach}" aria-hidden="true">${cells}</g>`;
+    })():'';
+    const pressure=pitchPressure(game.snapshot()),spread=(10+pressure*9)*(calm?.68:1);
+    const pitchingRisk=!batting?`<ellipse class="zone-command ${selected.intent==='chase'?'is-chase':'is-attack'}" cx="${100+aimX*38}" cy="${96-aimZ*40}" rx="${spread}" ry="${spread*.78}"/>`:'';
+    const target=batting?(area?`<rect class="zone-prediction" x="${area[0]}" y="${area[1]}" width="${area[2]}" height="${area[3]}" fill="none" stroke="#d9f0c4" stroke-width="2"/>`:''):`<circle cx="${100+aimX*38}" cy="${96-aimZ*40}" r="7" fill="#d9f0c4" fill-opacity=".35" stroke="#d9f0c4" stroke-width="2"/>`;
     const q=event?.pitch,inside=q&&Math.abs(q.x)<=1&&Math.abs(q.z)<=1;
     const pitches=event&&!events.some(e=>e.after.count===event.after.count)?[...events,event]:events;
     root.classList.toggle('has-zone',pitches.length>0||!batting||selected.location!=='any');
@@ -174,7 +186,14 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       if(moved)leaders.push(`<path d="M${x} ${y}L${labelX} ${labelY}" stroke="${color}" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="3" fill="${color}"/>`);
       return `<g class="zone-pitch" data-pitch="${e.pitchNumber}"><title>${e.pitchNumber}구 · ${PITCHES[e.pitch.t].name} · ${e.label}</title><circle cx="${labelX}" cy="${labelY}" r="11" fill="${color}" stroke="${i===pitches.length-1?'#fff':'#142c37'}" stroke-width="2"/><text x="${labelX}" y="${labelY+5}" text-anchor="middle" font-size="15" font-weight="700" fill="#132630">${e.pitchNumber}</text></g>`;
     }).join('');
-    root.querySelectorAll('.zone-markers').forEach(g=>g.innerHTML=target+leaders.join('')+marks);
+    root.querySelectorAll('.zone-markers').forEach(g=>g.innerHTML=coverage+pitchingRisk+target+leaders.join('')+marks);
+    root.querySelectorAll('.inning-zone-map').forEach(map=>map.setAttribute('aria-label',batting?(selected.action==='take'?'지켜보기 선택':(selected.approach==='power'?'장타':'컨택')+' 타격 커버리지'):(selected.intent==='chase'?'유인구':'존 안 승부')+' 제구 범위'));
+    if(batting)root.querySelectorAll('[data-group=location] button').forEach(button=>{
+      button.classList.remove('plan-cover','plan-reward','plan-trade','plan-risk');
+      if(selected.action==='take')return;
+      const chosen=selected.location||'any',matched=chosen==='any'||button.dataset.value===chosen;
+      button.classList.add('plan-'+(chosen==='any'?(selected.approach==='power'?'trade':'cover'):matched?(selected.approach==='power'?'reward':'cover'):'risk'));
+    });
   }
   function selection() { zone(shown); }
 
@@ -287,6 +306,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       if(batting){const pitch=game.preparePitch(choice),picked=await readPitch(pitch);if(dead||!picked?.action)return;resumeAt=picked.time;e=game.decidePitch(picked.action);if(picked.expired)e.explanation='선택해 둔 '+(picked.action==='swing'?'스윙을':'지켜보기를')+' 그대로 실행했습니다. '+e.explanation;}
       else {const release=await releasePitch();if(dead||release===null)return;e=game.pitch({...choice,release});resumeAt=1.55;calm=false;}
       const tl=new Timeline(),S=lv.S;
+      S.pitchStyle={type:e.pitch.t,zone:e.choice.zone,intent:e.choice.intent};
+      S.batStyle=batting?{...e.choice,pitchX:e.pitch.x,pitchZ:e.pitch.z}:null;
       e.pitchNumber=events.length+1;
       const rec={batter:e.before.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
       const r=['S','W','B','F'].includes(e.call)?e.call:'X';
@@ -361,7 +382,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;if(!batting){$('.inning-throw').textContent='투구 시작';$('.pitch-breathe').disabled=calm;$('.pitch-breathe').textContent=calm?'호흡 안정':'숨 고르기';}dock();$('.inning-picks').disabled=false;$('.inning-throw').focus({preventScroll:true});}}
   };
   $('.inning-throw').onclick=()=>releaseNow?releaseNow():play();
-  if(batting)for(const action of ['swing','take'])$('.batting-'+action).onclick=()=>{if(chooseDecision)chooseDecision(action);else if(!busy&&!game.done){choice.action=action;dock();}};
+  if(batting)for(const action of ['swing','take'])$('.batting-'+action).onclick=()=>{if(chooseDecision)chooseDecision(action);else if(!busy&&!game.done){choice.action=action;dock();selection();}};
 
   start(true);
 }

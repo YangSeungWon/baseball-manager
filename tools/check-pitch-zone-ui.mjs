@@ -23,12 +23,14 @@ try {
     const {InningGame}=await import('/js/inning-game.js');InningGame.prototype.random=()=>.99;
   });
   for(const entry of ['#btnInning','#btnBatting']) {
-    await page.locator(entry).click();if(entry==='#btnInning')await page.locator('.inning-plan-toggle').click();
-    if(entry==='#btnInning')await page.locator('[data-value="chase"]').click();
+    await page.locator(entry).click();if(entry==='#btnInning'){await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));await page.locator('.inning-plan-toggle').evaluate(e=>e.click());await page.waitForFunction(()=>document.querySelector('.inning-mode').classList.contains('is-planning'));}
+    if(entry==='#btnInning'){await page.locator('[data-value="chase"]').click();assert.equal(await page.locator('.inning-zone-slot .zone-command.is-chase').count(),1);}
     else {
       await page.locator('[data-group="location"] [data-value="low"]').click();
       assert.equal(await page.locator('.inning-zone-map .zone-prediction').count(),1);
       assert.equal(await page.locator('[data-group="location"] [data-value="low"]').getAttribute('aria-pressed'),'true');
+      assert.equal(await page.locator('.inning-zone-slot .zone-read-cover').count(),3);assert.equal(await page.locator('.inning-zone-slot .zone-read-risk').count(),6);assert.equal(await page.locator('[data-group=location] .plan-cover').count(),1);assert.equal(await page.locator('[data-group=location] .plan-risk').count(),4);
+      await page.locator('[data-group="approach"] [data-value="power"]').click();assert.equal(await page.locator('.inning-zone-slot .zone-read-reward').count(),3);assert.equal(await page.locator('[data-group=location] .plan-reward').count(),1);
     }
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     const play=async()=>{await page.locator('.inning-throw').click();if(entry==='#btnBatting')await page.locator('.batting-take').click();};

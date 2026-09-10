@@ -20,7 +20,8 @@ try {
     const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);
     await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.decidePitch;window.decisions=[];BattingGame.prototype.decidePitch=function(action){decisions.push(action);return resolve.call(this,action);};});
-    await page.locator('#btnBatting').click();
+    await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
+    await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     if(width===1440)await page.locator('.batting-take').click();
     const before=await page.locator('.batting-swing').boundingBox();
     await page.locator('.inning-throw').click();
