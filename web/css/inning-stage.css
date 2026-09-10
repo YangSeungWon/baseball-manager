@@ -266,3 +266,5 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode.is-match-intro .inning-head{z-index:45}.inning-mode.is-match-intro .lv-3d-status{position:fixed;z-index:46;top:auto;bottom:35px;left:50%;transform:translateX(-50%);width:max-content;max-width:90vw}
 @media(max-width:480px){.inning-mode .match-club strong{font-size:20px}.inning-mode .match-crest{width:85px;height:96px;font-size:52px}.inning-mode .match-pair{gap:12px}}
 @media(max-height:500px){.inning-mode .match-intro{padding:25px 20px 55px;gap:10px}.inning-mode .match-crest{width:58px;height:62px;font-size:34px}.inning-mode .match-club{gap:5px}.inning-mode .match-format{margin-top:12px}.inning-mode .match-starter{padding-top:8px}}
+
+.inning-mode .match-enter{pointer-events:auto;min-height:48px;min-width:180px;font-size:18px}.inning-mode .match-enter:disabled{opacity:.55}

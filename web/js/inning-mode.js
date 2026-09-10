@@ -232,8 +232,12 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     const team=(side)=>{const t=stage[side],f=FRANCHISES.find(f=>f.city+' '+f.nick===t.name);return `<div class="match-club" style="--club:${stage.colors[side]}"><small>${side==='home'?'HOME':'AWAY'}</small><div class="match-crest" aria-hidden="true">${f?.mark||t.short.slice(0,1)}</div><strong>${t.name}</strong>${side===(batting?'home':'away')?'<span class="match-own">MY TEAM</span>':''}</div>`;};
     card.innerHTML=`<p class="match-venue">${stage.park.name}</p><div class="match-pair">${team('away')}<span class="match-vs">VS</span>${team('home')}</div><p class="match-format">${full?'9이닝 경기':stage.situation}</p><div class="match-starter"><small>${batting?'상대 투수':'마운드'}</small><b>${batting?game.pitcher.name:'나의 마무리'}</b><span>${batting?game.pitcher.style:'두 점의 리드'}</span></div>`;
     root.append(card);root.classList.add('is-match-intro');
-    const [ready]=await Promise.all([loadingView.ready,new Promise(r=>setTimeout(r,1800))]);
+    const enter=document.createElement('button');enter.className='go match-enter';enter.textContent='구장 준비 중…';enter.disabled=true;card.append(enter);
+    const ready=await loadingView.ready;
     if (!ready || dead || lv!==loadingView){card.remove();return;}
+    enter.disabled=false;enter.textContent='경기장 입장';enter.focus({preventScroll:true});
+    await new Promise(resolve=>{enter.onclick=()=>{enter.disabled=true;resolve();};});
+    if(dead||lv!==loadingView)return;
     card.remove();root.classList.remove('is-match-intro');
     const S=lv.S,tl=new Timeline(),pitcher=S.fielders.P;S.batter=null;pitcher.x=5;pitcher.y=14;pitcher.pose='walkField';S.broadcast={kind:'entry'};
     showEntry('fP',pitcher.name,batting?`${game.pitcher.style} · 직구 ${Math.round(game.pitcher.fast*100)}%`:'직구 · 슬라이더 · 체인지업');
