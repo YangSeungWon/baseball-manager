@@ -15,7 +15,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
-  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url+'/?challenge=b5-42');
   await page.locator('#challengeInvite').waitFor({state:'visible'});
   assert.equal(await page.locator('.manager-entry').getAttribute('open'),null);
@@ -33,11 +33,28 @@ try {
   });
   await page.locator('#btnBatting').click();
   assert.equal(await page.locator('.batting-swing').getAttribute('aria-pressed'),'true');
+  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+  assert.match(await page.locator('.inning-score').textContent(),/항구 웨일즈/);
+  const alignment=await page.evaluate(()=>{
+    const dots=[...document.querySelectorAll('.inning-counts>span:first-child>span')].map(n=>n.getBoundingClientRect());
+    const base=[1,2,3].map(i=>{const r=document.querySelector('.inning-diamond .base'+i).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2};});
+    return dots.every(d=>Math.abs(d.x-dots[0].x)<1)&&dots[0].y<dots[1].y&&dots[1].y<dots[2].y&&Math.abs((base[0].x-base[1].x)-(base[1].x-base[2].x))<1&&Math.abs(base[0].y-base[2].y)<1;
+  });assert.ok(alignment,'BSO aligned vertically and bases symmetric');
+  await page.screenshot({path:'/tmp/dugout-scoreboard.png'});
   await page.locator('.inning-throw').click();
   await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:60000});
   assert.equal(await page.evaluate(()=>playedSeed),42);
   assert.match(await page.locator('.inning-result').textContent(),/끝내기 승리/);
   assert.match(await page.locator('.inning-feedback').textContent(),/홈런/);
+  for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]){
+    await page.setViewportSize({width,height});
+    for(const selector of ['[data-retry]','[data-new]','[data-share]','[data-copy]','[data-card]']){
+      const b=await page.locator(selector).boundingBox();assert.ok(b&&b.height>=44&&b.x>=0&&b.y>=0&&b.x+b.width<=width&&b.y+b.height<=height,`${selector} within ${width}x${height}`);
+      assert.ok(await page.locator(selector).evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),'action not covered');
+    }
+    await page.screenshot({path:`/tmp/dugout-result-${width}.png`});
+  }
+  await page.setViewportSize({width:390,height:844});
   await page.locator('[data-share]').click();
   assert.match(await page.evaluate(()=>shared.url),/challenge=b5-42$/);
   assert.match(await page.evaluate(()=>shared.text),/1구 · 3득점 · 1안타/);

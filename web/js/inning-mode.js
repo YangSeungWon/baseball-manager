@@ -1,3 +1,4 @@
+import { HOME_TEAM, AWAY_TEAM } from './inning-teams.js';
 import { mountPitcherTag, positionPlayerTag } from './pitcher-tag.js';
 import { leadPosition } from './runner-motion.js';
 import { mountScouting } from './scouting-ui.js';
@@ -135,7 +136,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   }
   function soundLabel(){const on=!!lv?.sfx.on,b=$('.inning-sound');b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="'+(on?'M16 8q5 4 0 8M19 5q7 7 0 14':'m17 9 5 6m0-6-5 6')+'"/></svg>';b.setAttribute('aria-label',on?'소리 끄기':'소리 켜기');b.title=on?'소리 끄기':'소리 켜기';b.setAttribute('aria-pressed',String(on));}
   function atmosphere(cue,k=.5){ambience=cue;intensity=k;lv.sfx.stadium(cue,k);lv.S.crowdReaction={cue,strength:k,at:performance.now()};}
-  const opt={home:batting?'나의 타선':'홈 타자들',away:batting?'상대 마무리':'나의 마무리',park:{name:'라스트아웃 파크',capacity:18000},crowd:16000,cap:18000,colors:{home:'#cf7756',away:'#427c83'},view:'three',speed:1,sound:false,playerRole:role,entryPlayerKey:()=>entryKey,onEntryAnchor:p=>positionPlayerTag(entryLabel,p),onPitcherAnchor:p=>pitcherTag?.update(!busy&&!dead&&!game.done?p:null),canLook:()=>!busy&&!dead&&!game.done,stageHeight:()=>innerHeight,immersive:()=>!dead,maxH:()=>innerHeight};
+  const opt={home:HOME_TEAM.name,away:AWAY_TEAM.name,park:{name:'라스트아웃 파크',capacity:18000},crowd:16000,cap:18000,colors:{home:'#cf7756',away:'#427c83'},view:'three',speed:1,sound:false,playerRole:role,entryPlayerKey:()=>entryKey,onEntryAnchor:p=>positionPlayerTag(entryLabel,p),onPitcherAnchor:p=>pitcherTag?.update(!busy&&!dead&&!game.done?p:null),canLook:()=>!busy&&!dead&&!game.done,stageHeight:()=>innerHeight,immersive:()=>!dead,maxH:()=>innerHeight};
   function sync(state) {
     for(const f of Object.values(lv.S.fielders))if(f.home){f.x=f.home[0];f.y=f.home[1];delete f.pose;}
     lv.S.fieldPlay=null;
@@ -149,7 +150,7 @@ export function openInningMode(role='pitcher',initialSeed=null) {
     scouting.paint(s);
     const dots=(count,max,kind)=>Array.from({length:max},(_,i)=>`<i class="${kind}${i<count?' lit':''}"></i>`).join('');
     const bases=s.bases.map((v,i)=>v?(i+1)+'루':'').filter(Boolean).join(' · ')||'주자 없음';
-    $('.inning-score').innerHTML=`<div class="inning-scoreline"><span class="inning-frame" aria-label="9회 말">9 ▾</span><b>나 <strong>${batting?s.runs:2} : ${batting?2:s.runs}</strong> 상대</b></div>
+    $('.inning-score').innerHTML=`<div class="inning-scoreline"><div class="inning-scoreteams"><div class="${batting?'':'own-team'}" aria-label="${AWAY_TEAM.name}${batting?'':' · 나의 팀'}"><span>${AWAY_TEAM.name}</span><strong>2</strong></div><div class="${batting?'own-team':''}" aria-label="${HOME_TEAM.name}${batting?' · 나의 팀':''}"><span>${HOME_TEAM.name}</span><strong>${s.runs}</strong></div></div><span class="inning-frame" aria-label="9회 말">9 ▾</span></div>
       <div class="inning-counts"><span aria-label="${s.balls}볼 ${s.strikes}스트라이크 ${s.outs}아웃"><span>B ${dots(s.balls,3,'ball')}</span><span>S ${dots(s.strikes,2,'strike')}</span><span>O ${dots(s.outs,3,'out')}</span></span><button class="inning-diamond" aria-label="${bases} · 주자 정보" title="주자 정보">${s.bases.map((v,i)=>`<i class="base${i+1}${v?' occupied':''}" title="${i+1}루${v?' · '+paceLabel(s.baseRunners[i].speed):''}" data-pace="${v&&s.baseRunners[i].speed>=8.8?'fast':v&&s.baseRunners[i].speed<7.8?'slow':'normal'}"></i>`).join('')}</button><small>${s.count}/30구</small></div>`;
     $('.inning-diamond').onclick=()=>$('.scout-toggle').click();
     if(batting)pitcherTag.paint(s.pitcher);else $('.inning-opponent').innerHTML=`<b>${s.batter.name}</b><span>${s.batter.style}</span>`;
@@ -234,10 +235,11 @@ export function openInningMode(role='pitcher',initialSeed=null) {
   function finish() {
     root.classList.add('is-finished');
     $('.inning-picks').hidden=true;const box=$('.inning-result');box.hidden=false;
-    box.innerHTML=`<h2>${batting?(game.won?'끝내기 승리!':game.outs>=3?(game.runs===2?'동점에서 이닝 종료':'뒤집지 못했다'):'투구 제한에 도달했다'):(game.won?'막아냈다!':game.runs>=2?'리드를 지키지 못했다':'투구 제한에 도달했다')}</h2><p>${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}</p><small class="inning-result-kicker">${game.won?'MISSION COMPLETE':'한 번 더, 다른 선택으로'}</small><div><button class="go" data-retry>같은 상황 재도전</button><button class="quiet" data-new>새 상대 도전</button></div>`;
+    const icon=path=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+    box.innerHTML=`<section class="result-overview"><h2>${batting?(game.won?'끝내기 승리!':game.outs>=3?(game.runs===2?'동점에서 이닝 종료':'뒤집지 못했다'):'투구 제한에 도달했다'):(game.won?'막아냈다!':game.runs>=2?'리드를 지키지 못했다':'투구 제한에 도달했다')}</h2><div class="result-final-score"><span>${HOME_TEAM.short}</span><strong>${game.runs} : 2</strong><span>${AWAY_TEAM.short}</span></div><p>${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}</p></section><div class="result-replay"><button class="go" data-retry>${icon('M4 10a8 8 0 1 1 0 5M4 4v6h6')}<span>같은 상황 재도전</span></button><button class="quiet" data-new>${icon('M4 12h16m-6-6 6 6-6 6')}<span>새 상대 도전</span></button></div>`;
     if(batting){
       const result=battingResult(game.snapshot(),seed,runEvents);
-      box.insertAdjacentHTML('beforeend',`<div class="inning-sharing"><p>같은 상황, 친구는 뒤집을 수 있을까요?</p><button class="go" data-share>결과 공유 · 친구에게 도전</button><button class="quiet" data-copy>도전 링크 복사</button><button class="quiet" data-card>결과 카드 저장</button><p class="inning-share-status" role="status"></p><textarea class="inning-share-fallback" aria-label="복사할 결과와 도전 링크" readonly hidden></textarea></div>`);
+      box.insertAdjacentHTML('beforeend',`<section class="inning-sharing"><button class="quiet" data-share>${icon('M12 15V3m-4 4 4-4 4 4M5 12v8h14v-8')}<span>결과 공유</span></button><div class="result-share-tools"><button class="quiet" data-copy>${icon('M9 8V4h11v13h-4M4 8h11v13H4z')}<span>링크 복사</span></button><button class="quiet" data-card>${icon('M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4')}<span>카드 저장</span></button></div><p class="inning-share-status" role="status"></p><textarea class="inning-share-fallback" aria-label="복사할 결과와 도전 링크" readonly hidden></textarea></section>`);
       const status=box.querySelector('.inning-share-status'),full=result.text+'\n'+result.url;
       const fallback=()=>{const field=box.querySelector('textarea');field.hidden=false;field.value=full;field.focus();field.select();status.textContent='아래 결과와 링크를 복사해 주세요.';};
       box.querySelector('[data-copy]').onclick=async()=>{if(await copyChallenge(result.url))status.textContent='같은 상황에 도전하는 링크를 복사했습니다.';else fallback();};
