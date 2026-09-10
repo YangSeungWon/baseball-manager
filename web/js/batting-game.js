@@ -7,6 +7,10 @@ const ARMS=[
   {name:'서도현',style:'승부형',fast:.46,hint:'볼이 많아지면 존 안으로 승부하는 편입니다.'},
 ];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+export const battingReadProfile=b=>{
+  const vision=clamp(b.vision??b.contact??.65,.4,.92),discipline=clamp(1-(b.chase??.45),.35,.85);
+  return {vision,discipline,from:.34-vision*.17,to:.48+vision*.24,takeUntil:.48+discipline*.42};
+};
 export class BattingGame extends InningGame {
   constructor(seed=1,stageId=0){
     super(seed);this.stage=getStage(stageId);const s=this.stage;

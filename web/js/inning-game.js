@@ -3,7 +3,7 @@ import { contactFlight } from './field-sim.js';
 import { controlledPitch, releaseLabel } from './pitch-control.js';
 // A small, independent pitching challenge. Never reads/writes the GM save or RNG.
 export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed:133},CH:{name:'체인지업',speed:128}};
-const BATTERS=[{name:'김도윤',style:'공격형',chase:.52,contact:.72,hint:'초구부터 적극적입니다. 바깥으로 유인해 보세요.'},{name:'박시우',style:'선구형',chase:.25,contact:.77,hint:'유인구를 잘 참습니다. 스트라이크를 먼저 잡으세요.'},{name:'이준서',style:'장타형',chase:.42,contact:.67,hint:'맞으면 멀리 갑니다. 같은 구종 반복을 조심하세요.'}];
+const BATTERS=[{name:'김도윤',style:'공격형',chase:.52,contact:.72,vision:.62,hint:'초구부터 적극적입니다. 바깥으로 유인해 보세요.'},{name:'박시우',style:'선구형',chase:.25,contact:.77,vision:.86,hint:'유인구를 잘 참습니다. 스트라이크를 먼저 잡으세요.'},{name:'이준서',style:'장타형',chase:.42,contact:.67,vision:.55,hint:'맞으면 멀리 갑니다. 같은 구종 반복을 조심하세요.'}];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class InningGame {
   constructor(seed=1){this.seed=seed>>>0;this.rng=this.seed;this.outs=1;this.runs=0;this.balls=0;this.strikes=0;this.bases=[true,true,false];this.baseRunners=[{id:'initial-1',name:'1루 주자',speed:8.7},{id:'initial-2',name:'2루 주자',speed:7.8},null];this.count=0;this.order=0;this.history=[];this.done=false;this.won=false;}

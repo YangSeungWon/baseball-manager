@@ -3,11 +3,11 @@ import { STAGES, getStage, clearStage, clearedStages } from './inning-stages.js'
 import { mountPitcherTag, positionPlayerTag } from './pitcher-tag.js';
 import { leadPosition } from './runner-motion.js';
 import { mountScouting } from './scouting-ui.js';
-import { paceLabel } from './player-traits.js';
+import { paceLabel, visionLabel, disciplineLabel } from './player-traits.js';
 import { sampleField, FIELD_POSITIONS } from './field-sim.js';
 import { pitchPressure, releaseMarker } from './pitch-control.js';
 import { InningGame, PITCHES } from './inning-game.js';
-import { BattingGame } from './batting-game.js';
+import { BattingGame, battingReadProfile } from './batting-game.js';
 import { LiveView, Timeline } from './live.js';
 import { battingResult, resultCard, copyChallenge } from './inning-share.js';
 import { layoutPitchMarkers } from './pitch-zone.js';
@@ -52,7 +52,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   const entryLabel=$('.inning-batter-entry');
   const showEntry=(key,name,trait)=>{entryKey=key;entryLabel.innerHTML=`<b>${name}</b><span>${trait}</span>`;};
   const hideEntry=()=>{entryKey=null;entryLabel.hidden=true;};
-  const batterEntry=(key,b)=>showEntry(key,b.name,`${b.style} · ${paceLabel(b.speed)}`);
+  const batterEntry=(key,b)=>showEntry(key,b.name,batting?`${visionLabel(b)} · ${disciplineLabel(b)}`:`${b.style} · ${paceLabel(b.speed)}`);
   const pitcherTag=batting?mountPitcherTag(root,$('.inning-opponent'),()=>scouting.close()):null;
   if(batting)root.insertAdjacentHTML('beforeend','<div class="inning-compact-plan" aria-label="선택한 타격 작전" hidden></div>');
   root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ (batting?'노릴 공':'투구 선택')+'</span></button>');
@@ -115,23 +115,32 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     });
   }
   async function readPitch(pitch){
-    const plannedAction=choice.action;
+    const plannedAction=choice.action,profile=battingReadProfile(game.batter);
     const compact=$('.inning-compact-plan');compact.textContent=[choice.target==='any'?'모든 공':PITCHES[choice.target].name,({any:'전체 코스',in:'몸쪽',out:'바깥쪽',low:'낮게',high:'높게'})[choice.location],choice.approach==='power'?'장타':'컨택'].join(' · ');compact.hidden=false;
     root.classList.add('is-reading');dock('warm');
     const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:'bottom',inning:9,zh:1};
     const arrival=lv._pitch(preview,{...pitch,r:'B'},0,.65,rec,{last:true});
-    const release=1.55,flight=arrival-release,from=release+flight*.25,to=release+flight*.55;
+    const release=1.55,flight=arrival-release,from=release+flight*profile.from,to=release+flight*profile.to;
+    const readZone=$('.inning-live-zone'),readMarkers=readZone.querySelector('.zone-markers');
+    const paintRead=p=>{
+      const onset=.43-profile.vision*.26,clarity=Math.max(0,Math.min(1,(p-onset)/(1-onset))),settle=clarity*clarity*(3-2*clarity);
+      const x=100+pitch.x*38*settle,z=96-pitch.z*40*settle,rx=48-(30+profile.vision*8)*settle,ry=42-(27+profile.vision*7)*settle;
+      const typeAlpha=Math.max(0,(clarity-.42)/.58),type=({FF:'직',SL:'슬',CH:'체'})[pitch.t];
+      readMarkers.innerHTML=`<ellipse class="zone-read-estimate type-${pitch.t}" cx="${x}" cy="${z}" rx="${rx}" ry="${ry}"/><text class="zone-read-kind" x="${x}" y="${z+5}" text-anchor="middle" opacity="${typeAlpha}">${type}</text>`;
+      readZone.dataset.clarity=clarity.toFixed(2);readZone.querySelector('span').textContent='투구 예측이 좁아지는 중';
+    };
     const warm=new Timeline();warm.end=from;warm.step=t=>{warm.t=Math.min(t,from);preview.step(warm.t);};
     await runTimeline(warm);if(dead)return null;
-    lv.S.battingDecision=true;root.classList.add('is-deciding');dock('read');
+    lv.S.battingDecision=true;root.classList.add('is-deciding');root.classList.toggle('can-check-swing',plannedAction==='swing');dock('read');
+    readZone.hidden=false;readZone.classList.add('is-reading-pitch');$('.batting-clock').style.setProperty('--take-cutoff',profile.takeUntil*100+'%');paintRead(0);
     $('.inning-feedback').textContent='';
     const picked=await new Promise(resolve=>{
-      const end=performance.now()+2500;let raf,timer,settled=false;
-      const finish=(action,expired=false)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);cancelDecision=null;chooseDecision=null;$('.batting-decision').hidden=true;root.classList.remove('is-deciding','is-reading');compact.hidden=true;lv.S.battingDecision=false;resolve({action,expired,time:preview.t});};
+      const end=performance.now()+2500;let raf,timer,settled=false,takeOpen=true;
+      const finish=(action,expired=false)=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);cancelDecision=null;chooseDecision=null;$('.batting-decision').hidden=true;root.classList.remove('is-deciding','is-reading','can-check-swing','is-take-locked');readZone.classList.remove('is-reading-pitch');compact.hidden=true;lv.S.battingDecision=false;$('.batting-take').disabled=false;$('.batting-take').removeAttribute('title');zone();readZone.hidden=events.length===0;resolve({action,expired,time:preview.t});};
       cancelDecision=()=>finish(null);
-      const choose=action=>finish(performance.now()>=end?plannedAction:action,performance.now()>=end);
+      const choose=action=>{if(action==='take'&&plannedAction==='swing'&&!takeOpen)return;finish(performance.now()>=end?plannedAction:action,performance.now()>=end);};
       chooseDecision=choose;
-      const tick=()=>{const left=Math.max(0,end-performance.now());preview.step(from+(to-from)*(1-left/2500));$('.batting-time').textContent=(left/1000).toFixed(1)+'초';$('.batting-clock i').style.transform='scaleX('+left/2500+')';if(!left)finish(plannedAction,true);else raf=requestAnimationFrame(tick);};
+      const tick=()=>{const left=Math.max(0,end-performance.now()),p=1-left/2500;preview.step(from+(to-from)*p);paintRead(p);takeOpen=plannedAction!=='swing'||p<=profile.takeUntil;root.classList.toggle('is-take-locked',!takeOpen);$('.batting-take').disabled=!takeOpen;if(!takeOpen)$('.batting-take').title='배트가 이미 나가기 시작했습니다';$('.batting-time').textContent=(left/1000).toFixed(1)+'초';$('.batting-clock i').style.transform='scaleX('+left/2500+')';if(!left)finish(plannedAction,true);else raf=requestAnimationFrame(tick);};
       timer=setTimeout(()=>finish(plannedAction,true),2500);tick();$('.batting-'+plannedAction).focus({preventScroll:true});
     });
     return picked;

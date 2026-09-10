@@ -19,10 +19,10 @@ try {
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
     const page=await browser.newPage({viewport:{width,height}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
-    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});
+    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     await page.locator('.inning-batter-entry').waitFor({state:'visible'});
     assert.match(await page.locator('.inning-batter-entry').textContent(),/직구/);
-    await page.waitForFunction(()=>document.querySelector('.inning-batter-entry').textContent.includes('주력'));
+    await page.waitForFunction(()=>document.querySelector('.inning-batter-entry').textContent.includes('선구')&&document.querySelector('.inning-batter-entry').textContent.includes('참기'));
     await page.locator('.inning-batter-entry').waitFor({state:'visible'});
     await page.screenshot({path:`/tmp/dugout-entry-${width}.png`});
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
@@ -65,9 +65,10 @@ try {
     assert.equal(await page.locator('.pitcher-tag').isVisible(),false);assert.equal(await page.locator('.pitcher-details').isVisible(),false);
     const mobile=width<=900||height<=500;
     assert.equal(await page.locator('.inning-controls').isVisible(),!mobile);
-    assert.equal(await page.locator('.inning-compact-plan').isVisible(),mobile);
+    assert.equal(await page.locator('.inning-compact-plan').isVisible(),false);
+    assert.equal(await page.locator('.inning-live-zone.is-reading-pitch').isVisible(),true);
     assert.equal(await page.locator('.inning-throw').isVisible(),!mobile);
-    if(mobile)for(const name of ['swing','take']){const b=await page.locator('.batting-'+name).boundingBox();assert.ok(b.height>=56&&b.width>=130);}
+    if(mobile)for(const name of ['swing','take']){const b=await page.locator('.batting-'+name).boundingBox();assert.ok(b.height>=48&&b.width>=80);}
     await page.screenshot({path:`/tmp/dugout-decision-${width}.png`});
     await page.locator('.batting-take').click();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});

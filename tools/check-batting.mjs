@@ -52,3 +52,12 @@ test('prepared delivery waits for a decision, resolves once and consumes no extr
   const c=new BattingGame(7);assert.deepEqual(c.preparePitch(choice),delivery);
   assert.deepEqual(c.decidePitch('take').pitch,delivery);
 });
+
+test('vision expands the observed flight and discipline extends the check-swing window',async()=>{
+  const {battingReadProfile}=await import('../web/js/batting-game.js');
+  const raw=battingReadProfile({vision:.5,chase:.6}),patient=battingReadProfile({vision:.88,chase:.2});
+  assert.ok(patient.from<raw.from,'better vision starts reading earlier');
+  assert.ok(patient.to>raw.to,'better vision follows the pitch closer to the plate');
+  assert.ok(patient.to-patient.from>raw.to-raw.from,'better vision observes more of the flight');
+  assert.ok(patient.takeUntil>raw.takeUntil,'better discipline can stop the swing later');
+});

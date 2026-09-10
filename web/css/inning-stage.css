@@ -44,7 +44,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .pitching-action{position:fixed;z-index:30;bottom:max(10px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px))}
 .inning-mode .pitching-action .inning-throw{position:static;width:100%;transform:none;min-height:52px}
 .inning-mode.is-playing .inning-plan-toggle{visibility:hidden}
-.inning-mode.is-deciding .inning-live-zone,.inning-mode.is-deciding .inning-feedback{visibility:hidden}
+.inning-mode.is-deciding .inning-feedback{visibility:hidden}
 .inning-mode.is-finished .inning-controls{display:block;left:50%;bottom:20px;transform:translateX(-50%);width:420px;max-height:calc(100dvh - 130px);padding:0!important;background:#102732f5}
 .inning-mode.is-finished .inning-opponent,.inning-mode.is-finished .inning-plan-toggle,.inning-mode.is-finished .inning-feedback,.inning-mode.is-finished .inning-live-zone,.inning-mode.is-finished .pitching-action{display:none}
 .inning-mode .inning-result{border:0;margin:0;padding:20px}.inning-mode .inning-result-kicker{display:none}
@@ -147,7 +147,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 /* Once delivery starts, mobile space belongs to the ball and the two decisions. */
 @media(max-width:900px),(max-height:500px){
  .inning-mode.has-batting-dock.is-playing:not(.is-finished) .inning-controls{display:none;visibility:hidden;pointer-events:none}
- .inning-mode.has-batting-dock.is-reading .inning-compact-plan:not([hidden]){display:block;position:fixed;top:174px;left:10px;max-width:calc(100% - 20px);padding:6px 9px;border-radius:6px;background:#102732de;color:#d4e0cb;font-size:14px;z-index:16;pointer-events:none}
  .inning-mode.has-batting-dock.is-playing .batting-decision{grid-template-columns:2fr 1fr}
  .inning-mode.has-batting-dock.is-playing .batting-decision .inning-throw{display:none}
  .inning-mode.has-batting-dock.is-playing .batting-action-row{grid-column:1;display:flex}
@@ -240,3 +239,14 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode.has-batting-dock [data-group=location] .plan-trade{background:#5b5135;color:#f4e2ac}
 .inning-mode.has-batting-dock [data-group=location] .plan-risk:not([aria-pressed=true]){background:#56343a;color:#e7bec0}
 .inning-mode.has-batting-dock [data-group=location] .plan-reward[aria-pressed=true]{background:#d2ad55;color:#182c31;box-shadow:inset 0 0 0 2px #f7e1a0}
+
+/* Batter vision resolves a live ABS estimate; discipline sets the last check-swing moment. */
+.inning-mode .inning-live-zone.is-reading-pitch{visibility:visible;border-color:#d9e9bd;background:#102732df;box-shadow:0 0 18px #dceaa633}
+.inning-mode .zone-read-estimate{fill:#dceaa620;stroke:#dceaa6;stroke-width:2.5;stroke-dasharray:5 3;vector-effect:non-scaling-stroke}
+.inning-mode .zone-read-estimate.type-FF{fill:#8bc8e025;stroke:#9eddf2}
+.inning-mode .zone-read-estimate.type-SL{fill:#f0c76525;stroke:#f0c765}
+.inning-mode .zone-read-estimate.type-CH{fill:#7fd2a625;stroke:#8de0ae}
+.inning-mode .zone-read-kind{fill:#f7f1d6;font-size:15px;font-weight:800;paint-order:stroke;stroke:#102732;stroke-width:3px}
+.inning-mode .batting-clock{position:relative}
+.inning-mode.can-check-swing .batting-clock::after{content:'';position:absolute;z-index:2;top:-3px;bottom:-3px;left:calc(100% - var(--take-cutoff));width:2px;border-radius:2px;background:#f2b179;box-shadow:0 0 5px #0008}
+.inning-mode.is-take-locked .batting-take{opacity:.38}

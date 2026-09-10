@@ -8,4 +8,6 @@ export function defenseRoster(seed=0){return Object.fromEntries(POS.map((pos,i)=
 export const paceLabel=(s,role='runner')=>s>=(role==='fielder'?7.4:8.8)?'주력 빠름':s<(role==='fielder'?6.9:7.8)?'주력 느림':'주력 보통';
 export const armLabel=s=>s>=40?'강한 송구':s<35?'약한 송구':'송구 보통';
 export const batLabel=b=>b.power>=.1?'장타 강점':b.contact>=.76?'컨택 강점':'주력 강점';
+export const visionLabel=b=>(b.vision??b.contact)>=.8?'선구 빠름':(b.vision??b.contact)<.6?'선구 느림':'선구 보통';
+export const disciplineLabel=b=>(1-(b.chase??.45))>=.7?'참기 안정':(1-(b.chase??.45))<.52?'참기 짧음':'참기 보통';
 export const positionLabel={P:'투수',C:'포수','1B':'1루','2B':'2루',SS:'유격','3B':'3루',LF:'좌익',CF:'중견',RF:'우익'};
