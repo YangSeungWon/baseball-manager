@@ -20,3 +20,7 @@ model, not a motion-captured animation library or a facial-expression rig.
 
 Runtime geometry/material ownership is per ballpark, with sharing between its players.
 The .blend source is outside web/ and is not sent to players.
+
+The refined proportions use longer legs, narrower sleeves/waist, and a smaller head.
+Batting uses two-bone arm targets to keep both hands together through either handed swing.
+Pitching separates leg lift from release/follow-through; runners use bent elbows and knee recovery.

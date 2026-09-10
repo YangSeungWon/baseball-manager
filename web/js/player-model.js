@@ -29,6 +29,18 @@ export function createPlayerFactory(){
   let currentColor;
   const setColor=c=>{if(c===currentColor)return;currentColor=c;for(const {o,source} of meshes)o.material=material(source,c,skin);};setColor(color);
   root.scale.setScalar(1.35);
-  return {root,body,head,arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
+  return {root,body,head,spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
  };
+}
+
+// Two-bone arm posing keeps both hands on the same bat grip.
+export function reachPlayerHand(p,index,target,pole){
+ const upper=p.arms[index],lower=p.elbows[index],hand=p.hands[index];
+ const origin=upper.position,delta=target.clone().sub(origin),a=lower.position.length(),b=hand.position.length();
+ const distance=Math.min(a+b-.001,Math.max(.001,delta.length())),axis=delta.normalize();
+ const bend=pole.clone().sub(origin);bend.addScaledVector(axis,-bend.dot(axis)).normalize();
+ const along=(a*a-b*b+distance*distance)/(2*distance),height=Math.sqrt(Math.max(0,a*a-along*along));
+ const elbow=origin.clone().addScaledVector(axis,along).addScaledVector(bend,height);
+ upper.quaternion.setFromUnitVectors(lower.position.clone().normalize(),elbow.clone().sub(origin).normalize());
+ lower.quaternion.setFromUnitVectors(hand.position.clone().normalize(),origin.clone().addScaledVector(axis,distance).sub(elbow).applyQuaternion(upper.quaternion.clone().invert()).normalize());
 }

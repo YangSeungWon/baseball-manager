@@ -52,14 +52,14 @@ def join(name):
  for o in parts:o.select_set(True)
  bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.join();o=bpy.context.object;o.name=name;parts=[];return o
 # A tapered athletic torso with sewn shirt panels and a distinct waist.
-profile('Jersey',0,[(.83,.222,.157),(.96,.238,.175),(1.19,.29,.192),(1.30,.275,.176),(1.355,.21,.12),(1.39,.095,.073)],'Team','Spine')
-ell('Hips',(0,.79,0),(.235,.115,.17),'Cream','Root')
-box('Belt',(0,.815,0),(.46,.045,.345),'Dark','Root')
-box('Buckle',(0,.815,.183),(.065,.046,.018),'Stitch','Root',.006)
-box('Placket',(0,1.075,.173),(.016,.38,.016),'Cream','Spine',.004)
-for y in [.93,1.04,1.15]:ell('Button',(0,y,.185),(.013,.013,.009),'Dark','Spine')
-text('ChestMark','D',(-.105,1.19,.19),.105,'Cream','Spine')
-text('Number','17',(0,1.115,-.19),.225,'Cream','Spine',True)
+profile('Jersey',0,[(.83,.197,.14),(.96,.21,.152),(1.19,.265,.16),(1.30,.26,.15),(1.355,.21,.105),(1.39,.095,.073)],'Team','Spine')
+ell('Hips',(0,.79,0),(.215,.09,.15),'Cream','Root')
+box('Belt',(0,.815,0),(.425,.035,.31),'Dark','Root')
+box('Buckle',(0,.815,.165),(.065,.046,.018),'Stitch','Root',.006)
+box('Placket',(0,1.075,.157),(.016,.38,.016),'Cream','Spine',.004)
+for y in [.93,1.04,1.15]:ell('Button',(0,y,.166),(.013,.013,.009),'Dark','Spine')
+text('ChestMark','D',(-.105,1.19,.159),.105,'Cream','Spine')
+text('Number','17',(0,1.115,-.166),.225,'Cream','Spine',True)
 ell('Neck',(0,1.42,0),(.085,.11,.08),'Skin','Spine')
 head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head')
 # Sculpt the jaw instead of retaining a spherical silhouette.
@@ -67,23 +67,23 @@ for v in head.data.vertices:
  if v.co.z<1.55:v.co.x*=.82
 for side in [-1,1]:
  ell('Ear',(side*.177,1.615,0),(.04,.065,.035),'Skin','Head')
- ell('Eye',(side*.067,1.665,.153),(.038,.028,.009),'Eye','Head')
- ell('Iris',(side*.067,1.664,.164),(.018,.022,.005),'Iris','Head')
- ell('Pupil',(side*.067,1.664,.17),(.009,.014,.004),'Dark','Head')
+ ell('Eye',(side*.067,1.665,.153),(.032,.018,.009),'Eye','Head')
+ ell('Iris',(side*.067,1.664,.164),(.014,.015,.005),'Iris','Head')
+ ell('Pupil',(side*.067,1.664,.17),(.007,.010,.004),'Dark','Head')
  box('Brow',(side*.067,1.714,.156),(.09,.018,.022),'Dark','Head',.005)
 ell('Nose',(0,1.614,.174),(.028,.04,.026),'Skin','Head')
 box('Smile',(0,1.547,.172),(.063,.009,.007),'Dark','Head',.003)
 for side,suffix in [(-1,'L'),(1,'R')]:
  x=side*.315
- sleeve=profile('Sleeve',x,[(1.086,.098,.098),(1.12,.101,.101),(1.22,.108,.108),(1.30,.11,.108),(1.36,.085,.08),(1.39,.018,.018)],'Team','UpperArm'+suffix)
+ sleeve=profile('Sleeve',x,[(1.086,.082,.079),(1.12,.086,.083),(1.22,.091,.09),(1.30,.091,.089),(1.335,.070,.065),(1.35,.018,.018)],'Team','UpperArm'+suffix)
  sleeve.data.materials.append(M['Cream'])
  for face in sleeve.data.polygons[:16]:face.material_index=1
- profile('Forearm',x,[(.82,.054,.054),(.93,.070,.070),(1.03,.081,.081),(1.085,.06,.06),(1.11,.018,.018)],'Skin','Forearm'+suffix)
+ profile('Forearm',x,[(.82,.054,.054),(.93,.061,.061),(1.03,.069,.069),(1.085,.06,.06),(1.11,.018,.018)],'Skin','Forearm'+suffix)
  taper('Wristband',(x,.812,0),.045,.058,.058,1,'Dark','Hand'+suffix)
  ell('Palm',(x,.756,.015),(.065,.086,.036),'Skin','Hand'+suffix)
  for j in range(4):ell('Finger',(x+(j-1.5)*.027,.70,.018),(.017,.04,.02),'Skin','Hand'+suffix)
  lx=side*.125
- taper('Thigh',(lx,.59,0),.32,.13,.10,1.05,'Cream','Thigh'+suffix)
+ taper('Thigh',(lx,.59,0),.32,.115,.091,1.05,'Cream','Thigh'+suffix)
  profile('Trouser',lx,[(.155,.073,.073),(.29,.086,.089),(.43,.098,.10),(.49,.065,.067),(.51,.018,.018)],'Cream','Shin'+suffix)
  box('TrouserStripe',(lx+side*.10,.56,0),(.017,.26,.024),'Team','Thigh'+suffix,.005)
  taper('Sock',(lx,.145,0),.10,.072,.069,1,'Dark','Shin'+suffix)
@@ -130,12 +130,26 @@ taper('Barrel',(0,-.50,0),.55,.043,.029,1,'Stitch',None)
 taper('Handle',(0,-.115,0),.25,.019,.026,1,'Dark',None)
 ell('Knob',(0,.02,0),(.031,.018,.031),'Dark')
 bat=join('Bat')
+# Refine the silhouette consistently across weighted vertices and bone sockets.
+# Longer legs, smaller head/gear, and less barrel-shaped shoulders.
+def height(y):return y*1.16 if y<.85 else y+.136
+for v in body.data.vertices:
+ old=v.co.z
+ if old>=1.48:
+  v.co.x*=.88;v.co.y*=.9;v.co.z=height(1.48)+(old-1.48)*.88
+ else:v.co.z=height(old)
+for obj in [cap,helmet]:
+ for v in obj.data.vertices:v.co.x*=.88;v.co.y*=.9;v.co.z*=.88
+bpy.context.view_layer.objects.active=rig;bpy.ops.object.mode_set(mode='EDIT')
+for b in rig.data.edit_bones:
+ b.head.z=height(b.head.z);b.tail.z=height(b.tail.z)
+bpy.ops.object.mode_set(mode='OBJECT')
 # Export reusable body + equipment. Runtime attaches equipment to matching bones.
 for p in [ROOT/'web/models',ROOT/'assets/players']:p.mkdir(parents=True,exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=str(ROOT/'web/models/athlete.glb'),export_format='GLB',export_animations=False,export_skins=True,export_yup=True,export_materials='EXPORT')
 # Save an assembled, editable Blender original after exporting socket-local gear.
 for obj,bone,point in [(cap,'Head',(0,1.48,0)),(helmet,'Head',(0,1.48,0)),(glove,'HandL',(-.315,.80,0)),(bat,'HandR',(.315,.80,0))]:
- obj.parent=rig;obj.parent_type='BONE';obj.parent_bone=bone;bpy.context.view_layer.update();obj.matrix_world=Matrix.Translation(xyz(point))
+ obj.parent=rig;obj.parent_type='BONE';obj.parent_bone=bone;bpy.context.view_layer.update();obj.matrix_world=Matrix.Translation(xyz((point[0],height(point[1]),point[2])))
 helmet.hide_set(True);bat.hide_set(True);rig.show_in_front=True
 bpy.ops.object.select_all(action='DESELECT');body.select_set(True);bpy.context.view_layer.objects.active=body
 bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'assets/players/athlete.blend'))

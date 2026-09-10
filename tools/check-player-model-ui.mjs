@@ -32,6 +32,23 @@ try {
  await page.screenshot({path:'/tmp/dugout-player-model.png'});
  await page.evaluate(()=>{const {a,scene,renderer,camera}=preview;a.arms[1].rotation.x=-1.3;a.elbows[1].rotation.x=-1;a.legs[0].rotation.x=-.6;a.knees[0].rotation.x=1.1;renderer.render(scene,camera);});
  await page.screenshot({path:'/tmp/dugout-player-joints.png'});
+ const poses=await page.evaluate(async()=>{
+  const T=await import('/vendor/three/three.module.min.js');const {Live3D}=await import('/js/live3d.js');
+  const {a,b,scene,renderer,camera}=preview;
+  const driver={player:key=>key==='bat'?a:b,reducedMotion:true,animationTime:0};
+  const state={swing:0,pitcherWind:0,ball:null};let maxGripGap=0;
+  for(const handed of ['R','L'])for(const swing of [0,.25,.5,.75,1]){
+   state.swing=swing;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:handed},'#cf7756','bat',state);
+   a.root.updateMatrixWorld(true);
+   maxGripGap=Math.max(maxGripGap,a.hands[0].getWorldPosition(new T.Vector3()).distanceTo(a.hands[1].getWorldPosition(new T.Vector3())));
+  }
+  state.swing=0;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:'R'},'#cf7756','bat',state);
+  state.pitcherWind=.55;Live3D.prototype.updatePlayer.call(driver,'fP',{x:.65,y:0},'#427c83','pitch',state);
+  a.root.rotation.y=.3;b.root.rotation.y=-.3;renderer.render(scene,camera);
+  return {maxGripGap};
+ });
+ assert.ok(poses.maxGripGap<.085,'both hands stay together through right- and left-handed swings');
+ await page.screenshot({path:'/tmp/dugout-player-poses.png'});
  await page.goto(url+'/?challenge=b6-0-42');await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
  await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  await page.screenshot({path:'/tmp/dugout-player-game.png'});
