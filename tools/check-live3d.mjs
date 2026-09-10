@@ -79,7 +79,7 @@ try {
   const variant=await browser.newPage();variant.on('pageerror',e=>errors.push(e.message));
   await variant.goto(url); await variant.locator('.manager-entry>summary').click();await variant.locator('#btnNew').waitFor();
   const variants=await variant.evaluate(async()=>{
-    const {Live3D}=await import('/js/live3d.js');const {parkDims}=await import('/js/core/bip.js');
+    const {Live3D,loadPlayerModel}=await import('/js/live3d.js');await loadPlayerModel();const {parkDims}=await import('/js/core/bip.js');
     const records=[];
     for(const dome of [false,true]) {
       const opts={home:'전주 재규어스',away:'대구 나이츠',park:{dome},colors:{home:'#427c33',away:'#cf3d46'},crowd:0,cap:14000,day:12};

@@ -1,3 +1,5 @@
+import {createPlayerFactory} from './player-model.js';
+export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
 // Optional renderer. Simulation coordinates (x, depth, height) become (x, height, -depth).
 // All animation follows LiveView's state; this module never advances the game.
@@ -29,6 +31,7 @@ export class Live3D {
     this.aim = point(0, 9, 1);
     this.camera.lookAt(this.aim);
     this.reducedMotion=matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.createPlayer=createPlayerFactory();
     this.players = new Map(); this.materials = new Map(); this.textures = [];
     this.box = new T.BoxGeometry(1, 1, 1);
     this.sphere = new T.SphereGeometry(1, 10, 8);
@@ -206,23 +209,7 @@ export class Live3D {
   }
   player(key, color) {
     if(this.players.has(key)) return this.players.get(key);
-    const root=new T.Group();this.scene.add(root);
-    const body=new T.Group();root.add(body);
-    const shirt=this.mesh(this.cylinder,color,body,[.27,.65,.21],[0,1.05,0]);
-    const head=new T.Group();head.position.y=1.55;body.add(head);
-    this.mesh(this.sphere,'#c99976',head,[.17,.21,.17],[0,.06,0]);
-    const cap=this.mesh(this.sphere,color,head,[.19,.105,.19],[0,.22,0]);
-    const brim=this.mesh(this.box,color,head,[.34,.04,.24],[0,.18,.15]);
-    this.mesh(this.box,'#25333b',body,[.48,.065,.37],[0,.76,0]);
-    const limb=(x,y,length,col) => { const g=new T.Group();g.position.set(x,y,0);body.add(g);this.mesh(this.cylinder,col,g,[.085,length,.085],[0,-length/2,0]);return g; };
-    const legs=[limb(-.13,.75,.62,'#e4e2d7'),limb(.13,.75,.62,'#e4e2d7')];
-    for(const leg of legs) this.mesh(this.box,'#24303b',leg,[.18,.12,.30],[0,-.64,.065]);
-    const arms=[limb(-.32,1.33,.5,color),limb(.32,1.33,.5,color)];
-    const glove=this.mesh(this.sphere,'#97633b',arms[0],[.15,.19,.11],[0,-.51,.04]);
-    const bat=this.mesh(this.cylinder,'#d4ad73',arms[1],[.04,1.05,.04],[0,-.9,0]);bat.visible=false;
-    body.traverse(m=>{if(m.isMesh)m.castShadow=true;});
-    root.scale.setScalar(1.35);
-    const player={root,body,head,shirt,cap,brim,arms,legs,glove,bat,idleSeed:[...key].reduce((n,c)=>n*31+c.charCodeAt(0),0)%997,phase:0,last:null};this.players.set(key,player);return player;
+    const player=this.createPlayer(key,color);this.scene.add(player.root);this.players.set(key,player);return player;
   }
   updatePlayer(key, data, color, pose, S) {
     const p=this.player(key,color), {root,body,arms,legs}=p;
@@ -237,13 +224,18 @@ export class Live3D {
     else if(['watch','admire','batFlip','celebrate','clap'].includes(pose)&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
     else if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
     root.position.set(x,Math.max(0,data.jump||0),-y);
-    p.shirt.material=p.cap.material=p.brim.material=this.material(color);
+    p.setColor(color);
     const stride=moving?Math.sin(p.phase)*.65:0;
     legs[0].rotation.x=stride;legs[1].rotation.x=-stride;
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
-    body.position.set(0,pose==='crouch'?-.42:0,0);body.rotation.set(0,0,0);p.head.rotation.set(0,0,0);
-    p.glove.position.set(0,-.51,.04);
-    p.bat.visible=['bat','walk','dejected','admire'].includes(pose);p.glove.visible=!p.bat.visible&&!['batFlip','celebrate','clap','runCelebrate'].includes(pose);
+    body.position.set(0,pose==='crouch'?-.20:0,0);body.rotation.set(0,0,0);p.head.rotation.set(0,0,0);
+    p.glove.position.copy(p.gloveRest);
+    for(let i=0;i<2;i++){
+      p.elbows[i].rotation.set(moving?-.55:-.12,0,0);
+      p.knees[i].rotation.set(moving?Math.max(0,Math.sin(p.phase+(i?0:Math.PI)))*1.0:0,0,0);
+      p.feet[i].rotation.set(-p.knees[i].rotation.x*.25,0,0);
+    }
+    p.bat.visible=['bat','walk','dejected','admire'].includes(pose);p.glove.visible=key!=='ump'&&!p.bat.visible&&!['batFlip','celebrate','clap','runCelebrate'].includes(pose);
     if(pose==='admire'){body.rotation.x=-.12;arms[1].rotation.x=-1.7;arms[0].rotation.x=-.8;}
     if(pose==='batFlip'){arms[1].rotation.z=-1.4*Math.max(0,1-(data.phase-.32)/.8);body.rotation.x=-.06;}
     if(pose==='celebrate'){
@@ -257,9 +249,9 @@ export class Live3D {
     }
     if(pose==='watch'){body.rotation.x=-.08;arms[0].rotation.x=-.15;}
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
-    if(pose==='pitch') {arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
-    if(pose==='bat') {arms[0].rotation.x=-1.1;arms[1].rotation.x=-2.1+(S.swing||0)*2.8;body.rotation.y=(S.swing||0)*1.7;}
-    if(pose==='crouch') {legs[0].rotation.x=-.7;legs[1].rotation.x=-.7;arms[0].rotation.x=-.7;}
+    if(pose==='pitch') {p.elbows[1].rotation.x=-.6;p.knees[0].rotation.x=Math.sin(S.pitcherWind*Math.PI)*1.3;arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
+    if(pose==='bat') {p.elbows[0].rotation.x=-.65;p.elbows[1].rotation.x=-.8;arms[0].rotation.x=-1.1;arms[1].rotation.x=-2.1+(S.swing||0)*2.8;body.rotation.y=(S.swing||0)*1.7;}
+    if(pose==='crouch') {legs[0].rotation.x=-.95;legs[1].rotation.x=-.95;p.knees[0].rotation.x=p.knees[1].rotation.x=1.7;arms[0].rotation.x=-.7;}
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
     if(pose==='jump')arms[0].rotation.z=2.7;
     if(pose==='catch'||pose==='caught'){arms[0].rotation.z=2.7;arms[0].rotation.x=-.3;arms[1].rotation.x=-.4;}
@@ -328,7 +320,7 @@ export class Live3D {
   }
   playerAnchor(key){
     const pitcher=this.players.get(key);if(!pitcher?.root.visible)return null;
-    const world=pitcher.head.localToWorld(new T.Vector3(0,.36,0));
+    const world=pitcher.head.localToWorld(new T.Vector3(0,pitcher.labelHeight??.36,0));
     if(world.clone().applyMatrix4(this.camera.matrixWorldInverse).z>=0)return null;
     const p=world.project(this.camera);if(p.z< -1||p.z>1||Math.abs(p.x)>1||Math.abs(p.y)>1)return null;
     return {x:(p.x+1)/2,y:(1-p.y)/2};
@@ -398,9 +390,10 @@ export class Live3D {
   dispose() {
     this.lookInput?.abort();
     this.canvas.removeEventListener('webglcontextlost',this.onLost);
-    const geometries=new Set(),materials=new Set();
-    this.scene.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});
-    for(const g of [this.box,this.sphere,this.cylinder,...geometries])g.dispose();
+    const geometries=new Set(),materials=new Set(),skeletons=new Set();
+    this.scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.add(o.skeleton);if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});
+    for(const skeleton of skeletons)skeleton.dispose();
+    for(const g of new Set([this.box,this.sphere,this.cylinder,...geometries]))g.dispose();
     for(const m of new Set([...this.materials.values(),...materials]))m.dispose();
     for(const t of this.textures)t.dispose();
     this.renderer.dispose();this.renderer.forceContextLoss();this.canvas.remove();

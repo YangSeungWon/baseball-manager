@@ -323,8 +323,10 @@ export class LiveView {
     this._loading3d = true;
     try {
       const attempt=this._loadAttempts||0;this._loadAttempts=attempt+1;
-      const { Live3D } = await import(attempt?'./live3d.js?retry='+attempt:'./live3d.js');
+      const { Live3D, loadPlayerModel } = await import(attempt?'./live3d.js?retry='+attempt:'./live3d.js');
       if (this._dead) return;
+      status.textContent='선수와 구장을 준비하는 중…';
+      await loadPlayerModel();if(this._dead)return;
       this.three = new Live3D(this.stage, this.dims, this.o, () => this._fail3d());
       this.three.resize(this.cw, this.ch);
       this.three.canvas.hidden = this.view !== 'three';

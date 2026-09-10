@@ -1,0 +1,41 @@
+// PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve, extname } from 'node:path';
+import assert from 'node:assert/strict';
+const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const root = resolve('web');
+const server = createServer(async (req, res) => {
+  const path = resolve(root, '.' + new URL(req.url, 'http://localhost').pathname.replace(/\/$/, '/index.html'));
+  if (!path.startsWith(root + '/')) { res.writeHead(403).end(); return; }
+  try { const b = await readFile(path); res.setHeader('Content-Type', ({ '.js':'text/javascript', '.html':'text/html', '.css':'text/css', '.json':'application/json', '.png':'image/png' })[extname(path)] || 'application/octet-stream'); res.end(b); }
+  catch { res.writeHead(404).end(); }
+});
+await new Promise(r => server.listen(0, '127.0.0.1', r));
+const url = `http://127.0.0.1:${server.address().port}`;
+const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
+try {
+ const page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(url);
+ const model=await page.evaluate(async()=>{
+  const T=await import('/vendor/three/three.module.min.js');const {loadPlayerModel,createPlayerFactory}=await import('/js/player-model.js');await loadPlayerModel();
+  const make=createPlayerFactory(),scene=new T.Scene();scene.background=new T.Color('#18333e');
+  const renderer=new T.WebGLRenderer({antialias:true});renderer.setSize(1200,900);renderer.setPixelRatio(1);renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;document.body.replaceChildren(renderer.domElement);
+  scene.add(new T.HemisphereLight('#fff3dc','#52656d',2.5));const light=new T.DirectionalLight('#fff1d6',3);light.position.set(2,5,4);scene.add(light);
+  const a=make('bat','#cf7756'),b=make('fP','#427c83');a.root.position.x=-.65;b.root.position.x=.65;b.root.rotation.y=Math.PI*.85;scene.add(a.root,b.root);a.bat.visible=true;a.glove.visible=false;b.bat.visible=false;
+  const camera=new T.PerspectiveCamera(40,1200/900,.1,30);camera.position.set(2.7,2.2,5.5);camera.lookAt(0,1.3,0);
+  renderer.render(scene,camera);window.preview={a,b,scene,renderer,camera};
+  let skins=0,bones=0;a.root.traverse(o=>{if(o.isSkinnedMesh)skins++;if(o.isBone)bones++;});
+  return {skins,bones,helmet:a.helmet.visible,cap:b.cap.visible,independent:a.arms[0]!==b.arms[0]};
+ });
+ assert.ok(model.skins>=1&&model.bones>=15&&model.helmet&&model.cap&&model.independent);
+ await page.screenshot({path:'/tmp/dugout-player-model.png'});
+ await page.evaluate(()=>{const {a,scene,renderer,camera}=preview;a.arms[1].rotation.x=-1.3;a.elbows[1].rotation.x=-1;a.legs[0].rotation.x=-.6;a.knees[0].rotation.x=1.1;renderer.render(scene,camera);});
+ await page.screenshot({path:'/tmp/dugout-player-joints.png'});
+ await page.goto(url+'/?challenge=b6-0-42');await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
+ await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
+ await page.screenshot({path:'/tmp/dugout-player-game.png'});
+ await page.locator('.pitcher-tag').click();assert.equal(await page.locator('.pitcher-details').isVisible(),true);await page.keyboard.press('Escape');
+ await page.locator('.inning-exit').click();assert.equal(await page.locator('.lv-three').count(),0);assert.deepEqual(errors,[]);
+ console.log('PASS: Blender skinned mesh, independent skeletons, equipment, joint poses, game loading, pitcher tag and cleanup');
+} finally {await browser.close();await new Promise(r=>server.close(r));}
