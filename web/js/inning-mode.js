@@ -148,7 +148,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   }
   function soundLabel(){const on=!!lv?.sfx.on,b=$('.inning-sound');b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="'+(on?'M16 8q5 4 0 8M19 5q7 7 0 14':'m17 9 5 6m0-6-5 6')+'"/></svg>';b.setAttribute('aria-label',on?'소리 끄기':'소리 켜기');b.title=on?'소리 끄기':'소리 켜기';b.setAttribute('aria-pressed',String(on));}
   function atmosphere(cue,k=.5){ambience=cue;intensity=k;lv.sfx.stadium(cue,k);lv.S.crowdReaction={cue,strength:k,at:performance.now()};}
-  const opt={home:stage.home.name,away:stage.away.name,park:stage.park,crowd:Math.round(stage.park.capacity*.9),cap:stage.park.capacity,colors:stage.colors,view:'three',speed:1,sound:false,playerRole:role,entryPlayerKey:()=>entryKey,onEntryAnchor:p=>positionPlayerTag(entryLabel,p),onPitcherAnchor:p=>pitcherTag?.update(!busy&&!dead&&!game.done?p:null),canLook:()=>!busy&&!dead&&!game.done,stageHeight:()=>innerHeight,immersive:()=>!dead,maxH:()=>innerHeight};
+  const opt={home:stage.home.name,away:stage.away.name,park:stage.park,crowd:Math.round(stage.park.capacity*.9),cap:stage.park.capacity,colors:stage.colors,view:'three',speed:1,sound:false,playerRole:batting?'batter':'pitcher',entryPlayerKey:()=>entryKey,onEntryAnchor:p=>positionPlayerTag(entryLabel,p),onPitcherAnchor:p=>pitcherTag?.update(!busy&&!dead&&!game.done?p:null),canLook:()=>!busy&&!dead&&!game.done,stageHeight:()=>innerHeight,immersive:()=>!dead,maxH:()=>innerHeight};
   function sync(state) {
     for(const f of Object.values(lv.S.fielders))if(f.home){f.x=f.home[0];f.y=f.home[1];delete f.pose;}
     lv.S.fieldPlay=null;lv.S.looseBat=null;lv.S.celebrants=[];
