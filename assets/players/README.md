@@ -24,3 +24,7 @@ The .blend source is outside web/ and is not sent to players.
 The refined proportions use longer legs, narrower sleeves/waist, and a smaller head.
 Batting uses two-bone arm targets to keep both hands together through either handed swing.
 Pitching separates leg lift from release/follow-through; runners use bent elbows and knee recovery.
+
+Inspect the runtime poses at `/motions.html`: slow playback, scrubbing, camera rotation,
+and walking/running comparison. Static fielding poses are labeled as such; ball paths
+are omitted. Walking uses its own distance-based cadence, lower knee lift and stance-foot grounding.

@@ -217,7 +217,8 @@ export class Live3D {
     if(!root.visible)return;
     const x=data.x||0,y=data.y||0;
     const dx=p.last?x-p.last.x:0,dy=p.last?y-p.last.y:0,dist=Math.hypot(dx,dy);
-    p.last={x,y};p.phase+=dist*2.9;
+    const walking=['walk','dejected'].includes(pose);
+    p.last={x,y};p.phase+=dist*(walking?4.8:2.9);
     const moving=dist>.0001;
     if(moving) root.rotation.y=Math.atan2(dx,-dy);
     else if(pose==='pitch'||pose==='field'||pose==='crouch')root.rotation.y=Math.atan2(-x,y);
@@ -235,8 +236,8 @@ export class Live3D {
     if(moving){body.rotation.x=running?.16:.04;body.position.y-=Math.abs(Math.sin(p.phase))*(running?.025:.012);body.rotation.y=Math.sin(p.phase)*.06;}
     for(let i=0;i<2;i++){
       p.elbows[i].rotation.set(moving?(running?-1.25:-.45):-.12,0,0);
-      p.knees[i].rotation.set(moving?Math.max(0,Math.sin(p.phase+(i?0:Math.PI)))*1.0:0,0,0);
-      p.feet[i].rotation.set(-p.knees[i].rotation.x*.25,0,0);
+      p.knees[i].rotation.set(moving?Math.max(0,Math.sin(p.phase+(i?0:Math.PI)))*(walking?.38:1.0):0,0,0);
+      p.feet[i].rotation.set(walking?-(legs[i].rotation.x+p.knees[i].rotation.x):-p.knees[i].rotation.x*.25,0,0);
     }
     p.bat.visible=p.helmet.visible&&['bat','walk','dejected','admire'].includes(pose);p.glove.visible=key!=='ump'&&!p.helmet.visible&&!p.bat.visible&&!['batFlip','celebrate','clap','runCelebrate'].includes(pose);
     if(pose==='admire'){body.rotation.x=-.12;arms[1].rotation.x=-1.7;arms[0].rotation.x=-.8;}
@@ -283,6 +284,12 @@ export class Live3D {
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
     if(pose==='jump')arms[0].rotation.z=2.7;
     if(pose==='catch'||pose==='caught'){arms[0].rotation.z=2.7;arms[0].rotation.x=-.3;arms[1].rotation.x=-.4;}
+    if(moving&&walking){
+      // Plant the lower foot rather than bobbing both soles above the turf.
+      root.updateMatrixWorld(true);
+      const sole=Math.min(...p.feet.map(foot=>foot.getWorldPosition(new T.Vector3()).y));
+      body.position.y+=(root.position.y+.116*root.scale.y-sole)/root.scale.y;
+    }
     // Secondary motion is visual only: never changes the player's field coordinates.
     const calm=!moving&&['field','pitch','crouch','bat','run','watch'].includes(pose)&&!(pose==='pitch'&&S.pitcherWind>0)&&!(pose==='bat'&&S.swing>0);
     if(calm&&!this.reducedMotion){

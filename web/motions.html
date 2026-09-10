@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#12262b"><title>DUGOUT · 선수 동작</title><link rel="stylesheet" href="css/motions.css"></head>
+<body><main>
+<header><a href="./">← 경기로</a><h1>선수 동작</h1><span>드래그로 회전</span></header>
+<div id="stage" aria-label="선수 동작 3D 미리보기"><p id="loading" role="status">선수를 준비하는 중…</p><div id="caption" aria-live="polite"></div></div>
+<section aria-label="동작 제어">
+<div class="row"><label>동작 <select id="motion"><option value="pitch">투구</option><option value="bat">타격</option><option value="field">수비 준비</option><option value="catch">포구</option><option value="dive">다이빙</option><option value="crouch">포수</option><option value="walk">걷기</option><option value="run">달리기</option></select></label><label id="handLabel" hidden>타석 <select id="hand"><option value="R">우타</option><option value="L">좌타</option></select></label><label>속도 <select id="speed"><option value="0.25">0.25×</option><option value="0.5" selected>0.5×</option><option value="1">1×</option></select></label></div>
+<div class="row"><button id="play" disabled>일시정지</button><input id="scrub" aria-label="동작 진행" type="range" min="0" max="1000" value="0"><output id="progress">0%</output></div>
+<div class="row views" aria-label="카메라 방향"><button data-angle="0">앞</button><button data-angle="1.570796">옆</button><button data-angle="3.141593">뒤</button><button id="reset">처음부터</button></div>
+<p id="note">경기에서 사용하는 자세를 확대해 봅니다. 공의 궤적은 이 화면에서 생략합니다.</p>
+</section></main><script type="module" src="js/motions.js"></script></body></html>
