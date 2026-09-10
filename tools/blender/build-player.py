@@ -85,14 +85,7 @@ head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head')
 # Sculpt the jaw instead of retaining a spherical silhouette.
 for v in head.data.vertices:
  if v.co.z<1.55:v.co.x*=.82
-for side in [-1,1]:
- ell('Ear',(side*.177,1.615,0),(.04,.065,.035),'Skin','Head')
- ell('Eye',(side*.067,1.665,.153),(.032,.018,.009),'Eye','Head')
- ell('Iris',(side*.067,1.664,.164),(.014,.015,.005),'Iris','Head')
- ell('Pupil',(side*.067,1.664,.17),(.007,.010,.004),'Dark','Head')
- box('Brow',(side*.067,1.714,.156),(.09,.018,.022),'Dark','Head',.005)
-ell('Nose',(0,1.614,.174),(.028,.04,.026),'Skin','Head')
-box('Smile',(0,1.547,.172),(.063,.009,.007),'Dark','Head',.003)
+for side in [-1,1]:ell('Ear',(side*.155,1.615,-.002),(.032,.052,.027),'Skin','Head')
 for side,suffix in [(-1,'L'),(1,'R')]:
  x=side*.315
  profile('Forearm',x,[(.82,.054,.054),(.93,.061,.061),(1.03,.069,.069),(1.085,.06,.06),(1.11,.018,.018)],'Skin','Forearm'+suffix)
@@ -109,6 +102,19 @@ for side,suffix in [(-1,'L'),(1,'R')]:
  box('ShoePanel',(lx+side*.07,.085,.085),(.024,.04,.135),'Cream','Foot'+suffix,.008)
  for z in [.065,.10,.135]:box('Lace',(lx,.139,z),(.08,.009,.012),'Cream','Foot'+suffix,.003)
 body=join('Athlete')
+# Facial controls remain separate from the skinned body. Runtime attaches this
+# socket-local group to Head and drives blinks, gaze, brows and mouth shapes.
+face=bpy.data.objects.new('FaceFeatures',None);bpy.context.collection.objects.link(face)
+def facial(o):
+ parts.remove(o);o.parent=face;return o
+for side,suffix in [(-1,'L'),(1,'R')]:
+ facial(ell('Eye'+suffix,(side*.059,.163,.138),(.030,.015,.008),'Eye'))
+ facial(ell('Iris'+suffix,(side*.059,.162,.147),(.012,.012,.004),'Iris'))
+ facial(ell('Pupil'+suffix,(side*.059,.162,.152),(.006,.008,.003),'Dark'))
+ facial(box('Brow'+suffix,(side*.059,.194,.150),(.072,.011,.010),'Dark',bevel=.004))
+facial(ell('Nose',(0,.112,.151),(.018,.026,.015),'Skin'))
+facial(box('MouthL',(-.027,.056,.153),(.030,.007,.005),'Dark',bevel=.003))
+facial(box('MouthR',(.027,.056,.153),(.030,.007,.005),'Dark',bevel=.003))
 # Parallel bone axes keep the runtime pose adapter predictable.
 bpy.ops.object.select_all(action='DESELECT');bpy.ops.object.armature_add();rig=bpy.context.object;rig.name='AthleteRig';bpy.ops.object.mode_set(mode='EDIT');rig.data.edit_bones.remove(rig.data.edit_bones[0])
 bones={'Root':((0,0,0),None),'Spine':((0,.85,0),'Root'),'Head':((0,1.48,0),'Spine')}
@@ -203,7 +209,7 @@ bpy.ops.object.mode_set(mode='OBJECT')
 for p in [ROOT/'web/models',ROOT/'assets/players']:p.mkdir(parents=True,exist_ok=True)
 bpy.ops.export_scene.gltf(filepath=str(ROOT/'web/models/athlete.glb'),export_format='GLB',export_animations=False,export_skins=True,export_yup=True,export_materials='EXPORT')
 # Save an assembled, editable Blender original after exporting socket-local gear.
-for obj,bone,point in [(cap,'Head',(0,1.48,0)),(helmet,'Head',(0,1.48,0)),(glove,'HandL',(-.315,.80,0)),(bat,'HandR',(.315,.80,0))]:
+for obj,bone,point in [(face,'Head',(0,1.48,0)),(cap,'Head',(0,1.48,0)),(helmet,'Head',(0,1.48,0)),(glove,'HandL',(-.315,.80,0)),(bat,'HandR',(.315,.80,0))]:
  obj.parent=rig;obj.parent_type='BONE';obj.parent_bone=bone;bpy.context.view_layer.update();obj.matrix_world=Matrix.Translation(xyz((point[0],height(point[1]),point[2])))
 helmet.hide_set(True);bat.hide_set(True);rig.show_in_front=True
 bpy.ops.object.select_all(action='DESELECT');body.select_set(True);bpy.context.view_layer.objects.active=body

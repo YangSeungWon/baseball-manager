@@ -1,4 +1,4 @@
-import {createPlayerFactory,reachPlayerHand,reachPlayerGlove} from './player-model.js';
+import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace} from './player-model.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
 // Optional renderer. Simulation coordinates (x, depth, height) become (x, height, -depth).
@@ -314,6 +314,8 @@ export class Live3D {
       p.head.rotation.y=clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.65,.65);
       p.head.rotation.x=clamp(-Math.atan2((look.z||0)-2.1,Math.max(1,Math.hypot(look.x-x,look.y-y))),-.45,.25);
     }
+    const expression=['celebrate','clap','admire','batFlip'].includes(pose)?'joy':pose==='dejected'?'sad':['pitch','bat','crouch','catch','caught','dive'].includes(pose)?'focus':'neutral';
+    posePlayerFace(p,expression,this.animationTime||data.phase||0,-p.head.rotation.y,-p.head.rotation.x);
     const catchBall=data.catchTarget||(S.ball?.vis&&S.fieldPlay?.fielder&&key==='f'+S.fieldPlay.fielder&&Math.hypot(S.ball.x-x,S.ball.y-y)<2.8?S.ball:null);
     if(catchBall&&p.glove.visible&&!['pitch','watch'].includes(pose))reachPlayerGlove(p,point(catchBall.x,catchBall.y,catchBall.z));
 

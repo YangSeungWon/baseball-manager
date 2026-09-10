@@ -21,7 +21,7 @@ export function createPlayerFactory(){
   const bone=name=>rig.getObjectByName(name);
   const head=bone('Head'),arms=['L','R'].map(s=>bone('UpperArm'+s)),legs=['L','R'].map(s=>bone('Thigh'+s));
   const gear=(name,parent,offset=new T.Vector3())=>{const g=model.getObjectByName(name);parent.add(g);g.position.copy(offset);g.rotation.set(0,0,0);return g;};
-  const cap=gear('Cap',head),helmet=gear('Helmet',head),glove=gear('Glove',bone('HandL'),new T.Vector3(0,-.06,.04)),bat=gear('Bat',bone('HandR'));
+  const face=gear('FaceFeatures',head),cap=gear('Cap',head),helmet=gear('Helmet',head),glove=gear('Glove',bone('HandL'),new T.Vector3(0,-.06,.04)),bat=gear('Bat',bone('HandR'));
   const offense=key==='bat'||key.startsWith('r')||key.startsWith('change')||key.startsWith('celebrant');cap.visible=!offense;helmet.visible=offense;
   const idleSeed=[...key].reduce((n,c)=>n*31+c.charCodeAt(0),0)%997;
   const skin=['#c98b62','#d9a27b','#ac704d'][Math.abs(idleSeed)%3];
@@ -29,8 +29,30 @@ export function createPlayerFactory(){
   let currentColor;
   const setColor=c=>{if(c===currentColor)return;currentColor=c;for(const {o,source} of meshes)o.material=material(source,c,skin);};setColor(color);
   root.scale.setScalar(1.35);
-  return {root,body,head,hips:bone('Root'),spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
+  const faceNodes={eyes:['L','R'].map(s=>face.getObjectByName('Eye'+s)),irises:['L','R'].map(s=>face.getObjectByName('Iris'+s)),pupils:['L','R'].map(s=>face.getObjectByName('Pupil'+s)),brows:['L','R'].map(s=>face.getObjectByName('Brow'+s)),mouths:['L','R'].map(s=>face.getObjectByName('Mouth'+s))};
+  for(const o of [...faceNodes.eyes,...faceNodes.irises,...faceNodes.pupils,...faceNodes.brows,...faceNodes.mouths])o.userData.rest={position:o.position.clone(),scale:o.scale.clone(),rotation:o.rotation.clone()};
+  return {root,body,head,face,faceNodes,hips:bone('Root'),spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};
  };
+}
+
+// Lightweight facial rig shared by gameplay and the motion inspector.
+export function posePlayerFace(p,expression,time,gazeX=0,gazeY=0){
+ const f=p.faceNodes;if(!f)return;
+ const blinkPhase=((time+p.idleSeed*.37)%4.3),blink=blinkPhase>.10?1:Math.max(.06,Math.abs(blinkPhase-.05)/.05);
+ for(const o of [...f.eyes,...f.irises,...f.pupils]){o.scale.copy(o.userData.rest.scale);o.scale.y*=blink;}
+ for(let i=0;i<2;i++){
+  const pupil=f.pupils[i],iris=f.irises[i];
+  for(const o of [pupil,iris]){o.position.copy(o.userData.rest.position);o.position.x+=T.MathUtils.clamp(gazeX,-1,1)*.008;o.position.y+=T.MathUtils.clamp(gazeY,-1,1)*.006;}
+  const brow=f.brows[i];brow.position.copy(brow.userData.rest.position);brow.rotation.copy(brow.userData.rest.rotation);
+  brow.rotation.z=(i?1:-1)*(expression==='focus'?.16:expression==='sad'?- .18:expression==='joy'?0:0);
+  brow.position.y+=expression==='focus'?-.008:expression==='joy'?.006:0;
+ }
+ for(let i=0;i<2;i++){
+  const mouth=f.mouths[i];mouth.position.copy(mouth.userData.rest.position);mouth.scale.copy(mouth.userData.rest.scale);mouth.rotation.copy(mouth.userData.rest.rotation);
+  if(expression==='joy'){mouth.rotation.z=i?.22:-.22;mouth.position.y+=.006;}
+  else if(expression==='sad'){mouth.rotation.z=i?-.18:.18;mouth.position.y-=.004;}
+  else if(expression==='focus'){mouth.scale.x=.72;mouth.position.x+=(i?-.006:.006);}
+ }
 }
 
 // Two-bone arm posing keeps both hands on the same bat grip.

@@ -30,6 +30,16 @@ try {
  });
  assert.ok(model.skins>=1&&model.bones>=15&&model.helmet&&model.cap&&model.independent);
  await page.screenshot({path:'/tmp/dugout-player-model.png'});
+ const face=await page.evaluate(async()=>{
+  const {posePlayerFace}=await import('/js/player-model.js');const {a,b,scene,renderer,camera}=preview;b.root.visible=false;a.root.position.set(0,0,0);a.root.rotation.set(0,0,0);
+  const open=a.faceNodes.eyes[0].scale.y,blinkAt=(4.3-(a.idleSeed*.37)%4.3+.05)%4.3;posePlayerFace(a,'focus',blinkAt,.8,-.5);
+  const closed=a.faceNodes.eyes[0].scale.y,moved=a.faceNodes.pupils[0].position.distanceTo(a.faceNodes.pupils[0].userData.rest.position);
+  posePlayerFace(a,'focus',1,.4,-.2);camera.position.set(0,1.88,2.15);camera.lookAt(0,1.79,0);renderer.render(scene,camera);return {open,closed,moved,nodes:Object.values(a.faceNodes).flat().filter(Boolean).length};
+ });
+ assert.ok(face.nodes>=9&&face.closed<face.open*.15&&face.moved>.002,'facial rig blinks and tracks gaze');
+ await page.screenshot({path:'/tmp/dugout-player-face-focus.png'});
+ await page.evaluate(async()=>{const {posePlayerFace}=await import('/js/player-model.js');posePlayerFace(preview.a,'joy',1,0,0);preview.renderer.render(preview.scene,preview.camera);});
+ await page.screenshot({path:'/tmp/dugout-player-face-joy.png'});
  await page.evaluate(()=>{const {a,scene,renderer,camera}=preview;a.arms[1].rotation.x=-1.3;a.elbows[1].rotation.x=-1;a.legs[0].rotation.x=-.6;a.knees[0].rotation.x=1.1;renderer.render(scene,camera);});
  await page.screenshot({path:'/tmp/dugout-player-joints.png'});
  const poses=await page.evaluate(async()=>{
