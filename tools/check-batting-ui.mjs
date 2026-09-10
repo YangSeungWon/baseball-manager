@@ -30,7 +30,7 @@ try {
     await page.locator('.inning-throw').click();await page.locator('.batting-take').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.match(await page.locator('.inning-feedback').textContent(),/km\/h/);
-    assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
+    assert.match(await page.locator('.inning-score').textContent(),/1구/);
     await page.locator('[data-value="FF"]').click();await page.locator('[data-value="power"]').click();
     await page.locator('.inning-throw').click();await page.locator('.inning-exit').click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('dugout.save.v1')),'existing-save');
@@ -51,7 +51,7 @@ try {
   };
   const first=await run();assert.match(first,/재도전/);
   await p.locator('[data-retry]').click();assert.equal(await run(),first);
-  await p.locator('[data-new]').click();assert.match(await p.locator('.inning-score').textContent(),/0\/30구/);
+  await p.locator('[data-new]').click();assert.match(await p.locator('.inning-score').textContent(),/0구/);
   await p.locator('.inning-exit').click();await p.close();
   assert.deepEqual(errors,[]);console.log('PASS: batting mobile/desktop, take and swing, pitch reveal, completion/retry, save isolation, return to pitcher mode');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

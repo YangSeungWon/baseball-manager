@@ -24,7 +24,7 @@ test('challenge always terminates, legal counts/bases and varied choices affect 
   let fast=0,mix=0;
   for(let seed=0;seed<500;seed++)for(const mode of [0,1]) {
     const g=new InningGame(seed);
-    while(!g.done){g.pitch({...attack,type:mode?['FF','SL','CH'][g.count%3]:'FF',intent:mode&&g.strikes===2?'chase':'attack'});assert.ok(g.balls>=0&&g.balls<=3);assert.ok(g.strikes>=0&&g.strikes<=2);assert.ok(g.count<=30);assert.equal(g.bases.length,3);}
+    while(!g.done){g.pitch({...attack,type:mode?['FF','SL','CH'][g.count%3]:'FF',intent:mode&&g.strikes===2?'chase':'attack'});assert.ok(g.balls>=0&&g.balls<=3);assert.ok(g.strikes>=0&&g.strikes<=2);assert.ok(g.count<300);assert.equal(g.bases.length,3);}
     assert.equal(g.won,g.outs===3&&g.runs<2);if(mode)mix+=g.won;else fast+=g.won;
   }
   assert.ok(fast>0&&fast<500);assert.ok(mix>fast);

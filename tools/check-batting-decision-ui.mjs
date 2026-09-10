@@ -26,7 +26,7 @@ try {
     await page.locator('.inning-throw').click();
     await page.locator('.is-deciding .batting-decision').waitFor({state:'visible'});
     if(width<=900){const after=await page.locator('.batting-swing').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
-    assert.match(await page.locator('.inning-score').textContent(),/0\/30구/);
+    assert.match(await page.locator('.inning-score').textContent(),/0구/);
     assert.equal(await page.locator('.zone-pitch').count(),0,'no landing point before decision');
     assert.deepEqual(await page.evaluate(()=>decisions),[],'no result resolved yet');
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);

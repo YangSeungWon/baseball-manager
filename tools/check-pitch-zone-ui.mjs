@@ -48,7 +48,7 @@ try {
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.deepEqual(await page.locator('.inning-zone-map .zone-pitch').evaluateAll(es=>es.map(e=>e.dataset.pitch)),['1']);
     assert.match(await page.locator('.inning-pitch-chip').textContent(),/1구/);
-    assert.match(await page.locator('.inning-score').textContent(),/5\/30구/);
+    assert.match(await page.locator('.inning-score').textContent(),/5구/);
     await page.locator('.inning-exit').click();
   }
   assert.deepEqual(errors,[]);console.log('PASS: both roles accumulate pitches, overlapping labels, new batter resets number, total count preserved, batter location selection');

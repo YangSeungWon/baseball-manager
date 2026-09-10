@@ -9,7 +9,7 @@ export function mountPitcherTag(root,old,onOpen){
  return {close,paint(p){
   tag.innerHTML=`<b>${p.name}</b><span>직구 ${Math.round(p.fast*100)}%</span>`;tag.setAttribute('aria-label',p.name+' 투수 정보');
   const fast=Math.round(p.fast*100),slider=Math.round((1-p.fast)*.58*100),rates={FF:fast,SL:slider,CH:100-fast-slider};
-  panel.innerHTML=`<header><b>${p.name}</b><button aria-label="투수 정보 닫기">×</button></header><div class="pitcher-repertoire">${Object.entries(PITCHES).map(([type,pitch])=>`<div><b>${pitch.name}</b><span>${pitch.speed-2}–${pitch.speed+2} <small>km/h</small></span><strong>${rates[type]}%</strong></div>`).join('')}</div>`;
+  panel.innerHTML=`<header><b>${p.name}</b><button aria-label="투수 정보 닫기">×</button></header><div class="pitcher-repertoire">${Object.entries(PITCHES).map(([type,pitch])=>`<div><b>${pitch.name}</b><span>${pitch.speed+(p.speedOffset||0)-2}–${pitch.speed+(p.speedOffset||0)+2} <small>km/h</small></span><strong>${rates[type]}%</strong></div>`).join('')}</div>`;
   panel.querySelector('button').onclick=()=>{close();tag.focus();};
  },update(anchor){
   positionPlayerTag(tag,anchor);

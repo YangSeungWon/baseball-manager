@@ -216,3 +216,13 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .inning-counts{display:flex;align-items:center;margin-top:6px}
 .inning-mode .inning-counts>span:first-child{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
 .inning-mode .inning-counts>span:first-child>span{display:flex;align-items:center;gap:4px;height:12px;font-family:monospace;font-size:12px;line-height:12px}
+
+.inning-mode .inning-frame small{display:block;font-size:12px;color:#a8c3b4;margin-bottom:3px}
+.inning-mode .result-stage{display:block;font-size:14px;color:#b6cfc5;margin-bottom:8px}
+.inning-mode .result-other-games{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.inning-mode .inning-result [data-next]{min-height:56px;background:#e7cf8f;color:#182e33;border-color:#f7e3ac;font-size:18px;font-weight:700}
+.inning-mode .result-other-games [data-retry]{min-height:48px;background:#25444b;color:#edf4e9;border-color:#708f88;font-size:16px;font-weight:400}
+.stage-select{display:grid;gap:8px;margin:18px 0}
+.stage-select button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:60px;padding:10px 14px;background:#203b43;color:#e3eade;border:1px solid #63877b;border-radius:8px}
+.stage-select button[aria-pressed=true]{background:#365e50;border-color:#e4d49c;box-shadow:inset 3px 0 #e4d49c}
+.stage-select b{font-size:17px}.stage-select span{font-size:14px;color:#c2d3c9}

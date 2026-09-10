@@ -369,10 +369,15 @@ addEventListener('scroll', () => {
 }, { passive: true });
 
 async function boot() {
-  const {challengeSeed}=await import('./inning-share.js');
-  const seed=challengeSeed(location.search);
+  const {readChallenge}=await import('./inning-share.js');
+  const challenge=readChallenge(location.search),seed=challenge?.seed??null;
+  const {STAGES,clearedStages}=await import('./inning-stages.js');
+  let stageId=challenge?.stageId??0;
+  const stageList=document.createElement('div');stageList.className='stage-select';stageList.setAttribute('role','group');stageList.setAttribute('aria-label','승부 선택');
+  const paintStages=()=>{const cleared=clearedStages();stageList.innerHTML=STAGES.map(s=>`<button data-stage="${s.id}" aria-pressed="${s.id===stageId}"><b>${cleared.includes(s.id)?'✓':s.id+1} ${s.title}</b><span>${s.situation}</span></button>`).join('');stageList.querySelectorAll('button').forEach(b=>b.onclick=()=>{stageId=Number(b.dataset.stage);paintStages();$('#btnBatting').textContent=challenge&&challenge.stageId===stageId?'같은 상황에 도전 →':'이 경기에 도전 →';$('#challengeInvite').hidden=!challenge||challenge.stageId!==stageId;});};
+  $('#btnBatting').before(stageList);paintStages();document.addEventListener('dugout-stage-clear',paintStages);
   if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
-  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',seed); };
+  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',challenge?.stageId===stageId?seed:null,stageId); };
   $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;

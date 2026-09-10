@@ -26,7 +26,7 @@ test('a tied inning ends without claiming a walk-off win',()=>{
 test('same choices replay exactly, all runs finish, bad input cannot mutate state',()=>{
   for(let seed=0;seed<200;seed++) {
     const a=new BattingGame(seed*7919),b=new BattingGame(seed*7919);
-    while(!a.done){const c={...choice,target:a.count%2?'FF':'any',approach:a.count%3?'contact':'power'};assert.deepEqual(a.pitch(c),b.pitch(c));assert.ok(a.count<=30);assert.ok(a.strikes<3);assert.ok(a.balls<4);}
+    while(!a.done){const c={...choice,target:a.count%2?'FF':'any',approach:a.count%3?'contact':'power'};assert.deepEqual(a.pitch(c),b.pitch(c));assert.ok(a.count<300);assert.ok(a.strikes<3);assert.ok(a.balls<4);}
     assert.throws(()=>a.pitch(choice));
   }
   const g=new BattingGame(1),s=g.snapshot();assert.throws(()=>g.pitch({...choice,action:'bad'}));assert.deepEqual(g.snapshot(),s);

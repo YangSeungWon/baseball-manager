@@ -41,7 +41,7 @@ try {
     assert.ok(Math.abs(stage.width-width)<2 && Math.abs(stage.height-height)<2,'3D fills viewport');
     await page.screenshot({path:`/tmp/dugout-immersive-${width}.png`});
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:30000});
-    assert.match(await page.locator('.inning-score').textContent(),/1\/30구/);
+    assert.match(await page.locator('.inning-score').textContent(),/1구/);
     assert.equal(await page.locator('.inning-live-zone .zone-pitch').count(),1);
     assert.equal(await page.locator('.inning-zone-map .zone-markers text').textContent(),'1');
     assert.equal(await page.locator('.inning-pitch-chip').count(),1);
@@ -53,7 +53,7 @@ try {
     assert.equal(await page.locator('#boot').evaluate(e=>e.inert),false);
     assert.equal(await page.evaluate(()=>localStorage.getItem('dugout.save.v1')),save);
     await page.locator('#btnInning').click();await page.locator('.inning-throw').waitFor();
-    assert.match(await page.locator('.inning-score').textContent(),/0\/30구/);
+    assert.match(await page.locator('.inning-score').textContent(),/0구/);
     await page.keyboard.press('Escape');assert.equal(await page.locator('.inning-mode').count(),0);
     await page.close();
   }
@@ -70,9 +70,9 @@ try {
     return replay.locator('.inning-result').textContent();
   };
   const first=await run();assert.match(first,/재도전/);assert.doesNotMatch(first,/다시 시작/);
-  await replay.locator('[data-retry]').click();assert.match(await replay.locator('.inning-score').textContent(),/0\/30구/);
+  await replay.locator('[data-retry]').click();assert.match(await replay.locator('.inning-score').textContent(),/0구/);
   assert.match(await run(),/재도전/,'retry accepts another release sequence');
-  await replay.locator('[data-new]').click();assert.match(await replay.locator('.inning-score').textContent(),/0\/30구/);
+  await replay.locator('[data-new]').click();assert.match(await replay.locator('.inning-score').textContent(),/0구/);
   await replay.locator('.inning-exit').click();await replay.close();
   assert.deepEqual(errors,[]);console.log('PASS: inning entry, 320/390/desktop, touch targets, one pitch, duplicate lock, close during pitch, reopen, save isolation');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

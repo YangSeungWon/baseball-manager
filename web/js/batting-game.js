@@ -1,3 +1,4 @@
+import { getStage } from './inning-stages.js';
 import { contactFlight } from './field-sim.js';
 import { InningGame, PITCHES } from './inning-game.js';
 const ARMS=[
@@ -7,8 +8,14 @@ const ARMS=[
 ];
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 export class BattingGame extends InningGame {
-  get pitcher(){return ARMS[this.seed%ARMS.length];}
-  snapshot(){return {...super.snapshot(),pitcher:{...this.pitcher}};}
+  constructor(seed=1,stageId=0){
+    super(seed);this.stage=getStage(stageId);const s=this.stage;
+    this.outs=s.outs;this.balls=s.balls;this.strikes=s.strikes;this.bases=[...s.bases];
+    this.baseRunners=s.bases.map((yes,i)=>yes?{id:'initial-'+(i+1),name:(i+1)+'루 주자',speed:[8.7,7.8,8.7][i]}:null);
+  }
+  get defense(){const roster=super.defense;if(this.stage?.outfieldArm)for(const pos of ['LF','CF','RF'])roster[pos].arm=this.stage.outfieldArm;return roster;}
+  get pitcher(){return this.stage.pitcher||ARMS[this.seed%ARMS.length];}
+  snapshot(){return {...super.snapshot(),pitcher:{...this.pitcher},stageId:this.stage.id};}
   preparePitch({target,approach,location='any'}) {
     if(this.done||this.pending)throw new Error('Pitch unavailable');
     if(!['any','in','out','low','high'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach))throw new Error('Invalid batting selection');
@@ -19,7 +26,7 @@ export class BattingGame extends InningGame {
   delivery(roll) {
     const type=roll[0]<this.pitcher.fast?'FF':roll[0]<this.pitcher.fast+(1-this.pitcher.fast)*.58?'SL':'CH';
     const inZone=roll[1]<clamp(.64+(this.balls===3?.17:0)-(this.strikes===2?.20:0),.2,.88);
-    return {t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x:(roll[7]<.5?-1:1)*(inZone?.6:1.6),z:inZone?(roll[6]<1/3?-.7:roll[6]>2/3?.65:0):-1.5};
+    return {t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x:(roll[7]<.5?-1:1)*(inZone?.6:1.6),z:inZone?(roll[6]<1/3?-.7:roll[6]>2/3?.65:0):-1.5};
   }
   decidePitch(action) {
     if(!this.pending||!['swing','take'].includes(action))throw new Error('Invalid batting decision');
@@ -45,7 +52,8 @@ export class BattingGame extends InningGame {
     else if(roll[2]>contact)result='W';
     else if(roll[3]<(power?.20:.32))result='F';
     else {
-      fieldPlay=contactFlight(roll,{power,bonus:(before.batter.power||0)+locationRead*.5+(matched?.1:0)-(inZone?0:.12),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
+      const qualityScale=(power?1:.92)*(location!=='any'&&!locationMatched?.72:1)*(target!=='any'&&!matched?.84:1)*(inZone?1:.72);
+      fieldPlay=contactFlight(roll,{power,qualityScale,park:this.stage.park,bonus:(before.batter.power||0)+locationRead*.5+(matched?.1:0)-(inZone?0:.12),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}
@@ -69,11 +77,11 @@ export class BattingGame extends InningGame {
     this.runs+=scored;
     this.history.push({type,action,target,approach,location});
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
-    this.won=this.runs>=3;this.done=this.won||this.outs>=3||this.count>=30;
+    this.won=this.stage.homeScore+this.runs>this.stage.awayScore;this.done=this.won||this.outs>=3;
     const names={S:'스트라이크',W:'헛스윙',B:'볼',F:'파울',K:'삼진',BB:'볼넷!',OUT:'아웃', '1B':'안타!','2B':'2루타!','3B':'3루타!',FC:'야수 선택',HR:'홈런!'};
     let explanation=action==='take'?(inZone?'지켜본 공이 존 안에 들어왔습니다.':'존 밖의 공을 잘 참았습니다.'):
       !inZone?'존 밖으로 빠지는 공에 배트가 나갔습니다.':matched?'노렸던 구종입니다. 준비한 스윙으로 승부했습니다.':target!=='any'?'예상과 다른 구종에 대응해야 했습니다.':power?'크게 돌렸습니다. 장타와 헛스윙의 위험을 함께 감수합니다.':'짧은 스윙으로 공을 맞히는 데 집중했습니다.';
     if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach,action,location},pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }

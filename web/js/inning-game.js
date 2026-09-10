@@ -58,7 +58,7 @@ export class InningGame {
     const q={type,zone,intent};this.history.push(q);
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
     this.won=this.outs>=3 && this.runs<2;
-    this.done=this.won||this.runs>=2||this.count>=30;
+    this.done=this.won||this.runs>=2;
     const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
     return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
   }

@@ -46,9 +46,9 @@ export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITI
  const end=frames.at(-1);events.splice(0,events.length,...events.filter(e=>e.t<=end.t));
  return resolveRunning({result:outcome,speed,launch,angle,frames,events,handler,duration:end.t},{bases,batter,outs,defenseSpeed:runSpeed,defense});
 }
-export function contactFlight(roll,{power=false,bonus=0,bases,batter,outs,defense}={}){
- const quality=clamp((1-roll[4])*.85+bonus+(power?.15:0),0,1);
- return simulateField({speed:26+quality*28,launch:6+roll[5]*43+(power?7:0),angle:(roll[7]-.5)*80,bases,batter,outs,defense});
+export function contactFlight(roll,{power=false,bonus=0,qualityScale=1,park=null,bases,batter,outs,defense}={}){
+ const quality=clamp((1-roll[4])*.85+bonus+(power?.15:0),0,1)*clamp(qualityScale,0,1);
+ return simulateField({speed:26+quality*28,launch:6+roll[5]*43+(power?7:0),angle:(roll[7]-.5)*80,park,bases,batter,outs,defense});
 }
 export function sampleField(play,t){
  const frames=play.frames;let lo=0,hi=frames.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(frames[mid].t<=t)lo=mid;else hi=mid-1;}

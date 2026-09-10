@@ -16,7 +16,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
   const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
-  await page.goto(url+'/?challenge=b5-42');
+  await page.goto(url+'/?challenge=b6-0-42');
   await page.locator('#challengeInvite').waitFor({state:'visible'});
   assert.equal(await page.locator('.manager-entry').getAttribute('open'),null);
   assert.match(await page.title(),/2.5초/);
@@ -56,15 +56,15 @@ try {
   }
   await page.setViewportSize({width:390,height:844});
   await page.locator('[data-share]').click();
-  assert.match(await page.evaluate(()=>shared.url),/challenge=b5-42$/);
+  assert.match(await page.evaluate(()=>shared.url),/challenge=b6-0-42$/);
   assert.match(await page.evaluate(()=>shared.text),/1구 · 3득점 · 1안타/);
-  await page.locator('[data-copy]').click();assert.match(await page.evaluate(()=>copied),/challenge=b5-42$/);
+  await page.locator('[data-copy]').click();assert.match(await page.evaluate(()=>copied),/challenge=b6-0-42$/);
   await page.evaluate(()=>Object.defineProperty(navigator,'share',{value:undefined}));
   await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>copied),/끝내기 성공/);
   const download=page.waitForEvent('download');await page.locator('[data-card]').click();
   await (await download).saveAs('/tmp/dugout-result-card.png');
   await page.locator('[data-share]').scrollIntoViewIfNeeded();await page.screenshot({path:'/tmp/dugout-result-sharing.png'});
-  await page.locator('[data-retry]').click();assert.match(await page.locator('.inning-score').textContent(),/0\/30구/);
+  await page.locator('[data-retry]').click();assert.match(await page.locator('.inning-score').textContent(),/0구/);
   await page.locator('.inning-exit').click();await page.locator('.manager-entry>summary').click();await page.locator('#btnNew').waitFor({state:'visible'});
   assert.deepEqual(errors,[]);console.log('PASS: batting landing, shared challenge seed, default swing, result totals, native share, copy fallback, PNG card, retry, manager entry');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

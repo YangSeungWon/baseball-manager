@@ -5,7 +5,7 @@ const hash=s=>[...String(s)].reduce((h,c)=>Math.imul(h^c.charCodeAt(0),16777619)
 export function buildSurroundings(v, opts) {
   let seed=hash(`${opts.home}/${opts.day ?? opts.crowd ?? 0}`);
   const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-  const mode=opts.park?.dome?'indoor':['clear','overcast','evening'][seed%3];
+  const mode=opts.park?.dome?'indoor':['clear','overcast','evening'].includes(opts.park?.weather)?opts.park.weather:['clear','overcast','evening'][seed%3];
   v.atmosphere=mode;
   const palettes={clear:['#73acd2','#d9e4d8'],overcast:['#748d9d','#c1cbc6'],evening:['#233b68','#e7ae82'],indoor:['#283744','#5d7074']};
   const [top,bottom]=palettes[mode];
