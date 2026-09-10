@@ -234,7 +234,7 @@ export class Live3D {
     const moving=dist>.0001;
     if(moving) root.rotation.y=Math.atan2(dx,-dy);
     else if(pose==='pitch'||pose==='field'||pose==='crouch')root.rotation.y=Math.atan2(-x,y);
-    else if(pose==='watch'&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
+    else if(['watch','admire','batFlip','celebrate','clap'].includes(pose)&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
     else if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
     root.position.set(x,Math.max(0,data.jump||0),-y);
     p.shirt.material=p.cap.material=p.brim.material=this.material(color);
@@ -243,7 +243,18 @@ export class Live3D {
     arms[0].rotation.set(-stride*.7,0,.12);arms[1].rotation.set(stride*.7,0,-.12);
     body.position.set(0,pose==='crouch'?-.42:0,0);body.rotation.set(0,0,0);p.head.rotation.set(0,0,0);
     p.glove.position.set(0,-.51,.04);
-    p.bat.visible=['bat','walk','dejected'].includes(pose);p.glove.visible=!p.bat.visible;
+    p.bat.visible=['bat','walk','dejected','admire'].includes(pose);p.glove.visible=!p.bat.visible&&!['batFlip','celebrate','clap','runCelebrate'].includes(pose);
+    if(pose==='admire'){body.rotation.x=-.12;arms[1].rotation.x=-1.7;arms[0].rotation.x=-.8;}
+    if(pose==='batFlip'){arms[1].rotation.z=-1.4*Math.max(0,1-(data.phase-.32)/.8);body.rotation.x=-.06;}
+    if(pose==='celebrate'){
+      const wave=this.reducedMotion?0:Math.sin((data.phase||0)*8+p.idleSeed);
+      arms[0].rotation.z=-2.5-wave*.12;arms[1].rotation.z=2.5+wave*.12;
+      if(!this.reducedMotion)body.position.y+=Math.max(0,Math.sin((data.phase||0)*7))* .16;
+    }
+    if(pose==='clap'){
+      const clap=this.reducedMotion?0:Math.sin((data.phase||0)*12)*.22;
+      arms[0].rotation.set(-1.3,0,.5+clap);arms[1].rotation.set(-1.3,0,-.5-clap);
+    }
     if(pose==='watch'){body.rotation.x=-.08;arms[0].rotation.x=-.15;}
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {arms[1].rotation.x=-S.pitcherWind*2.9;legs[0].rotation.x=-Math.sin(S.pitcherWind*Math.PI)*.9;}
@@ -260,7 +271,7 @@ export class Live3D {
       arms[0].rotation.x+=breathe*.025;arms[1].rotation.x-=breathe*.02;
       if(!S.ball?.vis&&pose!=='watch')p.head.rotation.y=Math.sin(t*.43+phase)*.12;
     }
-    const look=pose==='watch'?data.watch:key.startsWith('f')&&S.ball?.vis?S.ball:null;
+    const look=['watch','admire','batFlip'].includes(pose)?data.watch:key.startsWith('f')&&S.ball?.vis?S.ball:null;
     if(look){
       const yaw=Math.atan2(look.x-x,y-look.y)-root.rotation.y;
       p.head.rotation.y=clamp(Math.atan2(Math.sin(yaw),Math.cos(yaw)),-.65,.65);
@@ -281,11 +292,18 @@ export class Live3D {
       this.updatePlayer('f'+pos,f,defense,f.pose||(pos==='P'?'pitch':pos==='C'?'crouch':'field'),S);
     }
     (S.exiting||[]).forEach((f,i)=>this.updatePlayer('exit'+i,f,f.color||defense,'run',S));
-    S.runners.forEach((r,i)=>this.updatePlayer('r'+i,r,offense,'run',S));
+    S.runners.forEach((r,i)=>this.updatePlayer('r'+i,r,offense,r.pose||'run',S));
+    (S.celebrants||[]).forEach((p,i)=>this.updatePlayer('celebrant'+i,p,offense,p.pose,S));
+    if(S.looseBat){
+      this.looseBat??=this.mesh(this.cylinder,'#d4ad73',this.scene,[.054,1.42,.054]);
+      this.looseBat.visible=true;this.looseBat.position.copy(point(S.looseBat.x,S.looseBat.y,S.looseBat.z));
+      this.looseBat.rotation.set(this.reducedMotion?Math.PI/2:S.looseBat.spin,0,-.3);
+    }else if(this.looseBat)this.looseBat.visible=false;
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
     const firstPerson=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
     if(S.batter&&!firstPerson)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
-    this.updatePlayer('ump',{x:0,y:-3.2},'#27343f','crouch',S);
+    const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
+    this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
@@ -331,6 +349,8 @@ export class Live3D {
       fov=65;
     }
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
+    else if(kind==='bat-flip'){eye=point(-4,-6,3);aim=point(0,1,1.3);fov=48;}
+    else if(kind==='celebration'){eye=point(-8,-12,5);aim=point(-1,0,1.2);fov=55;}
     else if(kind==='entry'){eye=point(-7,7,4);aim=point(2,17,1.1);fov=55;}
     else if(kind==='catch'){const [x,y]=shot.target;eye=point(x+10,y-16,8);aim=point(x,y+2,1.5);fov=48;}
     else if(kind==='change') {eye=point(-3,-12,6);aim=point(-3,-1,1);fov=60;}

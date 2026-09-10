@@ -1,3 +1,4 @@
+import { flippedBat, celebrationPlayers, CELEBRATION_DURATION } from './celebration.js';
 import { STAGES, getStage, clearStage, clearedStages } from './inning-stages.js';
 import { mountPitcherTag, positionPlayerTag } from './pitcher-tag.js';
 import { leadPosition } from './runner-motion.js';
@@ -140,7 +141,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
   const opt={home:stage.home.name,away:stage.away.name,park:stage.park,crowd:Math.round(stage.park.capacity*.9),cap:stage.park.capacity,colors:stage.colors,view:'three',speed:1,sound:false,playerRole:role,entryPlayerKey:()=>entryKey,onEntryAnchor:p=>positionPlayerTag(entryLabel,p),onPitcherAnchor:p=>pitcherTag?.update(!busy&&!dead&&!game.done?p:null),canLook:()=>!busy&&!dead&&!game.done,stageHeight:()=>innerHeight,immersive:()=>!dead,maxH:()=>innerHeight};
   function sync(state) {
     for(const f of Object.values(lv.S.fielders))if(f.home){f.x=f.home[0];f.y=f.home[1];delete f.pose;}
-    lv.S.fieldPlay=null;
+    lv.S.fieldPlay=null;lv.S.looseBat=null;lv.S.celebrants=[];
     lv.S.b=state.balls;lv.S.s=state.strikes;lv.S.outs=state.outs;lv.S.ball=null;lv.S.hold=null;lv.S.trail=[];lv.S.pitcherWind=0;lv.S.swing=0;
     lv.S.batter={name:state.batter.name,hand:'R',alpha:1};
     lv.S.runners=state.bases.flatMap((yes,i)=>{if(!yes)return [];const person=state.baseRunners?.[i]||{name:'주자 '+(i+1)};return [{...lv._runner(person.name,i+1),...leadPosition(i+1,person),id:person.id,speed:person.speed}];});
@@ -235,6 +236,20 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
     await runTimeline(tl);
     S.changePlayers=[];root.classList.remove('is-changing');hideEntry();
   }
+  async function celebrate(e){
+    const S=lv.S,tl=new Timeline(),catcher=S.fielders.C,catcherStart=catcher?{x:catcher.x,y:catcher.y}:null;root.classList.add('is-celebrating');
+    S.batter=null;S.runners=[];S.changePlayers=[];S.ball=null;S.hold=null;S.trail=[];S.fieldPlay=null;S.looseBat=null;
+    const hero=e.result==='HR'?e.before.batter.name:(e.before.baseRunners[2]?.name||e.before.batter.name);
+    S.broadcast={kind:'celebration'};S.outs=e.after.outs;S.b=e.after.balls;S.s=e.after.strikes;
+    lv.line.bottom=[0,0,0,0,0,0,0,0,stage.homeScore+e.after.runs];paint();atmosphere('cheer',1);
+    for(const f of Object.values(S.fielders)){f.pose='watch';f.watch={x:0,y:0,z:1.5};}
+    tl.add(0,CELEBRATION_DURATION,k=>{
+      const t=k*CELEBRATION_DURATION;S.celebrationTime=t;S.celebrants=celebrationPlayers(t,hero);
+      if(catcher){const u=Math.min(1,t/2);Object.assign(catcher,{x:catcherStart.x+(5-catcherStart.x)*u,y:catcherStart.y+(-4-catcherStart.y)*u,pose:u<1?'walkField':'watch'});}
+    });
+    await runTimeline(tl);if(dead)return;
+    S.celebrants=[];root.classList.remove('is-celebrating');
+  }
   function finish() {
     root.classList.add('is-finished');
     $('.inning-picks').hidden=true;const box=$('.inning-result');box.hidden=false;
@@ -287,10 +302,16 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       if(r!=='X')tl.at(arrival,()=>{$('.inning-feedback').textContent=e.label;lv._flash(e.label,e.result==='K'?'k':'');});
       if(r==='X') {
         const play=e.fieldPlay,last=play.frames.at(-1),homeRun=play.events.find(x=>x.type==='home-run'),key=play.events.find(x=>['catch','pickup','home-run'].includes(x.type));
-        tl.at(arrival,()=>{S.hold=null;S.batter=null;S.broadcast={kind:'field'};S.fieldPlay={physical:true,phase:'flight',fielder:play.handler};});
+        tl.at(arrival,()=>{S.hold=null;S.batter=null;S.broadcast={kind:batting&&homeRun?'bat-flip':'field'};S.fieldPlay={physical:true,phase:'flight',fielder:play.handler};});
         tl.add(arrival,play.duration,k=>{
           const frame=sampleField(play,k*play.duration);S.fieldPlay.time=k*play.duration;S.ball={x:frame.x,y:frame.y,z:frame.z,vis:!homeRun||k*play.duration<=homeRun.t+.8};S.trail=[];
           if(frame.runners)S.runners=frame.runners.filter(r=>r.vis).map(r=>({...r,alpha:1}));
+          if(batting&&homeRun){
+            const t=k*play.duration,batter=S.runners.find(r=>r.id===e.before.batter.id);
+            if(batter&&t<1.2)Object.assign(batter,{pose:t<.32?'admire':'batFlip',phase:t,watch:{x:frame.x,y:frame.y,z:frame.z}});
+            const origin=sampleField(play,.32).runners?.find(r=>r.id===e.before.batter.id);
+            S.looseBat=t>=.32&&origin?flippedBat(origin,t-.32):null;
+          }
           for(const f of frame.fielders)Object.assign(S.fielders[f.pos],{x:f.x,y:f.y});
           lv._trail();
         });
@@ -306,6 +327,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
             for(const f of Object.values(S.fielders)){f.pose='watch';f.watch={x:event.x,y:event.y,z:event.z};}
           }
         });
+        if(batting&&homeRun)tl.at(arrival+1.2,()=>{S.broadcast={kind:'field'};});
         if(homeRun)tl.at(arrival+homeRun.t+.9,()=>{S.broadcast={kind:'beauty'};});
         tl.at(arrival+play.duration,()=>{
           S.trail=[];zone(e);if(!homeRun)react();
@@ -328,7 +350,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0) {
       await runTimeline(tl);
       if(dead)return;
       events.push(e);runEvents.push(e);shown=e;
-      if(e.terminal){await changeBatter(e);if(dead)return;}
+      if(batting&&e.after.won){await celebrate(e);if(dead)return;}
+      if(e.terminal&&!(batting&&e.after.won)){await changeBatter(e);if(dead)return;}
       if(e.terminal&&!game.done){events=[];shown=null;}
       zone(shown);history();
       if(['1B','2B','3B','HR'].includes(e.result))lv.line.hits.bottom++;

@@ -41,6 +41,9 @@ try {
   await page.locator('[data-group="approach"] [data-value="'+(id===0?'power':'contact')+'"]').click();
   if(id===2)await page.locator('.batting-take').click();
   await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();await page.locator(id===2?'.batting-take':'.batting-swing').click();
+  await page.locator('.is-celebrating').waitFor();
+  if(id===0){await page.waitForFunction(()=>state3d.celebrationTime>3);await page.screenshot({path:'/tmp/dugout-celebration-gathered.png'});}
+  assert.equal(await page.locator('.inning-result').isVisible(),false);
   await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:90000});
   const e=await page.evaluate(()=>({result:window.stageEvent.result,scored:window.stageEvent.scored,won:window.stageEvent.after.won}));
   assert.deepEqual(e,{result:['HR','OUT','BB'][id],scored:[3,1,1][id],won:true});
