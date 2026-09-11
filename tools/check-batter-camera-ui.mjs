@@ -34,8 +34,9 @@ try {
     assert.equal(await page.locator('.pitcher-tag').isVisible(),false,'pitcher out of view hides label');
     assert.deepEqual((await pose()).eye,initial.eye,'looking rotates without moving out of batter box');
     await page.locator('.inning-look').click();assert.equal((await pose()).look.pitch,0);
-    await page.mouse.move(width*.5,height*.45);await page.mouse.down();await page.mouse.move(width*.7,height*.65,{steps:8});await page.mouse.up();
-    assert.ok((await pose()).look.pitch<-.1,'drag changes view');
+    await page.mouse.move(width*.5,height*.45);await page.mouse.down();await page.mouse.move(width*.7,height*.65,{steps:8});
+    const held=await pose();assert.ok(held.look.pitch>.1,'dragging down tilts the view up (grab-the-world)');assert.ok(held.look.pitch<=Math.PI/6+.01&&Math.abs(held.look.yaw)<=Math.PI/3+.01,'glance stays within its narrow range');
+    await page.mouse.up();await page.waitForFunction(()=>Math.abs(scene3d.look.pitch)<.01&&Math.abs(scene3d.look.yaw)<.01,{},{timeout:5000});
     if(width===390){
       const input=await page.context().newCDPSession(page);
       const beforeTouch=(await pose()).look.yaw;

@@ -9,6 +9,7 @@ import { buildSurroundings } from './ballpark3d.js';
 import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
+const LOOK_YAW=Math.PI/3,LOOK_PITCH=Math.PI/6;   // 좌우 60°, 상하 30°: 둘러보기가 아니라 곁눈질
 // 절차적 텍스처. 외부 이미지 없이 캔버스로 만든다(오프라인·배포 ZIP 동일).
 function canvasTexture(w,h,paint,{repeat=null,srgb=true}={}){
   const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'),w,h);
@@ -104,15 +105,20 @@ export class Live3D {
       this.canvas.style.touchAction='none';
       this.lookInput=new AbortController();
       const listen=(name,fn)=>this.canvas.addEventListener(name,fn,{signal:this.lookInput.signal});
+      // A glance, not a free look: a narrow range that eases back to the pitcher once the finger lifts.
       listen('pointerdown',e=>{
         if(e.button!==0||!this.opts.canLook?.()||this.drag)return;
-        this.drag={id:e.pointerId,x:e.clientX,y:e.clientY};this.canvas.setPointerCapture(e.pointerId);
+        if(this.look.pinned)this.resetLook();
+        this.drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};this.canvas.setPointerCapture(e.pointerId);
       });
       listen('pointermove',e=>{
         if(this.drag?.id!==e.pointerId)return;
         if(!this.opts.canLook?.()){this.resetLook();return;}
-        this.look.yaw=clamp(this.look.yaw-(e.clientX-this.drag.x)*.006,-Math.PI,Math.PI);
-        this.look.pitch=clamp(this.look.pitch-(e.clientY-this.drag.y)*.006,-1.35,.85);
+        if(!this.drag.moved&&Math.hypot(e.clientX-this.drag.x,e.clientY-this.drag.y)<4)return;
+        this.drag.moved=true;
+        // "Grab the world": dragging right turns the view left, dragging down tilts the view up.
+        this.look.yaw=clamp(this.look.yaw-(e.clientX-this.drag.x)*.005,-LOOK_YAW,LOOK_YAW);
+        this.look.pitch=clamp(this.look.pitch+(e.clientY-this.drag.y)*.005,-LOOK_PITCH,LOOK_PITCH);
         this.drag.x=e.clientX;this.drag.y=e.clientY;
       });
       const end=e=>{if(this.drag?.id===e.pointerId)this.drag=null;};
@@ -121,13 +127,19 @@ export class Live3D {
   }
   resetLook() {
     if(this.drag&&this.canvas.hasPointerCapture(this.drag.id))this.canvas.releasePointerCapture(this.drag.id);
-    this.drag=null;this.look.yaw=0;this.look.pitch=0;
+    this.drag=null;this.look.yaw=0;this.look.pitch=0;this.look.pinned=false;
   }
+  // The plate glance is a toggle and stays put; a dragged glance eases home on its own.
   lookAtPlate() {
     if(!this.opts.canLook?.())return;
     const centered=Math.abs(this.look.yaw)<.01&&Math.abs(this.look.pitch)<.01;
     this.resetLook();
-    if(centered){this.look.yaw=this.batterHand==='L'?-1.22:1.22;this.look.pitch=-1.05;}
+    if(centered){this.look.yaw=this.batterHand==='L'?-1.22:1.22;this.look.pitch=-1.05;this.look.pinned=true;}
+  }
+  settleLook(dt) {
+    if(this.drag||this.look.pinned)return;
+    const k=Math.exp(-dt*7);this.look.yaw*=k;this.look.pitch*=k;
+    if(Math.abs(this.look.yaw)<.002)this.look.yaw=0;if(Math.abs(this.look.pitch)<.002)this.look.pitch=0;
   }
   material(color) {
     if (!this.materials.has(color)) {
@@ -486,7 +498,7 @@ export class Live3D {
     if(kind==='batting') {
       this.batterHand=S.batter?.hand||'R';
       eye=point(this.batterHand==='L'?.85:-.85,-.25,1.65);
-      if(!this.opts.canLook?.())this.resetLook();
+      if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
       const yaw=(this.batterHand==='L'?-.045:.045)+this.look.yaw,pitch=-.025+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
       fov=65;
