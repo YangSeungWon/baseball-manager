@@ -22,18 +22,17 @@ try {
     await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.decidePitch;window.decisions=[];BattingGame.prototype.decidePitch=function(action){decisions.push(action);return resolve.call(this,action);};});
     await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
-    if(width===1440)await page.locator('.batting-take').click();
-    const before=await page.locator('.batting-swing').boundingBox();
+    const before=await page.locator('.batting-hold').boundingBox();
     await page.locator('.inning-throw').click();
     await page.locator('.is-deciding .batting-decision').waitFor({state:'visible'});
-    if(width<=900){const after=await page.locator('.batting-swing').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
+    if(width<=900){const after=await page.locator('.batting-hold').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
     assert.match(await page.locator('.inning-score').textContent(),/0구/);
     assert.equal(await page.locator('.zone-pitch').count(),0,'no landing point before decision');
     assert.deepEqual(await page.evaluate(()=>decisions),[],'no result resolved yet');
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
-    for(const selector of ['.batting-swing','.batting-take']){const b=await page.locator(selector).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
-    if(width===320){await page.locator('.batting-swing').click();}
-    else if(width===390){await page.locator('.batting-take').click();}
+    for(const selector of ['.batting-hold']){const b=await page.locator(selector).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
+    if(width===320){await page.keyboard.down('Space');await page.waitForTimeout(500);await page.keyboard.up('Space');}
+    // width 390: never press — the window runs out and the batter takes
     else if(width===844){await page.locator('.inning-exit').click();await page.waitForTimeout(2700);assert.deepEqual(await page.evaluate(()=>decisions),[]);await page.close();continue;}
     // Desktop exercises timeout: a decision must still be made without input.
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});

@@ -13,7 +13,9 @@ export const BATTING={
   // 실행 층. 존 밖 스윙(chase)은 가장 큰 벌점으로 남긴다.
   execution:{
     chase:-1.60,
-    timing:{auto:-.20,sweet:.95,earlyMax:-.90,lateMax:-1.00},
+    timing:{auto:-.20,sweet:.95,earlyMax:-.90,lateMax:-1.00,whiffBeyond:.6},   // 적중 구간에서 이만큼 벗어나면 배트가 공을 지나친다: 헛스윙 확정
+    // 스윙 버튼을 누른 길이(ms)가 힘이다. contactMs 까지는 컨택, powerMs 부터 장타. 사이는 연속.
+    hold:{contactMs:110,powerMs:420},
     foul:{contactApproach:.32,powerApproach:.20,sweet:-.05,earlyMax:.16,lateMax:.16},
     quality:{sweet:.08,earlyMax:-.18,lateMax:-.22},
     angle:{earlyMax:-28,lateMax:24},

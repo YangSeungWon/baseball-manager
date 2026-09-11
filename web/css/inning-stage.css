@@ -44,8 +44,19 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-decision[hidden]{display:none}
 .inning-mode .batting-decision-title{position:absolute;right:8px;bottom:calc(100% + 5px);font-size:16px}
 .inning-mode .batting-time{visibility:hidden;background:#102732df;border-radius:5px;padding:1px 7px}.inning-mode.is-deciding .batting-time{visibility:visible}
-.inning-mode .batting-clock{grid-column:1/-1;margin:0 0 6px;height:3px}
-.inning-mode .batting-action-row{display:flex;gap:6px;min-width:0;grid-column:1}
+.inning-mode .batting-clock{grid-column:1/-1;margin:0 0 8px;height:14px;border-radius:7px;background:#1b2f39;overflow:visible}
+.inning-mode .batting-clock i{position:absolute;top:-4px;bottom:-4px;left:0;width:5px;margin-left:-2px;border-radius:3px;background:#f4d491;box-shadow:0 0 6px #000a;transform:none!important}
+.inning-mode .batting-band{position:absolute;z-index:2;top:-18px;left:var(--swing-from);font-size:11px;font-weight:600;letter-spacing:.04em;color:#a8dcc3;white-space:nowrap}
+.inning-mode .batting-hold{grid-column:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:64px;padding:8px 10px;border-radius:12px;background:#24443f;border:2px solid #86a59d;color:#f2f5ee;touch-action:none;user-select:none;-webkit-user-select:none;position:relative;overflow:hidden}
+.inning-mode .batting-hold>span{font-size:20px;font-weight:700;position:relative}
+.inning-mode .batting-hold>small{font-size:11px;color:#c2d5d8;line-height:1.3;text-align:center;position:relative}
+.inning-mode .batting-hold kbd{margin-left:6px;padding:0 5px;border:1px solid #86a59d;border-radius:4px;font-family:inherit;font-size:10px}
+.inning-mode .batting-hold:disabled{opacity:.55}
+.inning-mode .batting-hold.is-armed{border-color:#8bc6aa;background:#2f6a55;box-shadow:0 0 0 4px #8bc6aa55,0 0 18px #8bc6aa88}
+.inning-mode .batting-hold.is-swinging{border-color:#f4d491;background:#4b3f2a}
+.inning-mode .batting-hold.is-swinging::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#f4d491aa,#f4a86baa);transform:scaleX(var(--drive,0));transform-origin:left;transition:transform .05s linear}
+.inning-mode .batting-hold:focus-visible{outline:3px solid #f4d491;outline-offset:3px}
+@media(pointer:coarse){.inning-mode .batting-hold kbd{display:none}}
 .inning-mode .batting-decision{grid-template-columns:2fr 1fr}
 .inning-mode .batting-decision button{min-height:48px;font-size:16px;padding:6px;border-radius:7px}
 .inning-mode .batting-decision .inning-throw{margin:0;width:100%;grid-column:2;font-size:16px;min-height:48px}
@@ -158,7 +169,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
  .inning-mode.has-batting-dock.is-playing:not(.is-finished) .inning-controls{display:none;visibility:hidden;pointer-events:none}
  .inning-mode.has-batting-dock.is-playing .batting-decision{grid-template-columns:2fr 1fr}
  .inning-mode.has-batting-dock.is-playing .batting-decision .inning-throw{display:none}
- .inning-mode.has-batting-dock.is-playing .batting-action-row{grid-column:1;display:flex}
+ .inning-mode.has-batting-dock.is-playing .batting-hold{grid-column:1}
  .inning-mode.has-batting-dock.is-playing .batting-action-row button{min-height:48px;font-size:14px}
  .inning-mode.has-batting-dock.is-playing .inning-live-zone,.inning-mode.has-batting-dock.is-playing .inning-feedback{bottom:104px}
  .inning-mode.has-batting-dock.is-playing .inning-look{display:none}
@@ -257,10 +268,9 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .zone-read-estimate.type-CH{fill:#7fd2a625;stroke:#8de0ae}
 .inning-mode .zone-read-kind{fill:#f7f1d6;font-size:15px;font-weight:800;paint-order:stroke;stroke:#102732;stroke-width:3px}
 .inning-mode .batting-clock{position:relative;--swing-from:55%;--swing-to:85%}
-.inning-mode .batting-clock::before{content:'';position:absolute;z-index:1;top:-2px;bottom:-2px;left:calc(100% - var(--swing-to));width:calc(var(--swing-to) - var(--swing-from));border-radius:3px;background:#8bc6aa55;box-shadow:inset 0 0 0 1px #8bc6aa99}
-.inning-mode .batting-clock i{position:relative;z-index:1}
-.inning-mode.can-check-swing .batting-clock::after{content:'';position:absolute;z-index:2;top:-3px;bottom:-3px;left:calc(100% - var(--take-cutoff));width:2px;border-radius:2px;background:#f2b179;box-shadow:0 0 5px #0008}
-.inning-mode.is-take-locked .batting-take{opacity:.38}
+.inning-mode .batting-clock::before{content:'';position:absolute;z-index:1;top:0;bottom:0;left:var(--swing-from);width:calc(var(--swing-to) - var(--swing-from));border-radius:7px;background:#8bc6aa;opacity:.9;box-shadow:0 0 10px #8bc6aa99}
+.inning-mode .batting-clock i{z-index:3}
+
 .inning-mode .inning-transition{position:fixed;z-index:34;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:7px;min-width:220px;padding:18px 24px;border:1px solid #d7c88e;border-radius:10px;background:#102732eF;color:#edf0dc;box-shadow:0 10px 50px #0009;text-align:center;pointer-events:none}
 .inning-mode .inning-transition[hidden]{display:none}
 .inning-mode .inning-transition b{font-size:28px;color:#f1d38a}.inning-mode .inning-transition span{font-size:18px}.inning-mode .inning-transition small{font-size:13px;color:#a9c6bd}

@@ -48,8 +48,9 @@ export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITI
  return resolveRunning({result:outcome,speed,launch,angle,frames,events,handler,duration:end.t},{bases,batter,outs,defenseSpeed:runSpeed,defense});
 }
 export function contactFlight(roll,{power=false,bonus=0,qualityScale=1,angleShift=0,park=null,bases,batter,outs,defense}={}){
- const F=BATTING.bip.flight,quality=clamp((1-roll[4])*F.qualityRoll+bonus+(power?F.powerQuality:0),0,1)*clamp(qualityScale,0,1);
- return simulateField({speed:F.speedBase+quality*F.speedRange,launch:F.launchBase+roll[5]*F.launchRange+(power?F.launchPower:0),angle:clamp((roll[7]-.5)*F.angleRange+angleShift,-F.angleClamp,F.angleClamp),park,bases,batter,outs,defense});
+ const drive=clamp(Number(power)||0,0,1);   // boolean(투수 편 장타형) 또는 0..1(타자 편 스윙 힘)
+ const F=BATTING.bip.flight,quality=clamp((1-roll[4])*F.qualityRoll+bonus+F.powerQuality*drive,0,1)*clamp(qualityScale,0,1);
+ return simulateField({speed:F.speedBase+quality*F.speedRange,launch:F.launchBase+roll[5]*F.launchRange+F.launchPower*drive,angle:clamp((roll[7]-.5)*F.angleRange+angleShift,-F.angleClamp,F.angleClamp),park,bases,batter,outs,defense});
 }
 export function sampleField(play,t){
  const frames=play.frames;let lo=0,hi=frames.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(frames[mid].t<=t)lo=mid;else hi=mid-1;}

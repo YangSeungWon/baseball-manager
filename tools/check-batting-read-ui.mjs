@@ -20,8 +20,8 @@ try{
  await page.waitForTimeout(500);
  const after=await page.locator('.flight-read').boundingBox();assert.ok(after.width<before.width,'focus tightens around the observed ball');
  assert.ok(after.x>=0&&after.y>=0);
- await page.locator('.is-take-locked').waitFor();assert.equal(await page.locator('.batting-take').isDisabled(),true);assert.equal(await page.locator('.batting-swing').isEnabled(),true);
- await page.screenshot({path:'/tmp/dugout-batting-read.png'});await page.locator('.batting-swing').click();
+ assert.equal(await page.locator('.batting-swing').isEnabled(),true);
+ await page.screenshot({path:'/tmp/dugout-batting-read.png'});await page.keyboard.down('Space');await page.waitForTimeout(120);await page.keyboard.up('Space');
  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
  assert.deepEqual(errors,[]);console.log('PASS: first-person flight cue replaces ABS prediction and discipline visibly closes late take');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

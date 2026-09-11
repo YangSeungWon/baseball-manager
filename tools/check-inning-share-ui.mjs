@@ -32,7 +32,7 @@ try {
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copied=value;}}});
   });
   await page.locator('#btnBatting').click();
-  assert.equal(await page.locator('.batting-swing').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('.batting-hold').count(),1);
   await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
   assert.match(await page.locator('.inning-score').textContent(),/항구 웨일즈/);
   const alignment=await page.evaluate(()=>{

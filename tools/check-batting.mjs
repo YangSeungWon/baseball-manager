@@ -94,7 +94,8 @@ test('swing timing: the sweet spot rewards contact, early pulls and late pushes,
   assert.ok(swingTiming(.05).angleShift<0&&swingTiming(.99).angleShift>0);
   assert.ok(swingTiming(0).severity>swingTiming(.3).severity);
   const at=(timing,r=[0,0,.5,.9,.3,.5,.5,.5])=>{const g=new BattingGame(3);rolls(g,r);g.preparePitch({target:'FF',approach:'contact'});return g.decidePitch('swing',timing);};
-  const sweet=at((SWING_WINDOW.from+SWING_WINDOW.to)/2),early=at(0),late=at(1),auto=at(null);
+  // 구간 바로 바깥: 아직 배트가 공을 만난다(더 벗어나면 헛스윙 확정 — 아래 별도 테스트).
+  const sweet=at((SWING_WINDOW.from+SWING_WINDOW.to)/2),early=at(SWING_WINDOW.from*.5),late=at(SWING_WINDOW.to+(1-SWING_WINDOW.to)*.5),auto=at(null);
   assert.deepEqual(sweet.pitch,early.pitch);assert.equal(sweet.timing.kind,'sweet');assert.equal(early.timing.kind,'early');assert.equal(late.timing.kind,'late');assert.equal(auto.timing.kind,'auto');
   assert.ok(early.fieldPlay.angle<sweet.fieldPlay.angle,'early swing pulls to the left');assert.ok(late.fieldPlay.angle>sweet.fieldPlay.angle,'late swing pushes to the right');
   assert.ok(early.fieldPlay.speed<sweet.fieldPlay.speed&&late.fieldPlay.speed<sweet.fieldPlay.speed,'mistimed contact is weaker');
@@ -123,4 +124,20 @@ test('a matching prediction opens the read earlier and widens the sweet band, bu
   }
   const g=new BattingGame(5);const d=g.preparePitch({target:'any',approach:'contact',location:'any'});const e=g.decidePitch('swing',.5);
   assert.ok(e.timing.window&&e.timing.window.from<=e.timing.window.to);
+});
+
+test('hold power is continuous and a swing far outside the band whiffs no matter the dice',async()=>{
+  const {BATTING}=await import('../web/js/batting-tuning.js');
+  const at=(timing,power)=>{const g=new BattingGame(3);rolls(g,[0,0,0,.9,.3,.5,.5,.5]);g.preparePitch({target:'FF',approach:'contact'});return g.decidePitch('swing',timing,power);};
+  const mid=(BATTING.swingWindow.from+BATTING.swingWindow.to)/2;
+  const soft=at(mid,0),hard=at(mid,1),half=at(mid,.5);
+  assert.equal(soft.timing.power,0);assert.equal(hard.timing.power,1);assert.equal(soft.choice.approach,'contact');assert.equal(hard.choice.approach,'power');
+  assert.ok(hard.fieldPlay.speed>half.fieldPlay.speed&&half.fieldPlay.speed>soft.fieldPlay.speed,'more drive, faster ball');
+  assert.deepEqual(at(mid,null).fieldPlay,soft.fieldPlay,'no power given: the approach decides, contact = 0');
+  const g=new BattingGame(3);rolls(g,[0,0,0,.9,.3,.5,.5,.5]);g.preparePitch({target:'FF',approach:'power'});assert.equal(g.decidePitch('swing',mid,null).timing.power,1);
+  const early=at(0,0),late=at(1,0);
+  assert.equal(early.result,'W');assert.ok(early.timing.whiff);assert.match(early.explanation,/먼저 지나/);
+  assert.equal(late.result,'W');assert.ok(late.timing.whiff);assert.match(late.explanation,/지나간 뒤/);
+  assert.ok(!at(BATTING.swingWindow.from-.05,0).timing.whiff,'slightly early still meets the ball');
+  const h=new BattingGame(3);h.preparePitch({target:'FF',approach:'contact'});assert.throws(()=>h.decidePitch('swing',mid,1.5));assert.throws(()=>h.decidePitch('swing',mid,-.1));
 });
