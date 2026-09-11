@@ -21,6 +21,6 @@ test('thrower arm changes arrival independently of pursuit',()=>{
  assert.notEqual(x.running.contest.ballArrival,y.running.contest.ballArrival);
 });
 test('batter contact and power alter resolution with identical pitch rolls',()=>{
- const play=(contact,power=0)=>{const g=new BattingGame(0);Object.defineProperty(g,'batter',{get:()=>({id:'b',name:'test',speed:7,contact,power})});let i=0;g.random=()=>[0,0,.85,.9,.4,.5,.5,.5,.5,.5][i++];return g.pitch({target:'any',location:'any',approach:'contact',action:'swing'});};
+ const play=(contact,power=0)=>{const g=new BattingGame(0);Object.defineProperty(g,'batter',{get:()=>({id:'b',name:'test',speed:7,contact,power})});let i=0;g.random=()=>[0,0,.75,.9,.4,.5,.5,.5,.5,.5][i++];return g.pitch({target:'any',location:'any',approach:'contact',action:'swing'});};
  assert.equal(play(.67).call,'W');assert.ok(play(.77).fieldPlay);assert.ok(play(.77,.12).fieldPlay.speed>play(.77,0).fieldPlay.speed);
 });

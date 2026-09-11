@@ -20,8 +20,9 @@ def finish(o,name,mat,bone=None,smooth=True):
  for f in o.data.polygons:f.use_smooth=smooth
  if bone:o.vertex_groups.new(name=bone).add(list(range(len(o.data.vertices))),1,'REPLACE')
  parts.append(o);return o
-def ell(name,p,s,mat,bone=None):
- bpy.ops.mesh.primitive_uv_sphere_add(segments=8 if name=='PocketBinding' else 16,ring_count=6 if name=='PocketBinding' else 10,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);return finish(o,name,mat,bone)
+def ell(name,p,s,mat,bone=None,segments=16,rings=10):
+ if name=='PocketBinding':segments,rings=8,6
+ bpy.ops.mesh.primitive_uv_sphere_add(segments=segments,ring_count=rings,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);return finish(o,name,mat,bone)
 def box(name,p,s,mat,bone=None,bevel=.015):
  bpy.ops.mesh.primitive_cube_add(size=1,location=xyz(p));o=bpy.context.object;o.scale=(s[0],s[2],s[1]);bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
  if bevel:
@@ -81,10 +82,25 @@ for y in [.93,1.04,1.15]:ell('Button',(0,y,.166),(.013,.013,.009),'Dark','Spine'
 text('ChestMark','D',(-.105,1.19,.159),.105,'Cream','Spine')
 text('Number','17',(0,1.115,-.166),.225,'Cream','Spine',True)
 ell('Neck',(0,1.42,0),(.085,.11,.08),'Skin','Spine')
-head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head')
-# Sculpt the jaw instead of retaining a spherical silhouette.
+head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head',segments=32,rings=18)
+# Sculpt a head instead of keeping a sphere: a jaw that narrows to a chin,
+# cheekbones, a flatter forehead, eye sockets, and a longer skull at the back.
+# Blender axes here: x right, y toward the back (front is -y), z up.
+def smooth(t):t=max(0,min(1,t));return t*t*(3-2*t)
 for v in head.data.vertices:
- if v.co.z<1.55:v.co.x*=.82
+ u=(v.co.z-1.615)/.222;front=-(v.co.y+.006)/.17;side=v.co.x/.182
+ if u<-.15:v.co.x*=1-.30*smooth((-u-.15)/.75)**1.1                          # jaw narrows toward the chin
+ if u<-.7 and front>.1:v.co.x*=1+.10*smooth((-u-.7)/.3)*smooth(front/.5)     # ...but the chin itself stays square, not a point
+ if u<-.55 and front>.2:v.co.y-=.016*smooth((-u-.55)/.45)*smooth(front)      # chin comes forward
+ cheek=smooth(1-abs(u+.02)/.26)*smooth((abs(side)-.5)/.4)*smooth(front/.6)
+ v.co.x*=1+.035*cheek                                                         # cheekbones, just under the eyes
+ if u>.25 and front>.4:v.co.y+=.02*smooth((u-.25)/.6)*smooth((front-.4)/.6)  # flatter forehead
+ for sx in (-.325,.325):                                                      # eye sockets (eyes sit at x=±.059 before the head scale)
+  d=math.hypot(side-sx,(u-.13)/1.0)
+  if front>.5:v.co.y+=.010*smooth(1-d/.42)*smooth((front-.5)/.5)
+ if front<-.2 and u>-.3:v.co.y*=1+.07*smooth(-front/.8)*smooth((u+.3)/.8)    # longer skull behind
+ if u<-.8:v.co.z+=.010*smooth((-u-.8)/.2)                                     # flatter underside of the chin
+head.data.update()
 for side in [-1,1]:ell('Ear',(side*.155,1.615,-.002),(.032,.052,.027),'Skin','Head')
 for side,suffix in [(-1,'L'),(1,'R')]:
  x=side*.315
@@ -112,9 +128,11 @@ for side,suffix in [(-1,'L'),(1,'R')]:
  facial(ell('Iris'+suffix,(side*.059,.162,.147),(.012,.012,.004),'Iris'))
  facial(ell('Pupil'+suffix,(side*.059,.162,.152),(.006,.008,.003),'Dark'))
  facial(box('Brow'+suffix,(side*.059,.194,.150),(.072,.011,.010),'Dark',bevel=.004))
-facial(ell('Nose',(0,.112,.151),(.018,.026,.015),'Skin'))
-facial(box('MouthL',(-.027,.056,.153),(.030,.007,.005),'Dark',bevel=.003))
-facial(box('MouthR',(.027,.056,.153),(.030,.007,.005),'Dark',bevel=.003))
+facial(ell('Nose',(0,.108,.153),(.021,.028,.018),'Skin'))
+facial(ell('NoseBridge',(0,.145,.146),(.012,.030,.010),'Skin'))
+facial(box('MouthL',(-.03,.046,.156),(.034,.007,.005),'Dark',bevel=.003))
+facial(box('MouthR',(.03,.046,.156),(.034,.007,.005),'Dark',bevel=.003))
+facial(ell('LowerLip',(0,.037,.149),(.033,.006,.005),'Skin'))
 # Parallel bone axes keep the runtime pose adapter predictable.
 bpy.ops.object.select_all(action='DESELECT');bpy.ops.object.armature_add();rig=bpy.context.object;rig.name='AthleteRig';bpy.ops.object.mode_set(mode='EDIT');rig.data.edit_bones.remove(rig.data.edit_bones[0])
 bones={'Root':((0,0,0),None),'Spine':((0,.85,0),'Root'),'Head':((0,1.48,0),'Spine')}
@@ -192,22 +210,48 @@ taper('Handle',(0,-.115,0),.25,.019,.026,1,'Dark',None)
 ell('Knob',(0,.02,0),(.031,.018,.031),'Dark')
 bat=join('Bat')
 # Refine the silhouette consistently across weighted vertices and bone sockets.
-# Longer legs, smaller head/gear, and less barrel-shaped shoulders.
-def height(y):return y*1.16 if y<.85 else y+.136
+# Athletic proportions: about seven heads tall. Longer legs, a smaller head and
+# cap, a longer neck and wider shoulders. Bones and sockets follow the same maps.
+LEG=1.24;HEAD=.82;SHOULDER=1.07;NECK=.03
+def height(y):return y*LEG if y<.85 else y+.85*(LEG-1)+(NECK if y>1.40 else 0)
+def width(x,y):return x*SHOULDER if y>.85 else x
 for v in body.data.vertices:
  old=v.co.z
  if old>=1.48:
-  v.co.x*=.88;v.co.y*=.9;v.co.z=height(1.48)+(old-1.48)*.88
- else:v.co.z=height(old)
+  v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z=height(1.48)+(old-1.48)*HEAD
+ else:v.co.x=width(v.co.x,old);v.co.z=height(old)
 for obj in [cap,helmet]:
- for v in obj.data.vertices:v.co.x*=.88;v.co.y*=.9;v.co.z*=.88
+ for v in obj.data.vertices:v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z*=HEAD
 bpy.context.view_layer.objects.active=rig;bpy.ops.object.mode_set(mode='EDIT')
 for b in rig.data.edit_bones:
+ b.head.x=width(b.head.x,b.head.z);b.tail.x=width(b.tail.x,b.tail.z)
  b.head.z=height(b.head.z);b.tail.z=height(b.tail.z)
 bpy.ops.object.mode_set(mode='OBJECT')
+# Ambient occlusion baked into vertex colors. Runtime cost is zero; creases
+# under the arms, the chin and the belt read even under flat stadium light.
+# Every mesh gets the attribute (gear stays white) so shared materials never
+# meet a missing COLOR_0 at runtime.
+for obj in [body,cap,helmet,glove,bat,*[o for o in bpy.data.objects if o.type=='MESH' and o.parent==face]]:
+ attr=obj.data.color_attributes.new('AO','FLOAT_COLOR','POINT');obj.data.color_attributes.active_color=attr
+ for c in attr.data:c.color=(1,1,1,1)
+scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=64;scene.cycles.bake_type='AO';scene.render.bake.target='VERTEX_COLORS'
+if not scene.world:scene.world=bpy.data.worlds.new('Bake')
+scene.world.light_settings.distance=.16
+bpy.ops.object.select_all(action='DESELECT');body.select_set(True);bpy.context.view_layer.objects.active=body
+bpy.ops.object.bake(type='AO')
+ao=body.data.color_attributes['AO']
+for c in ao.data:
+ # Primitives overlap inside the body, so raw AO is far too dark. Keep it a tint: never below .55.
+ k=1-(1-min(1,c.color[0]))*.45;c.color=(k,k,k,1)
+for mat in M.values():
+ nodes=mat.node_tree.nodes;links=mat.node_tree.links;shader=nodes.get('Principled BSDF');base=shader.inputs['Base Color']
+ vc=nodes.new('ShaderNodeVertexColor');vc.layer_name='AO';mix=nodes.new('ShaderNodeMix');mix.data_type='RGBA';mix.blend_type='MULTIPLY';mix.inputs['Factor'].default_value=1
+ if base.is_linked:links.new(base.links[0].from_socket,mix.inputs[6])
+ else:mix.inputs[6].default_value=base.default_value
+ links.new(vc.outputs['Color'],mix.inputs[7]);links.new(mix.outputs[2],base)
 # Export reusable body + equipment. Runtime attaches equipment to matching bones.
 for p in [ROOT/'web/models',ROOT/'assets/players']:p.mkdir(parents=True,exist_ok=True)
-bpy.ops.export_scene.gltf(filepath=str(ROOT/'web/models/athlete.glb'),export_format='GLB',export_animations=False,export_skins=True,export_yup=True,export_materials='EXPORT')
+bpy.ops.export_scene.gltf(filepath=str(ROOT/'web/models/athlete.glb'),export_format='GLB',export_animations=False,export_skins=True,export_yup=True,export_materials='EXPORT',export_vertex_color='ACTIVE')
 # Save an assembled, editable Blender original after exporting socket-local gear.
 for obj,bone,point in [(face,'Head',(0,1.48,0)),(cap,'Head',(0,1.48,0)),(helmet,'Head',(0,1.48,0)),(glove,'HandL',(-.315,.80,0)),(bat,'HandR',(.315,.80,0))]:
  obj.parent=rig;obj.parent_type='BONE';obj.parent_bone=bone;bpy.context.view_layer.update();obj.matrix_world=Matrix.Translation(xyz((point[0],height(point[1]),point[2])))
