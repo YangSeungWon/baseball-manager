@@ -13,7 +13,10 @@ export function createPlayerFactory(){
  template.traverse(o=>{if(o.isMesh){if(!geometries.has(o.geometry))geometries.set(o.geometry,o.geometry.clone());o.geometry=geometries.get(o.geometry);}});
  const material=(source,color,skin)=>{
   const tint=source.name==='Team'?color:source.name==='Skin'?skin:null,key=source.name+':'+(tint||'');
-  if(!materials.has(key)){const m=source.clone();if(tint)m.color.set(tint);materials.set(key,m);}return materials.get(key);
+  if(!materials.has(key)){const m=source.clone();if(tint)m.color.set(tint);
+   // 소재별 반사. 천은 거칠고 피부·헬멧·가죽은 빛을 조금 받아야 입체가 산다.
+   const rough={Team:.80,Cream:.84,Skin:.52,Dark:.42,Leather:.88,Pocket:.95,Stitch:.7}[source.name];if(rough!==undefined&&'roughness' in m)m.roughness=rough;
+   materials.set(key,m);}return materials.get(key);
  };
  return (key,color)=>{
   const model=clone(template),root=new T.Group(),body=new T.Group();root.add(body);

@@ -9,6 +9,31 @@ import { buildSurroundings } from './ballpark3d.js';
 import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
+// 절차적 텍스처. 외부 이미지 없이 캔버스로 만든다(오프라인·배포 ZIP 동일).
+function canvasTexture(w,h,paint,{repeat=null,srgb=true}={}){
+  const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'),w,h);
+  const t=new T.CanvasTexture(c);if(srgb)t.colorSpace=T.SRGBColorSpace;
+  if(repeat){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(repeat,repeat);}
+  t.anisotropy=4;return t;
+}
+// 야구공: 흰 가죽에 붉은 실밥 두 줄(등장방형 투영). 회전하면 구종에 따라 실밥이 다르게 흐른다.
+const seamTexture=()=>canvasTexture(256,128,(g,w,h)=>{
+  g.fillStyle='#f7f2e4';g.fillRect(0,0,w,h);
+  g.strokeStyle='#b3382d';g.lineWidth=3.2;g.lineCap='round';
+  for(const phase of [0,Math.PI]){g.beginPath();for(let i=0;i<=96;i++){const u=i/96,x=u*w,y=h/2+Math.sin(u*Math.PI*2+phase)*h*.30;i?g.lineTo(x,y):g.moveTo(x,y);}g.stroke();
+    for(let i=0;i<48;i++){const u=(i+.5)/48,x=u*w,y=h/2+Math.sin(u*Math.PI*2+phase)*h*.30,dy=Math.cos(u*Math.PI*2+phase);g.beginPath();g.moveTo(x-2.2,y-3.5*dy-1.5);g.lineTo(x+2.2,y+3.5*dy+1.5);g.stroke();}}
+});
+// 부드러운 원형 그림자(접지 그림자). 섀도맵이 없는 기기에서도 높이 정보를 준다.
+const blobTexture=()=>canvasTexture(128,128,(g,w,h)=>{const r=g.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);r.addColorStop(0,'rgba(0,0,0,1)');r.addColorStop(.55,'rgba(0,0,0,.55)');r.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=r;g.fillRect(0,0,w,h);},{srgb:false});
+// 잔디·흙의 결. 색은 재질 color 가 곱해지므로 밝기 편차만 담는다.
+const grainTexture=(variation,seed)=>canvasTexture(128,128,(g,w,h)=>{
+  const img=g.createImageData(w,h),d=img.data;let x=seed>>>0;const rnd=()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};
+  for(let i=0;i<d.length;i+=4){const v=Math.round(255*(1-variation*.5+variation*rnd()));d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;}
+  g.putImageData(img,0,0);
+},{repeat:1.4});
+const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#af8056','#b48a63','#bd946a']);
+// 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
+const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};
 
 export class Live3D {
   constructor(host, dims, opts, onLost) {
@@ -37,13 +62,15 @@ export class Live3D {
     this.box = new T.BoxGeometry(1, 1, 1);
     this.sphere = new T.SphereGeometry(1, 10, 8);
     this.cylinder = new T.CylinderGeometry(1, 1, 1, 10);
-    this.ambient = new T.HemisphereLight('#d6e9ff', '#586449', 2.1); this.scene.add(this.ambient);
+    this.ambient = new T.HemisphereLight('#d6e9ff', '#586449', 1.9); this.scene.add(this.ambient);
     const sun = this.sun = new T.DirectionalLight('#ffe8c0', 3.1);
     sun.position.set(-42, 75, 25); sun.castShadow = true;
     Object.assign(sun.shadow.camera, { left: -55, right: 55, top: 55, bottom: -55, near: 1, far: 200 });
     sun.target.position.set(0, 0, -28); this.scene.add(sun.target);
     sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -.0005; sun.shadow.normalBias = .025;
     this.scene.add(sun);
+    // 반대편의 차가운 보조광. 그늘진 면이 평면으로 죽지 않게 한다. 그림자는 만들지 않는다.
+    this.fill=new T.DirectionalLight('#9fb6d8',.55);this.fill.position.set(48,28,-40);this.scene.add(this.fill);
     this.stadium(dims, opts);
     this.fenceAt = a => fence(a, dims);
     buildSurroundings(this, opts);
@@ -55,14 +82,21 @@ export class Live3D {
       if(!(o.isMesh||o.isLine)||o.userData.noBatch)return;
       o.matrixAutoUpdate=false;o.matrixWorldAutoUpdate=false;
     });
-    this.ball = this.mesh(this.sphere, '#fff8df', this.scene, [.20, .20, .20]);
-    this.ball.castShadow = true;
-    // A restrained bright material keeps the small ball readable against seats and grass.
-    this.ball.material = new T.MeshStandardMaterial({color:'#fff8df',emissive:'#fff1c9',emissiveIntensity:.35,roughness:.55});
+    this.ball = new T.Mesh(new T.SphereGeometry(1,24,18), new T.MeshStandardMaterial({map:seamTexture(),emissive:'#fff1c9',emissiveIntensity:.10,roughness:.48}));
+    this.textures.push(this.ball.material.map);this.ball.castShadow=true;this.ball.userData.noBatch=true;this.scene.add(this.ball);
+    this.spin=0;
+    // Ground contact shadows: one for the ball, one per player. Cheap, and they survive devices without shadow maps.
+    this.blobTex=blobTexture();this.textures.push(this.blobTex);
+    this.blob=()=>{const m=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:this.blobTex,transparent:true,opacity:.4,depthWrite:false,color:'#000',polygonOffset:true,polygonOffsetFactor:-3,polygonOffsetUnits:-6}));m.rotation.x=-Math.PI/2;m.renderOrder=1;m.userData.noBatch=true;m.visible=false;this.scene.add(m);return m;};
+    this.ballShadow=this.blob();
+    // Motion ribbon: a camera-facing strip that tapers and fades toward the tail.
+    const N=this.trailN=26;
     this.trailGeo = new T.BufferGeometry();
-    this.trailGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(26 * 3), 3));
-    this.trail = new T.Line(this.trailGeo, new T.LineBasicMaterial({ color: '#fff2bc', transparent: true, opacity: .35 }));
-    this.trail.frustumCulled = false; this.scene.add(this.trail);
+    this.trailGeo.setAttribute('position', new T.BufferAttribute(new Float32Array(N*2*3), 3));
+    this.trailGeo.setAttribute('color', new T.BufferAttribute(new Float32Array(N*2*3), 3));
+    const idx=[];for(let i=0;i<N-1;i++){const a=i*2;idx.push(a,a+1,a+2,a+1,a+3,a+2);}this.trailGeo.setIndex(idx);
+    this.trail = new T.Mesh(this.trailGeo, new T.MeshBasicMaterial({ vertexColors:true, transparent:true, blending:T.AdditiveBlending, depthWrite:false, side:T.DoubleSide }));
+    this.trail.frustumCulled = false; this.trail.userData.noBatch=true; this.scene.add(this.trail);
     host.prepend(this.canvas);
     this.look={yaw:0,pitch:0};
     if(opts.playerRole==='batter') {
@@ -96,7 +130,12 @@ export class Live3D {
     if(centered){this.look.yaw=this.batterHand==='L'?-1.22:1.22;this.look.pitch=-1.05;}
   }
   material(color) {
-    if (!this.materials.has(color)) this.materials.set(color, new T.MeshStandardMaterial({ color, roughness: .86 }));
+    if (!this.materials.has(color)) {
+      const m=new T.MeshStandardMaterial({ color, roughness: .86 });
+      if(GRASS.has(color)){this.grassGrain??=grainTexture(.14,7);this.textures.push(this.grassGrain);m.map=this.grassGrain;m.roughness=.92;}
+      else if(DIRT.has(color)){this.dirtGrain??=grainTexture(.16,11);this.textures.push(this.dirtGrain);m.map=this.dirtGrain;m.roughness=.98;}
+      this.materials.set(color, m);
+    }
     return this.materials.get(color);
   }
   mesh(geometry, color, parent, scale = [1, 1, 1], pos = [0, 0, 0]) {
@@ -217,7 +256,7 @@ export class Live3D {
   }
   player(key, color) {
     if(this.players.has(key)) return this.players.get(key);
-    const player=this.createPlayer(key,color);this.scene.add(player.root);this.players.set(key,player);return player;
+    const player=this.createPlayer(key,color);this.scene.add(player.root);player.shadow=this.blob();this.players.set(key,player);return player;
   }
   updatePlayer(key, data, color, pose, S) {
     const p=this.player(key,color), {root,body,arms,legs}=p;
@@ -233,6 +272,7 @@ export class Live3D {
     else if(['watch','admire','batFlip','celebrate','clap'].includes(pose)&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
     else if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
     root.position.set(x,Math.max(0,data.jump||0),-y);
+    if(p.shadow){p.shadow.visible=true;p.shadow.position.set(x,.09,-y);p.shadow.scale.setScalar(1.25);p.shadow.material.opacity=.32*(data.alpha??1);}
     p.setColor(color);
     const running=moving&&!['walk','dejected'].includes(pose);
     const stride=moving?Math.sin(p.phase)*(running?.72:.36):0;
@@ -340,10 +380,13 @@ export class Live3D {
     const bottom=k<.58?mix('#d9e4d8','#eea16f',phase):mix('#eea16f','#26364e',phase);
     const g=state.ctx.createLinearGradient(0,0,0,state.canvas.height);g.addColorStop(0,'#'+top.getHexString());g.addColorStop(1,'#'+bottom.getHexString());state.ctx.fillStyle=g;state.ctx.fillRect(0,0,state.canvas.width,state.canvas.height);state.texture.needsUpdate=true;
     this.scene.fog.color.copy(bottom);this.scene.background.copy(top);
-    this.sun.intensity=k<.58?3.1+(1.35-3.1)*phase:1.35+(0.12-1.35)*phase;
-    this.sun.color.copy(k<.58?mix('#fff0d8','#ffad72',phase):mix('#ffad72','#9ab7df',phase));
-    this.sun.position.set(-42+70*k,75-58*k,25-10*k);
-    this.ambient.intensity=2.1-1.0*k;this.ambient.color.copy(mix('#d6e9ff','#6f89b4',k));
+    // 낮: 태양이 낮아지며 붉어진다. 밤: 태양이 아니라 조명탑이 키 라이트다. 하늘은 어두워도 그라운드는 밝다.
+    if(k<.58){this.sun.intensity=3.1+(1.35-3.1)*phase;this.sun.color.copy(mix('#fff0d8','#ffad72',phase));this.sun.position.set(-42+70*k,75-58*k,25-10*k);}
+    else{const f=Math.min(1,phase*1.6);this.sun.intensity=1.35+(2.7-1.35)*f;this.sun.color.copy(mix('#ffad72','#eef3ff',f));this.sun.position.set(-1.4+13.4*f,41.4+46*f,19.2-25*f);}
+    this.ambient.intensity=k<.58?1.9-.6*phase:1.3+.1*phase;this.ambient.color.copy(k<.58?mix('#d6e9ff','#b7a6c8',phase):mix('#b7a6c8','#4d6a99',phase));
+    this.ambient.groundColor.copy(k<.58?mix('#586449','#4e4a3e',phase):mix('#4e4a3e','#1f2a20',phase));
+    this.ball.material.emissiveIntensity=.10+.22*Math.max(0,(k-.58)/.42);
+    this.fill.intensity=k<.58?.55:.55-.2*phase;this.fill.color.copy(k<.58?mix('#9fb6d8','#c7a4a0',phase):mix('#c7a4a0','#6d84b6',phase));
     if(this.floodMaterial)this.floodMaterial.emissiveIntensity=.25+2.75*Math.max(0,(k-.38)/.62);
     this.renderer.toneMappingExposure=1.15+.18*Math.max(0,(k-.55)/.45);this.gameTime=k;
   }
@@ -356,7 +399,7 @@ export class Live3D {
   }
   render(S,colors,line,time) {
     this.animationTime=time;
-    for(const p of this.players.values())p.root.visible=false;
+    for(const p of this.players.values()){p.root.visible=false;if(p.shadow)p.shadow.visible=false;}
     const defense=S.half==='top'?colors.home:colors.away,offense=S.half==='top'?colors.away:colors.home;
     for(const [pos,f] of Object.entries(S.fielders)) {
       if(pos==='C'&&!S.catcher)continue;
@@ -383,9 +426,29 @@ export class Live3D {
     if(b&&S.fieldPlay?.physical&&['catch','force-out','tag-out','safe'].includes(S.fieldPlay.phase)){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f)reachPlayerGlove(f,point(b.x,b.y,b.z));
     }
-    this.ball.scale.setScalar(this.opts.playerRole==='batter'?.12:.20);this.ball.visible=!!b;if(b)this.ball.position.copy(point(b.x,b.y,b.z));
-    const trail=S.trail.slice(-26),attr=this.trailGeo.attributes.position;
-    trail.forEach(([x,y,z],i)=>attr.setXYZ(i,x,z,-y));attr.needsUpdate=true;this.trailGeo.setDrawRange(0,trail.length);this.trail.visible=trail.length>1;
+    const radius=this.opts.playerRole==='batter'?.12:.20;
+    this.ball.scale.setScalar(radius);this.ball.visible=!!b;
+    if(b){
+      this.ball.position.copy(point(b.x,b.y,b.z));
+      const spin=SPIN[S.pitchStyle?.type]||SPIN.FF,dt=this.lastRender==null?0:clamp(time-this.lastRender,0,.1);
+      this.spin+=spin.rpm/60*Math.PI*2*.12*dt;this.ball.rotation.set(0,0,0);this.ball.rotateOnAxis(new T.Vector3(...spin.axis).normalize(),this.spin);
+      this.ballShadow.visible=b.z<12;this.ballShadow.position.set(b.x,.09,-b.y);const h=Math.max(0,b.z);
+      this.ballShadow.scale.setScalar(radius*3.2+h*.14);this.ballShadow.material.opacity=clamp(.38-h*.03,.08,.38);
+    } else {this.ballShadow.visible=false;this.spin=0;}
+    this.lastRender=time;
+    const trail=S.trail.slice(-this.trailN),pos=this.trailGeo.attributes.position,col=this.trailGeo.attributes.color,n=trail.length;
+    if(n>1){
+      // Strip width runs along the camera's right axis so the ribbon never collapses when the pitch comes straight at the viewer.
+      const right=new T.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),tint=new T.Color('#ffe9a8'),width=radius*.45;
+      for(let i=0;i<n;i++){
+        const p=point(...trail[i]);
+        const side=right.clone().multiplyScalar(width*(.1+.9*i/(n-1)));
+        const fade=Math.pow(i/(n-1),2.4)*.32;
+        pos.setXYZ(i*2,p.x-side.x,p.y-side.y,p.z-side.z);pos.setXYZ(i*2+1,p.x+side.x,p.y+side.y,p.z+side.z);
+        col.setXYZ(i*2,tint.r*fade,tint.g*fade,tint.b*fade);col.setXYZ(i*2+1,tint.r*fade,tint.g*fade,tint.b*fade);
+      }
+      pos.needsUpdate=true;col.needsUpdate=true;this.trailGeo.setDrawRange(0,(n-1)*6);this.trail.visible=true;
+    } else this.trail.visible=false;
     if (this.crowdClock) this.crowdClock.value = time;
     if(this.crowdEnergy){const r=S.crowdReaction,age=r?(performance.now()-r.at)/1000:99;this.crowdEnergy.value=r?.cue==='cheer'?r.strength*Math.min(1,age*3)*Math.max(0,1-age/7):r?.cue==='contact'?.15*Math.max(0,1-age/3):0;}
     updateTeamMascot(this.mascot,time,this.crowdEnergy?.value||0);
