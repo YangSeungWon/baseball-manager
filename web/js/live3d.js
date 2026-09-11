@@ -231,6 +231,10 @@ export class Live3D {
         const lamp=this.mesh(this.box,'#fff2ce',rack,[.10,.24,1.2],[-.38+(i%3)*.38,-.2+Math.floor(i/3)*.4,.5]);
         lamp.material=this.material('#fff2ce');this.floodMaterial=lamp.material;lamp.material.emissive.set('#ffe9bc');lamp.material.emissiveIntensity=1.2;
       }
+      // Night-time glare around each rack: an additive sprite the sky painter fades in after dusk.
+      this.haloTex??=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');const r=g.createRadialGradient(64,64,0,64,64,64);r.addColorStop(0,'rgba(255,244,214,1)');r.addColorStop(.25,'rgba(255,240,200,.5)');r.addColorStop(1,'rgba(255,240,200,0)');g.fillStyle=r;g.fillRect(0,0,128,128);const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;this.textures.push(t);return t;})();
+      const halo=new T.Sprite(new T.SpriteMaterial({map:this.haloTex,transparent:true,opacity:0,blending:T.AdditiveBlending,depthWrite:false,fog:false}));
+      halo.position.set(x,31,-y);halo.scale.set(16,10,1);halo.userData.noBatch=true;this.scene.add(halo);(this.floodHalos??=[]).push(halo);
     }
     const cf=fence(0,dims);
     this.boardCanvas=document.createElement('canvas');this.boardCanvas.width=1024;this.boardCanvas.height=512;
@@ -390,7 +394,6 @@ export class Live3D {
     const mix=(a,b,t)=>new T.Color(a).lerp(new T.Color(b),t);
     const top=k<.58?mix('#73acd2','#334d78',phase):mix('#334d78','#071426',phase);
     const bottom=k<.58?mix('#d9e4d8','#eea16f',phase):mix('#eea16f','#26364e',phase);
-    const g=state.ctx.createLinearGradient(0,0,0,state.canvas.height);g.addColorStop(0,'#'+top.getHexString());g.addColorStop(1,'#'+bottom.getHexString());state.ctx.fillStyle=g;state.ctx.fillRect(0,0,state.canvas.width,state.canvas.height);state.texture.needsUpdate=true;
     this.scene.fog.color.copy(bottom);this.scene.background.copy(top);
     // 낮: 태양이 낮아지며 붉어진다. 밤: 태양이 아니라 조명탑이 키 라이트다. 하늘은 어두워도 그라운드는 밝다.
     if(k<.58){this.sun.intensity=3.1+(1.35-3.1)*phase;this.sun.color.copy(mix('#fff0d8','#ffad72',phase));this.sun.position.set(-42+70*k,75-58*k,25-10*k);}
@@ -398,6 +401,9 @@ export class Live3D {
     this.ambient.intensity=k<.58?1.9-.6*phase:1.3+.1*phase;this.ambient.color.copy(k<.58?mix('#d6e9ff','#b7a6c8',phase):mix('#b7a6c8','#4d6a99',phase));
     this.ambient.groundColor.copy(k<.58?mix('#586449','#4e4a3e',phase):mix('#4e4a3e','#1f2a20',phase));
     this.ball.material.emissiveIntensity=.10+.22*Math.max(0,(k-.58)/.42);
+    state.paint(k);   // sun has moved: repaint the sky (glow, haze, stars) around the new direction
+    const halo=Math.max(0,(k-.45)/.55);for(const h of this.floodHalos||[])h.material.opacity=.85*halo;
+    for(const c of this.clouds||[]){c.material.color.copy(k<.58?mix('#f4efe4','#f0b48a',phase):mix('#f0b48a','#2e3a55',phase));}
     this.fill.intensity=k<.58?.55:.55-.2*phase;this.fill.color.copy(k<.58?mix('#9fb6d8','#c7a4a0',phase):mix('#c7a4a0','#6d84b6',phase));
     if(this.floodMaterial)this.floodMaterial.emissiveIntensity=.25+2.75*Math.max(0,(k-.38)/.62);
     this.renderer.toneMappingExposure=1.15+.18*Math.max(0,(k-.55)/.45);this.gameTime=k;
