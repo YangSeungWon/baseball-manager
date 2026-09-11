@@ -33,7 +33,7 @@ test('same choices replay exactly, all runs finish, bad input cannot mutate stat
 });
 
 test('location prediction changes contact, never the committed pitch or take judgment',()=>{
-  const play=(location,action='swing')=>{const g=new BattingGame(1);rolls(g,[.1,.1,.9,.1,.5,.5,.1,.1]);return g.pitch({...choice,location,action});};
+  const play=(location,action='swing')=>{const g=new BattingGame(1);rolls(g,[.1,.1,.85,.1,.5,.5,.1,.1]);return g.pitch({...choice,location,action});};
   const inside=play('in'),outside=play('out'),low=play('low');
   assert.deepEqual(inside.pitch,outside.pitch);assert.deepEqual(inside.pitch,low.pitch);
   assert.equal(inside.result,'F');assert.equal(low.result,'F');assert.equal(outside.result,'W');
@@ -60,4 +60,67 @@ test('vision expands the observed flight and discipline extends the check-swing 
   assert.ok(patient.to>raw.to,'better vision follows the pitch closer to the plate');
   assert.ok(patient.to-patient.from>raw.to-raw.from,'better vision observes more of the flight');
   assert.ok(patient.takeUntil>raw.takeUntil,'better discipline can stop the swing later');
+});
+
+test('every decision carries the counterfactual outcome of the other choice, computed on the same dice without touching state',async()=>{
+  const {compareOutcomes}=await import('../web/js/batting-game.js');
+  const g=new BattingGame(1);rolls(g,[0,0,.99]);
+  const e=g.pitch({...choice,action:'take'});
+  assert.equal(e.call,'S');assert.equal(e.alternative.action,'swing');assert.equal(e.alternative.result,'W');assert.equal(e.alternative.verdict,'same');
+  const h=new BattingGame(1);rolls(h,[0,.99,.5]);
+  const t=h.pitch({...choice,action:'swing'});
+  assert.equal(t.alternative.action,'take');assert.equal(t.alternative.result,'B');assert.equal(t.alternative.verdict,'better');
+  const w=new BattingGame(3);rolls(w,[0,0,0,.9,0,.5]);
+  const hr=w.pitch({target:'FF',approach:'power',action:'swing'});
+  assert.equal(hr.result,'HR');assert.equal(hr.alternative.result,'S');assert.equal(hr.alternative.verdict,'worse');
+  for(let seed=0;seed<100;seed++){
+    const a=new BattingGame(seed*7919),b=new BattingGame(seed*7919);
+    while(!a.done){
+      const c={...choice,action:a.count%2?'take':'swing'};
+      const before=b.snapshot(),rng=b.rng,alt=b.alternativeOf(c,Array.from({length:10},()=>.5));
+      assert.deepEqual(b.snapshot(),before);assert.equal(b.rng,rng);assert.equal(alt.action,c.action==='swing'?'take':'swing');
+      const ea=a.pitch(c),eb=b.pitch(c);assert.deepEqual(ea,eb);assert.ok(['better','worse','same'].includes(ea.alternative.verdict));
+      assert.ok(a.count<300);
+    }
+  }
+  assert.equal(compareOutcomes({result:'B',scored:0,outs:0},{result:'S',scored:0,outs:0}),'better');
+  assert.equal(compareOutcomes({result:'K',scored:0,outs:1},{result:'1B',scored:1,outs:0}),'worse');
+});
+
+test('swing timing: the sweet spot rewards contact, early pulls and late pushes, auto stays neutral, takes ignore it',async()=>{
+  const {swingTiming,SWING_WINDOW}=await import('../web/js/batting-game.js');
+  assert.equal(swingTiming(null).kind,'auto');assert.equal(swingTiming(.7).kind,'sweet');assert.equal(swingTiming(.1).kind,'early');assert.equal(swingTiming(.98).kind,'late');
+  assert.ok(swingTiming(.7).contact>swingTiming(null).contact&&swingTiming(null).contact>swingTiming(.1).contact);
+  assert.ok(swingTiming(.05).angleShift<0&&swingTiming(.99).angleShift>0);
+  assert.ok(swingTiming(0).severity>swingTiming(.3).severity);
+  const at=(timing,r=[0,0,.5,.9,.3,.5,.5,.5])=>{const g=new BattingGame(3);rolls(g,r);g.preparePitch({target:'FF',approach:'contact'});return g.decidePitch('swing',timing);};
+  const sweet=at((SWING_WINDOW.from+SWING_WINDOW.to)/2),early=at(0),late=at(1),auto=at(null);
+  assert.deepEqual(sweet.pitch,early.pitch);assert.equal(sweet.timing.kind,'sweet');assert.equal(early.timing.kind,'early');assert.equal(late.timing.kind,'late');assert.equal(auto.timing.kind,'auto');
+  assert.ok(early.fieldPlay.angle<sweet.fieldPlay.angle,'early swing pulls to the left');assert.ok(late.fieldPlay.angle>sweet.fieldPlay.angle,'late swing pushes to the right');
+  assert.ok(early.fieldPlay.speed<sweet.fieldPlay.speed&&late.fieldPlay.speed<sweet.fieldPlay.speed,'mistimed contact is weaker');
+  assert.match(early.explanation,/일찍/);assert.match(late.explanation,/늦게/);assert.match(sweet.explanation,/정확/);
+  const g=new BattingGame(3);g.preparePitch(choice);assert.throws(()=>g.decidePitch('swing',1.5));assert.throws(()=>g.decidePitch('swing',-.1));
+  const take=g.decidePitch('take',.2);assert.equal(take.timing,null);
+  const a=new BattingGame(9),b=new BattingGame(9);a.preparePitch(choice);b.preparePitch(choice);assert.deepEqual(a.decidePitch('take',null),b.decidePitch('take',.9));
+  const c=new BattingGame(9);c.preparePitch(choice);const e=c.decidePitch('swing',.7);assert.equal(e.alternative.action,'take');
+  const d=new BattingGame(9),f=new BattingGame(9);d.preparePitch(choice);f.preparePitch(choice);
+  assert.equal(d.decidePitch('take').alternative.result,f.decidePitch('swing',null).result,'the counterfactual swing uses auto timing');
+});
+
+test('a matching prediction opens the read earlier and widens the sweet band, but never changes the pitch or the take call',async()=>{
+  const {readWindowFor,SWING_WINDOW}=await import('../web/js/batting-game.js');
+  const batter={contact:.72,vision:.7,chase:.4},pitch={t:'SL',x:.6,z:-.7};
+  const none=readWindowFor(batter,{target:'any',location:'any'},pitch),type=readWindowFor(batter,{target:'SL',location:'any'},pitch),miss=readWindowFor(batter,{target:'FF',location:'in'},pitch),both=readWindowFor(batter,{target:'SL',location:'low'},pitch);
+  assert.ok(type.from<none.from&&type.onset<none.onset,'type hit opens earlier and clears sooner');
+  assert.ok(type.sweet.from<SWING_WINDOW.from&&type.sweet.to===SWING_WINDOW.to);
+  assert.ok(both.sweet.to>SWING_WINDOW.to&&both.to>none.to,'location hit extends the window');
+  assert.deepEqual({from:miss.from,to:miss.to,onset:miss.onset,sweet:miss.sweet},{from:none.from,to:none.to,onset:none.onset,sweet:none.sweet},'a miss is not punished in the window');
+  assert.equal(readWindowFor(batter,{target:'SL'},null).typeHit,false);
+  for(let seed=0;seed<50;seed++){
+    const a=new BattingGame(seed*31),b=new BattingGame(seed*31);
+    const pa=a.preparePitch({target:'any',approach:'contact',location:'any'}),pb=b.preparePitch({target:pa.t,approach:'contact',location:pa.z>.4?'high':pa.z<-.4?'low':pa.x<0?'in':'out'});
+    assert.deepEqual(pa,pb);const ea=a.decidePitch('take'),eb=b.decidePitch('take');assert.equal(ea.result,eb.result);assert.deepEqual(ea.pitch,eb.pitch);
+  }
+  const g=new BattingGame(5);const d=g.preparePitch({target:'any',approach:'contact',location:'any'});const e=g.decidePitch('swing',.5);
+  assert.ok(e.timing.window&&e.timing.window.from<=e.timing.window.to);
 });

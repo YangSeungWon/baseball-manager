@@ -2,14 +2,14 @@ import { getStage } from './inning-stages.js';
 const BASE='https://baseball.ysw.kr/';
 export function readChallenge(search){
   const value=new URLSearchParams(search).get('challenge');
-  const m=/^b6-([0-2])-(0|[1-9]\d{0,9})$/.exec(value||'');
+  const m=/^b7-([0-2])-(0|[1-9]\d{0,9})$/.exec(value||'');
   return m&&Number(m[2])<=0xffffffff?{stageId:Number(m[1]),seed:Number(m[2])}:null;
 }
 export function challengeSeed(search){return readChallenge(search)?.seed??null;}
 export function battingResult(state,seed,events) {
   const stage=getStage(state.stageId??0),homeScore=stage.homeScore+state.runs;
   const title=state.won?'끝내기 성공!':homeScore===stage.awayScore?'동점까지, 한 점이 아쉽다':state.runs?'추격했지만, 뒤집지 못했다':'이번엔 막혔다';
-  const url=BASE+'?challenge=b6-'+stage.id+'-'+(seed>>>0);
+  const url=BASE+'?challenge=b7-'+stage.id+'-'+(seed>>>0);
   const hits=events.filter(e=>['1B','2B','3B','HR'].includes(e.result)).length;
   const summary=`${state.count}구 · ${state.runs}득점 · ${hits}안타`;
   const text=`DUGOUT · 2.5초 승부\n${title}\n${summary}\n${stage.title} · ${stage.situation}\n같은 상황, 너는 뒤집을 수 있어?`;

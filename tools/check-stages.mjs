@@ -34,13 +34,13 @@ test('guessing the wrong location cannot hide its quality loss behind the power 
 });
 test('stage links preserve the exact situation and reject old physics versions',()=>{
  for(const s of STAGES){const g=new BattingGame(42,s.id),r=battingResult(g.snapshot(),42,[]),c=readChallenge(new URL(r.url).search);assert.deepEqual(c,{stageId:s.id,seed:42});assert.deepEqual(new BattingGame(c.seed,c.stageId).snapshot(),g.snapshot());assert.ok(r.score.includes(s.away.short));}
- for(const q of ['?challenge=b5-42','?challenge=b6-3-42','?challenge=b6-0-4294967296','?challenge=b6-0-01'])assert.equal(readChallenge(q),null);
+ for(const q of ['?challenge=b5-42','?challenge=b7-3-42','?challenge=b7-0-4294967296','?challenge=b7-0-01','?challenge=b6-0-42'])assert.equal(readChallenge(q),null);
 });
 test('stage fences used by contact simulation match the renderer dimensions',()=>{
  for(const s of STAGES){const e=new BattingGame(2,s.id).resolvePitch({...choice,approach:'power'},best);if(!e.fieldPlay)continue;for(const event of e.fieldPlay.events.filter(e=>e.type==='home-run')){const a=Math.atan2(event.x,event.y)*180/Math.PI;assert.ok(Math.hypot(event.x,event.y)>=fence(a,parkDims(s.park)));}}
 });
 test('a deep fly wins the one-run stage by tag-up, while the same catch cannot score with two outs',()=>{
- const roll=[0,.1,0,.9,.42,.55,.5,.5,.5,.5],c={...choice,location:'any'};
+ const roll=[0,.1,0,.9,.26,.70,.5,.5,.5,.5],c={...choice,location:'any'};
  const g=new BattingGame(42,1),e=g.resolvePitch(c,roll);assert.equal(e.result,'OUT');assert.equal(e.scored,1);assert.equal(e.label,'희생플라이!');assert.equal(g.won,true);
  const two=new BattingGame(42,1);two.outs=2;const no=two.resolvePitch(c,roll);assert.equal(no.scored,0);assert.equal(two.won,false);assert.equal(two.done,true);
 });

@@ -16,7 +16,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
- await page.goto(url+'/?challenge=b6-0-42');
+ await page.goto(url+'/?challenge=b7-0-42');
  await page.evaluate(async()=>{
   localStorage.setItem('dugout.sfx','0');
   crypto.getRandomValues=a=>a.fill(42);
@@ -47,11 +47,11 @@ try {
   await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:90000});
   const e=await page.evaluate(()=>({result:window.stageEvent.result,scored:window.stageEvent.scored,won:window.stageEvent.after.won}));
   assert.deepEqual(e,{result:['HR','OUT','BB'][id],scored:[3,1,1][id],won:true});
-  await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>shared.url),new RegExp('b6-'+id+'-42$'));
+  await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>shared.url),new RegExp('b7-'+id+'-42$'));
   if(id<2)await page.locator('[data-next]').click();else {assert.equal(await page.locator('[data-next]').count(),0);assert.match(await page.locator('.inning-result h2').textContent(),/세 경기 클리어/);}
  }
  await page.locator('.inning-exit').click();assert.equal(await page.locator('.stage-select button b').evaluateAll(ns=>ns.filter(n=>n.textContent.startsWith('✓')).length),3);
- await page.goto(url+'/?challenge=b6-2-42');await page.locator('.stage-select [data-stage="2"][aria-pressed="true"]').waitFor();
+ await page.goto(url+'/?challenge=b7-2-42');await page.locator('.stage-select [data-stage="2"][aria-pressed="true"]').waitFor();
  await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  assert.equal(await page.locator('.inning-counts .strike.lit').count(),2);assert.equal(await page.locator('.inning-counts .ball.lit').count(),3);
  await page.locator('.inning-exit').click();assert.deepEqual(errors,[]);

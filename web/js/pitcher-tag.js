@@ -6,10 +6,16 @@ export function mountPitcherTag(root,old,onOpen){
  tag.onclick=()=>{if(panel.hidden){onOpen?.();panel.hidden=false;tag.setAttribute('aria-expanded','true');panel.querySelector('button').focus();}else close();};
  root.addEventListener('pointerdown',e=>{if(!panel.hidden&&!panel.contains(e.target)&&!tag.contains(e.target))close();});
  root.addEventListener('keydown',e=>{if(e.key==='Escape'&&!panel.hidden){e.stopImmediatePropagation();close();tag.focus();}});
- return {close,paint(p){
-  tag.innerHTML=`<b>${p.name}</b><span>직구 ${Math.round(p.fast*100)}%</span>`;tag.setAttribute('aria-label',p.name+' 투수 정보');
-  const fast=Math.round(p.fast*100),slider=Math.round((1-p.fast)*.58*100),rates={FF:fast,SL:slider,CH:100-fast-slider};
-  panel.innerHTML=`<header><b>${p.name}</b><button aria-label="투수 정보 닫기">×</button></header><div class="pitcher-repertoire">${Object.entries(PITCHES).map(([type,pitch])=>`<div><b>${pitch.name}</b><span>${pitch.speed+(p.speedOffset||0)-2}–${pitch.speed+(p.speedOffset||0)+2} <small>km/h</small></span><strong>${rates[type]}%</strong></div>`).join('')}</div>`;
+ return {close,paint(p,chart=null){
+  tag.innerHTML=`<b>${p.name}</b><span>${p.style||''}</span>`;tag.setAttribute('aria-label',p.name+' 투수 정보');
+  const seen=chart?.pitches||0,pct=n=>seen?Math.round(100*n/seen)+'%':'—';
+  const counts=chart?Object.entries(chart.byCount).sort((a,b)=>a[0].localeCompare(b[0])):[];
+  const chip=(t,n)=>n?`<i class="pitch-chip pitch-${t}" title="${PITCHES[t].name} ${n}구">${PITCHES[t].name[0]}${n>1?n:''}</i>`:'';
+  const tells=chart?Object.entries(chart.tells).filter(([,v])=>v.seen):[];
+  panel.innerHTML=`<header><b>${p.name}</b><button aria-label="투수 정보 닫기">×</button></header><p class="pitcher-style">${p.style||''} · 이 경기에서 본 ${seen}구</p>
+  <div class="pitcher-repertoire">${Object.entries(PITCHES).map(([type,pitch])=>`<div><b>${pitch.name}</b><span>${pitch.speed+(p.speedOffset||0)-2}–${pitch.speed+(p.speedOffset||0)+2} <small>km/h</small></span><strong>${pct(chart?.byType[type]||0)}</strong></div>`).join('')}</div>
+  ${counts.length?`<div class="pitcher-counts"><b>카운트별 관찰</b>${counts.map(([k,c])=>`<div><span>${k.replace('-','B-')}S</span><span>${chip('FF',c.FF)}${chip('SL',c.SL)}${chip('CH',c.CH)}</span><small>존 안 ${c.zoneIn} · 밖 ${c.zoneOut}</small></div>`).join('')}</div>`:'<p class="pitcher-empty">공을 보면 카운트별 기록이 쌓입니다.</p>'}
+  ${tells.length?`<div class="pitcher-tells"><b>단서</b>${tells.map(([k,v])=>`<span>${k==='glove'?'미트 위치':'투구 템포'} ${v.matched}/${v.seen} 일치</span>`).join('')}</div>`:''}`;
   panel.querySelector('button').onclick=()=>{close();tag.focus();};
  },update(anchor){
   positionPlayerTag(tag,anchor);

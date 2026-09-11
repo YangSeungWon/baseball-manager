@@ -677,8 +677,10 @@ export class LiveView {
       S.ball = { x, y, z, vis: true }; S.trail = [];
     });
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.
-    if (q.r === 'W' || q.r === 'F' || q.r === 'X') tl.add(tArr - 0.16, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
-    if (q.r === 'W') tl.at(tArr - 0.12, () => this.sfx.whiff());
+    // q.swingLead (window fraction, + = pressed early) nudges the bat so a mistimed swing looks mistimed.
+    const swingAt = tArr - 0.16 - (q.swingLead || 0) * 0.3;
+    if (q.r === 'W' || q.r === 'F' || q.r === 'X') tl.add(swingAt, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
+    if (q.r === 'W') tl.at(swingAt + 0.04, () => this.sfx.whiff());
     if (q.r !== 'X') tl.at(tArr + 0.7, () => { S.broadcast = { kind: 'between' }; });
     tl.at(tArr, () => {
       if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);

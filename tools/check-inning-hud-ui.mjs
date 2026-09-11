@@ -31,7 +31,9 @@ try {
     await page.locator('.pitcher-tag').click();
     assert.equal(await page.locator('.pitcher-details').isVisible(),true);
     assert.equal(await page.locator('.pitcher-repertoire>div').count(),3);
-    assert.equal(await page.locator('.pitcher-repertoire strong').evaluateAll(ns=>ns.reduce((sum,n)=>sum+parseInt(n.textContent),0)),100);
+    // 관찰 차트: 본 공이 없으면 비율 대신 —, 있으면 합이 100%. 진짜 배합은 노출하지 않는다.
+    const shares=await page.locator('.pitcher-repertoire strong').evaluateAll(ns=>ns.map(n=>n.textContent.trim()));
+    assert.ok(shares.every(v=>v==='—')||shares.reduce((sum,v)=>sum+parseInt(v),0)===100,'observed shares: '+shares.join(','));
     const details=await page.locator('.pitcher-details').boundingBox();assert.ok(details.x>=0&&details.x+details.width<=width&&details.y>=0&&details.y+details.height<=height);
     await page.keyboard.press('Escape');assert.equal(await page.locator('.pitcher-details').isVisible(),false);assert.equal(await page.locator('.inning-mode').count(),1);
     await page.locator('.scout-toggle').click();

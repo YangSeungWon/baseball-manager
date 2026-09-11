@@ -1,5 +1,6 @@
 import {resolveRunning} from './base-running.js';
 import {fence,parkDims} from './core/bip.js';
+import {BATTING} from './batting-tuning.js';
 export const FIELD_POSITIONS={P:[0,18.44],C:[0,-1.6],'1B':[24,25],'2B':[13,38],SS:[-13,38],'3B':[-24,25],LF:[-45,75],CF:[0,95],RF:[45,75]};
 const dt=1/30,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // One deterministic trace is used both for adjudication and replay. No outcome input.
@@ -46,9 +47,9 @@ export function simulateField({speed=40,launch=25,angle=0,positions=FIELD_POSITI
  const end=frames.at(-1);events.splice(0,events.length,...events.filter(e=>e.t<=end.t));
  return resolveRunning({result:outcome,speed,launch,angle,frames,events,handler,duration:end.t},{bases,batter,outs,defenseSpeed:runSpeed,defense});
 }
-export function contactFlight(roll,{power=false,bonus=0,qualityScale=1,park=null,bases,batter,outs,defense}={}){
- const quality=clamp((1-roll[4])*.85+bonus+(power?.15:0),0,1)*clamp(qualityScale,0,1);
- return simulateField({speed:26+quality*28,launch:6+roll[5]*43+(power?7:0),angle:(roll[7]-.5)*80,park,bases,batter,outs,defense});
+export function contactFlight(roll,{power=false,bonus=0,qualityScale=1,angleShift=0,park=null,bases,batter,outs,defense}={}){
+ const F=BATTING.bip.flight,quality=clamp((1-roll[4])*F.qualityRoll+bonus+(power?F.powerQuality:0),0,1)*clamp(qualityScale,0,1);
+ return simulateField({speed:F.speedBase+quality*F.speedRange,launch:F.launchBase+roll[5]*F.launchRange+(power?F.launchPower:0),angle:clamp((roll[7]-.5)*F.angleRange+angleShift,-F.angleClamp,F.angleClamp),park,bases,batter,outs,defense});
 }
 export function sampleField(play,t){
  const frames=play.frames;let lo=0,hi=frames.length-1;while(lo<hi){const mid=Math.ceil((lo+hi)/2);if(frames[mid].t<=t)lo=mid;else hi=mid-1;}
