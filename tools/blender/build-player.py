@@ -36,10 +36,12 @@ def taper(name,p,height,top,bottom,depth,mat,bone):
  for i in range(n):j=(i+1)%n;faces.append((i,j,n+j,n+i))
  faces.extend([tuple(range(n-1,-1,-1)),tuple(range(n,2*n))]);mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update();o=bpy.data.objects.new(name,mesh);bpy.context.collection.objects.link(o);bpy.context.view_layer.objects.active=o;o.select_set(True);return finish(o,name,mat,bone)
 def profile(name,x,rings,mat,bone):
+ # rings: (y, rx, rz[, dx, dz]) — optional per-ring centre offsets bend a limb (a calf bulges back, a quad forward).
  verts=[];faces=[];n=16
- for y,rx,rz in rings:
+ for ring in rings:
+  y,rx,rz=ring[:3];dx=ring[3] if len(ring)>3 else 0;dz=ring[4] if len(ring)>4 else 0
   for i in range(n):
-   a=i*2*math.pi/n;verts.append(xyz((x+rx*math.cos(a),y,rz*math.sin(a))))
+   a=i*2*math.pi/n;verts.append(xyz((x+dx+rx*math.cos(a),y,dz+rz*math.sin(a))))
  for j in range(len(rings)-1):
   for i in range(n):k=j*n+i;l=j*n+(i+1)%n;faces.append((k,l,l+n,k+n))
  faces.extend([tuple(range(n-1,-1,-1)),tuple(range((len(rings)-1)*n,len(rings)*n))]);me=bpy.data.meshes.new(name);me.from_pydata(verts,[],faces);me.update();o=bpy.data.objects.new(name,me);bpy.context.collection.objects.link(o);bpy.context.view_layer.objects.active=o;o.select_set(True);return finish(o,name,mat,bone)
@@ -57,7 +59,7 @@ profile('Jersey',0,[(.83,.197,.14),(.96,.21,.152),(1.19,.265,.16),(1.30,.26,.15)
 # Union the shirt and sloping sleeves into a single cloth surface, then blend
 # shoulder weights. Separate capped sleeve meshes looked like shoulder pads.
 for side in [-1,1]:
- profile('Sleeve',side*.29,[(1.086,.078,.078),(1.12,.082,.08),(1.23,.086,.089),(1.29,.083,.085),(1.315,.065,.065),(1.325,.015,.02)],'Team',None)
+ profile('Sleeve',side*.29,[(1.086,.074,.076),(1.13,.082,.084),(1.20,.090,.094),(1.255,.096,.098),(1.30,.084,.088),(1.325,.055,.06),(1.335,.012,.015)],'Team',None)
 cloth=join('JerseyCloth')
 remesh=cloth.modifiers.new('Continuous shoulder cloth','REMESH');remesh.mode='VOXEL';remesh.voxel_size=.012;remesh.use_smooth_shade=True;bpy.ops.object.modifier_apply(modifier=remesh.name)
 smooth=cloth.modifiers.new('Relax cloth','SMOOTH');smooth.factor=.7;smooth.iterations=3;bpy.ops.object.modifier_apply(modifier=smooth.name)
@@ -104,13 +106,17 @@ head.data.update()
 for side in [-1,1]:ell('Ear',(side*.155,1.615,-.002),(.032,.052,.027),'Skin','Head')
 for side,suffix in [(-1,'L'),(1,'R')]:
  x=side*.315
- profile('Forearm',x,[(.82,.054,.054),(.93,.061,.061),(1.03,.069,.069),(1.085,.06,.06),(1.11,.018,.018)],'Skin','Forearm'+suffix)
+ # Forearm: narrow wrist, belly just below the elbow, the elbow point sitting slightly back.
+ profile('Forearm',x,[(.815,.044,.046),(.87,.052,.054),(.94,.062,.064,0,-.004),(.99,.064,.066,0,-.006),(1.03,.058,.062,0,-.010)],'Skin','Forearm'+suffix)
+ profile('UpperArm',x,[(1.02,.056,.060,0,-.008),(1.06,.064,.068,0,-.003),(1.10,.070,.074),(1.125,.060,.064),(1.135,.014,.016)],'Skin','UpperArm'+suffix)
  taper('Wristband',(x,.812,0),.045,.058,.058,1,'Dark','Hand'+suffix)
  ell('Palm',(x,.756,.015),(.065,.086,.036),'Skin','Hand'+suffix)
  for j in range(4):ell('Finger',(x+(j-1.5)*.027,.70,.018),(.017,.04,.02),'Skin','Hand'+suffix)
  lx=side*.125
- taper('Thigh',(lx,.59,0),.32,.115,.091,1.05,'Cream','Thigh'+suffix)
- profile('Trouser',lx,[(.155,.073,.073),(.29,.086,.089),(.43,.098,.10),(.49,.065,.067),(.51,.018,.018)],'Cream','Shin'+suffix)
+ # Thigh: widest at the hip, a quadriceps swell forward above the knee, then the kneecap.
+ profile('Thigh',lx,[(.75,.116,.118),(.68,.112,.116,0,.004),(.60,.104,.112,0,.010),(.53,.094,.100,0,.008),(.47,.086,.088),(.44,.080,.082)],'Cream','Thigh'+suffix)
+ # Shin: the calf bulges to the back and the leg thins to the ankle.
+ profile('Trouser',lx,[(.155,.062,.062),(.22,.068,.072,0,-.006),(.30,.078,.092,0,-.016),(.37,.082,.094,0,-.012),(.43,.082,.084),(.47,.074,.076),(.49,.060,.062),(.505,.016,.018)],'Cream','Shin'+suffix)
  box('TrouserStripe',(lx+side*.10,.56,0),(.017,.26,.024),'Team','Thigh'+suffix,.005)
  taper('Sock',(lx,.145,0),.10,.072,.069,1,'Dark','Shin'+suffix)
  box('CleatSole',(lx,.035,.072),(.19,.06,.32),'Dark','Foot'+suffix,.025)
