@@ -98,15 +98,24 @@ export function buildSurroundings(v, opts) {
   for(let x=-36;x<=36;x+=6)v.mesh(v.box,'#93b6bc',v.scene,[4.7,2.2,.15],[x,12,35.9]);
   v.mesh(v.box,'#263d47',v.scene,[85,.5,15],[0,15,39]);
   for(const side of [-1,1]) {
+    const club=side===1?opts.colors.home:opts.colors.away,name=side===1?opts.home:opts.away;
     const g=new T.Group();g.position.copy(p(side*32,7));g.rotation.y=side*Math.PI/4;v.scene.add(g);
     v.mesh(v.box,'#9b927c',g,[16,.15,5],[0,.08,0]);
-    v.mesh(v.box,'#344a50',g,[16,2.7,.2],[0,1.4,-2.5]);
-    v.mesh(v.box,side===1?opts.colors.home:opts.colors.away,g,[16,.3,5.8],[0,3.0,0]);
+    v.mesh(v.box,'#1d2a30',g,[16,2.7,.2],[0,1.4,-2.5]);                                    // back wall, kept dark: the dugout is in shadow
+    v.mesh(v.box,'#243239',g,[16,2.6,4.6],[0,1.45,-.3]).material.side=T.BackSide;         // shaded interior volume
     for(const x of [-7.6,7.6])v.mesh(v.box,'#627777',g,[.2,2.8,5],[x,1.4,0]);
+    v.mesh(v.box,club,g,[16.4,.3,5.8],[0,3.0,0]);
+    v.mesh(v.box,'#f1ede0',g,[16.4,.55,.12],[0,2.72,2.9]);                                  // roof fascia
+    {const label=new T.Mesh(new T.PlaneGeometry(9,.42),new T.MeshBasicMaterial({map:canvasTexture(512,32,(c,w,h)=>{c.clearRect(0,0,w,h);c.fillStyle='#1c2a31';c.font='700 24px "IBM Plex Mono",monospace';c.textAlign='center';c.textBaseline='middle';c.fillText(name.toUpperCase(),w/2,h/2+1);}),transparent:true}));label.position.set(0,2.72,2.97);label.userData.noBatch=true;v.textures.push(label.material.map);g.add(label);}
+    v.mesh(v.box,'#6d8288',g,[16,.06,.06],[0,1.05,2.45]);for(let x=-8;x<=8;x+=2)v.mesh(v.box,'#6d8288',g,[.06,1.05,.06],[x,.55,2.45]);   // front railing
     v.mesh(v.box,'#a9865d',g,[13,.2,.7],[0,.6,-1.6]);
+    v.mesh(v.box,'#5a4632',g,[1.2,1.6,.5],[-7.0,.9,-1.9]);for(let i=0;i<5;i++)v.mesh(v.cylinder,'#d4ad73',g,[.03,1.0,.03],[-7.4+i*.2,1.0,-1.75]);   // bat rack
+    v.mesh(v.cylinder,'#e2532e',g,[.28,.7,.28],[7.2,.95,-1.9]);v.mesh(v.cylinder,'#c8c8c0',g,[.30,.08,.30],[7.2,1.34,-1.9]);              // water cooler
     for(let i=0;i<8;i++) {
-      v.mesh(v.cylinder,side===1?opts.colors.home:opts.colors.away,g,[.26,.65,.23],[-5.5+i*1.5,1.1,-1.6]);
-      v.mesh(v.sphere,'#c99f7b',g,[.19,.22,.19],[-5.5+i*1.5,1.65,-1.6]);
+      const s2=.9+rand()*.2;
+      v.mesh(v.sphere,club,g,[.27*s2,.33*s2,.20*s2],[-5.5+i*1.5,1.1,-1.6]);
+      v.mesh(v.sphere,['#cda37e','#b98764','#e2bd9a'][i%3],g,[.15*s2,.17*s2,.15*s2],[-5.5+i*1.5,1.62,-1.6]);
+      if(i%3)v.mesh(v.sphere,club,g,[.16*s2,.11*s2,.16*s2],[-5.5+i*1.5,1.70,-1.6]);
     }
     // On-deck circles and bullpen pitching lanes.
     const disc=v.mesh(new T.CircleGeometry(1.8,32),'#b18b66',v.scene);disc.rotation.x=-Math.PI/2;disc.position.copy(p(side*10,-3,.06));
@@ -118,10 +127,17 @@ export function buildSurroundings(v, opts) {
   const ng=new T.BufferGeometry();ng.setAttribute('position',new T.Float32BufferAttribute(net,3));v.scene.add(new T.LineSegments(ng,new T.LineBasicMaterial({color:'#435961',transparent:true,opacity:.22})));
   for(const x of [-20,0,20])v.mesh(v.cylinder,'#586e73',v.scene,[.07,11,.07],[x,5.5,13]);
   // Local-looking skyline, trees and hills, all outside the playable area.
+  // Buildings: box facades with a window grid (about 3 m per window) that glows after dark.
+  const windows=[windowTextures(hash(opts.home+'w1')),windowTextures(hash(opts.home+'w2'))];for(const w of windows)v.textures.push(w.map,w.emissiveMap);
+  v.windowMaterials=[['#8c9aa3',0],['#a3aeb4',1],['#74858f',0],['#67777f',1]].map(([c,t])=>new T.MeshStandardMaterial({color:c,map:windows[t].map,emissive:'#ffffff',emissiveMap:windows[t].emissiveMap,emissiveIntensity:0,roughness:.8}));
   for(let i=0;i<22;i++) {
-    const x=(i-10.5)*19,depth=190+rand()*40,h=10+rand()*35;
-    v.mesh(v.box,['#647c86','#71878b','#536d79'][i%3],v.scene,[10+rand()*8,h,9],[x,h/2,-depth]);
+    const x=(i-10.5)*19,depth=190+rand()*40,h=10+rand()*35,w=10+rand()*8;
+    const geo=new T.BoxGeometry(w,h,9),uvs=geo.attributes.uv;
+    for(let k=0;k<uvs.count;k++)uvs.setXY(k,uvs.getX(k)*w/4.2,uvs.getY(k)*h/5.0);
+    const b=new T.Mesh(geo,v.windowMaterials[i%4]);b.position.set(x,h/2,-depth);b.userData.noBatch=true;v.scene.add(b);
+    v.mesh(v.box,'#3c4a52',v.scene,[w+.4,.6,9.4],[x,h+.3,-depth]);                      // roof parapet
     if(i%3===0)v.mesh(v.box,'#a7b9ad',v.scene,[6,1,10],[x,h*.7,-depth+.2]);
+    if(i%4===1)v.mesh(v.box,'#8a9aa2',v.scene,[2.4,4,2.4],[x+w*.3,h+2,-depth]);           // rooftop plant
   }
   for(let i=0;i<45;i++) {
     const a=rand()*Math.PI*2,r=165+rand()*35,x=Math.sin(a)*r,y=30+Math.cos(a)*r;
@@ -169,3 +185,33 @@ function cloudTexture(seed){
   for(let i=0;i<14;i++){const x=40+r()*176,y=52+r()*36,rad=22+r()*30;const grad=g.createRadialGradient(x,y,0,x,y,rad);grad.addColorStop(0,'rgba(255,255,255,.55)');grad.addColorStop(.6,'rgba(255,255,255,.22)');grad.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=grad;g.fillRect(0,0,256,128);}
   const t=new T.CanvasTexture(c);t.colorSpace=T.SRGBColorSpace;return t;
 }
+
+// ---- 절차적 텍스처 (경기장과 렌더러가 공유)
+// 절차적 텍스처. 외부 이미지 없이 캔버스로 만든다(오프라인·배포 ZIP 동일).
+export function canvasTexture(w,h,paint,{repeat=null,srgb=true}={}){
+  const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'),w,h);
+  const t=new T.CanvasTexture(c);if(srgb)t.colorSpace=T.SRGBColorSpace;
+  if(repeat){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(repeat,repeat);}else t.wrapS=t.wrapT=T.ClampToEdgeWrapping;
+  t.anisotropy=4;return t;
+}
+// 외야 펜스 패딩: 짙은 녹색 쿠션, 2.4 m 마다 패널 이음새, 위쪽 노란 홈런 선.
+export const paddingTexture=()=>canvasTexture(128,128,(g,w,h)=>{
+  const grad=g.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#2a5a55');grad.addColorStop(.5,'#224b47');grad.addColorStop(1,'#1a3b38');g.fillStyle=grad;g.fillRect(0,0,w,h);
+  g.fillStyle='#00000055';g.fillRect(0,h*.47,w,3);g.fillRect(0,0,3,h);g.fillRect(w-3,0,3,h);
+  g.fillStyle='#f4d24a';g.fillRect(0,0,w,Math.round(h*.07));
+  g.fillStyle='#ffffff10';for(let i=0;i<40;i++)g.fillRect((i*37)%w,(i*53)%h,2,1);
+},{repeat:1});
+export const numberTexture=text=>canvasTexture(256,108,(g,w,h)=>{g.clearRect(0,0,w,h);g.fillStyle='#f4f1e6';g.font='700 84px "IBM Plex Mono",monospace';g.textAlign='center';g.textBaseline='middle';g.fillText(text,w/2,h/2+4);});
+// 도시 건물 창문: 4×4 격자, 일부는 켜져 있다. emissive 로도 써서 밤에 빛난다.
+// 건물 창문. albedo 는 밝은 외벽 위의 어두운 유리, emissive 는 밤에 켜지는 창만 담는다. 같은 난수열로 둘을 맞춘다.
+export const windowTextures=seed=>{
+  const cells=[];let x=seed>>>0;const rnd=()=>{x=(Math.imul(x,1664525)+1013904223)>>>0;return x/4294967296;};
+  for(let j=0;j<6;j++)for(let i=0;i<5;i++)cells.push({lit:rnd()<.32,warm:rnd()<.65});
+  const draw=(emissive)=>canvasTexture(160,192,(g,w,h)=>{
+    g.fillStyle=emissive?'#000000':'#ffffff';g.fillRect(0,0,w,h);
+    cells.forEach((c,n)=>{const i=n%5,j=Math.floor(n/5);
+      if(emissive){if(!c.lit)return;g.fillStyle=c.warm?'#ffd28a':'#cfe0ff';}else g.fillStyle=c.lit?'#6f7f8c':'#3b4a58';
+      g.fillRect(i*32+8,j*32+7,17,19);});
+  },{repeat:1});
+  return {map:draw(false),emissiveMap:draw(true)};
+};

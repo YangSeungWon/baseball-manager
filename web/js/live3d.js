@@ -5,18 +5,11 @@ import { renderPixelRatio } from './render-quality.js';
 // All animation follows LiveView's state; this module never advances the game.
 import * as T from '../vendor/three/three.module.min.js';
 import { fence } from './core/bip.js';
-import { buildSurroundings } from './ballpark3d.js';
+import { buildSurroundings, canvasTexture, paddingTexture, numberTexture } from './ballpark3d.js';
 import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
 const LOOK_YAW=Math.PI/3,LOOK_PITCH=Math.PI/6;   // 좌우 60°, 상하 30°: 둘러보기가 아니라 곁눈질
-// 절차적 텍스처. 외부 이미지 없이 캔버스로 만든다(오프라인·배포 ZIP 동일).
-function canvasTexture(w,h,paint,{repeat=null,srgb=true}={}){
-  const c=document.createElement('canvas');c.width=w;c.height=h;paint(c.getContext('2d'),w,h);
-  const t=new T.CanvasTexture(c);if(srgb)t.colorSpace=T.SRGBColorSpace;
-  if(repeat){t.wrapS=t.wrapT=T.RepeatWrapping;t.repeat.set(repeat,repeat);}
-  t.anisotropy=4;return t;
-}
 // 야구공: 흰 가죽에 붉은 실밥 두 줄(등장방형 투영). 회전하면 구종에 따라 실밥이 다르게 흐른다.
 const seamTexture=()=>canvasTexture(256,128,(g,w,h)=>{
   g.fillStyle='#f7f2e4';g.fillRect(0,0,w,h);
@@ -194,11 +187,28 @@ export class Live3D {
       this.mesh(this.cylinder,'#f2c74f',this.scene,[.12,17,.12],[side*d,8.5,-d]);
       this.line([[side*.65,-.5],[side*1.7,-.5],[side*1.7,1.6],[side*.65,1.6],[side*.65,-.5]],'#f2e7cb',.07);
     }
-    const wall=arc(0); this.wallHeight=dims.real?.fH || 3;
-    for(let i=1;i<wall.length;i++) {
-      const a=point(...wall[i-1]), b=point(...wall[i]), d=b.clone().sub(a);
-      const m=this.mesh(this.box,i%5===0?'#254f50':'#214344',this.scene,[.55,this.wallHeight,d.length()+.1]);
-      m.position.copy(a.add(b).multiplyScalar(.5));m.position.y=this.wallHeight/2;m.rotation.y=Math.atan2(d.x,d.z);
+    // Outfield wall: one padded ribbon. Panel seams every 2.4 m, a yellow home-run line along the top,
+    // and the distance to each part of the fence painted on it.
+    const wall=arc(0,-46,46); this.wallHeight=dims.real?.fH || 3;
+    {
+      const H=this.wallHeight,pos=[],uv=[],idx=[];let run=0;
+      for(let i=0;i<wall.length;i++){
+        const [x,y]=wall[i];if(i)run+=Math.hypot(x-wall[i-1][0],y-wall[i-1][1]);
+        const inner=point(x*(1-.0),y*(1-.0)),u=run/2.4;
+        pos.push(inner.x,0,inner.z,inner.x,H,inner.z);uv.push(u,0,u,1);
+        if(i){const k=(i-1)*2;idx.push(k,k+2,k+1,k+1,k+2,k+3);}
+      }
+      const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setIndex(idx);geo.computeVertexNormals();
+      const tex=paddingTexture();this.textures.push(tex);
+      const ribbon=new T.Mesh(geo,new T.MeshStandardMaterial({map:tex,roughness:.9,side:T.DoubleSide}));ribbon.receiveShadow=true;ribbon.userData.noBatch=true;this.scene.add(ribbon);
+      // A thin cap so the wall has thickness when seen from the seats.
+      for(let i=1;i<wall.length;i++){const a=point(...wall[i-1]),b=point(...wall[i]),d=b.clone().sub(a);const m=this.mesh(this.box,'#18332f',this.scene,[.5,.18,d.length()+.1]);m.position.copy(a.add(b).multiplyScalar(.5));m.position.y=H-.09;m.rotation.y=Math.atan2(d.x,d.z);m.position.add(new T.Vector3(-a.x,0,-a.z).normalize().multiplyScalar(-.2));}
+      const real=dims.real||{};
+      for(const [angle,metres] of [[-38,real.fL],[0,real.fC],[38,real.fR]]){
+        if(!metres)continue;const r=fence(angle,dims)-.3,t=angle*Math.PI/180,x=Math.sin(t)*r,y=Math.cos(t)*r;
+        const sign=new T.Mesh(new T.PlaneGeometry(2.6,1.1),new T.MeshBasicMaterial({map:numberTexture(String(Math.round(metres))),transparent:true}));
+        sign.position.copy(point(x,y,H*.5));sign.rotation.y=Math.PI+t;sign.userData.noBatch=true;this.textures.push(sign.material.map);this.scene.add(sign);
+      }
     }
     // Concrete terraces under the seats, with a continuous front fascia.
     for (let row=0;row<7;row++) {
@@ -403,6 +413,7 @@ export class Live3D {
     this.ball.material.emissiveIntensity=.10+.22*Math.max(0,(k-.58)/.42);
     state.paint(k);   // sun has moved: repaint the sky (glow, haze, stars) around the new direction
     const halo=Math.max(0,(k-.45)/.55);for(const h of this.floodHalos||[])h.material.opacity=.85*halo;
+    for(const m of this.windowMaterials||[])m.emissiveIntensity=.9*Math.max(0,(k-.5)/.5);
     for(const c of this.clouds||[]){c.material.color.copy(k<.58?mix('#f4efe4','#f0b48a',phase):mix('#f0b48a','#2e3a55',phase));}
     this.fill.intensity=k<.58?.55:.55-.2*phase;this.fill.color.copy(k<.58?mix('#9fb6d8','#c7a4a0',phase):mix('#c7a4a0','#6d84b6',phase));
     if(this.floodMaterial)this.floodMaterial.emissiveIntensity=.25+2.75*Math.max(0,(k-.38)/.62);
