@@ -11,7 +11,7 @@ import { InningGame, PITCHES } from './inning-game.js';
 import { observedChart, tellLabel } from './pitcher-grammar.js';
 import { BattingGame, readWindowFor } from './batting-game.js';
 import { BATTING } from './batting-tuning.js';
-const READ_MS=BATTING.read.windowMs,READ_LABEL=(READ_MS/1000).toFixed(1)+'초';
+const READ_MS=BATTING.read?.windowMs||2500,READ_LABEL=(READ_MS/1000).toFixed(1)+'초';
 import { FullGame, FULL_STAGE } from './full-game.js';
 import { LiveView, Timeline } from './live.js';
 import { battingResult, resultCard, copyChallenge } from './inning-share.js';
@@ -118,7 +118,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     });
   }
   async function readPitch(pitch){
-    const profile=readWindowFor(game.batter,choice,pitch),H=BATTING.hold;
+    // 배포 직후 모듈이 절반만 갱신된 캐시(GitHub Pages 10분)에서도 멈추지 않도록 기본값을 둔다.
+    const profile=readWindowFor(game.batter,choice,pitch),H=BATTING.hold||{contactMs:110,powerMs:420};
     const compact=$('.inning-compact-plan');compact.textContent=[choice.target==='any'?'모든 공':PITCHES[choice.target].name,({any:'전체 코스',in:'몸쪽',out:'바깥쪽',low:'낮게',high:'높게'})[choice.location]].join(' · ');compact.hidden=false;
     const tell=$('.pitch-tell');if(tell){tell.textContent=tellLabel(pitch.tell);tell.hidden=!pitch.tell;}
     root.classList.add('is-reading');dock('warm');
