@@ -23,8 +23,7 @@ try {
     await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     const before=await page.locator('.batting-hold').boundingBox();
-    await page.locator('.inning-throw').click();
-    await page.locator('.is-deciding .batting-decision').waitFor({state:'visible'});
+    await page.locator('.is-deciding .batting-decision').waitFor({state:'visible',timeout:60000});
     if(width<=900){const after=await page.locator('.batting-hold').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
     assert.match(await page.locator('.inning-score').textContent(),/0구/);
     assert.equal(await page.locator('.zone-pitch').count(),0,'no landing point before decision');

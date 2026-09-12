@@ -47,9 +47,8 @@ try {
       assert.equal(await page.evaluate(()=>scene3d.drag),null,'touch cancel releases drag');
       await input.detach();
     }
-    await page.locator('.inning-throw').click();
+    await page.locator('.is-deciding').waitFor({timeout:60000});
     await page.waitForFunction(()=>scene3d.look.yaw===0&&scene3d.look.pitch===0);
-    await page.locator('.is-deciding').waitFor();
     assert.equal((await pose()).kind,'batting');
     await page.locator('.batting-take').click();
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});

@@ -27,12 +27,12 @@ try {
     for(const b of await page.locator('.inning-picks button').all())assert.ok((await b.boundingBox()).height>=44);
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
     await page.screenshot({path:`/tmp/dugout-batting-${width}.png`});
-    await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
+    await page.locator('.is-deciding').waitFor({timeout:60000});assert.equal(await page.locator('.inning-throw').isDisabled(),true);
     await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
     assert.match(await page.locator('.inning-feedback').textContent(),/km\/h/);
     assert.match(await page.locator('.inning-score').textContent(),/1구/);
     await page.locator('[data-value="FF"]').click();
-    await page.locator('.inning-throw').click();await page.locator('.inning-exit').click();
+    await page.locator('.inning-exit').click();
     assert.equal(await page.evaluate(()=>localStorage.getItem('dugout.save.v1')),'existing-save');
     await page.locator('#btnInning').click();await page.locator('.inning-plan-toggle').click();await page.locator('[data-group="zone"]').waitFor();
     assert.equal(await page.locator('.pitching-action').isVisible(),true);
@@ -45,7 +45,7 @@ try {
     await p.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     for(let i=0;i<30;i++){
       if(await p.locator('.inning-result').isVisible())break;
-      await p.locator('.inning-throw').click();await p.locator('.is-deciding').waitFor();await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
+      await p.locator('.is-deciding').waitFor({timeout:60000});await p.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
     }
     return p.locator('.inning-result').textContent();
   };

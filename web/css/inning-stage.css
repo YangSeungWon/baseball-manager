@@ -53,8 +53,11 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-hold kbd{margin-left:6px;padding:0 5px;border:1px solid #86a59d;border-radius:4px;font-family:inherit;font-size:10px}
 .inning-mode .batting-hold:disabled{opacity:.55}
 .inning-mode .batting-hold.is-armed{border-color:#8bc6aa;background:#2f6a55;box-shadow:0 0 0 4px #8bc6aa55,0 0 18px #8bc6aa88}
+.inning-mode .batting-hold.is-loaded{border-color:#f4b98a;background:#4a3a2c}
 .inning-mode .batting-hold.is-swinging{border-color:#f4d491;background:#4b3f2a}
-.inning-mode .batting-hold.is-swinging::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#f4d491aa,#f4a86baa);transform:scaleX(var(--drive,0));transform-origin:left;transition:transform .05s linear}
+.inning-mode .inning-time{grid-column:2;font-size:15px}.inning-mode .inning-time[aria-pressed=true]{background:#f4d491;color:#182e33}
+.inning-mode.is-on-clock .batting-time::after{content:' …';opacity:.7}
+.inning-mode .batting-hold.is-loaded::before,.inning-mode .batting-hold.is-swinging::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#f4d491aa,#f4a86baa);transform:scaleX(var(--drive,0));transform-origin:left;transition:transform .05s linear}
 .inning-mode .batting-hold:focus-visible{outline:3px solid #f4d491;outline-offset:3px}
 @media(pointer:coarse){.inning-mode .batting-hold kbd{display:none}}
 .inning-mode .batting-decision{grid-template-columns:2fr 1fr}

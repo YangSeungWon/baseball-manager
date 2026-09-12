@@ -47,7 +47,7 @@ try {
     const stage=await page.locator('.lv-three').boundingBox();assert.ok(Math.abs(stage.width-width)<2&&Math.abs(stage.height-height)<2);
     assert.equal(await page.locator('.inning-controls').isVisible(),true);
     assert.equal(await page.locator('.inning-feedback').textContent(),'');
-    assert.equal(await page.locator('.inning-throw').textContent(),'준비 완료');
+    assert.equal(await page.locator('.inning-throw').textContent(),'타임');
     assert.equal(await page.locator('.inning-controls .inning-opponent').count(),0);
     assert.equal(await page.locator('.inning-presentation>.inning-opponent').isVisible(),true);
     const panel=await page.locator('.inning-controls').boundingBox();
@@ -57,14 +57,14 @@ try {
     assert.equal(await page.locator('.inning-goal,.inning-rule,.inning-choice-note,.inning-zone-caption').count(),0);
     assert.equal(await page.locator('.inning-diamond .occupied').count(),2);
     assert.equal(await page.locator('.inning-counts i.out.lit').count(),1);
-    for(const cls of ['.inning-sound','.inning-exit','.inning-look','.batting-swing','.batting-take','.inning-throw']){const b=await page.locator(cls).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
+    for(const cls of ['.inning-sound','.inning-exit','.inning-look','.batting-hold','.inning-throw']){const b=await page.locator(cls).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
     assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
     await page.screenshot({path:`/tmp/dugout-hud-${width}.png`});
     await page.locator('[data-group="target"] [data-value="FF"]').click();
     assert.equal(await page.locator('[data-group="target"] [data-value="FF"]').getAttribute('aria-pressed'),'true');
     await page.screenshot({path:`/tmp/dugout-plan-${width}.png`});
     await page.locator('.batting-take').click();
-    await page.locator('.inning-throw').click();await page.locator('.is-deciding .batting-decision').waitFor();
+    await page.locator('.is-deciding .batting-decision').waitFor({timeout:60000});
     assert.equal(await page.locator('.pitcher-tag').isVisible(),false);assert.equal(await page.locator('.pitcher-details').isVisible(),false);
     const mobile=width<=900||height<=500;
     assert.equal(await page.locator('.inning-controls').isVisible(),!mobile);

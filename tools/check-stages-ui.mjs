@@ -38,7 +38,7 @@ try {
   assert.equal(await page.locator('.inning-frame small').textContent(),(id+1)+'/3');
   await page.screenshot({path:`/tmp/dugout-stage-${id+1}.png`});
   await page.locator('[data-group="target"] [data-value="FF"]').click();
-  await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();if(id!==2){const hold=page.locator('.batting-hold');await hold.dispatchEvent('pointerdown',{button:0,pointerId:1});await page.waitForTimeout(150);await page.dispatchEvent('body','pointerup',{pointerId:1});}
+  await page.locator('.is-deciding').waitFor({timeout:60000});if(id!==2){const hold=page.locator('.batting-hold');await hold.dispatchEvent('pointerdown',{button:0,pointerId:1});await page.waitForTimeout(150);await page.dispatchEvent('body','pointerup',{pointerId:1});}
   await page.locator('.is-celebrating').waitFor();
   if(id===0){await page.waitForFunction(()=>state3d.celebrationTime>3);await page.screenshot({path:'/tmp/dugout-celebration-gathered.png'});}
   assert.equal(await page.locator('.inning-result').isVisible(),false);

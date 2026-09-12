@@ -41,8 +41,7 @@ try {
     return dots.every(d=>Math.abs(d.x-dots[0].x)<1)&&dots[0].y<dots[1].y&&dots[1].y<dots[2].y&&Math.abs((base[0].x-base[1].x)-(base[1].x-base[2].x))<1&&Math.abs(base[0].y-base[2].y)<1;
   });assert.ok(alignment,'BSO aligned vertically and bases symmetric');
   await page.screenshot({path:'/tmp/dugout-scoreboard.png'});
-  await page.locator('.inning-throw').click();
-  await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:60000});
+  await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:120000});
   assert.equal(await page.evaluate(()=>playedSeed),42);
   assert.match(await page.locator('.inning-result').textContent(),/끝내기 승리/);
   assert.match(await page.locator('.inning-feedback').textContent(),/홈런/);

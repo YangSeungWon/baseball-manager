@@ -13,7 +13,7 @@ try{
  await page.goto(`http://127.0.0.1:${server.address().port}`);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
  await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.locator('.match-enter').click();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
- await page.locator('.inning-throw').click();await page.locator('.flight-read').waitFor({state:'visible'});
+ await page.locator('.flight-read').waitFor({state:'visible',timeout:60000});
  assert.equal(await page.locator('.inning-live-zone').isVisible(),false);
  assert.equal(await page.locator('.zone-read-estimate,.zone-read-kind').count(),0,'no landing point or pitch type hint');
  const before=await page.locator('.flight-read').boundingBox();
