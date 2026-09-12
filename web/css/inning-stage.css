@@ -248,6 +248,8 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .stage-select button{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:60px;padding:10px 14px;background:#203b43;color:#e3eade;border:1px solid #63877b;border-radius:8px}
 .stage-select button[aria-pressed=true]{background:#365e50;border-color:#e4d49c;box-shadow:inset 3px 0 #e4d49c}
 .stage-select b{font-size:17px}.stage-select span{font-size:14px;color:#c2d3c9}
+.inning-mode .result-stages{margin:20px 0 0;text-align:left}.inning-mode .result-stages button{min-height:56px}.inning-mode .result-stages button.is-cleared b{color:#a8dcc3}
+.inning-mode .result-stages button[aria-pressed=true]{background:#2f4a4a;border-color:#9bb6b0;box-shadow:inset 3px 0 #9bb6b0}
 
 .inning-mode .zone-read{stroke:#102832;stroke-width:1;transition:fill .16s,fill-opacity .16s}
 .inning-mode .zone-read-cover{fill:#66d19e;fill-opacity:.42}

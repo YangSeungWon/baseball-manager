@@ -369,15 +369,13 @@ addEventListener('scroll', () => {
 }, { passive: true });
 
 async function boot() {
+  // 첫 화면은 버튼 하나면 된다. 스테이지 표는 첫 승부가 끝난 결과 화면에서 이어진다.
   const {readChallenge}=await import('./inning-share.js');
   const challenge=readChallenge(location.search),seed=challenge?.seed??null;
   const {STAGES,clearedStages}=await import('./inning-stages.js');
-  let stageId=challenge?.stageId??0;
-  const stageList=document.createElement('div');stageList.className='stage-select';stageList.setAttribute('role','group');stageList.setAttribute('aria-label','승부 선택');
-  const paintStages=()=>{const cleared=clearedStages();stageList.innerHTML=STAGES.map(s=>`<button data-stage="${s.id}" aria-pressed="${s.id===stageId}"><b>${cleared.includes(s.id)?'✓':s.id+1} ${s.title}</b><span>${s.situation}</span></button>`).join('');stageList.querySelectorAll('button').forEach(b=>b.onclick=()=>{stageId=Number(b.dataset.stage);paintStages();$('#btnBatting').textContent=challenge&&challenge.stageId===stageId?'같은 상황에 도전 →':'이 경기에 도전 →';$('#challengeInvite').hidden=!challenge||challenge.stageId!==stageId;});};
-  $('#btnBatting').before(stageList);paintStages();document.addEventListener('dugout-stage-clear',paintStages);
+  const nextStage=()=>{const cleared=clearedStages();return STAGES.find(s=>!cleared.includes(s.id))?.id??STAGES.length-1;};
   if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
-  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',challenge?.stageId===stageId?seed:null,stageId); };
+  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',challenge?seed:null,challenge?.stageId??nextStage()); };
   $('#btnFullGame').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('full'); };
   $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
   $('#btnLoad').onclick = () => pickSaveFile(() => start());

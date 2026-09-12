@@ -28,7 +28,7 @@ try {
   Live3D.prototype.direct=function(S,t){window.scene3d=this;window.state3d=S;return direct.call(this,S,t);};
   Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.shared=data;}});
  });
- assert.equal(await page.locator('.stage-select button').count(),3);
+ assert.equal(await page.locator('.stage-select').count(),0,'the landing page shows no stage list');
  await page.locator('#btnBatting').click();
  for(let id=0;id<3;id++){
   await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
@@ -46,10 +46,12 @@ try {
   const e=await page.evaluate(()=>({result:window.stageEvent.result,scored:window.stageEvent.scored,won:window.stageEvent.after.won}));
   assert.deepEqual(e,{result:['HR','OUT','BB'][id],scored:[3,1,1][id],won:true});
   await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>shared.url),new RegExp('b7-'+id+'-42$'));
+  assert.equal(await page.locator('.result-stages button').count(),3,'the result screen carries the stage board');
+  assert.equal(await page.locator('.result-stages button.is-cleared').count(),id+1);
   if(id<2)await page.locator('[data-next]').click();else {assert.equal(await page.locator('[data-next]').count(),0);assert.match(await page.locator('.inning-result h2').textContent(),/세 경기 클리어/);}
  }
- await page.locator('.inning-exit').click();assert.equal(await page.locator('.stage-select button b').evaluateAll(ns=>ns.filter(n=>n.textContent.startsWith('✓')).length),3);
- await page.goto(url+'/?challenge=b7-2-42');await page.locator('.stage-select [data-stage="2"][aria-pressed="true"]').waitFor();
+ await page.locator('.inning-exit').click();
+ await page.goto(url+'/?challenge=b7-2-42');await page.locator('#challengeInvite:not([hidden])').waitFor();
  await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  assert.equal(await page.locator('.inning-counts .strike.lit').count(),2);assert.equal(await page.locator('.inning-counts .ball.lit').count(),3);
  await page.locator('.inning-exit').click();assert.deepEqual(errors,[]);
