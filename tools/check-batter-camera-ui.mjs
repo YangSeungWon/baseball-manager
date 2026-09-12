@@ -27,7 +27,7 @@ try {
     const pose=()=>page.evaluate(()=>({eye:scene3d.camera.position.toArray(),look:{...scene3d.look},kind:scene3d.cameraKind}));
     await page.locator('.pitcher-tag').waitFor({state:'visible'});
     const anchored=await page.evaluate(()=>{const a=scene3d.pitcherAnchor(),r=document.querySelector('.pitcher-tag').getBoundingClientRect();return Math.abs(r.x+r.width/2-a.x*innerWidth)<3&&Math.abs(r.bottom-(a.y*innerHeight-8))<3;});assert.ok(anchored,'name tracks projected pitcher head');
-    const initial=await pose();assert.deepEqual(initial.eye,[-.85,1.65,.25]);
+    const initial=await pose();assert.deepEqual(initial.eye.map(v=>+v.toFixed(2)),[.7,3.15,3.6],'over-the-shoulder eye: past the plate, above the helmet, behind the batter');
     await page.screenshot({path:`/tmp/dugout-eyes-${width}.png`});
     await page.locator('.inning-look').click();await page.waitForFunction(()=>scene3d.look.pitch<-1);
     await page.screenshot({path:`/tmp/dugout-plate-${width}.png`});

@@ -353,7 +353,8 @@ export class Live3D {
       // Keyframed swing. The rear (top) hand is posed by the clip; the lead hand reaches the bat grip by IK.
       const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',handed=data.hand==='L'?-1:1;
       const planeY=clamp(style.pitchZ||0,-1.5,1.5)*.075,planeX=clamp(style.pitchX||0,-1.5,1.5)*.035;
-      const t=swing*(power?1:.92);
+      const load=S.batLoadAt!=null&&!swing?Math.min(1,Math.max(0,(this.animationTime-S.batLoadAt)/.45)):0;
+      const t=swing?swing*(power?1:.92):.25*load;
       const q=sample(SWING,t);
       if(handed<0){const swap=(a,b)=>{const x=q[a];q[a]=q[b];q[b]=x;};swap('legL','legR');swap('kneeL','kneeR');swap('footL','footR');swap('armL','armR');swap('elbowL','elbowR');}
       applyPose(p,q,handed);
@@ -451,10 +452,12 @@ export class Live3D {
       this.looseBat.rotation.set(this.reducedMotion?Math.PI/2:S.looseBat.spin,0,-.3);
     }else if(this.looseBat)this.looseBat.visible=false;
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
-    const firstPerson=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
-    if(S.batter&&!firstPerson)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
+    if(S.batter)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
-    this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
+    // The shoulder camera stands where the umpire would: leave him out of the batter's own view.
+    const shoulderView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
+    if(!shoulderView)this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
+    else{const u=this.players.get('ump');if(u){u.root.visible=false;if(u.shadow)u.shadow.visible=false;}}
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
@@ -507,7 +510,7 @@ export class Live3D {
   // 1인칭 배트. 대기: 오른 어깨 위. 로드: 뒤로 더 당김. 스윙: 0.34초에 화면을 가로질러 왼쪽으로 빠져나감.
   poseFirstPersonBat(S,time){
     const fp=this.fpBat;if(!fp)return;
-    const show=this.cameraKind==='batting'&&!!S.batter&&!(S.broadcast&&['field','base','beauty'].includes(S.broadcast.kind));
+    const show=this.opts.eyeLevelBat===true&&this.cameraKind==='batting'&&!!S.batter&&!(S.broadcast&&['field','base','beauty'].includes(S.broadcast.kind));
     fp.visible=show;if(!show)return;
     const m=this.batterHand==='L'?-1:1,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>t*t*(3-2*t);
     const load=S.batLoadAt!=null?ease(Math.min(1,Math.max(0,(time-S.batLoadAt)/.45))):0;
@@ -541,12 +544,15 @@ export class Live3D {
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
     if(kind==='batting') {
-      this.batterHand=S.batter?.hand||'R';
-      eye=point(this.batterHand==='L'?.85:-.85,-.25,1.65);
+      // Over the shoulder: a step behind the batter and above the helmet, offset toward the plate so
+      // the mound sits centre-right (or centre-left for a lefty) and the batter's own bat stays in frame.
+      this.batterHand=S.batter?.hand||'R';const m=this.batterHand==='L'?-1:1;
+      const portrait=this.camera.aspect<1,side=portrait?1.05:1.55;   // portrait keeps more of the batter in frame
+      eye=point(-.85*m+side*m,-3.6,3.15);
       if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
-      const yaw=(this.batterHand==='L'?-.045:.045)+this.look.yaw,pitch=-.025+this.look.pitch;
+      const yaw=(-.045*m)+this.look.yaw,pitch=-.14+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      fov=65;
+      fov=46;
     }
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
     else if(kind==='bat-flip'){eye=point(-4,-6,3);aim=point(0,1,1.3);fov=48;}
