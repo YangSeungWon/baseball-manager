@@ -95,6 +95,17 @@ export class Live3D {
     host.prepend(this.canvas);
     this.look={yaw:0,pitch:0};
     if(opts.playerRole==='batter') {
+      // First-person bat and hands, parented to the camera. Load pulls it back, release sweeps it across the view.
+      this.scene.add(this.camera);
+      const fp=this.fpBat=new T.Group();fp.visible=false;this.camera.add(fp);
+      const pivot=this.fpPivot=new T.Group();fp.add(pivot);
+      const bat=new T.Mesh(new T.CylinderGeometry(.034,.024,.86,14),new T.MeshStandardMaterial({color:'#d4ad73',roughness:.55}));bat.position.y=.43+.09;pivot.add(bat);
+      const grip=new T.Mesh(new T.CylinderGeometry(.026,.03,.22,12),new T.MeshStandardMaterial({color:'#2a2a2a',roughness:.8}));grip.position.y=.0;pivot.add(grip);
+      const knob=new T.Mesh(new T.CylinderGeometry(.036,.036,.02,12),grip.material);knob.position.y=-.11;pivot.add(knob);
+      const skin=new T.MeshStandardMaterial({color:'#c98b62',roughness:.6});
+      for(const [y,r] of [[.03,.058],[.13,.056]]){const hand=new T.Mesh(new T.SphereGeometry(r,12,10),skin);hand.position.y=y;hand.scale.set(1,1.15,.85);pivot.add(hand);}
+      for(const m of [bat,grip,knob])m.userData.noBatch=true;
+      fp.traverse(o=>{o.userData.noBatch=true;o.frustumCulled=false;});
       this.canvas.setAttribute('aria-label','타자 시점 구장');
       this.canvas.style.touchAction='none';
       this.lookInput=new AbortController();
@@ -480,6 +491,7 @@ export class Live3D {
     updateTeamMascot(this.mascot,time,this.crowdEnergy?.value||0);
     this.direct(S,time);
     this.scoreboard(S,line);
+    this.poseFirstPersonBat(S,time);
     this.renderer.render(this.scene,this.camera);
     if(this.opts.onFlightRead){
       let read=null;
@@ -491,6 +503,25 @@ export class Live3D {
     }
     this.opts.onPitcherAnchor?.(this.pitcherAnchor());
     this.opts.onEntryAnchor?.(this.playerAnchor(this.opts.entryPlayerKey?.()));
+  }
+  // 1인칭 배트. 대기: 오른 어깨 위. 로드: 뒤로 더 당김. 스윙: 0.34초에 화면을 가로질러 왼쪽으로 빠져나감.
+  poseFirstPersonBat(S,time){
+    const fp=this.fpBat;if(!fp)return;
+    const show=this.cameraKind==='batting'&&!!S.batter&&!(S.broadcast&&['field','base','beauty'].includes(S.broadcast.kind));
+    fp.visible=show;if(!show)return;
+    const m=this.batterHand==='L'?-1:1,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>t*t*(3-2*t);
+    const load=S.batLoadAt!=null?ease(Math.min(1,Math.max(0,(time-S.batLoadAt)/.45))):0;
+    const swing=S.fpSwingAt!=null?Math.max(0,(time-S.fpSwingAt)/.34):null;
+    let px=.34,py=-.30,pz=-.72,rx=.55,ry=-.35,rz=-.62;                           // rest: bat up over the rear shoulder
+    px=lerp(px,.40,load);py=lerp(py,-.26,load);rx=lerp(rx,.72,load);ry=lerp(ry,-.55,load);rz=lerp(rz,-.85,load);   // load: further back and up
+    if(swing!==null){
+      const k=Math.min(1.35,swing),s=ease(Math.min(1,k));
+      px=lerp(px,-.55,s);py=lerp(py,-.22,s);pz=lerp(pz,-.62,s);
+      rx=lerp(rx,1.78,s);ry=lerp(ry,.55,s);rz=lerp(rz,1.95,s);                        // sweep level across the view and out to the left
+      if(k>=1.35)fp.visible=false;
+    }
+    fp.position.set(px*m,py,pz);fp.rotation.set(rx,ry*m,rz*m);
+    this.fpPivot.rotation.y=Math.sin(time*1.3)*.03;                                      // idle waggle
   }
   pitcherAnchor(){
     return this.playerAnchor('fP');
