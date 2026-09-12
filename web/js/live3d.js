@@ -1,4 +1,5 @@
 import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace} from './player-model.js';
+import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
 // Optional renderer. Simulation coordinates (x, depth, height) become (x, height, -depth).
@@ -328,44 +329,40 @@ export class Live3D {
     if(pose==='watch'){body.rotation.x=-.08;arms[0].rotation.x=-.15;}
     if(pose==='dejected'){body.rotation.x=.24;body.position.y=-.08;arms[0].rotation.x=.18;arms[1].rotation.x=.12;}
     if(pose==='pitch') {
+      // Keyframed delivery: the wind-up progress drives the first two thirds of the clip, the release the rest.
       const w=clamp(S.pitcherWind||0,0,1),releasing=!!S.ball?.vis,style=S.pitchStyle||{},type=style.type||'FF';
-      const slot=type==='SL'?.48:type==='CH'?.14:0,driveScale=type==='CH'?.82:type==='SL'?.92:1;
-      const step=releasing?1:T.MathUtils.smoothstep(w,.45,1),follow=releasing?1-w:0;
-      const lift=releasing?0:Math.sin(Math.min(1,w/.75)*Math.PI)*.95;
-      legs[0].rotation.x=-lift-step*.56;p.knees[0].rotation.x=lift*1.5+step*.22;
-      legs[1].rotation.x=follow*.62;p.knees[1].rotation.x=.12*step+follow*.7;
-      arms[0].rotation.x=-.95+w*.45;p.elbows[0].rotation.x=-1.15;
-      arms[1].rotation.x=(releasing?-.3-w*2.5:-.7-w*2.1)*driveScale;
-      arms[1].rotation.z=-.12-w*.35-slot*(.35+w*.45);
-      p.elbows[1].rotation.x=-.12-(releasing?0:Math.sin(w*Math.PI)*(type==='FF'?.9:type==='SL'?.62:.78));
-      p.hips.rotation.y=-step*.16;
-      p.spine.rotation.y=(releasing?0:Math.sin(w*Math.PI)*.32)-step*.12-follow*.15;
-      body.position.z=step*.24*driveScale;body.rotation.x=step*.10+follow*.32*driveScale;body.rotation.z+=slot*.14*Math.sin(w*Math.PI);
+      const t=releasing?.68+(1-w)*.32:w*.68;
+      const q=sample(PITCH,t);applyPose(p,q,1);
+      // Pitch-type overlay: the slider drops the arm slot toward sidearm, the change-up drives with less body.
+      const slot=type==='SL'?.35:type==='CH'?.1:0,ease=Math.sin(Math.min(1,t/.85)*Math.PI);
+      p.arms[1].rotation.z+=slot*ease;p.arms[1].rotation.x*=type==='CH'?.9:1;p.body.rotation.z+=slot*.25*ease;
       for(let i=0;i<2;i++)p.feet[i].rotation.x=-(legs[i].rotation.x+p.knees[i].rotation.x+body.rotation.x);
     }
     if(pose==='bat') {
-      const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',drive=Math.sin(swing*Math.PI/2)*(power?1:.76),handed=data.hand==='L'?-1:1;
+      // Keyframed swing. The rear (top) hand is posed by the clip; the lead hand reaches the bat grip by IK.
+      const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',handed=data.hand==='L'?-1:1;
       const planeY=clamp(style.pitchZ||0,-1.5,1.5)*.075,planeX=clamp(style.pitchX||0,-1.5,1.5)*.035;
-      const expectY=style.location==='high'?.035:style.location==='low'?-.035:0,load=style.target==='CH'?-.035:style.target==='FF'?.025:0;
-      body.position.y-=power?.055:.025;body.rotation.x=power?.10:.045;
-      legs[0].rotation.x=-.13;legs[1].rotation.x=-.18;
-      p.knees[0].rotation.x=.24;p.knees[1].rotation.x=.31;
+      const t=swing*(power?1:.92);
+      const q=sample(SWING,t);
+      if(handed<0){const swap=(a,b)=>{const x=q[a];q[a]=q[b];q[b]=x;};swap('legL','legR');swap('kneeL','kneeR');swap('footL','footR');swap('armL','armR');swap('elbowL','elbowR');}
+      applyPose(p,q,handed);
       const rear=handed===1?1:0,front=1-rear;
-      p.hips.rotation.y=handed*drive*(power?.7:.42);
-      p.spine.rotation.y=handed*(-.18+drive*(power?1.08:.72));
-      p.knees[rear].rotation.x+=drive*.22;
-      p.feet[rear].rotation.set(drive*.28,handed*drive*.3,0);
-      p.feet[front].rotation.y=-handed*drive*.55;
-      body.position.x=-handed*drive*.045;
       p.head.rotation.y=-p.spine.rotation.y*.65;
-      const grip=new T.Vector3(handed*(.10-drive*(power?.25:.14)+planeX),.27+expectY+planeY+drive*(power?.09:.045),.20+load+Math.sin(swing*Math.PI)*(power?.11:.06));
-      for(let i=0;i<2;i++){
-        const target=grip.clone();target.y+=(i===1?.025:-.025);
-        reachPlayerHand(p,i,target,new T.Vector3(i===0?-.55:.55,.03,.02));
-        const parent=p.arms[i].quaternion.clone().multiply(p.elbows[i].quaternion);
-        const batAngle=new T.Quaternion().setFromEuler(new T.Euler(.10+planeY-drive*(power?.95:.58),0,Math.PI-handed*(.55+drive*(power?1.38:.88))));
-        p.hands[i].quaternion.copy(parent.invert().multiply(batAngle));
-      }
+      // Bat: absolute angle in root space, driven by the clip and nudged by where the pitch is.
+      // The bat hangs along the hand's −y axis at rest; aim that axis along the clip's bat direction (mirrored for lefties).
+      const bat=q.bat||[.35,.9,-.3];
+      const dir=new T.Vector3(bat[0]*handed,bat[1]+planeY*.6,bat[2]).normalize();
+      const batAngle=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,-1,0),dir);
+      root.updateMatrixWorld(true);
+      const chainRear=p.arms[rear].quaternion.clone().multiply(p.elbows[rear].quaternion);
+      p.hands[rear].quaternion.copy(chainRear.invert().multiply(batAngle));
+      root.updateMatrixWorld(true);
+      // Lead hand: grip a little further down the bat than the rear hand, in root space.
+      const gripWorld=p.hands[rear].getWorldPosition(new T.Vector3()),down=new T.Vector3(0,-.075,0).applyQuaternion(batAngle);
+      const grip=p.root.worldToLocal(gripWorld).add(down);grip.x+=planeX;
+      reachPlayerHand(p,front,grip,new T.Vector3(front===0?-.55:.55,.03,.02));
+      const chainFront=p.arms[front].quaternion.clone().multiply(p.elbows[front].quaternion);
+      p.hands[front].quaternion.copy(chainFront.invert().multiply(batAngle));
     }
     if(pose==='crouch') {legs[0].rotation.x=-.95;legs[1].rotation.x=-.95;p.knees[0].rotation.x=p.knees[1].rotation.x=1.7;arms[0].rotation.x=-.7;}
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
