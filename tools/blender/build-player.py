@@ -55,14 +55,14 @@ def join(name):
  for o in parts:o.select_set(True)
  bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.join();o=bpy.context.object;o.name=name;parts=[];return o
 # A tapered athletic torso with sewn shirt panels and a distinct waist.
-profile('Jersey',0,[(.83,.197,.14),(.96,.21,.152),(1.19,.265,.16),(1.30,.26,.15),(1.355,.21,.105),(1.39,.095,.073)],'Team','Spine')
+profile('Jersey',0,[(.83,.19,.125),(.96,.20,.132),(1.10,.222,.138),(1.19,.238,.136),(1.30,.236,.124),(1.355,.19,.095),(1.39,.09,.068)],'Team','Spine')
 # Union the shirt and sloping sleeves into a single cloth surface, then blend
 # shoulder weights. Separate capped sleeve meshes looked like shoulder pads.
 for side in [-1,1]:
- profile('Sleeve',side*.29,[(1.086,.074,.076),(1.13,.082,.084),(1.20,.090,.094),(1.255,.096,.098),(1.30,.084,.088),(1.325,.055,.06),(1.335,.012,.015)],'Team',None)
+ profile('Sleeve',side*.285,[(1.086,.070,.072),(1.13,.076,.078),(1.20,.082,.086),(1.255,.086,.088),(1.30,.076,.080),(1.325,.050,.055),(1.335,.012,.015)],'Team',None)
 cloth=join('JerseyCloth')
 remesh=cloth.modifiers.new('Continuous shoulder cloth','REMESH');remesh.mode='VOXEL';remesh.voxel_size=.012;remesh.use_smooth_shade=True;bpy.ops.object.modifier_apply(modifier=remesh.name)
-smooth=cloth.modifiers.new('Relax cloth','SMOOTH');smooth.factor=.7;smooth.iterations=3;bpy.ops.object.modifier_apply(modifier=smooth.name)
+smooth=cloth.modifiers.new('Relax cloth','SMOOTH');smooth.factor=.5;smooth.iterations=2;bpy.ops.object.modifier_apply(modifier=smooth.name)
 decimate=cloth.modifiers.new('Mobile cloth budget','DECIMATE');decimate.ratio=.30;bpy.ops.object.modifier_apply(modifier=decimate.name)
 cloth.vertex_groups.clear()
 groups={name:cloth.vertex_groups.new(name=name) for name in ['Spine','UpperArmL','UpperArmR']}
@@ -109,9 +109,11 @@ for side,suffix in [(-1,'L'),(1,'R')]:
  # Forearm: narrow wrist, belly just below the elbow, the elbow point sitting slightly back.
  profile('Forearm',x,[(.815,.044,.046),(.87,.052,.054),(.94,.062,.064,0,-.004),(.99,.064,.066,0,-.006),(1.03,.058,.062,0,-.010)],'Skin','Forearm'+suffix)
  profile('UpperArm',x,[(1.02,.056,.060,0,-.008),(1.06,.064,.068,0,-.003),(1.10,.070,.074),(1.125,.060,.064),(1.135,.014,.016)],'Skin','UpperArm'+suffix)
- taper('Wristband',(x,.812,0),.045,.058,.058,1,'Dark','Hand'+suffix)
- ell('Palm',(x,.756,.015),(.065,.086,.036),'Skin','Hand'+suffix)
- for j in range(4):ell('Finger',(x+(j-1.5)*.027,.70,.018),(.017,.04,.02),'Skin','Hand'+suffix)
+ taper('Wristband',(x,.812,0),.04,.049,.049,1,'Dark','Hand'+suffix)
+ # Hand: a flat palm, four longer fingers side by side and a thumb set to the inside.
+ ell('Palm',(x,.752,.012),(.05,.078,.026),'Skin','Hand'+suffix)
+ for j in range(4):ell('Finger',(x+(j-1.5)*.024,.688,.014),(.0115,.05,.013),'Skin','Hand'+suffix)
+ ell('Thumb',(x-side*.052,.745,.02),(.014,.036,.014),'Skin','Hand'+suffix)
  lx=side*.125
  # Thigh: widest at the hip, a quadriceps swell forward above the knee, then the kneecap.
  profile('Thigh',lx,[(.75,.116,.118),(.68,.112,.116,0,.004),(.60,.104,.112,0,.010),(.53,.094,.100,0,.008),(.47,.086,.088),(.44,.080,.082)],'Cream','Thigh'+suffix)
@@ -119,10 +121,10 @@ for side,suffix in [(-1,'L'),(1,'R')]:
  profile('Trouser',lx,[(.155,.062,.062),(.22,.068,.072,0,-.006),(.30,.078,.092,0,-.016),(.37,.082,.094,0,-.012),(.43,.082,.084),(.47,.074,.076),(.49,.060,.062),(.505,.016,.018)],'Cream','Shin'+suffix)
  box('TrouserStripe',(lx+side*.10,.56,0),(.017,.26,.024),'Team','Thigh'+suffix,.005)
  taper('Sock',(lx,.145,0),.10,.072,.069,1,'Dark','Shin'+suffix)
- box('CleatSole',(lx,.035,.072),(.19,.06,.32),'Dark','Foot'+suffix,.025)
- ell('Cleat',(lx,.088,.074),(.098,.065,.165),'Dark','Foot'+suffix)
- box('ShoePanel',(lx+side*.07,.085,.085),(.024,.04,.135),'Cream','Foot'+suffix,.008)
- for z in [.065,.10,.135]:box('Lace',(lx,.139,z),(.08,.009,.012),'Cream','Foot'+suffix,.003)
+ box('CleatSole',(lx,.03,.066),(.15,.05,.26),'Dark','Foot'+suffix,.02)
+ ell('Cleat',(lx,.078,.068),(.078,.055,.135),'Dark','Foot'+suffix)
+ box('ShoePanel',(lx+side*.056,.075,.078),(.02,.034,.11),'Cream','Foot'+suffix,.006)
+ for z in [.06,.09,.12]:box('Lace',(lx,.122,z),(.064,.008,.01),'Cream','Foot'+suffix,.003)
 body=join('Athlete')
 # Facial controls remain separate from the skinned body. Runtime attaches this
 # socket-local group to Head and drives blinks, gaze, brows and mouth shapes.
@@ -249,7 +251,7 @@ for v in body.data.vertices:
   v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z=height(1.48)+(old-1.48)*HEAD
  else:v.co.x=width(v.co.x,old);v.co.z=height(old)
 for obj in [cap,helmet]:
- for v in obj.data.vertices:v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z*=HEAD
+ for v in obj.data.vertices:v.co.x*=HEAD*.95;v.co.y*=HEAD*.97;v.co.z*=HEAD*.95
 bpy.context.view_layer.objects.active=rig;bpy.ops.object.mode_set(mode='EDIT')
 for b in rig.data.edit_bones:
  b.head.x=width(b.head.x,b.head.z);b.tail.x=width(b.tail.x,b.tail.z)
