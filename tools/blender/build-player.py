@@ -211,6 +211,28 @@ for key in ['Leather','Pocket']:
  mat=M[key];nodes=mat.node_tree.nodes;links=mat.node_tree.links;shader=nodes.get('Principled BSDF')
  tex=nodes.new('ShaderNodeTexImage');tex.image=color_image;links.new(tex.outputs['Color'],shader.inputs['Base Color'])
  tex=nodes.new('ShaderNodeTexImage');tex.image=normal_image;normal=nodes.new('ShaderNodeNormalMap');normal.inputs['Strength'].default_value=.45;links.new(tex.outputs['Color'],normal.inputs['Color']);links.new(normal.outputs['Normal'],shader.inputs['Normal'])
+# Uniform cloth: a tileable knit weave with soft wrinkles, embedded as a normal map. Cloth parts get
+# a smart-projected UV scaled so the weave repeats about every 14 cm; seams stay geometry (placket, stripes).
+def unwrap(obj,repeat):
+ bpy.ops.object.select_all(action='DESELECT');obj.select_set(True);bpy.context.view_layer.objects.active=obj
+ bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.select_all(action='SELECT');bpy.ops.uv.smart_project(island_margin=.02);bpy.ops.object.mode_set(mode='OBJECT')
+ for d in obj.data.uv_layers.active.data:d.uv*=repeat
+for obj,repeat in [(body,11),(cap,4),(helmet,4)]:unwrap(obj,repeat)
+wrng=random.Random(23);cloth=[]
+for y in range(size):
+ for x in range(size):
+  weave=.32*math.sin(x*2*math.pi*32/size)*math.sin(y*2*math.pi*32/size)         # knit cells
+  fold=1.3*math.sin(x*2*math.pi*1.6/size+2.4*math.sin(y*2*math.pi*1.1/size))      # long soft wrinkles
+  cloth.append(weave+fold+.45*wrng.random())
+fabric=[]
+for y in range(size):
+ for x in range(size):
+  dx=(cloth[y*size+(x+1)%size]-cloth[y*size+(x-1)%size])*.18;dy=(cloth[((y+1)%size)*size+x]-cloth[((y-1)%size)*size+x])*.18
+  n=Vector((-dx,-dy,1)).normalized();fabric.extend([n.x*.5+.5,n.y*.5+.5,n.z*.5+.5,1])
+fabric_image=embedded('Cloth weave',fabric,True)
+for key in ['Team','Cream']:
+ mat=M[key];nodes=mat.node_tree.nodes;links=mat.node_tree.links;shader=nodes.get('Principled BSDF')
+ tex=nodes.new('ShaderNodeTexImage');tex.image=fabric_image;normal=nodes.new('ShaderNodeNormalMap');normal.inputs['Strength'].default_value=.42;links.new(tex.outputs['Color'],normal.inputs['Color']);links.new(normal.outputs['Normal'],shader.inputs['Normal'])
 taper('Barrel',(0,-.50,0),.55,.043,.029,1,'Stitch',None)
 taper('Handle',(0,-.115,0),.25,.019,.026,1,'Dark',None)
 ell('Knob',(0,.02,0),(.031,.018,.031),'Dark')
