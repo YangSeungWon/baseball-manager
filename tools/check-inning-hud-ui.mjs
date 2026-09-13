@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
     await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     await page.locator('.inning-batter-entry').waitFor({state:'visible'});

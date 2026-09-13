@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[390,844],[320,568],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.locator('#btnBatting').click();await page.locator('.inning-throw').waitFor();
     await page.evaluate(()=>localStorage.setItem('dugout.save.v1','existing-save'));
     await page.locator('.lv-three').waitFor({state:'visible',timeout:20000});
@@ -38,7 +38,7 @@ try {
     assert.equal(await page.locator('.pitching-action').isVisible(),true);
     await page.keyboard.press('Escape');await page.close();
   }
-  const p=await browser.newPage({viewport:{width:390,height:844}});p.on('pageerror',e=>errors.push(e.message));
+  const p=await browser.newPage({viewport:{width:390,height:844}});await p.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});p.on('pageerror',e=>errors.push(e.message));
   await p.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(7);return a;};});
   await p.goto(url);await p.locator('#btnBatting').click();await p.locator('.inning-throw').waitFor();
   const run=async()=>{

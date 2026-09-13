@@ -15,7 +15,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
- const page=await browser.newPage();await page.goto(url);
+ const page=await browser.newPage();await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});await page.goto(url);
  await page.evaluate(async()=>{const {LiveView}=await import('/js/live.js');window.LiveView=LiveView;document.querySelector('#boot').hidden=true;const host=document.createElement('div');host.className='inning-mode';host.innerHTML='<div class="inning-live"></div>';document.body.append(host);window.lv=new LiveView(host.firstChild,{home:'홈',away:'원정',colors:{home:'#cc7755',away:'#448899'},immersive:()=>true,stageHeight:()=>innerHeight});await lv.ready;});
  for(const width of [390,1440])for(const reducedMotion of ['reduce','no-preference']){
   await page.setViewportSize({width,height:900});await page.emulateMedia({reducedMotion});

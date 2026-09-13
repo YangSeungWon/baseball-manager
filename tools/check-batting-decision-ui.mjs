@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));
+    const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);
     await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.decidePitch;window.decisions=[];BattingGame.prototype.decidePitch=function(action){decisions.push(action);return resolve.call(this,action);};});
     await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));

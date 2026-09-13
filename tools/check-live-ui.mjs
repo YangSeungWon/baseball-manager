@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, ...(process.env.CHROMIUM_
 try {
   const errors = [];
   for (const [width,height] of [[390,844],[320,568],[844,390],[1440,1000]]) {
-    const page = await browser.newPage({ viewport:{width,height} });
+    const page = await browser.newPage({ viewport:{width,height} });await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
     page.on('pageerror', e => {errors.push(e.message);console.error(e.stack)});
     await page.goto(url); await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').click(); await page.locator('#guidePlay').click();
     const start = page.locator('.lv-pre-go'); await start.waitFor();
@@ -52,7 +52,7 @@ try {
     await page.locator('#gsDone').click();
     await page.close();
   }
-  const decision = await browser.newPage({viewport:{width:320,height:568}});
+  const decision = await browser.newPage({viewport:{width:320,height:568}});await decision.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
   decision.on('pageerror', e => errors.push(e.message));
   await decision.goto(url); await decision.locator('.manager-entry>summary').click(); await decision.locator('#btnNew').waitFor();
   await decision.evaluate(async () => {

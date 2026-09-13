@@ -9,7 +9,7 @@ const server=createServer(async(req,res)=>{const path=resolve(root,'.'+new URL(r
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:{})});
 try{
- const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));
  await page.goto(`http://127.0.0.1:${server.address().port}`);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
  await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.locator('.match-enter').click();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});

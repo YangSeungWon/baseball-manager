@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors = [];
   for (const [width,height] of [[390,844],[1440,1000]]) {
-    const page = await browser.newPage({viewport:{width,height}});
+    const page = await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
     page.on('pageerror', e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error' && /Shader Error|VALIDATE_STATUS/.test(m.text()))errors.push(m.text());});
     await page.goto(url); await page.locator('.manager-entry>summary').click(); await page.locator('#btnNew').waitFor();
@@ -86,7 +86,7 @@ try {
     assert.equal(await page.locator('.lv-three').count(),0,'canvas disposed');
     await page.close();
   }
-  const variant=await browser.newPage();variant.on('pageerror',e=>errors.push(e.message));
+  const variant=await browser.newPage();await variant.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});variant.on('pageerror',e=>errors.push(e.message));
   await variant.goto(url); await variant.locator('.manager-entry>summary').click();await variant.locator('#btnNew').waitFor();
   const variants=await variant.evaluate(async()=>{
     const {Live3D,loadPlayerModel}=await import('/js/live3d.js');await loadPlayerModel();const {parkDims}=await import('/js/core/bip.js');
@@ -101,7 +101,7 @@ try {
   assert.equal(variants[0].crowd,0);assert.equal(variants[1].mode,'indoor');assert.equal(variants[1].crowd,0);
   await variant.close();
   // Exercise the real game flow with a persisted third-view preference.
-  const game=await browser.newPage({viewport:{width:390,height:844}});
+  const game=await browser.newPage({viewport:{width:390,height:844}});await game.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
   game.on('pageerror',e=>errors.push(e.message));
   await game.goto(url); await game.locator('.manager-entry>summary').click();await game.locator('#btnNew').waitFor();
   await game.evaluate(()=>localStorage.setItem('dugout.view','persp'));
@@ -116,7 +116,7 @@ try {
   assert.equal(await game.locator('.lv-three').count(),0);
   await game.close();
   // Closing during the async import must not create an orphan WebGL canvas.
-  const closing=await browser.newPage();
+  const closing=await browser.newPage();await closing.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
   closing.on('pageerror',e=>errors.push(e.message));
   await closing.route('**/js/live3d.js',async route=>{await new Promise(r=>setTimeout(r,200));await route.continue();});
   await closing.goto(url); await closing.locator('.manager-entry>summary').click();await closing.locator('#btnNew').waitFor();

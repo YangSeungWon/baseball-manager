@@ -15,7 +15,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
- const page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
  await page.goto(url);
  const model=await page.evaluate(async()=>{
   const T=await import('/vendor/three/three.module.min.js');const {loadPlayerModel,createPlayerFactory}=await import('/js/player-model.js');await loadPlayerModel();

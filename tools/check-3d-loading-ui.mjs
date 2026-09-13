@@ -15,7 +15,7 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
- const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});
+ const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
  await page.goto(url);await page.evaluate(()=>{localStorage.setItem('dugout.view','top');localStorage.setItem('dugout.sfx','0');});
  let release;const gate=new Promise(r=>release=r);await page.route('**/js/live3d.js',async route=>{await gate;await route.continue();});
  await page.locator('#btnBatting').click();

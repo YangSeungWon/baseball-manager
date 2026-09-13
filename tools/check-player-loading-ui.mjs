@@ -16,7 +16,7 @@ const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
  for(const mode of ['retry','close']){
-  const page=await browser.newPage({viewport:{width:390,height:844}});page.setDefaultTimeout(90000);let requests=0,release,seen;const requested=new Promise(r=>seen=r),gate=new Promise(r=>release=r);
+  const page=await browser.newPage({viewport:{width:390,height:844}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.setDefaultTimeout(90000);let requests=0,release,seen;const requested=new Promise(r=>seen=r),gate=new Promise(r=>release=r);
   await page.route('**/models/athlete.glb',async route=>{requests++;seen();if(mode==='retry'&&requests===1)await route.fulfill({status:503,body:'test failure'});else if(mode==='close'){await gate;await route.continue();}else await route.continue();});
   await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));await page.locator('#btnBatting').click();await requested;
   assert.equal(await page.locator('.inning-throw').isDisabled(),true);

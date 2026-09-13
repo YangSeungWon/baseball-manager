@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
  const errors=[];
  for(const [width,height] of [[320,568],[844,390],[1440,1000]]){
-  const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
+  const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
   await page.evaluate(async()=>{
    localStorage.setItem('dugout.sfx','0');const {InningGame}=await import('/js/inning-game.js');
    const pitch=InningGame.prototype.pitch;window.pitches=[];

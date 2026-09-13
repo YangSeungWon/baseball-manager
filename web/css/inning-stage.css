@@ -326,3 +326,17 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .pitch-effort{min-height:52px;border-radius:8px;font-size:15px;background:#24343d;border:1px solid #6b8585;color:#e8ede4}
 .inning-mode .pitch-effort[aria-pressed=true]{background:#5a3a2e;border-color:#f4a86b;color:#ffe3cf;box-shadow:inset 0 -2px 0 #f4a86b}
 .inning-mode .pitch-effort:disabled{opacity:.5}
+
+/* 코치 말풍선. 결정 판 위에 뜨고, 가리키는 대상에 따라 자리가 조금 바뀐다. */
+.inning-mode .coach-tip{position:fixed;z-index:34;left:50%;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 178px);transform:translateX(-50%);width:min(380px,calc(100% - 24px));padding:12px 14px 10px;border-radius:12px;background:#0f2028f2;border:1px solid #f4d491;box-shadow:0 8px 28px #0008;color:#e9eee5;font-size:15px;line-height:1.5}
+.inning-mode .coach-tip[hidden]{display:none}.inning-mode .coach-tip p{margin:0 0 6px}.inning-mode .coach-tip b{color:#f4d491}
+.inning-mode .coach-tip kbd{margin-left:6px;padding:0 5px;border:1px solid #9bb6b0aa;border-bottom-width:2px;border-radius:4px;background:linear-gradient(#1f3a44,#142a33);font:600 11px/15px "IBM Plex Mono",ui-monospace,monospace}
+.inning-mode .coach-tip::after{content:'';position:absolute;left:50%;bottom:-7px;width:12px;height:12px;background:#0f2028;border-right:1px solid #f4d491;border-bottom:1px solid #f4d491;transform:translateX(-50%) rotate(45deg)}
+.inning-mode .coach-tip.at-picks{bottom:auto;top:calc(88px + 110px)}.inning-mode .coach-tip.at-picks::after{bottom:auto;top:-7px;transform:translateX(-50%) rotate(225deg)}
+.inning-mode .coach-tip.at-pitch{bottom:calc(max(10px,env(safe-area-inset-bottom)) + 110px)}
+.inning-mode .coach-skip{background:transparent;border:0;color:#9bb0b8;font-size:12px;padding:2px 0;min-height:0;text-decoration:underline}
+.inning-mode .coach-tip.is-pulse{border-color:#8bc6aa;animation:coach-pulse .5s ease-in-out infinite alternate}
+@keyframes coach-pulse{from{transform:translateX(-50%) scale(1)}to{transform:translateX(-50%) scale(1.04)}}
+@media(prefers-reduced-motion:reduce){.inning-mode .coach-tip.is-pulse{animation:none}}
+@media(pointer:coarse){.inning-mode .coach-tip kbd{display:none}}
+@media(max-height:500px){.inning-mode .coach-tip{left:auto;right:12px;transform:none;width:300px;bottom:150px}.inning-mode .coach-tip.is-pulse{animation:none}}

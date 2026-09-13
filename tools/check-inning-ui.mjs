@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
   const errors=[];
   for(const [width,height] of [[390,844],[320,568],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});
+    const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
     await page.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(4);return a;};});
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error'&&/Shader Error|TypeError|ReferenceError/.test(m.text()))errors.push(m.text());});
@@ -55,7 +55,7 @@ try {
     await page.keyboard.press('Escape');assert.equal(await page.locator('.inning-mode').count(),0);
     await page.close();
   }
-  const replay=await browser.newPage({viewport:{width:390,height:844}});replay.on('pageerror',e=>errors.push(e.message));
+  const replay=await browser.newPage({viewport:{width:390,height:844}});await replay.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});replay.on('pageerror',e=>errors.push(e.message));
   await replay.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(4);return a;};});
   await replay.goto(url);await replay.locator('#btnInning').click();await replay.locator('.inning-throw').waitFor();
   const run=async()=>{

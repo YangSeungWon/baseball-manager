@@ -17,7 +17,7 @@ const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','-
 try {
  const errors=[];
  for(const [speed,expected,width,height] of [[5.5,'1B',390,844],[9,'2B',844,390]]){
-  const page=await browser.newPage({viewport:{width,height}});page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
+  const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
   await page.evaluate(async speed=>{
    localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.resolvePitch;const {defenseRoster}=await import('/js/player-traits.js');Object.defineProperty(BattingGame.prototype,'defense',{configurable:true,get:()=>defenseRoster(0)});
    BattingGame.prototype.resolvePitch=function(c){
