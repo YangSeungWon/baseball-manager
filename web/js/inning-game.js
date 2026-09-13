@@ -1,6 +1,6 @@
 import { defenseRoster } from './player-traits.js';
 import { contactFlight } from './field-sim.js';
-import { controlledPitch, releaseLabel } from './pitch-control.js';
+import { controlledPitch, releaseLabel, EFFORT } from './pitch-control.js';
 import { PITCHING } from './batting-tuning.js';
 // A small, independent pitching challenge. Never reads/writes the GM save or RNG.
 export const PITCHES={FF:{name:'직구',speed:147},SL:{name:'슬라이더',speed:133},CH:{name:'체인지업',speed:128}};
@@ -12,19 +12,22 @@ export class InningGame {
   get batter(){const i=(this.seed+this.order)%BATTERS.length;return {...BATTERS[i],id:'batter-'+this.order,speed:[9,8.2,7.4][i],power:[0,0,.12][i]};}
   get defense(){return defenseRoster(this.seed);}
   snapshot(){return {defense:this.defense,outs:this.outs,runs:this.runs,balls:this.balls,strikes:this.strikes,bases:[...this.bases],baseRunners:this.bases.map((v,i)=>v?{...(this.baseRunners[i]||{id:'base-'+i,name:'주자',speed:7})}:null),count:this.count,batter:{...this.batter},done:this.done,won:this.won};}
-  pitch({type,zone,intent,release}) {
+  // `effort`: 'calm'(숨 고르기) · 'normal' · 'max'(전력). 전력은 빠르고 치기 어렵지만 릴리스가 흔들리고 피로가 빨리 쌓인다.
+  pitch({type,zone,intent,release,effort='normal'}) {
     if(this.done)throw new Error('Challenge already finished');
     if(!PITCHES[type]||!['in','out','low','high'].includes(zone)||!['attack','chase'].includes(intent))throw new Error('Invalid pitch selection');
     if(release!==undefined&&(!Number.isFinite(release)||Math.abs(release)>1))throw new Error('Invalid release');
-    const before=this.snapshot(),roll=Array.from({length:10},()=>this.random());
+    if(!EFFORT[effort])throw new Error('Invalid effort');
+    const before=this.snapshot(),roll=Array.from({length:10},()=>this.random()),E=EFFORT[effort];
     const K=PITCHING,repeated=this.history.slice(-2).filter(p=>p.type===type).length;
-    const fatigue=Math.max(0,this.count-K.fatigueFrom)*K.fatiguePerPitch;
+    this.load=(this.load||0)+E.fatigue;   // 피로는 투구 수가 아니라 실린 힘의 누적이다
+    const fatigue=Math.max(0,this.load-E.fatigue-K.fatigueFrom)*K.fatiguePerPitch;
     const strikeChance=clamp((intent==='attack'?K.strikeAttack:K.strikeChase)+(type==='FF'?0:K.offSpeedZone)+(zone==='low'?K.lowZone:0)-fatigue,...K.strikeClamp);
     const control=release===undefined?null:controlledPitch(zone,intent,release,roll[0]*2-1,roll[6]*2-1);
     const inZone=control?Math.abs(control.x)<=1&&Math.abs(control.z)<=1:roll[0]<strikeChance;
     const swing=roll[1]<(inZone?K.swingInZone+this.strikes*K.swingPerStrike:this.batter.chase+(this.strikes===2?K.chaseTwoStrikes:0)+(this.balls===3?K.chaseThreeBalls:0));
     const fooled=(type==='CH'&&this.history.at(-1)?.type==='FF'?K.fooledChangeAfterFast:0)+(type==='SL'&&zone==='out'?K.fooledSliderAway:0);
-    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled,...K.contactClamp);
+    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled+E.contact,...K.contactClamp);
     let result,terminal=false,fieldPlay=null;
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
@@ -56,11 +59,12 @@ export class InningGame {
       result==='W'||result==='K'?(fooled>0?'구속과 궤적 변화가 타이밍을 흔들었습니다.':'타자와의 승부에서 아웃카운트에 가까워졌습니다.'):
       ['1B','2B','HR'].includes(result)?(repeated===2?'반복한 구종에 타자가 대응했습니다.':'타자가 공을 제대로 맞혔습니다.'):
       result==='S'?'타자가 지켜본 공이 스트라이크 존에 들어왔습니다.':result==='BB'?'네 번째 볼. 주자를 내보냈습니다.':result==='OUT'?'수비가 타구를 처리했습니다.':'타자가 커트했습니다. 다시 승부하세요.';
-    const q={type,zone,intent};this.history.push(q);
+    const explained=effort==='max'?explanation+' 전력으로 던져 구속은 올랐지만 피로가 쌓입니다.':explanation;
+    const q={type,zone,intent,effort};this.history.push(q);
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
     this.won=this.outs>=3 && this.runs<2;
     this.done=this.won||this.runs>=2;
     const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+Math.round(roll[6]*4-2)},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation:explained,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+E.speed+Math.round(roll[6]*4-2)},effort,angle:(roll[7]-.5)*75};
   }
 }

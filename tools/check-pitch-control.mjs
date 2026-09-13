@@ -44,3 +44,9 @@ test('high fastball target and high prediction are supported',async()=>{
  const low=new BattingGame(1).resolvePitch({...choice,location:'low'},roll);
  assert.notEqual(high.result,'W');assert.equal(low.result,'W');
 });
+
+test('max effort wobbles the release more than normal, calm least',()=>{
+  const pressure=.6;let calm=0,normal=0,max=0;
+  for(let i=1;i<40;i++){const p=i/40;calm+=Math.abs(releaseMarker(p,pressure,'calm')-(p*2-1));normal+=Math.abs(releaseMarker(p,pressure,'normal')-(p*2-1));max+=Math.abs(releaseMarker(p,pressure,'max')-(p*2-1));}
+  assert.ok(calm<normal&&normal<max);assert.equal(releaseMarker(.3,pressure,true),releaseMarker(.3,pressure,'calm'));
+});

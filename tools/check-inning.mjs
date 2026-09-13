@@ -29,3 +29,14 @@ test('challenge always terminates, legal counts/bases and varied choices affect 
   }
   assert.ok(fast>0&&fast<500);assert.ok(mix>fast);
 });
+
+test('max effort adds speed and takes contact away while wearing the arm faster; calm does the opposite; bad effort is refused',async()=>{
+  const {EFFORT}=await import('../web/js/pitch-control.js');
+  const throwWith=effort=>{const g=new InningGame(5);let i=0;g.random=()=>[.1,.5,.5,.5,.5,.5,.5,.5,.5,.5][i++%10];return {g,e:g.pitch({type:'FF',zone:'out',intent:'attack',effort})};};
+  const n=throwWith('normal'),m=throwWith('max'),c=throwWith('calm');
+  assert.equal(m.e.pitch.v-n.e.pitch.v,EFFORT.max.speed);assert.equal(c.e.pitch.v-n.e.pitch.v,EFFORT.calm.speed);
+  assert.equal(m.e.effort,'max');assert.match(m.e.explanation,/전력/);
+  assert.ok(m.g.load>n.g.load&&n.g.load>c.g.load,'effort accumulates as load');
+  const g=new InningGame(5);assert.throws(()=>g.pitch({type:'FF',zone:'out',intent:'attack',effort:'wild'}));
+  const a=new InningGame(9),b=new InningGame(9);assert.deepEqual(a.pitch({type:'SL',zone:'low',intent:'chase'}),b.pitch({type:'SL',zone:'low',intent:'chase',effort:'normal'}));
+});

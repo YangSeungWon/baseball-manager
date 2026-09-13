@@ -122,7 +122,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .inning-batter-entry{position:absolute;z-index:16;top:29%;left:50%;transform:translateX(-50%);padding:9px 16px;border-left:3px solid #f2d38c;border-radius:4px;background:#102732e8;color:#f3e6c4;font-size:18px;font-weight:700;white-space:nowrap;pointer-events:none}
 .inning-mode .inning-batter-entry[hidden]{display:none}
 .inning-mode.is-changing .inning-live-zone,.inning-mode.is-changing .inning-feedback{visibility:hidden}
-.inning-mode .pitching-action{display:grid;grid-template-columns:1fr 2fr;gap:8px;padding:8px;background:#102732e8;border:1px solid #8cac9e88;border-radius:12px}
+.inning-mode .pitching-action{display:grid;grid-template-columns:1fr 1fr 2fr;gap:8px;padding:8px;background:#102732e8;border:1px solid #8cac9e88;border-radius:12px}
 .inning-mode .pitch-breathe{min-height:52px;border-radius:8px;font-size:15px;background:#244c4a;color:#deeee3}
 .inning-mode .pitch-release{grid-column:1/-1;grid-row:1;padding:6px 4px 12px}.inning-mode .pitch-release[hidden]{display:none}
 .inning-mode .pitch-release-label{display:flex;justify-content:space-between;font-size:16px;margin-bottom:12px;color:#f3dfb3}
@@ -322,3 +322,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .pitch-hold kbd{margin-left:6px;padding:0 5px;border:1px solid #9bb6b0aa;border-bottom-width:2px;border-radius:4px;background:linear-gradient(#1f3a44,#142a33);font:600 10px/14px "IBM Plex Mono",ui-monospace,monospace}
 .inning-mode.is-releasing .pitch-hold{border-color:#f4d491;background:#4b3f2a}
 @media(pointer:coarse){.inning-mode .pitch-hold kbd{display:none}}
+
+.inning-mode .pitch-effort{min-height:52px;border-radius:8px;font-size:15px;background:#24343d;border:1px solid #6b8585;color:#e8ede4}
+.inning-mode .pitch-effort[aria-pressed=true]{background:#5a3a2e;border-color:#f4a86b;color:#ffe3cf;box-shadow:inset 0 -2px 0 #f4a86b}
+.inning-mode .pitch-effort:disabled{opacity:.5}
