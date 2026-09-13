@@ -55,8 +55,22 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-hold.is-armed{border-color:#8bc6aa;background:#2f6a55;box-shadow:0 0 0 4px #8bc6aa55,0 0 18px #8bc6aa88}
 .inning-mode .batting-hold.is-loaded{border-color:#f4b98a;background:#4a3a2c}
 .inning-mode .batting-hold.is-swinging{border-color:#f4d491;background:#4b3f2a}
-.inning-mode .inning-time{grid-column:2;font-size:15px}.inning-mode .inning-time[aria-pressed=true]{background:#f4d491;color:#182e33}
-.inning-mode.is-on-clock .batting-time::after{content:' …';opacity:.7}
+.inning-mode .inning-time{grid-column:2;font-size:15px;position:relative}.inning-mode .inning-time[aria-pressed=true]{background:#f4d491;color:#182e33}
+.inning-mode .batting-next{position:absolute;inset:0;border-radius:7px;background:#f4d49166;transform:scaleX(0);transform-origin:left;z-index:0}
+.inning-mode.is-on-clock .batting-next{transform:scaleX(1);transition:transform var(--next-ms,2300ms) linear}
+/* 키캡: 데스크톱에서만. 버튼 오른쪽 위 구석에 작게 */
+.inning-mode kbd.key{position:absolute;top:3px;right:4px;min-width:16px;height:16px;padding:0 4px;border-radius:4px;border:1px solid #9bb6b0aa;border-bottom-width:2px;background:linear-gradient(#1f3a44,#142a33);color:#c7d9d3;font:600 10px/14px "IBM Plex Mono",ui-monospace,monospace;text-align:center;letter-spacing:0;pointer-events:none}
+.inning-mode .inning-options button,.inning-mode .inning-head button,.inning-mode .inning-look{position:relative}
+.inning-mode .inning-head button kbd.key,.inning-mode .inning-look kbd.key{top:-6px;right:-6px}
+.inning-mode .batting-hold kbd{margin-left:6px;padding:0 5px;border:1px solid #9bb6b0aa;border-bottom-width:2px;border-radius:4px;background:linear-gradient(#1f3a44,#142a33);font:600 10px/14px "IBM Plex Mono",ui-monospace,monospace}
+@media(pointer:coarse){.inning-mode kbd.key,.inning-mode .batting-hold kbd{display:none}}
+/* 타임 장면 */
+.inning-mode .time-banner{position:fixed;z-index:26;top:calc(88px + 96px);left:50%;transform:translateX(-50%) translateY(-8px);display:none;flex-direction:column;align-items:center;gap:4px;padding:10px 22px;border-radius:12px;background:#0e1a20e6;border:1px solid #f4d49188;color:#f4d491;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+.inning-mode .time-banner b{font:700 30px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.24em;margin-right:-.24em}.inning-mode .time-banner span{font-size:13px;color:#e6e9dc}
+.inning-mode.is-timeout .time-banner{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+.inning-mode.is-timeout .lv-three{filter:saturate(.75) brightness(.85);transition:filter .3s}
+.inning-mode.is-timeout .batting-hold:not(:disabled){border-color:#f4d491;box-shadow:0 0 0 4px #f4d49133}
+@media(max-height:500px){.inning-mode .time-banner{top:70px}}
 .inning-mode .batting-hold.is-loaded::before,.inning-mode .batting-hold.is-swinging::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#f4d491aa,#f4a86baa);transform:scaleX(var(--drive,0));transform-origin:left;transition:transform .05s linear}
 .inning-mode .batting-hold:focus-visible{outline:3px solid #f4d491;outline-offset:3px}
 @media(pointer:coarse){.inning-mode .batting-hold kbd{display:none}}

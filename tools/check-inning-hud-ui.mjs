@@ -47,7 +47,7 @@ try {
     const stage=await page.locator('.lv-three').boundingBox();assert.ok(Math.abs(stage.width-width)<2&&Math.abs(stage.height-height)<2);
     assert.equal(await page.locator('.inning-controls').isVisible(),true);
     assert.equal(await page.locator('.inning-feedback').textContent(),'');
-    assert.equal(await page.locator('.inning-throw').textContent(),'타임');
+    assert.equal(await page.locator('.inning-throw span').textContent(),'타임');
     assert.equal(await page.locator('.inning-controls .inning-opponent').count(),0);
     assert.equal(await page.locator('.inning-presentation>.inning-opponent').isVisible(),true);
     const panel=await page.locator('.inning-controls').boundingBox();
