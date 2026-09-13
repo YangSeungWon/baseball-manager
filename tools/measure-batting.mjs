@@ -4,6 +4,7 @@
 import {BattingGame,deliverPitch,inStrikeZone,SWING_WINDOW} from '../web/js/batting-game.js';
 import {FullGame} from '../web/js/full-game.js';
 import {STAGES} from '../web/js/inning-stages.js';
+import {releaseMarker,pitchPressure} from '../web/js/pitch-control.js';
 
 const HITS=['1B','2B','3B','HR'];
 const sweet=()=>(SWING_WINDOW.from+SWING_WINDOW.to)/2;
@@ -30,7 +31,7 @@ export const LEARNERS={
   },decide:POLICIES.timer.decide},
 };
 
-const tally=()=>({pa:0,pitches:0,swings:0,whiffs:0,fouls:0,bip:0,hits:0,runs:0,chases:0,takesInZone:0,games:0,cleared:0,guesses:0,guessHits:0});
+const tally=()=>({pa:0,pitches:0,swings:0,whiffs:0,fouls:0,bip:0,hits:0,runs:0,chases:0,takesInZone:0,games:0,cleared:0,guesses:0,guessHits:0,allowed:0,pitchesThrown:0});
 const record=(t,e)=>{
   t.pitches++;if(e.terminal)t.pa++;if(e.choice.target!=='any'){t.guesses++;if(e.choice.target===e.pitch.t)t.guessHits++;}
   if(e.choice.action==='swing'){t.swings++;if(e.call==='W')t.whiffs++;else if(e.call==='F')t.fouls++;else{t.bip++;if(HITS.includes(e.result))t.hits++;}if(!inStrikeZone(e.pitch.x,e.pitch.z))t.chases++;}
@@ -42,21 +43,29 @@ export function playStage(policy,stageId,seed){
   while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing}=policy.decide(g,d);record(t,g.decidePitch(action,timing));}
   t.games=1;t.cleared=g.won?1:0;return t;
 }
-export function playFullGame(policy,seed){
-  const g=new FullGame(seed),t=tally();
+// 초 공격은 숙련된 손(σ .05)으로 구종을 섞어 던지는 투수 정책이 맡는다. 말 공격이 policy.
+const lcg=seed=>{let s=seed>>>0;return ()=>{s=(Math.imul(s,1664525)+1013904223)>>>0;return s/4294967296;};};
+const gauss=r=>{const u=Math.max(1e-9,r()),v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);};
+export function playFullGame(policy,seed,{sigma=.05}={}){
+  const g=new FullGame(seed),t=tally(),r=lcg(seed*2654435761+3);
   while(!g.done){
-    if(g.half==='top'){g.pitch({type:'FF',zone:'out',intent:'attack',release:0});}
+    if(g.half==='top'){
+      const last=g.history.slice(-2).map(p=>p.type),types=['FF','SL','CH'].filter(x=>!(last.length===2&&last[0]===x&&last[1]===x));
+      const type=types[Math.floor(r()*types.length)],zone=['in','out','low','high'][Math.floor(r()*4)],intent=g.strikes===2&&g.balls<3?'chase':'attack';
+      const release=releaseMarker(.5+gauss(r)*sigma,pitchPressure(g.snapshot()),'normal');
+      g.pitch({type,zone,intent,release,effort:'normal'});
+    }
     else{const d=g.preparePitch(policy.choose(g));const {action,timing}=policy.decide(g,d);record(t,g.decidePitch(action,timing));}
     if(!g.done&&g.outs>=3)g.advanceHalf();
   }
-  t.games=1;t.cleared=g.won?1:0;t.runs=g.homeRuns;return t;
+  t.games=1;t.cleared=g.won?1:0;t.runs=g.homeRuns;t.allowed=g.awayRuns;t.pitchesThrown=g.histories.top.length;return t;
 }
 export function measure(policy,play,n,stage){
   const sum=tally();
   for(let seed=1;seed<=n;seed++){const t=play(policy,stage,seed*7919+stage);for(const k in sum)sum[k]+=t[k];}
   const pct=(a,b)=>b?100*a/b:0;
   return {contact:pct(sum.bip+sum.fouls,sum.swings),whiff:pct(sum.whiffs,sum.swings),foul:pct(sum.fouls,sum.swings),hit:pct(sum.hits,sum.bip),chase:pct(sum.chases,sum.swings),
-    runsPerGame:sum.runs/sum.games,clear:pct(sum.cleared,sum.games),pitchesPerPa:sum.pa?sum.pitches/sum.pa:0,guessRate:pct(sum.guesses,sum.pitches),accuracy:pct(sum.guessHits,sum.guesses)};
+    runsPerGame:sum.runs/sum.games,allowedPerGame:sum.allowed/sum.games,pitchesThrown:sum.pitchesThrown/sum.games,clear:pct(sum.cleared,sum.games),pitchesPerPa:sum.pa?sum.pitches/sum.pa:0,guessRate:pct(sum.guesses,sum.pitches),accuracy:pct(sum.guessHits,sum.guesses)};
 }
 export function ladder(n=400,stages=[0,1,2]){
   const out={};
@@ -81,7 +90,8 @@ if(process.argv[1]&&process.argv[1].endsWith('measure-batting.mjs')){
   }
   console.log(`\n9이닝 ${games}경기 · 말 공격 정책 비교`);
   const G=learning(games);
-  for(const [k,p] of Object.entries(LEARNERS)){row(`${p.label} 경기당 득점`,G[k].runsPerGame,'',2);row(`${p.label} 승률 (%)`,G[k].clear,'');}
+  for(const [k,p] of Object.entries(LEARNERS)){row(`${p.label} 경기당 득점`,G[k].runsPerGame,'4 ~ 6',2);row(`${p.label} 승률 (%)`,G[k].clear,'');}
+  row('경기당 실점 (숙련 투구)',G.naive.allowedPerGame,'4 ~ 6',2);row('경기당 투구 수',G.naive.pitchesThrown,'110 ~ 150');
   row('기억 − 없음 (득점 차)',G.learner.runsPerGame-G.naive.runsPerGame,'≥ 0',2);
   row('기억 정책 예측 시도 (%)',G.learner.guessRate,'10 ~ 25');row('기억 정책 예측 정확도 (%)',G.learner.accuracy,'≥ 55 (기저율 37)');
 }

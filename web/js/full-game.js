@@ -19,6 +19,7 @@ export const FULL_LINEUP=LINEUP;
 export class FullGame extends BattingGame{
  constructor(seed=1){super(seed,0);this.stage={...FULL_STAGE,park:{...FULL_STAGE.park}};this.inning=1;this.half='top';this.awayRuns=0;this.homeRuns=0;this.awayLine=[0];this.homeLine=[];this.orders={top:0,bottom:0};this.hits={top:0,bottom:0};this.histories={top:[],bottom:[]};this.resetHalf();this.count=0;this.tie=false;
   // 상대 투수진. 선발과 불펜은 각자 시드로 정해진 문법을 가진다. 문법은 이 경기 안에서만 배운다.
+  this.fatigueProfile={from:BATTING.fullGame.fatigueFrom,per:BATTING.fullGame.fatiguePerPitch};this.aiBatting={contact:BATTING.fullGame.aiContact,quality:BATTING.fullGame.aiQuality};
   this.arms=[{...FULL_STAGE.pitcher,grammar:grammarFor(seed,0)},{...RELIEVER,grammar:grammarFor(seed,1)}];this.armIndex=0;this.hitsOffRule={};this.armChangedAt=null;this.lastMeta=null;}
  resetHalf(){this.outs=0;this.balls=0;this.strikes=0;this.bases=[false,false,false];this.baseRunners=[null,null,null];this.runs=this.half==='top'?this.awayRuns:this.homeRuns;this.order=this.orders[this.half];this.history=this.histories[this.half];this.done=false;this.won=false;}
  get batter(){const b=LINEUP[this.order%9],names=['서준혁','강태민','오지환','문도현','장우진','신재호','유시온','백민재','조현우'];return {...b,name:this.half==='top'?names[this.order%9]:b.name,id:this.half+'-batter-'+this.order};}

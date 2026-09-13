@@ -107,7 +107,8 @@ export class BattingGame extends InningGame {
     // 힘은 연속값이다. 누른 길이로 정하며, 예전 선택판의 '장타'는 1, '컨택'은 0 에 해당한다.
     const drive=clamp(power??(approach==='power'?1:0),0,1),powerful=drive>=.5;
     const swing=action==='swing'?swingTiming(timing,this.sweetWindow(before.batter,{target,location},{t:type,x,z})):null;
-    const contact=contactProbability([T.baseline.contactLogit,(before.batter.contact-T.ability.referenceContact)*T.ability.contactPerPoint,
+    const fullGame=this.stage?.id==='full'?T.fullGame:null;
+    const contact=contactProbability([T.baseline.contactLogit,fullGame?fullGame.contactLogit:0,(before.batter.contact-T.ability.referenceContact)*T.ability.contactPerPoint,
       target==='any'?0:matched?P.typeHit:P.typeMiss, aim?A.contactMiss+(A.contactHit-A.contactMiss)*aimClose:location==='any'?0:locationMatched?P.locationHit:P.locationMiss,
       swing?.contact||0, P.powerSwing*drive, inZone?0:E.chase]);
     let result,fieldPlay=null;
@@ -119,7 +120,7 @@ export class BattingGame extends InningGame {
       const locationReadBonus=aim?A.quality*(aimClose*2-1):location==='any'?0:locationMatched?B.bonus.locationRead:-B.bonus.locationRead;
       // 안팎 조준이 공보다 바깥이면 밀어 치고, 안쪽이면 당겨 친다.
       const aimSpray=aim?clamp(aim.x-x,-1,1)*A.spray:0;
-      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:swing.angleShift+aimSpray,park:this.stage.park,bonus:(B.bonus.base||0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
+      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:swing.angleShift+aimSpray,park:this.stage.park,bonus:(B.bonus.base||0)+(fullGame?fullGame.bipBase:0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}

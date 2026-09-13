@@ -36,6 +36,9 @@ export const BATTING={
   read:{visionClamp:[.4,.92],disciplineClamp:[.35,.85],fromBase:.34,fromVision:-.17,toBase:.48,toVision:.24,takeBase:.48,takeDiscipline:.42,onsetBase:.43,onsetVision:-.26,windowMs:2500,
     // 예측 적중 보상(창 비율). 구종 적중은 창을 일찍 열고 선명하게, 코스 적중은 창을 늘리고 적중 구간을 넓힌다.
     reward:{typeFrom:-.06,typeOnset:-.10,typeSweetFrom:-.05,locationFrom:-.04,locationTo:.04,locationSweetTo:.05}},
+  // 9이닝 전용 난이도. 단판 스테이지의 값은 한 타석짜리 클리어율에 맞춘 것이라 27아웃 경기에서는 너무 후하다.
+  // 타자(나): 컨택 로그오즈와 타구 질을 내린다. 투수(나): 피로가 55 부터 완만하게 쌓이고, AI 타자는 조금 덜 맞힌다.
+  fullGame:{contactLogit:-.85,bipBase:-.18,fatigueFrom:55,fatiguePerPitch:.004,aiContact:-.19,aiQuality:-.25},
   // 9이닝 상대 투수의 문법. 규칙 수, 불펜 교체 이닝, 규칙을 바꾸게 만드는 피안타 수.
   grammar:{rulesPerArm:4,bullpenInning:7,hitsToAdjust:2},
   // 반사실 비교의 가치 함수(타자 관점).

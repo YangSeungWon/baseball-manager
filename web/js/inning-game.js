@@ -21,7 +21,8 @@ export class InningGame {
     const before=this.snapshot(),roll=Array.from({length:10},()=>this.random()),E=EFFORT[effort];
     const K=PITCHING,repeated=this.history.slice(-2).filter(p=>p.type===type).length;
     this.load=(this.load||0)+E.fatigue;   // 피로는 투구 수가 아니라 실린 힘의 누적이다
-    const fatigue=Math.max(0,this.load-E.fatigue-K.fatigueFrom)*K.fatiguePerPitch;
+    const FP=this.fatigueProfile||{from:K.fatigueFrom,per:K.fatiguePerPitch},AI=this.aiBatting||{contact:0,quality:0};
+    const fatigue=Math.max(0,this.load-E.fatigue-FP.from)*FP.per;
     const strikeChance=clamp((intent==='attack'?K.strikeAttack:K.strikeChase)+(type==='FF'?0:K.offSpeedZone)+(zone==='low'?K.lowZone:0)-fatigue,...K.strikeClamp);
     const control=release===undefined?null:controlledPitch(zone,intent,release,roll[0]*2-1,roll[6]*2-1);
     const inZone=control?Math.abs(control.x)<=1&&Math.abs(control.z)<=1:roll[0]<strikeChance;
@@ -33,12 +34,12 @@ export class InningGame {
     const fooled=(type==='CH'&&this.history.at(-1)?.type==='FF'?K.fooledChangeAfterFast:0)+(type==='SL'&&zone==='out'?K.fooledSliderAway:0);
     // 실투: 존 안에서 가운데로 몰릴수록(meat) 타자가 잘 맞히고 잘 날린다. 흔들린 릴리스의 진짜 비용이다.
     const meat=inZone?clamp(1-Math.max(Math.abs(px),Math.abs(pz)),0,1):0;
-    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled+E.contact+K.meatContact*meat,...K.contactClamp);
+    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled+E.contact+K.meatContact*meat+AI.contact,...K.contactClamp);
     let result,terminal=false,fieldPlay=null;
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<K.foul) result='F';
-    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*K.bonusRepeat+fooled*K.bonusFooled+(inZone?0:K.bonusOutZone)+K.meatQuality*meat,bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense,park:this.stage?.park});result=fieldPlay.result;terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*K.bonusRepeat+fooled*K.bonusFooled+(inZone?0:K.bonusOutZone)+K.meatQuality*meat+AI.quality,bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense,park:this.stage?.park});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}
