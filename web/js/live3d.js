@@ -111,7 +111,7 @@ export class Live3D {
       for(const [y,r] of [[.03,.058],[.13,.056]]){const hand=new T.Mesh(new T.SphereGeometry(r,12,10),skin);hand.position.y=y;hand.scale.set(1,1.15,.85);pivot.add(hand);}
       for(const m of [bat,grip,knob])m.userData.noBatch=true;
       fp.traverse(o=>{o.userData.noBatch=true;o.frustumCulled=false;});
-      this.canvas.setAttribute('aria-label','타자 시점 구장');
+      this.canvas.setAttribute('aria-label','타자 시점 · 칠 위치를 누르거나 Space로 스윙');this.canvas.tabIndex=0;
       this.canvas.style.touchAction='none';
       this.lookInput=new AbortController();
       const listen=(name,fn)=>this.canvas.addEventListener(name,fn,{signal:this.lookInput.signal});

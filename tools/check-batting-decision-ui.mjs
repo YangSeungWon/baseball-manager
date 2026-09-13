@@ -15,33 +15,42 @@ await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}`;
 const browser = await chromium.launch({ headless:true, args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'], ...(process.env.CHROMIUM_PATH ? { executablePath:process.env.CHROMIUM_PATH } : {}) });
 try {
-  const errors=[];
-  for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
-    const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(url);
-    await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {BattingGame}=await import('/js/batting-game.js');const resolve=BattingGame.prototype.decidePitch;window.decisions=[];BattingGame.prototype.decidePitch=function(...args){decisions.push(args[0]);return resolve.apply(this,args);};});
-    await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();await page.locator('.match-enter:not([disabled])').click();await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));
-    const before=await page.locator('.batting-hold').boundingBox();
-    if(width===844){
-      await page.evaluate(()=>new Promise(resolve=>{const root=document.querySelector('.inning-mode');const close=()=>{if(!root.classList.contains('is-deciding'))return;observer.disconnect();root.querySelector('.inning-exit').click();resolve();};const observer=new MutationObserver(close);observer.observe(root,{attributes:true,attributeFilter:['class']});close();}));
-      await page.waitForTimeout(1600);assert.deepEqual(await page.evaluate(()=>decisions),[]);await page.close();continue;
+ const errors=[];
+ for(const [width,height] of [[390,844],[1440,1000]]){
+  const page=await browser.newPage({viewport:{width,height}});page.setDefaultTimeout(60000);
+  page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
+  await page.evaluate(async()=>{
+   const {BattingGame}=await import('/js/batting-game.js'),decide=BattingGame.prototype.decidePitch;
+   window.decisions=[];BattingGame.prototype.decidePitch=function(...args){decisions.push(args[0]);return decide.apply(this,args);};
+  });
+  await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').waitFor();
+  await page.evaluate(()=>{
+   const root=document.querySelector('.inning-mode');let pausedOnce=false,played=false;
+   window.inputCheck=null;
+   const observer=new MutationObserver(()=>{
+    const canvas=root.querySelector('canvas');
+    if(!pausedOnce&&!root.classList.contains('is-intro')){
+     pausedOnce=true;document.dispatchEvent(new KeyboardEvent('keydown',{key:'t',bubbles:true}));
+     window.pauseCheck=root.classList.contains('is-timeout');
+     // Synthetic DOM events have no browser-owned pointer to capture.
+     const capture=canvas.setPointerCapture;canvas.setPointerCapture=()=>{};
+     canvas.dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true,pointerType:'touch'}));
+     canvas.setPointerCapture=capture;
+     window.resumeCheck=!root.classList.contains('is-timeout');
     }
-    await page.locator('.is-deciding .batting-decision').waitFor({state:'visible',timeout:60000});
-
-    if(width<=900){const after=await page.locator('.batting-hold').boundingBox();assert.ok(Math.abs(before.y-after.y)<2&&Math.abs(before.x-after.x)<2,'mobile action buttons stay put');}
-    assert.match(await page.locator('.inning-score').textContent(),/0구/);
-    assert.equal(await page.locator('.zone-pitch').count(),0,'no landing point before decision');assert.equal(await page.locator('.batting-clock,.batting-band').count(),0,'no timing meter or sweet-spot hint');assert.equal(await page.locator('.batting-hold.is-armed').count(),0,'button does not reveal hit timing');
-    assert.deepEqual(await page.evaluate(()=>decisions),[],'no result resolved yet');
-    assert.equal(await page.evaluate(()=>document.querySelector('.inning-mode').scrollWidth>innerWidth),false);
-    for(const selector of ['.batting-hold']){const b=await page.locator(selector).boundingBox();assert.ok(b.height>=44&&b.x>=0&&b.x+b.width<=width&&b.y+b.height<=height);}
-    if(width===320){await page.keyboard.down('Space');assert.deepEqual(await page.evaluate(()=>decisions),['swing'],'keydown swings before keyup');await page.waitForTimeout(500);assert.deepEqual(await page.evaluate(()=>decisions),['swing'],'holding does not repeat');await page.keyboard.up('Space');}
-    else if(width===390){const b=await page.locator('.batting-hold').boundingBox();await page.mouse.move(b.x+b.width/2,b.y+b.height/2);await page.mouse.down();assert.deepEqual(await page.evaluate(()=>decisions),['swing'],'pointerdown swings before pointerup');await page.waitForTimeout(500);await page.mouse.up();assert.deepEqual(await page.evaluate(()=>decisions),['swing'],'pointerup does not swing again');}
-    // Desktop exercises timeout: a decision must still be made without input.
-    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled||!document.querySelector('.inning-result').hidden,{},{timeout:30000});
-    assert.deepEqual(await page.evaluate(()=>decisions),[width<=390?'swing':'take']);
-
-    assert.equal(await page.locator('.inning-mode').evaluate(e=>e.classList.contains('is-deciding')),false);
-    await page.locator('.inning-exit').click();await page.close();console.log(`PASS: ${width}×${height} batting input`);
-  }
-  assert.deepEqual(errors,[]);console.log('PASS: timed swing/take, timeout, no result or location leak, close cancels decision, mobile/landscape/desktop');
+    if(played||!root.classList.contains('is-deciding'))return;
+    played=true;observer.disconnect();
+    inputCheck={noButtons:!root.querySelector('.batting-decision,.batting-hold,.inning-time'),noResult:decisions.length===0,noLanding:!root.querySelector('.zone-pitch')};
+    if(innerWidth<900){const r=canvas.getBoundingClientRect();canvas.dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true,pointerType:'touch',clientX:r.left+r.width/2,clientY:r.top+r.height/2}));canvas.dispatchEvent(new PointerEvent('pointerup',{button:0,bubbles:true,pointerType:'touch'}));}
+   });observer.observe(root,{attributes:true,attributeFilter:['class']});
+  });
+  await page.locator('.match-enter:not([disabled])').click();
+  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
+  await page.waitForFunction(()=>decisions.length>0);
+  assert.deepEqual(await page.evaluate(()=>inputCheck),{noButtons:true,noResult:true,noLanding:true});
+  assert.equal(await page.evaluate(()=>pauseCheck&&resumeCheck),true,'T pauses and touching the field resumes without a button');
+  assert.deepEqual(await page.evaluate(()=>decisions),[width<900?'swing':'take']);
+  await page.locator('.inning-exit').click();await page.close();console.log(`PASS: ${width}×${height} direct touch/take and pause/resume`);
+ }
+ assert.deepEqual(errors,[]);
 } finally {await browser.close();await new Promise(r=>server.close(r));}

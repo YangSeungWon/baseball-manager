@@ -26,7 +26,7 @@ try {
   await page.locator('#btnBatting').click();
   await page.locator('.match-enter:not([disabled])').waitFor();
   assert.match(await page.locator('.match-batting-help').textContent(),/조준.*스윙.*안 누르면 참습니다/s);
-  assert.equal(await page.locator('[data-group="target"],.inning-compact-plan,.inning-plan-toggle').count(),0);
+  assert.equal(await page.locator('[data-group="target"],.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);
   await page.locator('.match-enter').scrollIntoViewIfNeeded();
   const bounds=await page.locator('.match-enter').boundingBox();
   assert.ok(bounds.height>=44&&bounds.x>=0&&bounds.x+bounds.width<=width&&bounds.y>=0&&bounds.y+bounds.height<=height);
@@ -38,7 +38,7 @@ try {
     observer.disconnect();
     firstPitch={coachVisible:!!root.querySelector('.coach-tip:not([hidden])'),helpVisible:!!root.querySelector('.match-batting-help')};
     // React within the real pitch window, without test-driver network round trips.
-    root.querySelector('.batting-hold').click();
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
    });observer.observe(root,{attributes:true,attributeFilter:['class']});
   });
   await page.locator('.match-enter').click();
