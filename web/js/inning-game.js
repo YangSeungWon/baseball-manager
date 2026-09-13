@@ -25,14 +25,20 @@ export class InningGame {
     const strikeChance=clamp((intent==='attack'?K.strikeAttack:K.strikeChase)+(type==='FF'?0:K.offSpeedZone)+(zone==='low'?K.lowZone:0)-fatigue,...K.strikeClamp);
     const control=release===undefined?null:controlledPitch(zone,intent,release,roll[0]*2-1,roll[6]*2-1);
     const inZone=control?Math.abs(control.x)<=1&&Math.abs(control.z)<=1:roll[0]<strikeChance;
-    const swing=roll[1]<(inZone?K.swingInZone+this.strikes*K.swingPerStrike:this.batter.chase+(this.strikes===2?K.chaseTwoStrikes:0)+(this.balls===3?K.chaseThreeBalls:0));
+    const x0=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z0=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
+    // 존 밖 공은 얼마나 빠졌느냐에 따라 덜 쫓는다. 한 칸 밖이면 거의 참는다. 그래서 제구가 흔들리면 볼넷이 실제 비용이 된다.
+    const px=control?.x??x0,pz=control?.z??z0,outBy=Math.max(Math.abs(px),Math.abs(pz))-1;
+    const chaseScale=inZone?1:clamp(1-outBy/K.chaseFalloff,K.chaseFloor,1);
+    const swing=roll[1]<(inZone?K.swingInZone+this.strikes*K.swingPerStrike:(this.batter.chase+(this.strikes===2?K.chaseTwoStrikes:0)+(this.balls===3?K.chaseThreeBalls:0))*chaseScale);
     const fooled=(type==='CH'&&this.history.at(-1)?.type==='FF'?K.fooledChangeAfterFast:0)+(type==='SL'&&zone==='out'?K.fooledSliderAway:0);
-    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled+E.contact,...K.contactClamp);
+    // 실투: 존 안에서 가운데로 몰릴수록(meat) 타자가 잘 맞히고 잘 날린다. 흔들린 릴리스의 진짜 비용이다.
+    const meat=inZone?clamp(1-Math.max(Math.abs(px),Math.abs(pz)),0,1):0;
+    const contact=clamp(this.batter.contact+(inZone?K.contactInZone:K.contactOutZone)+repeated*K.contactRepeat-fooled+E.contact+K.meatContact*meat,...K.contactClamp);
     let result,terminal=false,fieldPlay=null;
     if(!swing) result=inZone?'S':'B';
     else if(roll[2]>contact) result='W';
     else if(roll[3]<K.foul) result='F';
-    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*K.bonusRepeat+fooled*K.bonusFooled+(inZone?0:K.bonusOutZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense,park:this.stage?.park});result=fieldPlay.result;terminal=true;}
+    else {fieldPlay=contactFlight(roll,{power:this.batter.style==='장타형',bonus:repeated*K.bonusRepeat+fooled*K.bonusFooled+(inZone?0:K.bonusOutZone)+K.meatQuality*meat,bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense,park:this.stage?.park});result=fieldPlay.result;terminal=true;}
     const call=result;
     this.count++;
     if(result==='B'){this.balls++;if(this.balls===4){result='BB';terminal=true;}}
@@ -64,7 +70,7 @@ export class InningGame {
     if(terminal){this.balls=0;this.strikes=0;this.order++;}
     this.won=this.outs>=3 && this.runs<2;
     this.done=this.won||this.runs>=2;
-    const x=(zone==='in'?-.8:zone==='out'?.8:0)*(inZone?.8:1.65),z=zone==='low'?(inZone?-.75:-1.5):zone==='high'?(inZone?.75:1.5):(inZone?0:1.5);
+    const x=x0,z=z0;
     return {before,after:this.snapshot(),fieldPlay,call,result,label:names[result]+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation:explained,terminal,movements,scored,choice:q,control:control?{target:control.target,release,label:releaseLabel(release)}:null,pitch:{x:control?.x??x,z:control?.z??z,t:type,v:PITCHES[type].speed+E.speed+Math.round(roll[6]*4-2)},effort,angle:(roll[7]-.5)*75};
   }
 }

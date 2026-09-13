@@ -45,8 +45,8 @@ test('high fastball target and high prediction are supported',async()=>{
  assert.notEqual(high.result,'W');assert.equal(low.result,'W');
 });
 
-test('max effort wobbles the release more than normal, calm least',()=>{
+test('the same hand shake costs more under max effort and less when calm',()=>{
   const pressure=.6;let calm=0,normal=0,max=0;
-  for(let i=1;i<40;i++){const p=i/40;calm+=Math.abs(releaseMarker(p,pressure,'calm')-(p*2-1));normal+=Math.abs(releaseMarker(p,pressure,'normal')-(p*2-1));max+=Math.abs(releaseMarker(p,pressure,'max')-(p*2-1));}
-  assert.ok(calm<normal&&normal<max);assert.equal(releaseMarker(.3,pressure,true),releaseMarker(.3,pressure,'calm'));
+  for(let i=-8;i<=8;i++){const p=.5+i*.015;calm+=Math.abs(releaseMarker(p,pressure,'calm'));normal+=Math.abs(releaseMarker(p,pressure,'normal'));max+=Math.abs(releaseMarker(p,pressure,'max'));}
+  assert.ok(calm<normal&&normal<max);assert.equal(releaseMarker(.3,pressure,true),releaseMarker(.3,pressure,'calm'));assert.ok(Math.abs(releaseMarker(.5,pressure,'max'))<1e-9);
 });

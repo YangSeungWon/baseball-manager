@@ -45,10 +45,10 @@ export const BATTING={
 // 투수 편(플레이어가 던지고 AI 타자가 치는 쪽). 값은 확률 가산 그대로, 동작 불변.
 export const PITCHING={
   strikeAttack:.80,strikeChase:.20,offSpeedZone:-.06,lowZone:-.04,fatiguePerPitch:.009,fatigueFrom:15,strikeClamp:[.07,.9],
-  swingInZone:.73,swingPerStrike:.05,chaseTwoStrikes:.13,chaseThreeBalls:-.10,
+  swingInZone:.73,swingPerStrike:.05,chaseTwoStrikes:.13,chaseThreeBalls:-.10,chaseFalloff:1.0,chaseFloor:.08,
   fooledChangeAfterFast:.13,fooledSliderAway:.08,
   contactInZone:.03,contactOutZone:-.19,contactRepeat:.09,contactClamp:[.22,.94],
-  foul:.30,bonusRepeat:.06,bonusFooled:-.25,bonusOutZone:-.1,
+  foul:.30,bonusRepeat:.06,bonusFooled:-.25,bonusOutZone:-.1,meatContact:.12,meatQuality:.22,
 };
 
 export const contactProbability=terms=>{
