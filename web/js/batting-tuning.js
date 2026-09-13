@@ -7,7 +7,7 @@ export const BATTING={
   manualContact:{batRadius:.125,ballRadius:.12,contactSeconds:.10,solidQuality:.72,
     timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
     speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4},
-  playerInput:{flightScale:3.2,contactSeconds:.14,lateSeconds:.12,timingTolerance:.055},
+  playerInput:{contactSeconds:.14,timingTolerance:.055},
   // 평균 타자(컨택 .72)가 존 안 공을 자동 스윙으로 칠 때 배트에 맞을 확률(파울 포함)의 기준선.
   baseline:{contactLogit:logit(.78),floor:.10,ceil:.98},
   // 타자 컨택 .05 차이 = 로그오즈 .30.

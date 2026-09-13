@@ -1,4 +1,4 @@
-import { BAT_CONTACT_SECONDS } from './batting-input.js';
+import { BAT_CONTACT_SECONDS, battingFlightSeconds, PITCH_RELEASE_DISTANCE, CATCHER_DEPTH } from './batting-input.js';
 // 경기를 본다. 공 하나하나가 날아가고, 야수가 그 공을 향해 뛰고, 주자가 돈다.
 //
 // 시뮬레이션은 결과를 이미 정했다. 여기서는 그 결과를 '실제 시간' 으로 보여 준다 —
@@ -660,8 +660,8 @@ export class LiveView {
   _pitch(tl, q, i, t0, rec, opts = {}) {
     const S = this.S;
     const v = q.v || 140;
-    const T = q.flightSeconds ?? 16.8 / (v / 3.6);
-    const rel = [(rec.th === 'L' ? 0.55 : -0.55), 16.8, 1.85];
+    const T = q.flightSeconds ?? battingFlightSeconds(v);
+    const rel = [(rec.th === 'L' ? 0.55 : -0.55), PITCH_RELEASE_DISTANCE, 1.85];
     const zh = rec.zh || 1;
     const end = [clamp(q.x, -2.4, 2.4) * 0.216, 0, clamp(0.76 + q.z * 0.26 * zh, 0.05, 1.9)];
     const bend = { SL: [0.16, 0], CU: [0.05, 0.45], CH: [0, 0.18], FS: [0, 0.28], KN: [0.2, 0.25], SI: [-0.1, 0.08], FC: [0.08, 0.02] }[q.t] || [0, 0];
@@ -670,13 +670,14 @@ export class LiveView {
     tl.add(t0, 0.9, (k) => { S.pitcherWind = k; });
     tl.at(t0 + 0.9, () => { S.hold = null; });
     const plateAt=t0+.9+T;
+    const catchSeconds=T*CATCHER_DEPTH/PITCH_RELEASE_DISTANCE;
     const tArr=q.swingStart!=null&&['X','F'].includes(q.r)?q.swingStart+BAT_CONTACT_SECONDS:plateAt;
     tl.add(t0 + 0.9, tArr-(t0+.9), (progress) => {
       const k=progress*(tArr-(t0+.9))/T;
       S.pitcherWind = Math.max(0,1-k);
       if(k>1){
-        const passed=clamp((k-1)*T/.12,0,1);
-        S.ball={x:end[0]*(1-.4*passed),y:-1.2*passed,z:end[2]+(.6-end[2])*passed,vis:true};S.trail=[];return;
+        const passed=clamp((k-1)*T/catchSeconds,0,1);
+        S.ball={x:end[0]*(1-.4*passed),y:-CATCHER_DEPTH*passed,z:end[2]+(.6-end[2])*passed,vis:true};S.trail=[];return;
       }
       const x = lerp(rel[0], end[0], k) + side * bend[0] * Math.sin(Math.PI * k) * k;
       const y = lerp(rel[1], end[1], k);
@@ -699,8 +700,7 @@ export class LiveView {
     if (q.r === 'W') tl.at((q.swingStart??swingAt) + 0.04, () => this.sfx.whiff());
     if (q.r !== 'X') tl.at(tArr + 0.7, () => { S.broadcast = { kind: 'between' }; });
     tl.at(tArr, () => {
-      if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
-      else if (q.r === 'F') this.sfx.crack(q.contactQuality??0.3, true);
+      if (q.r === 'F') this.sfx.crack(q.contactQuality??0.3, true);
       // 판정 소리. 스트라이크는 짧고 낮게 울린다.
       if (q.r === 'S' || q.r === 'W') { if (!(opts.last && S.s >= 3)) setTimeout(() => this.sfx.call('strike'), 120); }
       else if (q.r === 'B') setTimeout(() => this.sfx.call('ball'), 120);
@@ -725,7 +725,8 @@ export class LiveView {
     });
     // 결과에 따른 공의 뒷처리
     if (q.r === 'S' || q.r === 'B' || q.r === 'W') {
-      tl.add(tArr, 0.12, (k) => { S.ball = { x: end[0] * (1-.4*k), y: -1.2 * k, z: end[2]+(.6-end[2])*k, vis: true }; }, () => this._hold(S.fielders.C));
+      tl.at(tArr+catchSeconds, () => this.sfx.pop((v-110)/50));
+      tl.add(tArr, catchSeconds, (k) => { S.ball = { x: end[0] * (1-.4*k), y: -CATCHER_DEPTH * k, z: end[2]+(.6-end[2])*k, vis: true }; }, () => this._hold(S.fielders.C));
     } else if (q.r === 'H') {
       const bx = rec.bh === 'L' ? 0.85 : -0.85;
       tl.add(tArr, 0.5, (k) => { S.ball = { x: bx + (bx > 0 ? 1 : -1) * k * 1.2, y: 0.1 - k * 0.8, z: Math.max(0.05, 1.0 - k * 1.1), vis: true }; }, () => { S.ball = null; });

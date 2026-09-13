@@ -346,3 +346,14 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 
 /* Keep preparation controls out of the pitch and contact view. */
 .inning-mode.is-reading .inning-picks,.inning-mode.is-playing .inning-picks{visibility:hidden;pointer-events:none}
+
+/* Read the batting controls before entering; no coaching overlay during a pitch. */
+.inning-mode .match-batting-help{max-width:34ch;padding:12px 16px;border:1px solid #9ab6ac55;border-radius:10px;background:#102732;color:#dce8e1;font-size:14px;line-height:1.5;text-align:left}
+.inning-mode .match-batting-help p{margin:0}.inning-mode .match-batting-help p+p{margin-top:5px}
+.inning-mode .match-batting-help b{color:#f4d491;margin-right:8px}
+.inning-mode .match-intro:has(.match-batting-help){overflow-y:auto;justify-content:safe center;pointer-events:auto;gap:16px;padding:65px 20px 35px}
+@media(max-height:650px){.inning-mode .match-intro:has(.match-batting-help){gap:10px;padding-top:55px}.inning-mode .match-crest{width:48px;height:50px;font-size:30px}.inning-mode .match-club{gap:4px}.inning-mode .match-format{margin-top:0}.inning-mode .match-batting-help{font-size:13px;padding:8px 12px}}
+
+.inning-mode .match-intro:has(.match-batting-help)>*{flex-shrink:0}
+
+.inning-mode .match-intro:has(.match-batting-help) .match-own{position:static;margin-top:0}
