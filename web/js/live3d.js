@@ -1,6 +1,6 @@
-import { BATTING_ZONE as ZONE, BATTING_EYE_HEIGHT, BATTING_AIM_LIMIT } from './batting-space.js';
+import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
-import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson} from './player-model.js';
+import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson,playerEyeMidpoint} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
@@ -146,7 +146,10 @@ export class Live3D {
     if(!this.opts.canLook?.())return;
     const centered=Math.abs(this.look.yaw)<.01&&Math.abs(this.look.pitch)<.01;
     this.resetLook();
-    if(centered){this.look.yaw=this.batterHand==='L'?-1.22:1.22;this.look.pitch=-1.05;this.look.pinned=true;}
+    if(centered){const eye=this.players.get('bat')?.battingEye;if(!eye)return;
+      const toPlate=point(0,0,ZONE.center).sub(eye).normalize(),toPitcher=point(0,16.8,1.85).sub(eye).normalize();
+      this.look.yaw=Math.atan2(toPlate.x,-toPlate.z)-Math.atan2(toPitcher.x,-toPitcher.z);
+      this.look.pitch=Math.asin(toPlate.y)-Math.asin(toPitcher.y)+.10;this.look.pinned=true;}
   }
   settleLook(dt) {
     if(this.drag||this.look.pinned)return;
@@ -421,6 +424,15 @@ export class Live3D {
     }
     const expression=['celebrate','clap','admire','batFlip'].includes(pose)?'joy':pose==='dejected'?'sad':['pitch','bat','crouch','catch','caught','dive'].includes(pose)?'focus':'neutral';
     posePlayerFace(p,expression,this.animationTime||data.phase||0,-p.head.rotation.y,-p.head.rotation.x);
+    if(pose==='bat'&&!S.swing){
+      const key=`${data.name||''}:${data.hand||'R'}:${x}:${y}:${root.scale.x}:${root.scale.y}:${root.scale.z}`;
+      if(p.battingEyeKey!==key){
+        root.updateMatrixWorld(true);
+        p.battingEye??=new T.Vector3();
+        playerEyeMidpoint(p,p.battingEye);
+        p.battingEyeKey=key;
+      }
+    }
     const catchBall=data.catchTarget||(S.ball?.vis&&S.fieldPlay?.fielder&&key==='f'+S.fieldPlay.fielder&&Math.hypot(S.ball.x-x,S.ball.y-y)<2.8?S.ball:null);
     if(catchBall&&p.glove.visible&&!['pitch','watch'].includes(pose))reachPlayerGlove(p,point(catchBall.x,catchBall.y,catchBall.z));
 
@@ -560,7 +572,15 @@ export class Live3D {
   }
   battingAimAt(clientX,clientY){
     if(this.cameraKind!=='batting')return null;
-    const rect=this.canvas.getBoundingClientRect(),ray=new T.Raycaster();
+    const rect=this.canvas.getBoundingClientRect();
+    // At the real eye position home can lie outside the forward view. Keep
+    // forward-view aiming usable in screen coordinates; the home glance uses
+    // the visible plate's world-space projection as before.
+    if(!this.look.pinned)return {
+      x:clamp(((clientX-rect.left)/rect.width-.5)*2*BATTING_AIM_LIMIT,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT),
+      z:clamp((.5-(clientY-rect.top)/rect.height)*2*BATTING_AIM_LIMIT,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)
+    };
+    const ray=new T.Raycaster();
     ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
     const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
     if(!hit)return null;const x=hit.x/ZONE.halfWidth,z=(hit.y-ZONE.center)/ZONE.halfHeight;
@@ -585,15 +605,16 @@ export class Live3D {
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
     if(kind==='batting') {
-      // Eye-height, independently anchored: the head and swing never steer the camera.
-      // A small retreat toward the catcher keeps the nearby plate in the forward view.
-      this.batterHand=S.batter?.hand||'R';const m=this.batterHand==='L'?-1:1;
-      const portrait=this.camera.aspect<1;
-      eye=point(-.42*m,-1.3,BATTING_EYE_HEIGHT);
+      // Anchor to the actual eye midpoint in the loaded stance, not behind the hitter.
+      // The saved world position does not follow the head or torso during the swing.
+      this.batterHand=S.batter?.hand||'R';
+      const model=this.players.get('bat');
+      eye=model?.battingEye||this.camera.position;
       if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
-      const yaw=.12*m+this.look.yaw,pitch=-.30+this.look.pitch;
+      const pitcher=point(0,16.8,1.85),direction=pitcher.sub(eye).normalize();
+      const yaw=Math.atan2(direction.x,-direction.z)+this.look.yaw,pitch=Math.asin(direction.y)-.10+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      fov=portrait?100:80;
+      fov=this.camera.aspect<1?88:76;
     }
     else if(kind==='mound') {
       // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.

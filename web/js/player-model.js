@@ -122,3 +122,16 @@ export function setPlayerFirstPerson(p,enabled){
   o.geometry=enabled?o.userData.firstPersonGeometry:o.userData.fullBodyGeometry;
  }
 }
+
+// Face meshes have baked vertex offsets; their object origins are the head socket.
+// Use neutral eye centers, excluding blink/gaze animation, as the eye anchor.
+export function playerEyeMidpoint(p,target=new T.Vector3()){
+ target.set(0,0,0);
+ for(const eye of p.faceNodes.eyes){
+  if(!eye.geometry.boundingBox)eye.geometry.computeBoundingBox();
+  const center=eye.geometry.boundingBox.getCenter(new T.Vector3()),rest=eye.userData.rest;
+  center.multiply(rest.scale).applyEuler(rest.rotation).add(rest.position);
+  target.add(eye.parent.localToWorld(center));
+ }
+ return target.multiplyScalar(.5);
+}
