@@ -9,7 +9,7 @@ export const BATTING={
   // 타자 컨택 .05 차이 = 로그오즈 .30.
   ability:{contactPerPoint:6.0,referenceContact:.72},
   // 준비 층. 숨은 가산은 작게 두고, 예측 성공의 진짜 보상은 read.reward(읽기 창)로 준다. 실패 벌점은 타이밍 적중보다 작다.
-  preparation:{typeHit:.40,typeMiss:-.35,locationHit:.45,locationMiss:-.45,powerSwing:-.80},
+  preparation:{typeHit:.40,typeMiss:-.35,locationHit:.45,locationMiss:-.45,powerSwing:-1.2},   // 장타 스윙(힘 1)은 컨택 로그오즈 −1.2: 홈런과 헛스윙을 함께 산다
   // 조준. 당긴 채 드래그한 배트 높이·안팎과 실제 공의 거리(존 단위)로 컨택과 타구 질이 정해진다. 예측 대신 실행이다.
   aim:{radius:1.4,contactHit:.9,contactMiss:-2.6,quality:.10,qualityMiss:.70,spray:14},   // 반지름 밖(한 존 반)이면 배트가 공을 못 만난다
   // 실행 층. 존 밖 스윙(chase)은 가장 큰 벌점으로 남긴다.
@@ -18,7 +18,7 @@ export const BATTING={
     timing:{auto:-.20,sweet:.95,earlyMax:-.90,lateMax:-1.00,whiffBeyond:.6},   // 적중 구간에서 이만큼 벗어나면 배트가 공을 지나친다: 헛스윙 확정
     // 스윙 버튼을 누른 길이(ms)가 힘이다. contactMs 까지는 컨택, powerMs 부터 장타. 사이는 연속.
     hold:{contactMs:110,powerMs:420},
-    foul:{contactApproach:.32,powerApproach:.20,sweet:-.05,earlyMax:.16,lateMax:.16},
+    foul:{contactApproach:.26,powerApproach:.36,sweet:-.05,earlyMax:.16,lateMax:.16},   // 큰 스윙은 파울도 많다
     quality:{sweet:.08,earlyMax:-.18,lateMax:-.22},
     angle:{earlyMax:-28,lateMax:24},
   },

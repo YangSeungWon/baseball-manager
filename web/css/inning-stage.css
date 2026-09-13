@@ -340,3 +340,6 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 @media(prefers-reduced-motion:reduce){.inning-mode .coach-tip.is-pulse{animation:none}}
 @media(pointer:coarse){.inning-mode .coach-tip kbd{display:none}}
 @media(max-height:500px){.inning-mode .coach-tip{left:auto;right:12px;transform:none;width:300px;bottom:150px}.inning-mode .coach-tip.is-pulse{animation:none}}
+
+.inning-mode .stage-skill{font-style:normal;color:#f4d491;font-weight:600}
+.inning-mode .match-lesson{margin:8px auto 0;max-width:34ch;font-size:13px;line-height:1.5;color:#c9d8d3}.inning-mode .match-lesson b{color:#f4d491;margin-right:6px}

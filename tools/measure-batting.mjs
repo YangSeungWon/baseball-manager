@@ -14,10 +14,12 @@ const peek=g=>{const rng=g.rng,roll=Array.from({length:10},()=>g.random());g.rng
 
 // 정책: choose(game) → 사전 선택, decide(game, delivery) → {action, timing}
 export const POLICIES={
-  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:null})},
-  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:null})},
-  timer:{label:'존 판독 + 타이밍',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet()})},
-  oracle:{label:'+ 예측 적중(예지)',choose:g=>{const p=deliverPitch(g.pitcher,g,peek(g));return {target:p.t,approach:'contact',location:locationOf(p)};},decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet()})},
+  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:null,aim:{x:0,z:0}})},
+  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:null,aim:{x:0,z:0}})},
+  timer:{label:'존 판독 + 타이밍',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:0,z:0}})},
+  aimer:{label:'존 판독 + 타이밍 + 조준',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:d.x,z:d.z}})},
+  slugger:{label:'존 판독 + 타이밍 + 장타(힘 1)',choose:()=>({target:'any',approach:'power',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),power:1,aim:{x:0,z:0}})},
+  oracle:{label:'+ 예측 적중(예지) + 조준',choose:g=>{const p=deliverPitch(g.pitcher,g,peek(g));return {target:p.t,approach:'contact',location:'any'};},decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:d.x,z:d.z}})},
 };
 // 9이닝용. naive 는 timer 와 같고, learner 는 카운트별로 본 구종을 기억해 최빈값을 노린다.
 export const LEARNERS={
@@ -40,7 +42,7 @@ const record=(t,e)=>{
 };
 export function playStage(policy,stageId,seed){
   const g=new BattingGame(seed,stageId),t=tally();
-  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing}=policy.decide(g,d);record(t,g.decidePitch(action,timing));}
+  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing,power=null,aim=null}=policy.decide(g,d);record(t,g.decidePitch(action,timing,power,aim));}
   t.games=1;t.cleared=g.won?1:0;return t;
 }
 // 초 공격은 숙련된 손(σ .05)으로 구종을 섞어 던지는 투수 정책이 맡는다. 말 공격이 policy.

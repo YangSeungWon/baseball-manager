@@ -21,7 +21,7 @@ try {
   localStorage.setItem('dugout.sfx','0');
   crypto.getRandomValues=a=>a.fill(42);
   const {BattingGame}=await import('/js/batting-game.js');
-  const rolls=[[0,.1,0,.9,0,.5,.5,.5,.5,.5],[0,.1,0,.9,.42,.55,.5,.5,.5,.5],[0,.99,0,.9,0,.5,.5,.5,.5,.5]];
+  const rolls=[[0,.1,0,.9,0,.5,.5,.5,.5,.5],[0,.1,0,.9,.26,.70,.5,.5,.5,.5],[0,.1,0,.9,0,.5,.5,.5,.5,.5]];   // stage 3 is a power test: a walk no longer wins it
   BattingGame.prototype.random=function(){this.testIndex=(this.testIndex??-1)+1;return rolls[this.stage.id][this.testIndex%10];};
   const resolve=BattingGame.prototype.resolvePitch;BattingGame.prototype.resolvePitch=function(c,r){window.stageEvent=resolve.call(this,c,r);return window.stageEvent;};
   const {Live3D}=await import('/js/live3d.js'),direct=Live3D.prototype.direct;
@@ -33,18 +33,18 @@ try {
  for(let id=0;id<3;id++){
   await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
   const state=await page.evaluate(()=>({b:state3d.b,s:state3d.s,o:state3d.outs,runners:state3d.runners.length,mode:scene3d.atmosphere,park:scene3d.opts.park.name}));
-  assert.deepEqual([state.b,state.s,state.o,state.runners],[[0,0,1,2],[0,0,1,1],[3,2,2,3]][id]);
+  assert.deepEqual([state.b,state.s,state.o,state.runners],[[0,0,1,2],[0,0,1,1],[0,0,2,0]][id]);
   assert.equal(state.mode,['clear','evening','indoor'][id]);assert.equal(state.park,['항구 파크','산성 필드','센트럴 돔'][id]);
   assert.equal(await page.locator('.inning-frame small').textContent(),(id+1)+'/3');
   await page.screenshot({path:`/tmp/dugout-stage-${id+1}.png`});
   await page.locator('[data-group="target"] [data-value="FF"]').click();
-  await page.locator('.is-deciding').waitFor({timeout:60000});if(id!==2){const hold=page.locator('.batting-hold');await hold.dispatchEvent('pointerdown',{button:0,pointerId:1});await page.waitForTimeout(150);await page.dispatchEvent('body','pointerup',{pointerId:1});}
+  await page.locator('.is-deciding').waitFor({timeout:60000});{const hold=page.locator('.batting-hold');await hold.dispatchEvent('pointerdown',{button:0,pointerId:1});await page.waitForTimeout(id===2?700:150);await page.dispatchEvent('body','pointerup',{pointerId:1});}
   await page.locator('.is-celebrating').waitFor();
   if(id===0){await page.waitForFunction(()=>state3d.celebrationTime>3);await page.screenshot({path:'/tmp/dugout-celebration-gathered.png'});}
   assert.equal(await page.locator('.inning-result').isVisible(),false);
   await page.waitForFunction(()=>!document.querySelector('.inning-result').hidden,{},{timeout:90000});
   const e=await page.evaluate(()=>({result:window.stageEvent.result,scored:window.stageEvent.scored,won:window.stageEvent.after.won}));
-  assert.deepEqual(e,{result:['HR','OUT','BB'][id],scored:[3,1,1][id],won:true});
+  assert.deepEqual(e,{result:['HR','OUT','HR'][id],scored:[3,1,1][id],won:true});
   await page.locator('[data-share]').click();assert.match(await page.evaluate(()=>shared.url),new RegExp('b7-'+id+'-42$'));
   assert.equal(await page.locator('.result-stages button').count(),3,'the result screen carries the stage board');
   assert.equal(await page.locator('.result-stages button.is-cleared').count(),id+1);

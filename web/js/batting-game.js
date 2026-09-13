@@ -30,13 +30,15 @@ export const locationMatches=(location,x,z)=>location==='high'?z>.4:location==='
 export function deliverPitch(pitcher,{balls=0,strikes=0}={},roll){
   const D=T.delivery,fast=pitcher.fast;
   const type=roll[0]<fast?'FF':roll[0]<fast+(1-fast)*D.breakingSplit?'SL':'CH';
-  const inZone=roll[1]<clamp(D.zoneBase+(balls===3?D.zoneThreeBalls:0)+(strikes===2?D.zoneTwoStrikes:0),...D.zoneClamp);
+  const inZone=roll[1]<clamp(D.zoneBase+(pitcher.zoneShift||0)+(balls===3?D.zoneThreeBalls:0)+(strikes===2?D.zoneTwoStrikes:0),...D.zoneClamp);
   return composePitch(pitcher,type,inZone,roll);
 }
 // 구종과 존 안/밖이 정해진 뒤의 코스·구속. 문법이 구종이나 존을 바꿔도 같은 롤이면 같은 자리로 간다.
+// 투수 성향: lowBias 는 존 안에서 낮은 공의 비중(기본 ⅓), edgeX 는 존 안 좌우 폭(기본 .6). 같은 롤이면 같은 자리.
 export function composePitch(pitcher,type,inZone,roll,{xSign=0,speedOffset=0}={}){
-  const D=T.delivery,sign=xSign||(roll[7]<.5?-1:1);
-  return {t:type,v:PITCHES[type].speed+(pitcher.speedOffset||0)+speedOffset+Math.round(roll[6]*D.speedJitter-D.speedJitter/2),x:sign*(inZone?D.xInZone:D.xOutZone),z:inZone?(roll[6]<1/3?D.zThirds[0]:roll[6]>2/3?D.zThirds[2]:D.zThirds[1]):D.zOutZone};
+  const D=T.delivery,sign=xSign||(roll[7]<.5?-1:1),low=pitcher.lowBias??1/3,edge=pitcher.edgeX??D.xInZone;
+  const z=inZone?(roll[6]<low?D.zThirds[0]:roll[6]>low+(1-low)/2?D.zThirds[2]:D.zThirds[1]):D.zOutZone;
+  return {t:type,v:PITCHES[type].speed+(pitcher.speedOffset||0)+speedOffset+Math.round(roll[6]*D.speedJitter-D.speedJitter/2),x:sign*(inZone?edge:D.xOutZone),z};
 }
 const outcomeOf=e=>({action:e.choice.action,call:e.call,result:e.result,label:e.label,scored:e.scored,outs:e.after.outs-e.before.outs});
 // Higher is better for the batting side: runs and base hits count, outs and strikes cost.
@@ -58,7 +60,7 @@ export class BattingGame extends InningGame {
   constructor(seed=1,stageId=0){
     super(seed);this.stage=getStage(stageId);const s=this.stage;
     this.outs=s.outs;this.balls=s.balls;this.strikes=s.strikes;this.bases=[...s.bases];
-    this.baseRunners=s.bases.map((yes,i)=>yes?{id:'initial-'+(i+1),name:(i+1)+'루 주자',speed:[8.7,7.8,8.7][i]}:null);
+    this.baseRunners=s.bases.map((yes,i)=>yes?{id:'initial-'+(i+1),name:(i+1)+'루 주자',speed:(s.runnerSpeed?.[i])||[8.7,7.8,8.7][i]}:null);
   }
   get defense(){const roster=super.defense;if(this.stage?.outfieldArm)for(const pos of ['LF','CF','RF'])roster[pos].arm=this.stage.outfieldArm;return roster;}
   get pitcher(){return this.stage.pitcher||ARMS[this.seed%ARMS.length];}

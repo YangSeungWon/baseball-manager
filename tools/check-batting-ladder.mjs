@@ -7,12 +7,13 @@ import {POLICIES,measure,playStage,learning} from './measure-batting.mjs';
 const N=400;
 const stage=(policy)=>measure(policy,(p,st,seed)=>playStage(p,st,seed),N,0);
 
-test('stage-1 clear rate climbs random → zone → timer → oracle with real gaps',()=>{
-  const r=Object.fromEntries(Object.keys(POLICIES).map(k=>[k,stage(POLICIES[k])]));
-  assert.ok(r.zone.clear-r.random.clear>=8,`zone ${r.zone.clear} vs random ${r.random.clear}`);
-  assert.ok(r.timer.clear-r.zone.clear>=8,`timer ${r.timer.clear} vs zone ${r.zone.clear}`);
-  assert.ok(r.oracle.clear-r.timer.clear>=3,`oracle ${r.oracle.clear} vs timer ${r.timer.clear}`);
-  assert.ok(r.timer.clear-r.random.clear>=r.oracle.clear-r.timer.clear,'execution (zone+timing) must outweigh preparation (prediction)');
+test('stage-1 clear rate climbs random → zone → timer → aimer → oracle, and execution outweighs preparation',()=>{
+  const r=Object.fromEntries(['random','zone','timer','aimer','oracle'].map(k=>[k,stage(POLICIES[k])]));
+  assert.ok(r.zone.clear-r.random.clear>=5,`zone ${r.zone.clear} vs random ${r.random.clear}`);
+  assert.ok(r.timer.clear-r.zone.clear>=6,`timer ${r.timer.clear} vs zone ${r.zone.clear}`);
+  assert.ok(r.aimer.clear-r.timer.clear>=8,`aimer ${r.aimer.clear} vs timer ${r.timer.clear}`);
+  assert.ok(r.oracle.clear>=r.aimer.clear-2,`oracle ${r.oracle.clear} vs aimer ${r.aimer.clear}`);
+  assert.ok(r.aimer.clear-r.random.clear>=(r.oracle.clear-r.aimer.clear)*2,'execution (zone, timing, aim) must outweigh preparation (pitch guess)');
   assert.ok(r.random.clear<20&&r.oracle.clear<75,'failure stays the default even for perfect play');
   assert.ok(r.zone.chase===0&&r.random.chase>20,'policies behave as designed');
 });
