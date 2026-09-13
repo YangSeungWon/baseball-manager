@@ -11,6 +11,7 @@ import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
 const LOOK_YAW=Math.PI/3,LOOK_PITCH=Math.PI/6;   // 좌우 60°, 상하 30°: 둘러보기가 아니라 곁눈질
+const HARD_CUTS=new Set(['field','catch','base']);   // 살아 있는 타구로 가는 컷은 암전 없이 즉시
 // 야구공: 흰 가죽에 붉은 실밥 두 줄(등장방형 투영). 회전하면 구종에 따라 실밥이 다르게 흐른다.
 const seamTexture=()=>canvasTexture(256,128,(g,w,h)=>{
   g.fillStyle='#f7f2e4';g.fillRect(0,0,w,h);
@@ -93,6 +94,8 @@ export class Live3D {
     this.trail = new T.Mesh(this.trailGeo, new T.MeshBasicMaterial({ vertexColors:true, transparent:true, blending:T.AdditiveBlending, depthWrite:false, side:T.DoubleSide }));
     this.trail.frustumCulled = false; this.trail.userData.noBatch=true; this.scene.add(this.trail);
     host.prepend(this.canvas);
+    // 컷 사이의 짧은 암전. 라이브 타구로 가는 컷은 즉시, 나머지는 0.09초 어둡게 → 전환 → 0.16초 밝게.
+    this.fade=document.createElement('div');this.fade.className='lv-fade';this.fade.hidden=true;this.canvas.after(this.fade);this.cut=null;
     this.look={yaw:0,pitch:0};
     if(opts.playerRole==='batter') {
       // First-person bat and hands, parented to the camera. Load pulls it back, release sweeps it across the view.
@@ -576,10 +579,22 @@ export class Live3D {
     const dt=this.lastTime==null?.016:clamp(time-this.lastTime,0,.1);this.lastTime=time;
     // Switch between fixed camera positions by cut; pan only within a shot.
     const changed=kind!==this.cameraKind;
+    const OUT=.09,IN=.16,hard=HARD_CUTS.has(kind)||this.reducedMotion||this.cameraKind==null;
+    if(changed&&!hard&&!this.cut){this.cut={at:time,from:{eye:this.camera.position.clone(),aim:this.aim.clone(),fov:this.camera.fov},kind};}
+    if(this.cut){
+      const age=time-this.cut.at;
+      if(age<OUT){eye=this.cut.from.eye;aim=this.cut.from.aim;fov=this.cut.from.fov;kind=this.cameraKind;this.fadeTo(age/OUT);}
+      else{this.fadeTo(Math.max(0,1-(age-OUT)/IN));if(age>=OUT+IN)this.cut=null;}
+    }else this.fadeTo(0);
+    const switching=kind!==this.cameraKind;
     this.camera.position.copy(eye);
-    if(changed||kind==='batting')this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
+    if(switching||kind==='batting'||kind==='mound')this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
     this.camera.fov=fov;this.camera.updateProjectionMatrix();this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
+  }
+  fadeTo(opacity){
+    const o=Math.max(0,Math.min(1,opacity));if(o===this.fadeOpacity)return;this.fadeOpacity=o;
+    this.fade.hidden=o<=0||this.canvas.hidden;this.fade.style.opacity=o.toFixed(3);
   }
   showBoardReplay(play,label='REPLAY') {
     if(!play?.frames?.length)return;
@@ -641,6 +656,6 @@ export class Live3D {
     for(const g of new Set([this.box,this.sphere,this.cylinder,...geometries]))g.dispose();
     for(const m of new Set([...this.materials.values(),...materials]))m.dispose();
     for(const t of this.textures)t.dispose();
-    this.renderer.dispose();this.renderer.forceContextLoss();this.canvas.remove();
+    this.renderer.dispose();this.renderer.forceContextLoss();this.canvas.remove();this.fade?.remove();
   }
 }

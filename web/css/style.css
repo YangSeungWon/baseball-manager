@@ -1257,6 +1257,7 @@ tr.me td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
    투구수와 최고 구속, 존, 문자중계. 폰에서는 위아래로 쌓인다. */
 .lv{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;height:100%;min-height:0;align-content:start}
 .lv-main{display:flex;flex-direction:column;gap:10px;min-width:0;min-height:0}
+.lv-fade{position:absolute;inset:0;z-index:2;background:#05090d;opacity:0;pointer-events:none}.lv-fade[hidden]{display:none}
 .lv-stage{position:relative;background:#0a1017;border-radius:2px;overflow:hidden;
   box-shadow:inset 0 0 0 1px var(--line2)}
 .lv-stage canvas{display:block;margin:0 auto;max-width:100%}

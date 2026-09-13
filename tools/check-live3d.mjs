@@ -57,7 +57,7 @@ try {
     const coverage=await page.evaluate(()=>{
       const r=lv.three,S=lv.S;const shots={};
       for(const kind of ['pitch','batter','pitcher','field','base','beauty']) {
-        S.broadcast={kind,target:[19.4,19.4]};r.direct(S,10);shots[kind]=r.cameraKind;
+        S.broadcast={kind,target:[19.4,19.4]};const t=10+Object.keys(shots).length*2;r.direct(S,t);r.direct(S,t+1);shots[kind]=r.cameraKind;   // soft cuts dip to black first, so step past the fade
       }
       S.b=2;S.s=1;S.outs=1;S.fielders.P.name='김선발';
       lv.line.top=[0,1,0,0,0,0,0,0,0,0,2,0,1];lv.line.hits.top=7;lv.line.err.bottom=1;
