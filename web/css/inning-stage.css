@@ -357,3 +357,11 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .match-intro:has(.match-batting-help)>*{flex-shrink:0}
 
 .inning-mode .match-intro:has(.match-batting-help) .match-own{position:static;margin-top:0}
+
+.inning-mode .batting-pointer{position:fixed;z-index:28;width:36px;height:36px;border:2px solid #ffe0a0;border-radius:50%;box-shadow:0 0 0 1px #172c32aa;transform:translate(-50%,-50%);pointer-events:none}
+.inning-mode .batting-pointer.is-cancel{opacity:.25;border-style:dashed}
+.inning-mode .batting-cancel-area{position:fixed;z-index:27;bottom:0;left:0;right:0;display:grid;place-items:center;padding-bottom:env(safe-area-inset-bottom);box-sizing:border-box;border-top:1px dashed #ffffff70;background:#102732aa;color:#e7ede6;font-size:14px;pointer-events:none}
+.inning-mode .batting-cancel-area.is-active{background:#593735d9;color:#fff1df;border-top-style:solid}
+.inning-mode .batting-pointer[hidden],.inning-mode .batting-cancel-area[hidden]{display:none}
+.inning-mode .batting-help-touch{display:none}
+@media(pointer:coarse){.inning-mode .batting-help-touch{display:block}.inning-mode .batting-help-mouse{display:none}}

@@ -1,3 +1,4 @@
+import { mountBattingPointer } from './batting-pointer.js';
 import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT } from './batting-space.js';
 import { FRANCHISES } from './core/names.js';
 import { flippedBat, celebrationPlayers, CELEBRATION_DURATION } from './celebration.js';
@@ -44,6 +45,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   document.body.append(root);
   if(batting)root.classList.add('has-batting-dock');
   const $=s=>root.querySelector(s);
+  const pointer=document.createElement('div');pointer.className='batting-pointer';pointer.hidden=true;pointer.setAttribute('aria-hidden','true');
+  const cancelArea=document.createElement('div');cancelArea.className='batting-cancel-area';cancelArea.hidden=true;cancelArea.setAttribute('role','status');
+  if(batting)root.append(pointer,cancelArea);
   const flightRead=document.createElement('div');flightRead.className='flight-read';flightRead.hidden=true;flightRead.setAttribute('aria-hidden','true');root.append(flightRead);
   const scouting=mountScouting(root,batting);
   let entryKey=null;
@@ -149,30 +153,28 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       lv.S.pitchRead={clarity};
     };
     const warm=new Timeline();warm.end=from;warm.step=t=>{warm.t=Math.min(t,from);preview.step(warm.t);};
-    // 준비 자세에서 배트를 잡고 기다리다가, 누르는 순간 한 번만 스윙한다.
+    // 준비 자세에서 기다리다가 PC는 클릭, 모바일은 손을 뗄 때 한 번만 스윙한다.
     const picked=await new Promise(resolve=>{
       const input=new AbortController();let raf,timer,settled=false,timing=null,begin=null,end=null,open=false;
       const pitchTime=now=>from+Math.max(0,(now-begin)/1000);
       const finish=(action,{expired=false,power=null,aim:aimed=null}={})=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);input.abort();cancelDecision=null;root.classList.remove('is-deciding','is-reading','is-swinging','is-loaded');readZone.classList.remove('is-reading-pitch');if($('.pitch-tell'))$('.pitch-tell').hidden=true;lv.S.battingDecision=false;lv.S.pitchRead=null;flightRead.hidden=true;zone();readZone.hidden=events.length===0;lv.S.aim=null;resolve(action?{action,expired,time:preview.t,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'?aimed:null}:null);};
       cancelDecision=()=>finish(null);
-      // 마우스 이동과 화살표 조준은 스윙 전에 끝낸다. 누른 뒤에는 타격이 확정된다.
-      const m=game.batter.hand==='L'?-1:1;let aim={x:0,z:0};
+      // PC는 클릭, 터치 화면은 드래그 후 손을 뗄 때 스윙한다.
+      let aim={x:0,z:0};
       const paintAim=()=>{const dot=$('.zone-aim');if(dot){dot.setAttribute('cx',100+aim.x*38);dot.setAttribute('cy',96-aim.z*40);dot.classList.add('is-live');}};
       const setAim=(x,z)=>{aim={x:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,x)),z:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,z))};lv.S.aim=aim;paintAim();};
       const press=()=>{if(settled||!open)return;const now=performance.now();
         if(now>=end){preview.step(to);finish('take');return;}
         preview.step(pitchTime(now));timing=battingPressTiming(preview.t,arrival);lv.S.batSwingFrom=.25;lv.S.fpSwingAt=now/1000;
         finish('swing',{power:.5,aim:{...aim}});};
-      const on=(target,name,fn,opts)=>target&&target.addEventListener(name,fn,{signal:input.signal,...opts});
       const surface=lv.three?.canvas||null;
-      on(surface,'pointerdown',e=>{if(e.button===0&&open){e.preventDefault();const a=lv.three.battingAimAt(e.clientX,e.clientY);if(a)setAim(a.x,a.z);press();}});
-      on(surface,'pointermove',e=>{if(e.pointerType!=='mouse'||e.buttons)return;const a=lv.three.battingAimAt(e.clientX,e.clientY);if(a)setAim(a.x,a.z);});
-      on(document,'keydown',e=>{
-        if(/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||''))return;
-        const step={arrowup:[0,.35],arrowdown:[0,-.35],arrowleft:[-.35*m,0],arrowright:[.35*m,0]}[e.key.toLowerCase()];
-        if(step){e.preventDefault();setAim(aim.x+step[0],aim.z+step[1]);}
-        else if((e.key===' '||e.key==='Enter'&&document.activeElement===surface)&&!e.repeat){e.preventDefault();press();}
-      });
+      if(surface)mountBattingPointer(surface,{signal:input.signal,aimAt:(x,y)=>lv.three.battingAimAt(x,y),onAim:setAim,onSwing:press,onPreview:p=>{
+        lv.S.pointerAiming=!!p;pointer.hidden=!p;cancelArea.hidden=!p?.touch;
+        if(!p)return;
+        pointer.style.left=p.x+'px';pointer.style.top=p.y+'px';pointer.classList.toggle('is-cancel',p.cancel);
+        cancelArea.style.height=p.cancelHeight+'px';cancelArea.classList.toggle('is-active',p.cancel);
+        const label=p.cancel?'놓으면 취소':'아래로 내려놓으면 스윙 취소';if(cancelArea.textContent!==label)cancelArea.textContent=label;
+      }});
       setAim(0,0);
       (async()=>{
         await runTimeline(warm);if(dead||settled)return;
@@ -278,7 +280,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const loadingView=lv,card=document.createElement('div');card.className='match-intro';
     const team=(side)=>{const t=stage[side],f=FRANCHISES.find(f=>f.city+' '+f.nick===t.name);return `<div class="match-club" style="--club:${stage.colors[side]}"><small>${side==='home'?'HOME':'AWAY'}</small><div class="match-crest" aria-hidden="true">${f?.mark||t.short.slice(0,1)}</div><strong>${t.name}</strong>${side===(batting||full?'home':'away')?'<span class="match-own">MY TEAM</span>':''}</div>`;};
     card.innerHTML=`<p class="match-venue">${stage.park.name}</p><div class="match-pair">${team('away')}<span class="match-vs">VS</span>${team('home')}</div><p class="match-format">${full?'9이닝 경기':stage.situation}</p>${!full&&!batting&&stage.lesson?`<p class="match-lesson"><b>${stage.skillLabel}</b> ${stage.lesson}</p>`:''}<div class="match-starter"><small>${batting?'상대 투수':'마운드'}</small><b>${batting?game.pitcher.name:'나의 마무리'}</b><span>${batting?game.pitcher.style:'두 점의 리드'}</span></div>`;
-    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><p><b>조준</b> 마우스 이동 · 방향키</p><p><b>스윙</b> 화면 클릭·터치 · Space<br>화면에서는 칠 위치를 바로 누르세요.</p><p>공을 보고 누르세요. 안 누르면 참습니다.</p></div>');
+    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><div class="batting-help-mouse"><p><b>조준</b> 마우스 이동</p><p><b>스윙</b> 왼쪽 클릭</p><p>클릭하지 않으면 참습니다.</p></div><div class="batting-help-touch"><p>손가락을 움직여 <b>조준</b></p><p>손을 떼면 <b>스윙</b></p><p>아래 취소 영역에서 떼면 참습니다.</p></div></div>');
     if(!continuedGame){root.append(card);root.classList.add('is-match-intro');}
     const enter=document.createElement('button');enter.className='go match-enter';enter.textContent='구장 준비 중…';enter.disabled=true;card.append(enter);
     const ready=await loadingView.ready;

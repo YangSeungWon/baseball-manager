@@ -25,7 +25,7 @@ try {
   });
   await page.locator('#btnBatting').click();
   await page.locator('.match-enter:not([disabled])').waitFor();
-  assert.match(await page.locator('.match-batting-help').textContent(),/조준.*스윙.*안 누르면 참습니다/s);
+  assert.match(await page.locator('.match-batting-help').textContent(),/조준.*스윙.*취소 영역/s);
   assert.equal(await page.locator('[data-group="target"],.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);
   await page.locator('.match-enter').scrollIntoViewIfNeeded();
   const bounds=await page.locator('.match-enter').boundingBox();
@@ -38,7 +38,11 @@ try {
     observer.disconnect();
     firstPitch={coachVisible:!!root.querySelector('.coach-tip:not([hidden])'),helpVisible:!!root.querySelector('.match-batting-help')};
     // React within the real pitch window, without test-driver network round trips.
-    document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));
+    const canvas=root.querySelector('canvas'),r=canvas.getBoundingClientRect(),e={button:0,bubbles:true,pointerId:1,pointerType:innerWidth<900?'touch':'mouse',clientX:r.left+r.width/2,clientY:r.top+r.height/2};
+    document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));if(decisions.length)throw Error('Space must not swing');
+    canvas.dispatchEvent(new PointerEvent('pointerdown',e));
+    if(e.pointerType==='touch'&&decisions.length)throw Error('touchdown must not swing');
+    canvas.dispatchEvent(new PointerEvent('pointerup',e));
    });observer.observe(root,{attributes:true,attributeFilter:['class']});
   });
   await page.locator('.match-enter').click();
