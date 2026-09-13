@@ -73,13 +73,15 @@ export class BattingGame extends InningGame {
   sweetWindow(batter,choice,pitch){return readWindowFor(batter,choice,pitch).sweet;}
   delivery(roll){return deliverPitch(this.pitcher,{balls:this.balls,strikes:this.strikes},roll);}
   // `timing` is where in the read window the swing started (0..1), `power` how hard it was driven (0..1, from hold length).
-  decidePitch(action,timing=null,power=null) {
+  // `aim` is where the bat was brought to, in zone units ({x,z}); with it the location guess is ignored.
+  decidePitch(action,timing=null,power=null,aim=null) {
     if(!this.pending||!['swing','take'].includes(action))throw new Error('Invalid batting decision');
     if(timing!==null&&(!Number.isFinite(timing)||timing<0||timing>1))throw new Error('Invalid swing timing');
     if(power!==null&&(!Number.isFinite(power)||power<0||power>1))throw new Error('Invalid swing power');
+    if(aim!==null&&(typeof aim!=='object'||!Number.isFinite(aim.x)||!Number.isFinite(aim.z)||Math.abs(aim.x)>2||Math.abs(aim.z)>2))throw new Error('Invalid swing aim');
     const {choice,roll}=this.pending;
     const alternative=this.alternativeOf({...choice,action},roll);
-    const event=this.resolvePitch({...choice,action,timing:action==='swing'?timing:null,power:action==='swing'?power:null},roll);this.pending=null;
+    const event=this.resolvePitch({...choice,action,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'&&aim?{x:aim.x,z:aim.z}:null},roll);this.pending=null;
     event.alternative={...alternative,verdict:compareOutcomes(alternative,outcomeOf(event))};return event;
   }
   // Same delivery, same dice, the other decision. Runs on a throwaway copy so nothing here touches the real state.
@@ -93,27 +95,31 @@ export class BattingGame extends InningGame {
     if(!['swing','take'].includes(choice.action))throw new Error('Invalid batting decision');
     this.preparePitch(choice);return this.decidePitch(choice.action);
   }
-  resolvePitch({target,approach,action,location='any',timing=null,power=null},roll) {
+  resolvePitch({target,approach,action,location='any',timing=null,power=null,aim=null},roll) {
     if(this.done)throw new Error('Challenge already finished');
     if(!['any','in','out','low','high'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
     const before=this.snapshot();
     const {t:type,x,z}=this.delivery(roll),inZone=inStrikeZone(x,z);
     const P=T.preparation,E=T.execution,B=T.bip;
     const locationMatched=locationMatches(location,x,z),matched=target===type;
+    // 조준이 있으면 코스 예측 대신 배트와 공의 거리로 판정한다. 가까울수록 1.
+    const A=T.aim,aimGap=aim?Math.hypot(aim.x-x,aim.z-z):null,aimClose=aim?clamp(1-aimGap/A.radius,0,1):null;
     // 힘은 연속값이다. 누른 길이로 정하며, 예전 선택판의 '장타'는 1, '컨택'은 0 에 해당한다.
     const drive=clamp(power??(approach==='power'?1:0),0,1),powerful=drive>=.5;
     const swing=action==='swing'?swingTiming(timing,this.sweetWindow(before.batter,{target,location},{t:type,x,z})):null;
     const contact=contactProbability([T.baseline.contactLogit,(before.batter.contact-T.ability.referenceContact)*T.ability.contactPerPoint,
-      target==='any'?0:matched?P.typeHit:P.typeMiss, location==='any'?0:locationMatched?P.locationHit:P.locationMiss,
+      target==='any'?0:matched?P.typeHit:P.typeMiss, aim?A.contactMiss+(A.contactHit-A.contactMiss)*aimClose:location==='any'?0:locationMatched?P.locationHit:P.locationMiss,
       swing?.contact||0, P.powerSwing*drive, inZone?0:E.chase]);
     let result,fieldPlay=null;
     if(action==='take')result=inZone?'S':'B';
     else if(swing.whiff||roll[2]>contact)result='W';
     else if(roll[3]<E.foul.contactApproach+(E.foul.powerApproach-E.foul.contactApproach)*drive+swing.foul)result='F';
     else {
-      const qualityScale=(B.qualityScale.contactApproach+(1-B.qualityScale.contactApproach)*drive)*(location!=='any'&&!locationMatched?B.qualityScale.locationMiss:1)*(target!=='any'&&!matched?B.qualityScale.typeMiss:1)*(inZone?1:B.qualityScale.outOfZone);
-      const locationReadBonus=location==='any'?0:locationMatched?B.bonus.locationRead:-B.bonus.locationRead;
-      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:swing.angleShift,park:this.stage.park,bonus:(B.bonus.base||0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
+      const qualityScale=(B.qualityScale.contactApproach+(1-B.qualityScale.contactApproach)*drive)*(aim?A.qualityMiss+(1-A.qualityMiss)*aimClose:location!=='any'&&!locationMatched?B.qualityScale.locationMiss:1)*(target!=='any'&&!matched?B.qualityScale.typeMiss:1)*(inZone?1:B.qualityScale.outOfZone);
+      const locationReadBonus=aim?A.quality*(aimClose*2-1):location==='any'?0:locationMatched?B.bonus.locationRead:-B.bonus.locationRead;
+      // 안팎 조준이 공보다 바깥이면 밀어 치고, 안쪽이면 당겨 친다.
+      const aimSpray=aim?clamp(aim.x-x,-1,1)*A.spray:0;
+      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:swing.angleShift+aimSpray,park:this.stage.park,bonus:(B.bonus.base||0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}
@@ -142,8 +148,9 @@ export class BattingGame extends InningGame {
     let explanation=action==='take'?(inZone?'지켜본 공이 존 안에 들어왔습니다.':'존 밖의 공을 잘 참았습니다.'):
       swing.whiff?(swing.kind==='early'?'배트가 공보다 먼저 지나갔습니다.':'공이 지나간 뒤에 배트가 나왔습니다.'):
       !inZone?'존 밖으로 빠지는 공에 배트가 나갔습니다.':matched?'노렸던 구종입니다. 준비한 스윙으로 승부했습니다.':target!=='any'?'예상과 다른 구종에 대응해야 했습니다.':powerful?'크게 돌렸습니다. 장타와 헛스윙의 위험을 함께 감수합니다.':'짧은 스윙으로 공을 맞히는 데 집중했습니다.';
-    if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
+    if(action==='swing'&&aim&&!swing.whiff)explanation+=aimClose>.7?' 배트를 공의 코스에 정확히 댔습니다.':aimClose>.35?' 조준이 조금 빗나갔습니다.':(aim.z-z>0?' 배트가 공 위로 지나갔습니다.':' 배트가 공 아래로 지나갔습니다.');
+    else if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
     if(swing&&!swing.whiff){if(swing.kind==='early')explanation+=' 배트가 일찍 나가 당겨 쳤습니다.';else if(swing.kind==='late')explanation+=' 배트가 늦게 나가 밀렸습니다.';else if(swing.kind==='sweet')explanation+=' 타이밍이 정확했습니다.';}
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},timing:swing?{...swing,p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }

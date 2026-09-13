@@ -352,7 +352,8 @@ export class Live3D {
     if(pose==='bat') {
       // Keyframed swing. The rear (top) hand is posed by the clip; the lead hand reaches the bat grip by IK.
       const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',handed=data.hand==='L'?-1:1;
-      const planeY=clamp(style.pitchZ||0,-1.5,1.5)*.075,planeX=clamp(style.pitchX||0,-1.5,1.5)*.035;
+      const liveAim=S.aim&&!swing?S.aim:null;
+      const planeY=clamp(liveAim?liveAim.z:(style.pitchZ||0),-1.5,1.5)*.075,planeX=clamp(liveAim?liveAim.x:(style.pitchX||0),-1.5,1.5)*.035;
       const load=S.batLoadAt!=null&&!swing?Math.min(1,Math.max(0,(this.animationTime-S.batLoadAt)/.45)):0;
       const t=swing?swing*(power?1:.92):.25*load;
       const q=sample(SWING,t);

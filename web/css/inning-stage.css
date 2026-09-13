@@ -311,3 +311,7 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 
 .inning-mode .flight-read{position:fixed;z-index:12;width:var(--read-size,78px);height:var(--read-size,78px);transform:translate(-50%,-50%);border:2px dashed #e9eed0;border-radius:50%;box-shadow:0 0 14px #f4efbb30;pointer-events:none;filter:blur(.6px)}
 .inning-mode .flight-read[hidden]{display:none}
+
+/* 조준점: 당긴 채 드래그한 배트 위치. 존 그림 위에 겹친다. */
+.inning-mode .zone-aim{fill:#f4d49133;stroke:#f4d491;stroke-width:2;display:none}
+.inning-mode.is-loaded .zone-aim,.inning-mode.is-deciding .zone-aim.is-live{display:block}

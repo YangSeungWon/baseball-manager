@@ -10,6 +10,8 @@ export const BATTING={
   ability:{contactPerPoint:6.0,referenceContact:.72},
   // 준비 층. 숨은 가산은 작게 두고, 예측 성공의 진짜 보상은 read.reward(읽기 창)로 준다. 실패 벌점은 타이밍 적중보다 작다.
   preparation:{typeHit:.40,typeMiss:-.35,locationHit:.45,locationMiss:-.45,powerSwing:-.80},
+  // 조준. 당긴 채 드래그한 배트 높이·안팎과 실제 공의 거리(존 단위)로 컨택과 타구 질이 정해진다. 예측 대신 실행이다.
+  aim:{radius:1.4,contactHit:.9,contactMiss:-2.6,quality:.10,qualityMiss:.70,spray:14},   // 반지름 밖(한 존 반)이면 배트가 공을 못 만난다
   // 실행 층. 존 밖 스윙(chase)은 가장 큰 벌점으로 남긴다.
   execution:{
     chase:-1.60,

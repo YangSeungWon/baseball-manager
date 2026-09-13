@@ -141,3 +141,21 @@ test('hold power is continuous and a swing far outside the band whiffs no matter
   assert.ok(!at(BATTING.swingWindow.from-.05,0).timing.whiff,'slightly early still meets the ball');
   const h=new BattingGame(3);h.preparePitch({target:'FF',approach:'contact'});assert.throws(()=>h.decidePitch('swing',mid,1.5));assert.throws(()=>h.decidePitch('swing',mid,-.1));
 });
+
+test('aiming the bat replaces the location guess: a bat on the ball beats a bat a zone away, takes ignore it, bad aims are refused',async()=>{
+  const {BATTING}=await import('../web/js/batting-tuning.js');
+  const mid=(BATTING.swingWindow.from+BATTING.swingWindow.to)/2;
+  const play=(aim,location='any')=>{const g=new BattingGame(3);rolls(g,[0,0,.55,.9,.3,.5,.5,.5]);const d=g.preparePitch({target:'FF',approach:'contact',location});return {d,e:g.decidePitch('swing',mid,0,aim)};};
+  const {d}=play(null);
+  const away=v=>v>0?v-1.5:v+1.5;const on=play({x:d.x,z:d.z}).e,off=play({x:d.x,z:away(d.z)}).e;
+  assert.deepEqual(on.pitch,off.pitch,'aim never changes the pitch');
+  assert.ok(on.aim.close>.99&&off.aim.close<.01);
+  assert.ok(on.fieldPlay,'bat on the ball makes contact with these dice');assert.equal(off.result,'W','a bat a zone and a half away misses with the same dice');
+  assert.match(on.explanation,/정확히/);
+  const inside=play({x:d.x-.6,z:d.z}).e,outside=play({x:d.x+.6,z:d.z}).e;
+  assert.ok(inside.fieldPlay&&outside.fieldPlay&&inside.fieldPlay.angle<outside.fieldPlay.angle,'aiming inside pulls, outside pushes');
+  const guess=play(null,'low').e,aimed=play({x:d.x,z:d.z},'low').e;assert.notDeepEqual(guess.aim,aimed.aim);assert.equal(aimed.aim.close>0,true);
+  const g=new BattingGame(3);g.preparePitch({target:'any',approach:'contact'});assert.throws(()=>g.decidePitch('swing',mid,0,{x:5,z:0}));assert.throws(()=>g.decidePitch('swing',mid,0,{x:'a',z:0}));
+  const t=new BattingGame(3);t.preparePitch({target:'any',approach:'contact'});assert.equal(t.decidePitch('take',null,null,{x:0,z:0}).aim,null);
+  for(let seed=0;seed<40;seed++){const a=new BattingGame(seed*13),b=new BattingGame(seed*13);a.preparePitch({target:'any',approach:'contact'});b.preparePitch({target:'any',approach:'contact'});assert.deepEqual(a.decidePitch('swing',mid,.5,{x:.2,z:-.3}),b.decidePitch('swing',mid,.5,{x:.2,z:-.3}));}
+});
