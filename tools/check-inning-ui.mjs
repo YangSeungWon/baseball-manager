@@ -33,9 +33,7 @@ try {
     await page.locator('[data-value="SL"]').click();
     await page.locator('[data-value="chase"]').click();
     assert.equal(await page.locator('[data-value="SL"]').getAttribute('aria-pressed'),'true');
-    await page.locator('.inning-throw').click();
-    await page.locator('.is-releasing').waitFor();
-    await page.locator('.inning-throw').click();
+    await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});
     assert.equal(await page.locator('.inning-throw').isDisabled(),true);
     const stage=await page.locator('.inning-live .lv-three').boundingBox();
     assert.ok(Math.abs(stage.width-width)<2 && Math.abs(stage.height-height)<2,'3D fills viewport');
@@ -47,7 +45,7 @@ try {
     assert.equal(await page.locator('.inning-pitch-chip').count(),1);
     assert.ok((await page.locator('.inning-live .lv-three').boundingBox()).height>=height-1,'ballpark stays full screen');
     assert.doesNotMatch(await page.locator('.inning-feedback').textContent(),/준비합니다/);
-    await page.locator('.inning-throw').click();
+    await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});
     await page.locator('.inning-exit').click();
     assert.equal(await page.locator('.inning-mode').count(),0);
     assert.equal(await page.locator('#boot').evaluate(e=>e.inert),false);
@@ -64,7 +62,7 @@ try {
     await replay.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     for(let i=0;i<30;i++){
       if(await replay.locator('.inning-result').isVisible())break;
-      await replay.locator('.inning-throw').click();
+      await replay.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await replay.locator('.is-releasing').waitFor();await replay.waitForTimeout(900);await replay.dispatchEvent('body','pointerup',{pointerId:1});
       await replay.waitForFunction(()=>!document.querySelector('.inning-picks').disabled || !document.querySelector('.inning-result').hidden,{},{timeout:30000});
     }
     return replay.locator('.inning-result').textContent();

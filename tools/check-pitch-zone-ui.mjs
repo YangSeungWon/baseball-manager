@@ -31,7 +31,7 @@ try {
       assert.equal(await page.locator('.inning-zone-map .zone-aim').count(),1);
     }
     await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
-    const play=async()=>{if(entry==='#btnBatting')await page.locator('.is-deciding').waitFor({timeout:60000});else await page.locator('.inning-throw').click();};
+    const play=async()=>{if(entry==='#btnBatting')await page.locator('.is-deciding').waitFor({timeout:60000});else {await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});}};
     for(let n=1;n<=3;n++) {
       await play();
       await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});

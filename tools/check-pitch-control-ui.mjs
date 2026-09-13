@@ -27,10 +27,10 @@ try {
   await page.locator('.pitch-breathe').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
   await page.waitForFunction(()=>document.querySelector('.pitch-breathe').textContent==='호흡 안정');
   assert.equal(await page.locator('.pitch-breathe').isDisabled(),true);
-  await page.locator('.inning-throw').click();await page.locator('.is-releasing').waitFor();
+  await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();
   assert.equal(await page.evaluate(()=>pitches.length),0,'no result before release');
   assert.match(await page.locator('.pitch-release').textContent(),/안정/);
-  await page.evaluate(()=>{window.seenRelease=parseFloat(document.querySelector('.pitch-needle').style.left)/50-1;document.querySelector('.inning-throw').click();});
+  await page.evaluate(()=>{window.seenRelease=parseFloat(document.querySelector('.pitch-needle').style.left)/50-1;document.dispatchEvent(new PointerEvent('pointerup',{pointerId:1,bubbles:true}));});
   await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
   assert.equal(await page.evaluate(()=>pitches.length),1,'single manual release');
   assert.ok(await page.evaluate(()=>pitches[0].control.release<0),'early click recorded');
@@ -39,13 +39,13 @@ try {
   assert.equal(await page.locator('.inning-live-zone .zone-release-error').count(),1);
   assert.equal(await page.locator('.pitch-breathe').isDisabled(),false);
   await page.screenshot({path:`/tmp/dugout-release-result-${width}.png`});
-  await page.locator('.inning-throw').click();await page.locator('.is-releasing').waitFor();
+  await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();
   for(const selector of ['.inning-throw','.pitch-breathe']){const b=await page.locator(selector).boundingBox();assert.ok(b.height>=44&&b.y+b.height<=height&&b.x>=0&&b.x+b.width<=width);}
   await page.screenshot({path:`/tmp/dugout-release-meter-${width}.png`});
   await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
   assert.equal(await page.evaluate(()=>pitches[1].control.release),1,'timeout is a visible late release');
   assert.equal(await page.evaluate(()=>pitches[1].call),'B');
-  await page.locator('.inning-throw').click();await page.locator('.is-releasing').waitFor();await page.locator('.inning-exit').click();
+  await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.locator('.inning-exit').click();
   await page.waitForTimeout(2000);assert.equal(await page.evaluate(()=>pitches.length),2,'closing cancels pending release');
   await page.close();
  }

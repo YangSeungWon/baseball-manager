@@ -9,7 +9,7 @@ try{
  await page.locator('#btnFullGame').click();await page.locator('.match-enter').click();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
  assert.equal(await page.locator('.pitch-breathe').count(),1);assert.equal(await page.locator('.batting-hold').count(),0);assert.equal(await page.evaluate(()=>view.opts.playerRole),'pitcher');
  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
- await page.locator('.inning-throw').click();await page.locator('.is-releasing').waitFor();await page.locator('.inning-throw').click();
+ await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});
  await page.locator('.batting-hold').waitFor({state:'visible',timeout:30000});await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
  assert.equal(await page.locator('.match-intro').count(),0);assert.match(await page.locator('.inning-frame').textContent(),/1.*▾/);assert.equal(await page.evaluate(()=>view.opts.playerRole),'batter');await page.waitForFunction(()=>view.cameraKind==='batting');
  await page.evaluate(async()=>{const {FullGame}=await import('/js/full-game.js');FullGame.prototype.preparePitch=function(choice){this.outs=2;const roll=[0,.1,0,.9,.42,.55,.5,.5,.5,.5];this.pending={choice,roll};return this.delivery(roll)};});

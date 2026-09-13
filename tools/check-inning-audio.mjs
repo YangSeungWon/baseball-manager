@@ -32,7 +32,7 @@ try {
     for(const cls of ['.inning-sound','.inning-exit']){const box=await page.locator(cls).boundingBox();assert.ok(box.height>=44&&box.x+box.width<=320);}
     await page.waitForFunction(()=>!!audioInstances.at(-1).chant?.pattern);
     assert.ok(await page.evaluate(()=>audioInstances.at(-1).chant.pattern.key.includes(':')));
-    await page.locator('.inning-throw').click();
+    await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});
     await page.waitForFunction(()=>audioCues.includes('pitch'));
     await page.locator('.inning-sound').click();
     await page.waitForFunction(()=>audioInstances.at(-1).master.gain.value<.01);
