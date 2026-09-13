@@ -6,7 +6,7 @@ import { leadPosition } from './runner-motion.js';
 import { mountScouting } from './scouting-ui.js';
 import { paceLabel, visionLabel, disciplineLabel } from './player-traits.js';
 import { sampleField, FIELD_POSITIONS } from './field-sim.js';
-import { pitchPressure, releaseMarker } from './pitch-control.js';
+import { pitchPressure, releaseMarker, pitchTarget } from './pitch-control.js';
 import { InningGame, PITCHES } from './inning-game.js';
 import { observedChart, tellLabel } from './pitcher-grammar.js';
 import { BattingGame, readWindowFor } from './batting-game.js';
@@ -260,7 +260,13 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       button.classList.add('plan-'+(chosen==='any'?(selected.approach==='power'?'trade':'cover'):matched?(selected.approach==='power'?'reward':'cover'):'risk'));
     });
   }
-  function selection() { zone(shown); }
+  // 투수 편: 고른 코스와 승부 방식대로 포수가 미트를 내민다. 조준의 시각적 목표다.
+  function presentMitt(){
+    if(batting||!lv?.S?.fielders?.C)return;
+    const t=pitchTarget(choice.zone,choice.intent);
+    lv.S.fielders.C.catchTarget={x:t.x*.216,y:-.75,z:Math.max(.25,.76+t.z*.26)};
+  }
+  function selection() { zone(shown); presentMitt(); }
 
   function history() {
     $('.inning-history').innerHTML=events.length?'<span>현재 타석 · 최근 투구</span>'+events.slice(-5).map(e=>`<span class="inning-pitch-chip"><small>${e.pitchNumber}구 · ${PITCHES[e.pitch.t].name}</small><b>${e.label}</b></span>`).join(''):'<span>현재 타자 · 첫 공을 고르세요.</span>';
@@ -434,6 +440,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       const r=['S','W','B','F'].includes(e.call)?e.call:'X';
       lv.pnp0=e.pitchNumber-1;lv.seq=events.map(e=>e.pitch);
       const arrival=lv._pitch(tl,{...e.pitch,r,swingLead:e.timing?.p!=null?(e.timing.window.from+e.timing.window.to)/2-e.timing.p:0},0,.65,rec,{last:true});
+      if(!batting)tl.at(Math.max(0,arrival-.35),()=>{if(S.fielders.C)S.fielders.C.catchTarget=null;});
       tl.at(arrival,()=>{zone(r==='X'?{...e,label:'타격'}:e);$('.inning-live-zone').hidden=false;$('.inning-live-zone span').textContent=(Math.abs(e.pitch.x)<=1&&Math.abs(e.pitch.z)<=1?'존 안':'존 밖')+' · '+(r==='X'?'타격':e.label);});
       const react=()=>{
         const positive=e.after.done?e.after.won:batting?['1B','2B','3B','HR','BB'].includes(e.result):['OUT','K'].includes(e.result);
@@ -503,7 +510,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       sync(e.after);lv.S.broadcast={kind:game.done?'beauty':'between'};
       $('.inning-feedback').innerHTML=`<div class="inning-verdict"><strong>${e.label}</strong><span>${PITCHES[e.pitch.t].name} · ${e.pitch.v} km/h${e.control?' · '+e.control.label:''}${e.timing?` · <em class="inning-timing is-${e.timing.kind}">${e.timing.label}</em> · ${e.timing.power>=.66?'장타 스윙':e.timing.power<=.33?'컨택 스윙':'중간 스윙'}`:''}${e.aim&&e.timing&&!e.timing.whiff?` · 조준 ${e.aim.close>.7?'정확':e.aim.close>.35?'근접':'빗나감'}`:''}</span></div>${e.adjusted?`<p class="inning-adjust">투수가 배합을 바꿨습니다.</p>`:''}`;paint();if(game.done)finish();
     } catch(error){if(!dead){root.classList.add('is-finished');$('.inning-feedback').textContent='화면을 다시 준비합니다. 같은 상황에서 재시작하세요.';$('.inning-result').hidden=false;$('.inning-result').innerHTML='<button class="go">같은 상황 다시 시작</button>';$('.inning-result button').onclick=()=>start(true);}console.error(error);}
-    finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;if(!batting){$('.inning-throw').querySelector('span').textContent='투구';$('.pitch-breathe').disabled=calm;$('.pitch-breathe').textContent=calm?'호흡 안정':'숨 고르기';}dock();$('.inning-picks').disabled=false;if(batting){lv.S.fpSwingAt=null;scheduleNext();}else $('.inning-throw').focus({preventScroll:true});}}
+    finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;if(!batting){$('.inning-throw').querySelector('span').textContent='투구';$('.pitch-breathe').disabled=calm;$('.pitch-breathe').textContent=calm?'호흡 안정':'숨 고르기';}dock();$('.inning-picks').disabled=false;if(batting){lv.S.fpSwingAt=null;scheduleNext();}else{presentMitt();$('.inning-throw').focus({preventScroll:true});}}}
   };
   $('.inning-throw').onclick=()=>{
     if(!batting)return;   // pitching uses press-and-release below

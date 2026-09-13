@@ -541,6 +541,7 @@ export class Live3D {
     const shot=S.broadcast || {kind:S.trail.length>1?'field':S.batter?'pitch':'beauty'};
     let kind=shot.kind;
     if(this.opts.playerRole==='batter'&&['pitch','between','batter','pitcher'].includes(kind))kind='batting';
+    else if(this.opts.playerRole==='pitcher'&&['pitch','between','batter','pitcher'].includes(kind))kind='mound';
     else if(kind==='between')kind=(S.s+S.b)%2?'batter':'pitcher';
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
@@ -554,6 +555,10 @@ export class Live3D {
       const yaw=(-.045*m)+this.look.yaw,pitch=-.14+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
       fov=46;
+    }
+    else if(kind==='mound') {
+      // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.
+      const portrait=this.camera.aspect<1;eye=point(portrait?-.9:-1.35,18.44+(portrait?3.1:2.7),portrait?3.0:2.75);aim=point(0,-.6,.9);fov=portrait?44:38;
     }
     else if(kind==='pitch') {eye=this.opts.playerRole?point(-5,76,10):point(-7,76,7);aim=point(0,6,1);fov=this.opts.playerRole?13:16;}
     else if(kind==='bat-flip'){eye=point(-4,-6,3);aim=point(0,1,1.3);fov=48;}
