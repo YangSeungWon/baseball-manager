@@ -26,6 +26,8 @@ const choiceIcon=kind=>`<svg class="batting-choice-icon" viewBox="0 0 24 24" ari
   take:'<path d="M2 12s4-6 10-6 10 6 10 6-4 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'
 })[kind]}</svg>`;
 let opened=false;
+const KEYCAPS={'[data-group=target] [data-value=any]':'1','[data-group=target] [data-value=FF]':'2','[data-group=target] [data-value=SL]':'3','[data-group=target] [data-value=CH]':'4',
+    '.inning-time':'T','.inning-look':'H','.inning-sound':'M','.inning-exit':'Esc'};
 export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,continuedGame=null) {
   const full=role==='full',batting=full?continuedGame?.half==='bottom':role!=='pitcher';
   let stage=full?FULL_STAGE:getStage(batting?initialStage:0);
@@ -85,8 +87,6 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
 
   let seed=Number.isInteger(initialSeed)&&initialSeed>=0&&initialSeed<=0xffffffff?initialSeed:crypto.getRandomValues(new Uint32Array(1))[0],game,lv,busy=false,dead=false,events=[],runEvents=[],shown=null,scrollBefore=0,choice=batting?{target:'any',approach:'contact',location:'any',action:'swing'}:{type:'FF',zone:'out',intent:'attack'};   // approach/action stay for the zone overlay; the swing itself is decided by the hold
   let sound=true;try{sound=localStorage.getItem('dugout.sfx')!=='0';}catch{}
-  const KEYCAPS={'[data-group=target] [data-value=any]':'1','[data-group=target] [data-value=FF]':'2','[data-group=target] [data-value=SL]':'3','[data-group=target] [data-value=CH]':'4',
-    '.inning-time':'T','.inning-look':'H','.inning-sound':'M','.inning-exit':'Esc'};
   let ambience='idle',intensity=.5,cancelDecision=null,releaseNow=null,calm=false,maxEffort=false,holdDown=false;
   const effortMode=()=>calm?'calm':maxEffort?'max':'normal';
   // 타자 편은 투수가 템포를 만든다. 결과가 뜨면 잠시 뒤 다음 공이 오고, 타자는 '타임'으로만 멈춘다.
