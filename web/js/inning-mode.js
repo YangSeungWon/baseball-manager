@@ -546,7 +546,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     // 투수: 버튼이나 화면을 누르면 와인드업, 놓으면 릴리스. 스페이스도 같다.
     const pressPitch=e=>{if(e.type==='pointerdown'&&e.button!==0)return;if(busy||dead||game.done||$('.inning-throw').disabled)return;e.preventDefault();play('swing',{pressAt:performance.now()});};
     const letGo=()=>{if(releaseNow)releaseNow();};
-    $('.inning-throw').addEventListener('pointerdown',pressPitch);lv.three?.canvas?.addEventListener('pointerdown',e=>{if(!busy)pressPitch(e);});
+    $('.inning-throw').addEventListener('pointerdown',pressPitch);root.addEventListener('pointerdown',e=>{if(!busy&&lv?.three&&e.target===lv.three.canvas)pressPitch(e);});
     document.addEventListener('pointerup',letGo);document.addEventListener('pointercancel',letGo);
     document.addEventListener('keydown',e=>{if(e.key===' '&&!e.repeat&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')){e.preventDefault();pressPitch(e);}});
     document.addEventListener('keyup',e=>{if(e.key===' ')letGo();});
@@ -556,7 +556,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const resumeByLoad=e=>{if(!(paused||coachWaiting)||busy||game.done)return;if(e.type==='pointerdown'&&e.button!==0)return;holdDown=true;lv.S.batLoadAt=performance.now()/1000;
       if(coachWaiting){coachWaiting=false;coachSay('release','좋아요. <b>놓지 마세요.</b> 공이 오고 바늘이 초록에 들어오면 손을 뗍니다.');scheduleNext(500);return;}
       callTime(false);};
-    $('.batting-hold').addEventListener('pointerdown',resumeByLoad);lv.three?.canvas?.addEventListener('pointerdown',resumeByLoad);
+    // lv 는 입장할 때 만들어지므로 캔버스는 root 에서 위임해 듣는다.
+    $('.batting-hold').addEventListener('pointerdown',resumeByLoad);root.addEventListener('pointerdown',e=>{if(lv?.three&&e.target===lv.three.canvas)resumeByLoad(e);});
     document.addEventListener('pointerup',()=>{holdDown=false;},true);document.addEventListener('pointercancel',()=>{holdDown=false;},true);
     document.addEventListener('keyup',e=>{if(e.key===' ')holdDown=false;},true);
   }
