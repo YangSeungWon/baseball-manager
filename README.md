@@ -130,6 +130,7 @@ WebGL 로딩 실패나 컨텍스트 유실 시 재생을 기다리고 다시 불
 ```sh
 node --test tools/check-inning.mjs
 node tools/check-inning-ui.mjs  # 동일한 Playwright 환경 변수 사용
+JSDOM_MODULE=/path/to/node_modules/jsdom node --test tools/check-inning-smoke.mjs  # 브라우저 없이 타자·투수·9이닝 모드를 열어 진입 오류를 잡는다
 ```
 
 3D 구장에는 입장 비율에 따른 관중, 내야석, 덕아웃, 불펜, 안전망과 주변
