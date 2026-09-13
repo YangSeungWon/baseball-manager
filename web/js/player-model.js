@@ -96,15 +96,22 @@ export function reachPlayerGlove(p,worldTarget){
 // Use the same skinned arms, hands and bat in first person; omit the head/torso
 // that would otherwise sit between the eye-height camera and the pitch.
 export function setPlayerFirstPerson(p,enabled){
- p.head.visible=!enabled;
- p.root.traverse(o=>{
-  if(!o.isSkinnedMesh)return;
+ if(p.firstPerson===enabled)return;
+ p.firstPerson=enabled;p.head.visible=!enabled;
+ if(!enabled&&!p.firstPersonMeshes)return;
+ if(!p.firstPersonMeshes){p.firstPersonMeshes=[];p.root.traverse(o=>{if(o.isSkinnedMesh)p.firstPersonMeshes.push(o);});}
+ for(const o of p.firstPersonMeshes){
   if(!o.userData.fullBodyGeometry){
    o.userData.fullBodyGeometry=o.geometry;
    const g=o.geometry,indices=g.index,skin=g.getAttribute('skinIndex'),weights=g.getAttribute('skinWeight');
    const arms=new Set(o.skeleton.bones.map((b,i)=>/^(UpperArm|Forearm|Hand)[LR]$/.test(b.name)?i:-1));arms.delete(-1);
    const onArm=v=>{let w=0;for(let j=0;j<4;j++)if(arms.has(skin.getComponent(v,j)))w+=weights.getComponent(v,j);return w>.5;};
-   const first=g.clone(),out=[];first.clearGroups();
+   // Both views use the same immutable vertex/morph buffers and skeleton.
+   // Only the triangle index differs, so switching does not duplicate vertex data.
+   const first=new T.BufferGeometry(),out=[];
+   for(const [name,attribute] of Object.entries(g.attributes))first.setAttribute(name,attribute);
+   first.morphAttributes=g.morphAttributes;first.morphTargetsRelative=g.morphTargetsRelative;
+   first.boundingBox=g.boundingBox;first.boundingSphere=g.boundingSphere;
    for(const group of g.groups.length?g.groups:[{start:0,count:indices.count,materialIndex:0}]){
     const start=out.length;
     for(let i=group.start;i<group.start+group.count;i+=3){const a=indices.getX(i),b=indices.getX(i+1),c=indices.getX(i+2);if(onArm(a)&&onArm(b)&&onArm(c))out.push(a,b,c);}
@@ -113,5 +120,5 @@ export function setPlayerFirstPerson(p,enabled){
    first.setIndex(out);o.userData.firstPersonGeometry=first;
   }
   o.geometry=enabled?o.userData.firstPersonGeometry:o.userData.fullBodyGeometry;
- });
+ }
 }

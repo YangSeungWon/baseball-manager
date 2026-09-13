@@ -1,4 +1,4 @@
-import { BATTING_ZONE as ZONE, BATTING_EYE_HEIGHT } from './batting-space.js';
+import { BATTING_ZONE as ZONE, BATTING_EYE_HEIGHT, BATTING_AIM_LIMIT } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
 import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
@@ -32,6 +32,8 @@ const grainTexture=(variation,seed)=>canvasTexture(128,128,(g,w,h)=>{
 const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#af8056','#b48a63','#bd946a']);
 // 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
 const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};
+for(const spin of Object.values(SPIN))spin.axis=new T.Vector3(...spin.axis).normalize();
+const TRAIL_TINT=new T.Color('#ffe9a8');
 
 export class Live3D {
   constructor(host, dims, opts, onLost) {
@@ -358,7 +360,7 @@ export class Live3D {
       // Keyframed body and shared grip path; both hands follow with two-bone IK.
       const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',handed=data.hand==='L'?-1:1;
       const liveAim=S.aim&&!swing?S.aim:null;
-      const planeY=clamp(liveAim?liveAim.z:(style.pitchZ||0),-1.5,1.5)*.075,planeX=clamp(liveAim?liveAim.x:(style.pitchX||0),-1.5,1.5)*.035;
+      const planeY=clamp(liveAim?liveAim.z:(style.pitchZ||0),-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)*.075,planeX=clamp(liveAim?liveAim.x:(style.pitchX||0),-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)*.035;
       const t=swing?(S.batSwingFrom!=null?swing:.25+swing*.75):.25;
       const q=sample(SWING,t);
       if(S.batRecover){const rest=sample(SWING,.25);for(const name of Object.keys(q))if(rest[name])q[name]=q[name].map((v,i)=>v+(rest[name][i]-v)*S.batRecover);}
@@ -482,10 +484,11 @@ export class Live3D {
         this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
         this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
         const points=[[-ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.bottom]].map(([x,y])=>new T.Vector3(x,y,0));
-        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#fff1d0',transparent:true,opacity:.25,depthTest:false}));
-        this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
+        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#ffe0a0',transparent:true,opacity:.8,depthTest:false,depthWrite:false}));
+        this.battingZone.renderOrder=2;this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
       }
-      this.battingAim.visible=this.battingZone.visible=!!S.aim&&batterView&&!S.swing;
+      this.battingZone.visible=!!S.batter&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind);
+      this.battingAim.visible=!!S.aim&&this.battingZone.visible&&!S.swing;
       if(S.aim)this.battingAim.position.set(S.aim.x*ZONE.halfWidth,ZONE.center+S.aim.z*ZONE.halfHeight,.01);
     }
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
@@ -499,22 +502,21 @@ export class Live3D {
     const radius=this.opts.playerRole==='batter'?BATTING.manualContact.ballRadius:.20;
     this.ball.scale.setScalar(radius);this.ball.visible=!!b;
     if(b){
-      this.ball.position.copy(point(b.x,b.y,b.z));
+      this.ball.position.set(b.x,b.z,-b.y);
       const spin=SPIN[S.pitchStyle?.type]||SPIN.FF,dt=this.lastRender==null?0:clamp(time-this.lastRender,0,.1);
-      this.spin+=spin.rpm/60*Math.PI*2*.12*dt;this.ball.rotation.set(0,0,0);this.ball.rotateOnAxis(new T.Vector3(...spin.axis).normalize(),this.spin);
+      this.spin+=spin.rpm/60*Math.PI*2*.12*dt;this.ball.rotation.set(0,0,0);this.ball.rotateOnAxis(spin.axis,this.spin);
       this.ballShadow.visible=b.z<12;this.ballShadow.position.set(b.x,.09,-b.y);const h=Math.max(0,b.z);
       this.ballShadow.scale.setScalar(radius*3.2+h*.14);this.ballShadow.material.opacity=clamp(.38-h*.03,.08,.38);
     } else {this.ballShadow.visible=false;this.spin=0;}
     this.lastRender=time;
-    const trail=S.trail.slice(-this.trailN),pos=this.trailGeo.attributes.position,col=this.trailGeo.attributes.color,n=trail.length;
+    const trail=S.trail,start=Math.max(0,trail.length-this.trailN),pos=this.trailGeo.attributes.position,col=this.trailGeo.attributes.color,n=trail.length-start;
     if(n>1){
       // Strip width runs along the camera's right axis so the ribbon never collapses when the pitch comes straight at the viewer.
-      const right=new T.Vector3(1,0,0).applyQuaternion(this.camera.quaternion),tint=new T.Color('#ffe9a8'),width=radius*.45;
+      const right=(this.trailRight??=new T.Vector3()).set(1,0,0).applyQuaternion(this.camera.quaternion),tint=TRAIL_TINT,width=radius*.45;
       for(let i=0;i<n;i++){
-        const p=point(...trail[i]);
-        const side=right.clone().multiplyScalar(width*(.1+.9*i/(n-1)));
+        const p=trail[start+i],size=width*(.1+.9*i/(n-1)),sx=right.x*size,sy=right.y*size,sz=right.z*size;
         const fade=Math.pow(i/(n-1),2.4)*.32;
-        pos.setXYZ(i*2,p.x-side.x,p.y-side.y,p.z-side.z);pos.setXYZ(i*2+1,p.x+side.x,p.y+side.y,p.z+side.z);
+        pos.setXYZ(i*2,p[0]-sx,p[2]-sy,-p[1]-sz);pos.setXYZ(i*2+1,p[0]+sx,p[2]+sy,-p[1]+sz);
         col.setXYZ(i*2,tint.r*fade,tint.g*fade,tint.b*fade);col.setXYZ(i*2+1,tint.r*fade,tint.g*fade,tint.b*fade);
       }
       pos.needsUpdate=true;col.needsUpdate=true;this.trailGeo.setDrawRange(0,(n-1)*6);this.trail.visible=true;
@@ -562,8 +564,7 @@ export class Live3D {
     ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
     const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
     if(!hit)return null;const x=hit.x/ZONE.halfWidth,z=(hit.y-ZONE.center)/ZONE.halfHeight;
-    if(Math.abs(x)>2.2||Math.abs(z)>2.2)return null;
-    return {x:clamp(x,-1.3,1.3),z:clamp(z,-1.3,1.3)};
+    return {x:clamp(x,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT),z:clamp(z,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)};
   }
   pitcherAnchor(){
     return this.playerAnchor('fP');
@@ -624,7 +625,8 @@ export class Live3D {
     const switching=kind!==this.cameraKind;
     this.camera.position.copy(eye);
     if(switching||kind==='batting'||kind==='mound')this.aim.copy(aim);else this.aim.lerp(aim,1-Math.exp(-dt*5));
-    this.camera.fov=fov;this.camera.updateProjectionMatrix();this.camera.lookAt(this.aim);
+    if(this.camera.fov!==fov){this.camera.fov=fov;this.camera.updateProjectionMatrix();}
+    this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
   }
   fadeTo(opacity){

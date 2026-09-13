@@ -1,3 +1,4 @@
+import { BATTING_AIM_LIMIT } from './batting-space.js';
 import { battingContact } from './batting-contact.js';
 import { getStage } from './inning-stages.js';
 import { contactFlight, simulateField } from './field-sim.js';
@@ -81,7 +82,7 @@ export class BattingGame extends InningGame {
     if(!this.pending||!['swing','take'].includes(action))throw new Error('Invalid batting decision');
     if(timing!==null&&(!Number.isFinite(timing)||timing<0||timing>1))throw new Error('Invalid swing timing');
     if(power!==null&&(!Number.isFinite(power)||power<0||power>1))throw new Error('Invalid swing power');
-    if(aim!==null&&(typeof aim!=='object'||!Number.isFinite(aim.x)||!Number.isFinite(aim.z)||Math.abs(aim.x)>2||Math.abs(aim.z)>2))throw new Error('Invalid swing aim');
+    if(aim!==null&&(typeof aim!=='object'||!Number.isFinite(aim.x)||!Number.isFinite(aim.z)||Math.abs(aim.x)>BATTING_AIM_LIMIT||Math.abs(aim.z)>BATTING_AIM_LIMIT))throw new Error('Invalid swing aim');
     const {choice,roll}=this.pending;
     const alternative=this.alternativeOf({...choice,action},roll);
     const event=this.resolvePitch({...choice,action,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'&&aim?{x:aim.x,z:aim.z}:null},roll);this.pending=null;

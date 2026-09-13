@@ -1,4 +1,4 @@
-import { BATTING_ZONE as ZONE } from './batting-space.js';
+import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT } from './batting-space.js';
 import { FRANCHISES } from './core/names.js';
 import { flippedBat, celebrationPlayers, CELEBRATION_DURATION } from './celebration.js';
 import { STAGES, getStage, clearStage, clearedStages } from './inning-stages.js';
@@ -158,7 +158,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       // 마우스 이동과 화살표 조준은 스윙 전에 끝낸다. 누른 뒤에는 타격이 확정된다.
       const m=game.batter.hand==='L'?-1:1;let aim={x:0,z:0};
       const paintAim=()=>{const dot=$('.zone-aim');if(dot){dot.setAttribute('cx',100+aim.x*38);dot.setAttribute('cy',96-aim.z*40);dot.classList.add('is-live');}};
-      const setAim=(x,z)=>{aim={x:Math.max(-1.3,Math.min(1.3,x)),z:Math.max(-1.3,Math.min(1.3,z))};lv.S.aim=aim;paintAim();};
+      const setAim=(x,z)=>{aim={x:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,x)),z:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,z))};lv.S.aim=aim;paintAim();};
       const press=()=>{if(settled||!open)return;const now=performance.now();
         if(now>=end){preview.step(to);finish('take');return;}
         preview.step(pitchTime(now));timing=battingPressTiming(preview.t,arrival);lv.S.batSwingFrom=.25;lv.S.fpSwingAt=now/1000;

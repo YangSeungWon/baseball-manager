@@ -25,11 +25,17 @@ try {
  await page.waitForTimeout(100);await page.screenshot({path:`/tmp/batting-read-ball-${width}.png`});
  const view=await page.evaluate(async()=>{
  const T=await import('/vendor/three/three.module.min.js');const {BATTING_ZONE:ZONE}=await import('/js/batting-space.js');const camera=lv.three.camera,rect=lv.three.canvas.getBoundingClientRect();let error=0;
- for(const x of [-1,0,1])for(const z of [-1,0,1]){
+ for(const x of [-1.8,-1,0,1,1.8])for(const z of [-1.8,-1,0,1,1.8]){
  const p=new T.Vector3(x*ZONE.halfWidth,ZONE.center+z*ZONE.halfHeight,0).project(camera);
  const a=lv.three.battingAimAt(rect.left+(p.x+1)*rect.width/2,rect.top+(1-p.y)*rect.height/2);
  if(!a)throw Error('visible plate cannot be aimed');error=Math.max(error,Math.abs(x-a.x),Math.abs(z-a.z));
  }
+ const heldAim=lv.S.aim,heldSwing=lv.S.swing;
+ for(const swing of [0,.62,1]){lv.S.aim=null;lv.S.swing=swing;lv.three.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);if(!lv.three.battingZone.visible)throw Error('strike zone disappeared without aim or during swing');}
+ lv.S.aim=heldAim;lv.S.swing=heldSwing;lv.three.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
+ let projections=0;const project=camera.updateProjectionMatrix;camera.updateProjectionMatrix=function(){projections++;return project.call(this);};
+ for(let i=0;i<120;i++)lv.three.direct(lv.S,performance.now()/1000);
+ camera.updateProjectionMatrix=project;if(projections!==0)throw Error('fixed camera recalculated projection');
  const model=lv.three.players.get('bat'),eye=camera.position.clone(),rotation=camera.quaternion.clone();
  const zone=Array.from(lv.three.battingZone.geometry.attributes.position.array);
  const originalSwing=lv.S.swing;model.head.rotation.y+=1;lv.S.swing=.62;lv.three.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);

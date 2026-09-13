@@ -45,3 +45,13 @@ test('takes remain zone judgments and do not produce a contact event',()=>{
  const g=new BattingGame(4),d=g.preparePitch({target:'any',approach:'contact'});
  const e=g.decidePitch('take',.7,.5,{x:0,z:0});assert.equal(e.impact,null);assert.equal(e.call,Math.abs(d.x)<=1&&Math.abs(d.z)<=1?'S':'B');
 });
+
+test('contact reaches outside every edge of the strike zone',()=>{
+ for(const pitch of [{x:1.8,z:0},{x:-1.8,z:0},{x:0,z:1.8},{x:0,z:-1.8}]){
+  assert.notEqual(battingContact({...centered,pitch,aim:pitch}).kind,'miss');
+  const make=()=>{const g=new BattingGame(4);g.delivery=()=>({t:'FF',...pitch});g.preparePitch({target:'any',approach:'contact'});return g;};
+  const hit=make().decidePitch('swing',.7,.5,pitch);assert.notEqual(hit.impact.kind,'miss');assert.ok(hit.call==='F'||hit.fieldPlay,'outside contact produces a foul or a batted ball');
+  assert.equal(make().decidePitch('take').call,'B');
+  assert.equal(make().decidePitch('swing',.7,.5,{x:0,z:0}).call,'W');
+ }
+});
