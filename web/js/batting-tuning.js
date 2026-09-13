@@ -4,13 +4,17 @@
 import {logit,invLogit} from './core/pa.js';
 
 export const BATTING={
+  manualContact:{batRadius:.125,ballRadius:.12,contactSeconds:.10,solidQuality:.72,
+    timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
+    speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4},
+  playerInput:{flightScale:3.2,contactSeconds:.14,lateSeconds:.12,timingTolerance:.055},
   // 평균 타자(컨택 .72)가 존 안 공을 자동 스윙으로 칠 때 배트에 맞을 확률(파울 포함)의 기준선.
   baseline:{contactLogit:logit(.78),floor:.10,ceil:.98},
   // 타자 컨택 .05 차이 = 로그오즈 .30.
   ability:{contactPerPoint:6.0,referenceContact:.72},
   // 준비 층. 숨은 가산은 작게 두고, 예측 성공의 진짜 보상은 read.reward(읽기 창)로 준다. 실패 벌점은 타이밍 적중보다 작다.
   preparation:{typeHit:.40,typeMiss:-.35,locationHit:.45,locationMiss:-.45,powerSwing:-1.2},   // 장타 스윙(힘 1)은 컨택 로그오즈 −1.2: 홈런과 헛스윙을 함께 산다
-  // 조준. 당긴 채 드래그한 배트 높이·안팎과 실제 공의 거리(존 단위)로 컨택과 타구 질이 정해진다. 예측 대신 실행이다.
+  // 조준. 홈 앞에서 고른 배트 높이·안팎과 실제 공의 거리(존 단위)로 컨택과 타구 질이 정해진다. 예측 대신 실행이다.
   aim:{radius:1.4,contactHit:.9,contactMiss:-2.6,quality:.10,qualityMiss:.70,spray:14},   // 반지름 밖(한 존 반)이면 배트가 공을 못 만난다
   // 실행 층. 존 밖 스윙(chase)은 가장 큰 벌점으로 남긴다.
   execution:{
@@ -22,7 +26,7 @@ export const BATTING={
     quality:{sweet:.08,earlyMax:-.18,lateMax:-.22},
     angle:{earlyMax:-28,lateMax:24},
   },
-  // 2.5초 읽기 창에서 스윙을 누른 비율(0..1)이 이 구간이면 타이밍 적중.
+  // 정규화된 타이밍 판정 구간. 직접 타격은 실제 배트·공 도착 시차를 이 값으로 변환한다.
   swingWindow:{from:.55,to:.85},
   // 타구(ball in play). 확률이 아니라 타구 질 배율과 가산치. base 는 타자 편 전용 타구 질 오프셋(투수 편과 분리).
   bip:{

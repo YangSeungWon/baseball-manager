@@ -1,5 +1,6 @@
+import { battingContact } from './batting-contact.js';
 import { getStage } from './inning-stages.js';
-import { contactFlight } from './field-sim.js';
+import { contactFlight, simulateField } from './field-sim.js';
 import { InningGame, PITCHES } from './inning-game.js';
 import { BATTING as T, contactProbability } from './batting-tuning.js';
 const ARMS=[
@@ -106,15 +107,21 @@ export class BattingGame extends InningGame {
     const locationMatched=locationMatches(location,x,z),matched=target===type;
     // 조준이 있으면 코스 예측 대신 배트와 공의 거리로 판정한다. 가까울수록 1.
     const A=T.aim,aimGap=aim?Math.hypot(aim.x-x,aim.z-z):null,aimClose=aim?clamp(1-aimGap/A.radius,0,1):null;
-    // 힘은 연속값이다. 누른 길이로 정하며, 예전 선택판의 '장타'는 1, '컨택'은 0 에 해당한다.
+    // 힘은 선수/타격 성향으로 정한다. 직접 입력의 스윙 시간과 컨택 판정은 일정하다.
     const drive=clamp(power??(approach==='power'?1:0),0,1),powerful=drive>=.5;
     const swing=action==='swing'?swingTiming(timing,this.sweetWindow(before.batter,{target,location},{t:type,x,z})):null;
+    const impact=action==='swing'&&aim&&timing!==null?battingContact({aim,pitch:{x,z},timing,power:drive,batter:before.batter}):null;
     const fullGame=this.stage?.id==='full'?T.fullGame:null;
     const contact=contactProbability([T.baseline.contactLogit,fullGame?fullGame.contactLogit:0,(before.batter.contact-T.ability.referenceContact)*T.ability.contactPerPoint,
       target==='any'?0:matched?P.typeHit:P.typeMiss, aim?A.contactMiss+(A.contactHit-A.contactMiss)*aimClose:location==='any'?0:locationMatched?P.locationHit:P.locationMiss,
       swing?.contact||0, P.powerSwing*drive, inZone?0:E.chase]);
     let result,fieldPlay=null;
     if(action==='take')result=inZone?'S':'B';
+    else if(impact){
+      if(impact.kind==='miss')result='W';
+      else if(impact.kind==='foul')result='F';
+      else {fieldPlay=simulateField({...impact,park:this.stage.park,bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;}
+    }
     else if(swing.whiff||roll[2]>contact)result='W';
     else if(roll[3]<E.foul.contactApproach+(E.foul.powerApproach-E.foul.contactApproach)*drive+swing.foul)result='F';
     else {
@@ -154,6 +161,10 @@ export class BattingGame extends InningGame {
     if(action==='swing'&&aim&&!swing.whiff)explanation+=aimClose>.7?' 배트를 공의 코스에 정확히 댔습니다.':aimClose>.35?' 조준이 조금 빗나갔습니다.':(aim.z-z>0?' 배트가 공 위로 지나갔습니다.':' 배트가 공 아래로 지나갔습니다.');
     else if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
     if(swing&&!swing.whiff){if(swing.kind==='early')explanation+=' 배트가 일찍 나가 당겨 쳤습니다.';else if(swing.kind==='late')explanation+=' 배트가 늦게 나가 밀렸습니다.';else if(swing.kind==='sweet')explanation+=' 타이밍이 정확했습니다.';}
-    return {before,after:this.snapshot(),fieldPlay,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    if(impact){
+      explanation=impact.kind==='miss'?(impact.reason==='timing'?(impact.seconds<0?'배트가 공보다 먼저 지나갔습니다.':'공이 지나간 뒤에 배트가 나왔습니다.'):impact.reason==='aim'?'배트가 공의 코스를 벗어났습니다.':'타이밍과 조준이 함께 빗나가 배트 끝에 닿지 않았습니다.'):impact.kind==='solid'?'배트 중심에 정확히 맞았습니다.':impact.kind==='foul'?'배트에 비껴 맞아 파울 방향으로 나갔습니다.':'배트 중심을 벗어나 타구의 힘이 줄었습니다.';
+      if(impact.kind!=='miss')explanation+=` 타구 속도 ${Math.round(impact.speed*3.6)} km/h.`;
+    }
+    return {before,after:this.snapshot(),fieldPlay,impact,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':''),explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,...(impact?{whiff:impact.kind==='miss'}:{}),p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }

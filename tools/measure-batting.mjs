@@ -7,6 +7,7 @@ import {STAGES} from '../web/js/inning-stages.js';
 import {releaseMarker,pitchPressure} from '../web/js/pitch-control.js';
 
 const HITS=['1B','2B','3B','HR'];
+const randomTiming=g=>(g.rng&65535)/65535;
 const sweet=()=>(SWING_WINDOW.from+SWING_WINDOW.to)/2;
 const locationOf=p=>p.z>.4?'high':p.z<-.4?'low':p.x<0?'in':'out';
 // 다음 10롤을 미리 본다. 상태는 되돌리므로 게임에는 흔적이 없다(하네스 전용).
@@ -14,8 +15,8 @@ const peek=g=>{const rng=g.rng,roll=Array.from({length:10},()=>g.random());g.rng
 
 // 정책: choose(game) → 사전 선택, decide(game, delivery) → {action, timing}
 export const POLICIES={
-  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:null,aim:{x:0,z:0}})},
-  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:null,aim:{x:0,z:0}})},
+  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:randomTiming(g),aim:{x:0,z:0}})},
+  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:randomTiming(g),aim:{x:0,z:0}})},
   timer:{label:'존 판독 + 타이밍',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:0,z:0}})},
   aimer:{label:'존 판독 + 타이밍 + 조준',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:d.x,z:d.z}})},
   slugger:{label:'존 판독 + 타이밍 + 장타(힘 1)',choose:()=>({target:'any',approach:'power',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),power:1,aim:{x:0,z:0}})},
@@ -42,7 +43,7 @@ const record=(t,e)=>{
 };
 export function playStage(policy,stageId,seed){
   const g=new BattingGame(seed,stageId),t=tally();
-  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing,power=null,aim=null}=policy.decide(g,d);record(t,g.decidePitch(action,timing,power,aim));}
+  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing,power=.5,aim=null}=policy.decide(g,d);record(t,g.decidePitch(action,timing,power,aim));}
   t.games=1;t.cleared=g.won?1:0;return t;
 }
 // 초 공격은 숙련된 손(σ .05)으로 구종을 섞어 던지는 투수 정책이 맡는다. 말 공격이 policy.

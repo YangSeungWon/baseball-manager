@@ -28,7 +28,7 @@ try{
    if(seconds<.9){S.pitcherWind=seconds/.9;caption=seconds<.35?'준비':({FF:'직구',SL:'슬라이더',CH:'체인지업'})[S.pitchStyle.type]+' · 와인드업';}
    else{S.pitcherWind=Math.max(0,1-(seconds-.9)/.43);S.ball={x:0,y:-10,z:1,vis:true};caption=seconds<1.04?'릴리스':'팔로스루';}
   }
-  if(bat){S.swing=t<.2?0:t<.75?(t-.2)/.55:1;caption=($('#batPlan').value==='power'?'장타':'컨택')+' · '+(t<.2?'타격 준비':t<.46?'스윙':t<.75?'회전':'팔로스루');}
+  if(bat){driver.animationTime=t*1.8;S.batSwingFrom=.25;S.swing=t<.25?0:t<.75?.25+(t-.25)*1.5:1;caption=($('#batPlan').value==='power'?'장타':'컨택')+' · '+(t<.25?'타격 준비':t<.5?'스윙':t<.75?'회전':'팔로스루');}
   const catchTarget=kind==='catch'?{x:-.35,y:-.35,z:Number($('#height').value)}:null;
   targetBall.visible=!!catchTarget;if(catchTarget)targetBall.position.set(catchTarget.x,catchTarget.z,-catchTarget.y);
   const locomotion=['run','walk'].includes(kind);

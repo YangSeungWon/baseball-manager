@@ -2,7 +2,7 @@
 // 축은 live3d.updatePlayer 가 쓰는 뼈 회전과 같다:
 //   leg.x < 0 다리를 앞으로 든다 · knee.x > 0 무릎을 굽힌다 · arm.x < 0 팔을 앞/위로 · arm.z 는 옆으로(왼팔 −, 오른팔 +)
 //   elbow.x < 0 팔꿈치를 굽힌다 · hips.y / spine.y 회전(우투·우타 기준) · body.x > 0 앞으로 숙임 · bat 은 루트 공간의 배트 방향 벡터
-const TRACKS=['legL','legR','kneeL','kneeR','footL','footR','armL','armR','elbowL','elbowR','handL','handR','hips','spine','head','bodyRot','bodyPos','bat'];
+const TRACKS=['legL','legR','kneeL','kneeR','footL','footR','armL','armR','elbowL','elbowR','handL','handR','hips','spine','head','bodyRot','bodyPos','bat','grip'];
 const smooth=u=>u*u*(3-2*u);
 const key=(t,pose)=>({t,pose});
 
@@ -18,15 +18,15 @@ export const PITCH={keys:[
 ]};
 
 // 우타자. 0 준비 → .25 로드 → .48 스트라이드 → .62 컨택 → .82 팔로스루 → 1 마무리.
-// armR 은 뒤쪽(위) 손, armL 은 앞쪽(아래) 손. 앞손은 IK 로 배트 그립을 잡는다.
+// grip 은 Spine 공간의 뒤손 위치. 양팔 IK가 하나의 그립 궤적을 함께 따라간다.
 export const SWING={keys:[
   // bat: 그립에서 배트 끝으로 가는 방향(루트 공간). 우타 기준 +x 가 뒤쪽(포수), −x 가 투수 쪽, +z 가 가슴 앞(홈플레이트), +y 위.
-  key(0,  {legL:[-.15,0,0],legR:[-.15,0,0],kneeL:[.38,0,0],kneeR:[.42,0,0],armR:[-.55,0,.85],elbowR:[-2.0,0,0],armL:[-.7,0,-.5],elbowL:[-1.6,0,0],hips:[0,-.05,0],spine:[0,-.42,0],bodyRot:[.07,0,0],bodyPos:[0,-.045,0],bat:[.35,.9,-.3]}),
-  key(.25,{legL:[-.05,0,0],legR:[-.2,0,0],kneeL:[.3,0,0],kneeR:[.5,0,0],armR:[-.4,0,1.0],elbowR:[-2.15,0,0],armL:[-.55,0,-.55],elbowL:[-1.7,0,0],hips:[0,-.15,0],spine:[0,-.55,0],bodyRot:[.09,0,-.02],bodyPos:[.02,-.05,0],bat:[.55,.8,-.35]}),
-  key(.48,{legL:[-.38,0,.08],legR:[-.1,0,0],kneeL:[.32,0,0],kneeR:[.62,0,0],armR:[-.7,0,.7],elbowR:[-1.5,0,0],armL:[-.9,0,-.35],elbowL:[-1.1,0,0],hips:[0,.2,0],spine:[0,-.05,0],bodyRot:[.1,0,-.03],bodyPos:[-.02,-.05,0],bat:[.85,.3,.1]}),
-  key(.62,{legL:[-.3,0,.1],legR:[0,0,0],kneeL:[.12,0,0],kneeR:[.7,0,0],armR:[-1.25,0,.1],elbowR:[-.35,0,0],armL:[-1.3,0,-.15],elbowL:[-.2,0,0],hips:[0,.5,0],spine:[0,.55,0],bodyRot:[.12,0,-.04],bodyPos:[-.05,-.055,0],bat:[-.6,0,.8]}),
-  key(.82,{legL:[-.25,0,.1],legR:[.05,0,0],kneeL:[.1,0,0],kneeR:[.85,0,0],armR:[-1.0,0,-.6],elbowR:[-.9,0,0],armL:[-.95,0,-.55],elbowL:[-1.1,0,0],hips:[0,.65,0],spine:[0,.85,0],bodyRot:[.05,0,-.05],bodyPos:[-.06,-.05,0],bat:[-.9,.35,-.25]}),
-  key(1,  {legL:[-.2,0,.1],legR:[.1,0,0],kneeL:[.12,0,0],kneeR:[.9,0,0],armR:[-.55,0,-.9],elbowR:[-1.4,0,0],armL:[-.55,0,-.8],elbowL:[-1.55,0,0],hips:[0,.7,0],spine:[0,.95,0],bodyRot:[0,0,-.06],bodyPos:[-.06,-.045,0],bat:[-.45,.75,-.5]}),
+  key(0,  {legL:[-.15,0,0],legR:[-.15,0,0],kneeL:[.38,0,0],kneeR:[.42,0,0],armR:[-.55,0,.85],elbowR:[-2.0,0,0],armL:[-.7,0,-.5],elbowL:[-1.6,0,0],hips:[0,-.05,0],spine:[0,-.42,0],bodyRot:[.07,0,0],bodyPos:[0,-.045,0],bat:[.35,.9,-.3],grip:[.04,.37,.22]}),
+  key(.25,{legL:[-.05,0,0],legR:[-.2,0,0],kneeL:[.3,0,0],kneeR:[.5,0,0],armR:[-.25,0,1.2],elbowR:[-2.25,0,0],armL:[-.55,0,-.55],elbowL:[-1.7,0,0],hips:[0,-.20,0],spine:[0,-.72,0],bodyRot:[.09,0,-.02],bodyPos:[.07,-.065,-.025],bat:[.72,.62,-.4],grip:[.13,.40,.15]}),
+  key(.48,{legL:[-.38,0,.08],legR:[-.1,0,0],kneeL:[.32,0,0],kneeR:[.62,0,0],armR:[-.7,0,.7],elbowR:[-1.5,0,0],armL:[-.9,0,-.35],elbowL:[-1.1,0,0],hips:[0,.2,0],spine:[0,-.05,0],bodyRot:[.1,0,-.03],bodyPos:[-.02,-.05,0],bat:[.85,.3,.1],grip:[.05,.22,.27]}),
+  key(.62,{legL:[-.3,0,.1],legR:[0,0,0],kneeL:[.12,0,0],kneeR:[.7,0,0],armR:[-1.25,0,.1],elbowR:[-.35,0,0],armL:[-1.3,0,-.15],elbowL:[-.2,0,0],hips:[0,.5,0],spine:[0,.55,0],bodyRot:[.12,0,-.04],bodyPos:[-.05,-.055,0],bat:[-.6,0,.8],grip:[-.04,.03,.29]}),
+  key(.82,{legL:[-.25,0,.1],legR:[.05,0,0],kneeL:[.1,0,0],kneeR:[.85,0,0],armR:[-1.0,0,-.6],elbowR:[-.9,0,0],armL:[-.95,0,-.55],elbowL:[-1.1,0,0],hips:[0,.65,0],spine:[0,.85,0],bodyRot:[.05,0,-.05],bodyPos:[-.06,-.05,0],bat:[-.9,.35,-.25],grip:[-.12,.30,.20]}),
+  key(1,  {legL:[-.2,0,.1],legR:[.1,0,0],kneeL:[.12,0,0],kneeR:[.9,0,0],armR:[-.55,0,-.9],elbowR:[-1.4,0,0],armL:[-.55,0,-.8],elbowL:[-1.55,0,0],hips:[0,.7,0],spine:[0,.95,0],bodyRot:[0,0,-.06],bodyPos:[-.06,-.045,0],bat:[-.45,.75,-.5],grip:[-.10,.40,.12]}),
 ]};
 
 // 클립을 시간 t(0..1)에서 샘플링. 키 사이는 smoothstep 으로 잇는다. 없는 트랙은 0.

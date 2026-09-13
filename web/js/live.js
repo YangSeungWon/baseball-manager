@@ -1,3 +1,4 @@
+import { BAT_CONTACT_SECONDS } from './batting-input.js';
 // 경기를 본다. 공 하나하나가 날아가고, 야수가 그 공을 향해 뛰고, 주자가 돈다.
 //
 // 시뮬레이션은 결과를 이미 정했다. 여기서는 그 결과를 '실제 시간' 으로 보여 준다 —
@@ -659,7 +660,7 @@ export class LiveView {
   _pitch(tl, q, i, t0, rec, opts = {}) {
     const S = this.S;
     const v = q.v || 140;
-    const T = 16.8 / (v / 3.6);
+    const T = q.flightSeconds ?? 16.8 / (v / 3.6);
     const rel = [(rec.th === 'L' ? 0.55 : -0.55), 16.8, 1.85];
     const zh = rec.zh || 1;
     const end = [clamp(q.x, -2.4, 2.4) * 0.216, 0, clamp(0.76 + q.z * 0.26 * zh, 0.05, 1.9)];
@@ -668,9 +669,15 @@ export class LiveView {
     tl.at(t0, () => { S.broadcast = { kind: 'pitch' }; this._hold(S.fielders.P); });
     tl.add(t0, 0.9, (k) => { S.pitcherWind = k; });
     tl.at(t0 + 0.9, () => { S.hold = null; });
-    const tArr = t0 + 0.9 + T;
-    tl.add(t0 + 0.9, T, (k) => {
-      S.pitcherWind = 1 - k;
+    const plateAt=t0+.9+T;
+    const tArr=q.swingStart!=null&&['X','F'].includes(q.r)?q.swingStart+BAT_CONTACT_SECONDS:plateAt;
+    tl.add(t0 + 0.9, tArr-(t0+.9), (progress) => {
+      const k=progress*(tArr-(t0+.9))/T;
+      S.pitcherWind = Math.max(0,1-k);
+      if(k>1){
+        const passed=clamp((k-1)*T/.12,0,1);
+        S.ball={x:end[0]*(1-.4*passed),y:-1.2*passed,z:end[2]+(.6-end[2])*passed,vis:true};S.trail=[];return;
+      }
       const x = lerp(rel[0], end[0], k) + side * bend[0] * Math.sin(Math.PI * k) * k;
       const y = lerp(rel[1], end[1], k);
       const z = lerp(rel[2], end[2], k) + (0.25 + bend[1]) * Math.sin(Math.PI * k);
@@ -679,18 +686,27 @@ export class LiveView {
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.
     // q.swingLead (window fraction, + = pressed early) nudges the bat so a mistimed swing looks mistimed.
     const swingAt = tArr - 0.16 - (q.swingLead || 0) * 0.3;
-    if (q.r === 'W' || q.r === 'F' || q.r === 'X') tl.add(swingAt, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
-    if (q.r === 'W') tl.at(swingAt + 0.04, () => this.sfx.whiff());
+    if (q.r === 'W' || q.r === 'F' || q.r === 'X') {
+      if(q.swingStart!=null){
+        // The bat takes the same time to reach contact for every player press.
+        const start=q.swingStart,from=S.batSwingFrom??0;
+        const contact=start+BAT_CONTACT_SECONDS,drive=BAT_CONTACT_SECONDS;
+        tl.add(start,drive,k=>{S.swing=from+(.62-from)*k;S.batRecover=0;});
+        tl.add(contact,.28,k=>{S.swing=.62+.38*k;});
+        tl.add(contact+.28,.25,k=>{S.swing=1;S.batRecover=k;},()=>{S.swing=0;S.batRecover=0;});
+      }else tl.add(swingAt, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
+    }
+    if (q.r === 'W') tl.at((q.swingStart??swingAt) + 0.04, () => this.sfx.whiff());
     if (q.r !== 'X') tl.at(tArr + 0.7, () => { S.broadcast = { kind: 'between' }; });
     tl.at(tArr, () => {
       if (q.r === 'S' || q.r === 'B' || q.r === 'W') this.sfx.pop((v - 110) / 50);
-      else if (q.r === 'F') this.sfx.crack(0.3, true);
+      else if (q.r === 'F') this.sfx.crack(q.contactQuality??0.3, true);
       // 판정 소리. 스트라이크는 짧고 낮게 울린다.
       if (q.r === 'S' || q.r === 'W') { if (!(opts.last && S.s >= 3)) setTimeout(() => this.sfx.call('strike'), 120); }
       else if (q.r === 'B') setTimeout(() => this.sfx.call('ball'), 120);
       else if (q.r === 'F') setTimeout(() => this.sfx.call('foul'), 200);
       else if (q.r === 'H') this.sfx.thud();
-      else if (q.r === 'X') this.sfx.crack(opts.hit ?? 0.5);
+      else if (q.r === 'X') this.sfx.crack(q.contactQuality??opts.hit??0.5);
     });
     tl.at(tArr, () => {
       this.seq.push(q); this._zone(rec);
@@ -709,15 +725,15 @@ export class LiveView {
     });
     // 결과에 따른 공의 뒷처리
     if (q.r === 'S' || q.r === 'B' || q.r === 'W') {
-      tl.add(tArr, 0.12, (k) => { S.ball = { x: end[0] * 0.6, y: -1.2 * k, z: 0.6, vis: true }; }, () => this._hold(S.fielders.C));
+      tl.add(tArr, 0.12, (k) => { S.ball = { x: end[0] * (1-.4*k), y: -1.2 * k, z: end[2]+(.6-end[2])*k, vis: true }; }, () => this._hold(S.fielders.C));
     } else if (q.r === 'H') {
       const bx = rec.bh === 'L' ? 0.85 : -0.85;
       tl.add(tArr, 0.5, (k) => { S.ball = { x: bx + (bx > 0 ? 1 : -1) * k * 1.2, y: 0.1 - k * 0.8, z: Math.max(0.05, 1.0 - k * 1.1), vis: true }; }, () => { S.ball = null; });
     } else if (q.r === 'F') {
       // 파울. 기록에 방향이 없으니 공 번호로 정한다. 뒤로 가는 타구도 있다.
       const h = (i * 7 + Math.round(q.x * 10)) % 5;
-      const back = h === 0;
-      const ang = back ? (q.x > 0 ? 150 : -150) : (rec.bh === 'L' ? 1 : -1) * (h < 3 ? 52 + h * 9 : -60 - h * 6);
+      const back = q.foulAngle!=null?Math.abs(q.foulAngle)>90:h===0;
+      const ang = q.foulAngle ?? (back ? (q.x > 0 ? 150 : -150) : (rec.bh === 'L' ? 1 : -1) * (h < 3 ? 52 + h * 9 : -60 - h * 6));
       const dep = back ? 9 + i : 18 + h * 12;
       const L = W2(ang, dep), Tf = back ? 0.9 : 1.3 + h * 0.15;
       tl.add(tArr, Tf, (k) => {

@@ -5,17 +5,18 @@ import assert from 'node:assert/strict';
 import {POLICIES,measure,playStage,learning} from './measure-batting.mjs';
 
 const N=400;
-const stage=(policy)=>measure(policy,(p,st,seed)=>playStage(p,st,seed),N,0);
+const cache=new Map();
+const stage=policy=>{if(!cache.has(policy))cache.set(policy,measure(policy,(p,st,seed)=>playStage(p,st,seed),N,0));return cache.get(policy);};
 
-test('stage-1 clear rate climbs random → zone → timer → aimer → oracle, and execution outweighs preparation',()=>{
+test('reading avoids chases, timing reduces misses, and complete execution improves scoring',()=>{
   const r=Object.fromEntries(['random','zone','timer','aimer','oracle'].map(k=>[k,stage(POLICIES[k])]));
-  assert.ok(r.zone.clear-r.random.clear>=5,`zone ${r.zone.clear} vs random ${r.random.clear}`);
-  assert.ok(r.timer.clear-r.zone.clear>=6,`timer ${r.timer.clear} vs zone ${r.zone.clear}`);
-  assert.ok(r.aimer.clear-r.timer.clear>=8,`aimer ${r.aimer.clear} vs timer ${r.timer.clear}`);
-  assert.ok(r.oracle.clear>=r.aimer.clear-2,`oracle ${r.oracle.clear} vs aimer ${r.aimer.clear}`);
-  assert.ok(r.aimer.clear-r.random.clear>=(r.oracle.clear-r.aimer.clear)*2,'execution (zone, timing, aim) must outweigh preparation (pitch guess)');
-  assert.ok(r.random.clear<20&&r.oracle.clear<75,'failure stays the default even for perfect play');
-  assert.ok(r.zone.chase===0&&r.random.chase>20,'policies behave as designed');
+  assert.ok(r.zone.chase===0&&r.random.chase>20,'reading the zone avoids chasing balls');
+  assert.ok(r.timer.contact>=r.zone.contact+20,'timing skill increases contact');
+  assert.ok(r.aimer.hit>=r.timer.hit+10,'accurate aim improves the batted ball');
+  assert.ok(r.aimer.clear>=r.timer.clear+8&&r.aimer.clear>=r.random.clear+10,'complete execution wins more games');
+  assert.equal(r.oracle.clear,r.aimer.clear,'a hidden preparation bonus cannot change the same manual contact');
+  assert.ok(r.random.clear<20&&r.aimer.clear<100,'wild swings struggle and even centered contact can be fielded');
+  console.log('Direct-play skill sample (400 games):',Object.fromEntries(Object.entries(r).map(([k,v])=>[k,{clear:v.clear,contact:v.contact,hit:v.hit}])));
 });
 
 test('a skilled swing at least doubles hits per swing (contact × hit on contact)',()=>{

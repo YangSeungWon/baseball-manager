@@ -1,3 +1,4 @@
+import { BATTING } from './batting-tuning.js';
 import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
 export {loadPlayerModel} from './player-model.js';
@@ -353,13 +354,14 @@ export class Live3D {
       for(let i=0;i<2;i++)p.feet[i].rotation.x=-(legs[i].rotation.x+p.knees[i].rotation.x+body.rotation.x);
     }
     if(pose==='bat') {
-      // Keyframed swing. The rear (top) hand is posed by the clip; the lead hand reaches the bat grip by IK.
+      // Keyframed body and shared grip path; both hands follow with two-bone IK.
       const swing=clamp(S.swing||0,0,1),style=S.batStyle||{},power=style.approach==='power',handed=data.hand==='L'?-1:1;
       const liveAim=S.aim&&!swing?S.aim:null;
       const planeY=clamp(liveAim?liveAim.z:(style.pitchZ||0),-1.5,1.5)*.075,planeX=clamp(liveAim?liveAim.x:(style.pitchX||0),-1.5,1.5)*.035;
-      const load=S.batLoadAt!=null&&!swing?Math.min(1,Math.max(0,(this.animationTime-S.batLoadAt)/.45)):0;
-      const t=swing?swing*(power?1:.92):.25*load;
+      const t=swing?(S.batSwingFrom!=null?swing:.25+swing*.75):.25;
       const q=sample(SWING,t);
+      if(S.batRecover){const rest=sample(SWING,.25);for(const name of Object.keys(q))if(rest[name])q[name]=q[name].map((v,i)=>v+(rest[name][i]-v)*S.batRecover);}
+      if(power){const turn=clamp((t-.25)/.57,0,1)*(1-(S.batRecover||0));q.hips[1]+=.14*turn;q.spine[1]+=.10*turn;}
       if(handed<0){const swap=(a,b)=>{const x=q[a];q[a]=q[b];q[b]=x;};swap('legL','legR');swap('kneeL','kneeR');swap('footL','footR');swap('armL','armR');swap('elbowL','elbowR');}
       applyPose(p,q,handed);
       const rear=handed===1?1:0,front=1-rear;
@@ -370,15 +372,25 @@ export class Live3D {
       const dir=new T.Vector3(bat[0]*handed,bat[1]+planeY*.6,bat[2]).normalize();
       const batAngle=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,-1,0),dir);
       root.updateMatrixWorld(true);
-      const chainRear=p.arms[rear].quaternion.clone().multiply(p.elbows[rear].quaternion);
-      p.hands[rear].quaternion.copy(chainRear.invert().multiply(batAngle));
-      root.updateMatrixWorld(true);
-      // Lead hand: grip a little further down the bat than the rear hand, in root space.
-      const gripWorld=p.hands[rear].getWorldPosition(new T.Vector3()),down=new T.Vector3(0,-.075,0).applyQuaternion(batAngle);
-      const grip=p.root.worldToLocal(gripWorld).add(down);grip.x+=planeX;
-      reachPlayerHand(p,front,grip,new T.Vector3(front===0?-.55:.55,.03,.02));
-      const chainFront=p.arms[front].quaternion.clone().multiply(p.elbows[front].quaternion);
-      p.hands[front].quaternion.copy(chainFront.invert().multiply(batAngle));
+      // Directions belong to root space; IK targets belong to each shoulder's parent.
+      // Include the body and spine rotation when converting both to local bone space.
+      if(p.bat.parent!==p.hands[rear])p.hands[rear].add(p.bat);
+      const worldAngle=root.getWorldQuaternion(new T.Quaternion()).multiply(batAngle);
+      const orientHand=index=>p.hands[index].quaternion.copy(p.hands[index].parent.getWorldQuaternion(new T.Quaternion()).invert().multiply(worldAngle));
+      // A shared grip path keeps the hands between the shoulders, within both arms' reach.
+      const g=q.grip,grip=new T.Vector3(g[0]*handed+planeX*handed,g[1]+planeY*2,g[2]);
+      const parent=p.arms[rear].parent,parentWorld=parent.getWorldQuaternion(new T.Quaternion());
+      const offset=new T.Vector3(0,.075,0).applyQuaternion(parentWorld.clone().invert().multiply(worldAngle));
+      // Project into the intersection of both arm reach spheres without stretching bones.
+      for(let pass=0;pass<12;pass++)for(const index of [rear,front]){
+        const center=p.arms[index].position.clone();if(index===front)center.sub(offset);
+        const delta=grip.clone().sub(center),limit=p.elbows[index].position.length()+p.hands[index].position.length()-.003;
+        if(delta.length()>limit)grip.copy(center).add(delta.setLength(limit));
+      }
+      reachPlayerHand(p,rear,grip,new T.Vector3(rear===0?-.55:.55,.1,.06));
+      reachPlayerHand(p,front,grip.clone().add(offset),new T.Vector3(front===0?-.55:.55,.03,.12));
+      root.updateMatrixWorld(true);orientHand(rear);
+      root.updateMatrixWorld(true);orientHand(front);
     }
     if(pose==='crouch') {legs[0].rotation.x=-.95;legs[1].rotation.x=-.95;p.knees[0].rotation.x=p.knees[1].rotation.x=1.7;arms[0].rotation.x=-.7;}
     if(pose==='dive') {body.rotation.z=-1.15;body.position.y=-.3;arms[0].rotation.z=2;}
@@ -391,7 +403,7 @@ export class Live3D {
       body.position.y+=(root.position.y+.116*root.scale.y-sole)/root.scale.y;
     }
     // Secondary motion is visual only: never changes the player's field coordinates.
-    const calm=!moving&&['field','pitch','crouch','bat','run','watch'].includes(pose)&&!(pose==='pitch'&&S.pitcherWind>0)&&!(pose==='bat'&&S.swing>0);
+    const calm=!moving&&['field','pitch','crouch','bat','run','watch'].includes(pose)&&!(pose==='pitch'&&S.pitcherWind>0)&&pose!=='bat';
     if(calm&&!this.reducedMotion){
       const t=(this.animationTime||0),phase=p.idleSeed*.13,breathe=Math.sin(t*(1.8+p.idleSeed%5*.09)+phase),weight=Math.sin(t*.65+phase);
       body.position.y+=breathe*.009;body.position.x=weight*.012;body.rotation.z+=weight*.016;
@@ -444,7 +456,7 @@ export class Live3D {
     for(const p of this.players.values()){p.root.visible=false;if(p.shadow)p.shadow.visible=false;}
     const defense=S.half==='top'?colors.home:colors.away,offense=S.half==='top'?colors.away:colors.home;
     for(const [pos,f] of Object.entries(S.fielders)) {
-      if(pos==='C'&&!S.catcher)continue;
+      if(pos==='C'&&(!S.catcher||this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind)))continue;
       this.updatePlayer('f'+pos,f,defense,f.pose||(pos==='P'?'pitch':pos==='C'?'crouch':'field'),S);
     }
     (S.exiting||[]).forEach((f,i)=>this.updatePlayer('exit'+i,f,f.color||defense,'run',S));
@@ -462,6 +474,17 @@ export class Live3D {
     const shoulderView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
     if(!shoulderView)this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
     else{const u=this.players.get('ump');if(u){u.root.visible=false;if(u.shadow)u.shadow.visible=false;}}
+    if(this.opts.playerRole==='batter'){
+      if(!this.battingAim){
+        this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
+        this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
+        const points=[[-.216,.50],[.216,.50],[.216,1.02],[-.216,1.02],[-.216,.50]].map(([x,y])=>new T.Vector3(x,y,0));
+        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#fff1d0',transparent:true,opacity:.25,depthTest:false}));
+        this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
+      }
+      this.battingAim.visible=this.battingZone.visible=!!S.aim&&shoulderView&&!S.swing;
+      if(S.aim)this.battingAim.position.set(S.aim.x*.216,.76+S.aim.z*.26,.01);
+    }
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
@@ -470,7 +493,7 @@ export class Live3D {
     if(b&&S.fieldPlay?.physical&&['catch','force-out','tag-out','safe'].includes(S.fieldPlay.phase)){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f)reachPlayerGlove(f,point(b.x,b.y,b.z));
     }
-    const radius=this.opts.playerRole==='batter'?.12:.20;
+    const radius=this.opts.playerRole==='batter'?BATTING.manualContact.ballRadius:.20;
     this.ball.scale.setScalar(radius);this.ball.visible=!!b;
     if(b){
       this.ball.position.copy(point(b.x,b.y,b.z));
@@ -517,7 +540,7 @@ export class Live3D {
     const show=this.opts.eyeLevelBat===true&&this.cameraKind==='batting'&&!!S.batter&&!(S.broadcast&&['field','base','beauty'].includes(S.broadcast.kind));
     fp.visible=show;if(!show)return;
     const m=this.batterHand==='L'?-1:1,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>t*t*(3-2*t);
-    const load=S.batLoadAt!=null?ease(Math.min(1,Math.max(0,(time-S.batLoadAt)/.45))):0;
+    const load=1;
     const swing=S.fpSwingAt!=null?Math.max(0,(time-S.fpSwingAt)/.34):null;
     let px=.34,py=-.30,pz=-.72,rx=.55,ry=-.35,rz=-.62;                           // rest: bat up over the rear shoulder
     px=lerp(px,.40,load);py=lerp(py,-.26,load);rx=lerp(rx,.72,load);ry=lerp(ry,-.55,load);rz=lerp(rz,-.85,load);   // load: further back and up
@@ -529,6 +552,15 @@ export class Live3D {
     }
     fp.position.set(px*m,py,pz);fp.rotation.set(rx,ry*m,rz*m);
     this.fpPivot.rotation.y=Math.sin(time*1.3)*.03;                                      // idle waggle
+  }
+  battingAimAt(clientX,clientY){
+    if(this.cameraKind!=='batting')return null;
+    const rect=this.canvas.getBoundingClientRect(),ray=new T.Raycaster();
+    ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
+    const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
+    if(!hit)return null;const x=hit.x/.216,z=(hit.y-.76)/.26;
+    if(Math.abs(x)>2.2||Math.abs(z)>2.2)return null;
+    return {x:clamp(x,-1.3,1.3),z:clamp(z,-1.3,1.3)};
   }
   pitcherAnchor(){
     return this.playerAnchor('fP');
@@ -553,11 +585,11 @@ export class Live3D {
       // the mound sits centre-right (or centre-left for a lefty) and the batter's own bat stays in frame.
       this.batterHand=S.batter?.hand||'R';const m=this.batterHand==='L'?-1:1;
       const portrait=this.camera.aspect<1,side=portrait?1.05:1.55;   // portrait keeps more of the batter in frame
-      eye=point(-.85*m+side*m,-3.6,3.15);
+      eye=point(-.85*m+side*m,-3.6,2.8);
       if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
-      const yaw=(-.045*m)+this.look.yaw,pitch=-.14+this.look.pitch;
+      const yaw=(-.045*m)+this.look.yaw,pitch=-.28+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      fov=46;
+      fov=52;
     }
     else if(kind==='mound') {
       // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.
