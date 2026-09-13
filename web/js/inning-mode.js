@@ -1,3 +1,4 @@
+import { BATTING_ZONE as ZONE } from './batting-space.js';
 import { FRANCHISES } from './core/names.js';
 import { flippedBat, celebrationPlayers, CELEBRATION_DURATION } from './celebration.js';
 import { STAGES, getStage, clearStage, clearedStages } from './inning-stages.js';
@@ -144,7 +145,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const profile=readWindowFor(game.batter,choice,pitch);
     const tell=$('.pitch-tell');if(tell){tell.textContent=tellLabel(pitch.tell);tell.hidden=!pitch.tell;}
     root.classList.add('is-reading');dock('warm');
-    const preview=new Timeline(),rec={batter:game.batter.name,bh:'R',th:'R',half:game.half||'bottom',inning:game.snapshot().inning??9,zh:1};
+    const preview=new Timeline(),rec={batter:game.batter.name,bh:game.batter.hand||'R',th:'R',half:game.half||'bottom',inning:game.snapshot().inning??9,zh:1};
     const arrival=lv._pitch(preview,{...pitch,r:'B',flightSeconds:battingFlightSeconds(pitch.v)},0,.65,rec,{last:true});
     const release=1.55,flight=arrival-release,from=release,to=arrival+battingCatchSeconds(pitch.v),readMs=(to-from)*1000;
     const readZone=$('.inning-live-zone');
@@ -259,7 +260,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   function presentMitt(){
     if(batting||!lv?.S?.fielders?.C)return;
     const t=pitchTarget(choice.zone,choice.intent);
-    lv.S.fielders.C.catchTarget={x:t.x*.216,y:-.75,z:Math.max(.25,.76+t.z*.26)};
+    lv.S.fielders.C.catchTarget={x:t.x*ZONE.halfWidth,y:-.75,z:Math.max(.25,ZONE.center+t.z*ZONE.halfHeight)};
   }
   function selection() { zone(shown); presentMitt(); }
 
@@ -432,7 +433,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       S.pitchStyle={type:e.pitch.t,zone:e.choice.zone,intent:e.choice.intent};
       S.batStyle=batting?{...e.choice,pitchX:e.aim?e.aim.x:e.pitch.x,pitchZ:e.aim?e.aim.z:e.pitch.z}:null;
       e.pitchNumber=events.length+1;
-      const rec={batter:e.before.batter.name,bh:'R',th:'R',half:e.before.half||'bottom',inning:e.before.inning??9,zh:1};
+      const rec={batter:e.before.batter.name,bh:e.before.batter.hand||'R',th:'R',half:e.before.half||'bottom',inning:e.before.inning??9,zh:1};
       const r=['S','W','B','F'].includes(e.call)?e.call:'X';
       lv.pnp0=e.pitchNumber-1;lv.seq=events.map(e=>e.pitch);
       const arrival=lv._pitch(tl,{...e.pitch,r,...(e.impact?{contactQuality:e.impact.quality,foulAngle:e.impact.angle}:{}),...(batting?{flightSeconds:battingFlightSeconds(e.pitch.v)}:{}),...(batting&&e.choice.action==='swing'?{swingStart:resumeAt}:{}),swingLead:e.timing?.p!=null?(e.timing.window.from+e.timing.window.to)/2-e.timing.p:0},0,.65,rec,{last:true});

@@ -84,7 +84,7 @@ for y in [.93,1.04,1.15]:ell('Button',(0,y,.166),(.013,.013,.009),'Dark','Spine'
 text('ChestMark','D',(-.105,1.19,.159),.105,'Cream','Spine')
 text('Number','17',(0,1.115,-.166),.225,'Cream','Spine',True)
 ell('Neck',(0,1.42,0),(.085,.11,.08),'Skin','Spine')
-head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head',segments=32,rings=18)
+head=ell('Face',(0,1.615,.006),(.182,.222,.17),'Skin','Head',segments=64,rings=40)
 # Sculpt a head instead of keeping a sphere: a jaw that narrows to a chin,
 # cheekbones, a flatter forehead, eye sockets, and a longer skull at the back.
 # Blender axes here: x right, y toward the back (front is -y), z up.
@@ -102,6 +102,11 @@ for v in head.data.vertices:
   if front>.5:v.co.y+=.010*smooth(1-d/.42)*smooth((front-.5)/.5)
  if front<-.2 and u>-.3:v.co.y*=1+.07*smooth(-front/.8)*smooth((u+.3)/.8)    # longer skull behind
  if u<-.8:v.co.z+=.010*smooth((-u-.8)/.2)                                     # flatter underside of the chin
+ # Integrate the bridge and tip into the skin surface instead of attaching spheres.
+ if front>.65:
+  bridge=.014*math.exp(-(v.co.x/.018)**2-((v.co.z-1.625)/.045)**2)
+  tip=.025*math.exp(-(v.co.x/.028)**2-((v.co.z-1.585)/.025)**2)
+  v.co.y-=(bridge+tip)*smooth((front-.65)/.25)
 head.data.update()
 for side in [-1,1]:ell('Ear',(side*.155,1.615,-.002),(.032,.052,.027),'Skin','Head')
 for side,suffix in [(-1,'L'),(1,'R')]:
@@ -132,15 +137,12 @@ face=bpy.data.objects.new('FaceFeatures',None);bpy.context.collection.objects.li
 def facial(o):
  parts.remove(o);o.parent=face;return o
 for side,suffix in [(-1,'L'),(1,'R')]:
- facial(ell('Eye'+suffix,(side*.059,.163,.138),(.030,.015,.008),'Eye'))
- facial(ell('Iris'+suffix,(side*.059,.162,.147),(.012,.012,.004),'Iris'))
- facial(ell('Pupil'+suffix,(side*.059,.162,.152),(.006,.008,.003),'Dark'))
- facial(box('Brow'+suffix,(side*.059,.194,.150),(.072,.011,.010),'Dark',bevel=.004))
-facial(ell('Nose',(0,.108,.153),(.021,.028,.018),'Skin'))
-facial(ell('NoseBridge',(0,.145,.146),(.012,.030,.010),'Skin'))
-facial(box('MouthL',(-.03,.046,.156),(.034,.007,.005),'Dark',bevel=.003))
-facial(box('MouthR',(.03,.046,.156),(.034,.007,.005),'Dark',bevel=.003))
-facial(ell('LowerLip',(0,.037,.149),(.033,.006,.005),'Skin'))
+ facial(ell('Eye'+suffix,(side*.059,.163,.159),(.027,.011,.004),'Eye'))
+ facial(ell('Iris'+suffix,(side*.059,.162,.164),(.010,.010,.002),'Iris'))
+ facial(ell('Pupil'+suffix,(side*.059,.162,.167),(.005,.007,.0015),'Dark'))
+ facial(box('Brow'+suffix,(side*.059,.194,.159),(.062,.008,.004),'Dark',bevel=.004))
+facial(box('MouthL',(-.015,.046,.164),(.032,.005,.003),'Dark',bevel=.003))
+facial(box('MouthR',(.015,.046,.164),(.032,.005,.003),'Dark',bevel=.003))
 # Parallel bone axes keep the runtime pose adapter predictable.
 bpy.ops.object.select_all(action='DESELECT');bpy.ops.object.armature_add();rig=bpy.context.object;rig.name='AthleteRig';bpy.ops.object.mode_set(mode='EDIT');rig.data.edit_bones.remove(rig.data.edit_bones[0])
 bones={'Root':((0,0,0),None),'Spine':((0,.85,0),'Root'),'Head':((0,1.48,0),'Spine')}
@@ -247,9 +249,12 @@ def height(y):return y*LEG if y<.85 else y+.85*(LEG-1)+(NECK if y>1.40 else 0)
 def width(x,y):return x*SHOULDER if y>.85 else x
 for v in body.data.vertices:
  old=v.co.z
- if old>=1.48:
+ if any(g.group==body.vertex_groups['Head'].index and g.weight>.5 for g in v.groups):
   v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z=height(1.48)+(old-1.48)*HEAD
  else:v.co.x=width(v.co.x,old);v.co.z=height(old)
+# Facial controls are socket-local: scale them by the same head transform.
+for obj in face.children:
+ for v in obj.data.vertices:v.co.x*=HEAD;v.co.y*=HEAD*1.02;v.co.z*=HEAD
 for obj in [cap,helmet]:
  for v in obj.data.vertices:v.co.x*=HEAD*.95;v.co.y*=HEAD*.97;v.co.z*=HEAD*.95
 bpy.context.view_layer.objects.active=rig;bpy.ops.object.mode_set(mode='EDIT')

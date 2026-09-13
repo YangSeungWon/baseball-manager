@@ -34,7 +34,7 @@ try {
   const {posePlayerFace}=await import('/js/player-model.js');const {a,b,scene,renderer,camera}=preview;b.root.visible=false;a.root.position.set(0,0,0);a.root.rotation.set(0,0,0);
   const open=a.faceNodes.eyes[0].scale.y,blinkAt=(4.3-(a.idleSeed*.37)%4.3+.05)%4.3;posePlayerFace(a,'focus',blinkAt,.8,-.5);
   const closed=a.faceNodes.eyes[0].scale.y,moved=a.faceNodes.pupils[0].position.distanceTo(a.faceNodes.pupils[0].userData.rest.position);
-  posePlayerFace(a,'focus',1,.4,-.2);camera.position.set(0,1.88,2.15);camera.lookAt(0,1.79,0);renderer.render(scene,camera);return {open,closed,moved,nodes:Object.values(a.faceNodes).flat().filter(Boolean).length};
+  posePlayerFace(a,'focus',1,.4,-.2);camera.position.set(0,2.30,1.5);camera.lookAt(0,2.32,0);renderer.render(scene,camera);return {open,closed,moved,nodes:Object.values(a.faceNodes).flat().filter(Boolean).length};
  });
  assert.ok(face.nodes>=9&&face.closed<face.open*.15&&face.moved>.002,'facial rig blinks and tracks gaze');
  await page.screenshot({path:'/tmp/dugout-player-face-focus.png'});
@@ -50,14 +50,15 @@ try {
   for(const handed of ['R','L'])for(const swing of [0,.25,.5,.75,1]){
    state.swing=swing;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:handed},'#cf7756','bat',state);
    a.root.updateMatrixWorld(true);
-   maxGripGap=Math.max(maxGripGap,a.hands[0].getWorldPosition(new T.Vector3()).distanceTo(a.hands[1].getWorldPosition(new T.Vector3())));
+   const rear=handed==='R'?1:0,front=1-rear;
+   maxGripGap=Math.max(maxGripGap,a.hands[rear].localToWorld(new T.Vector3(0,.075,0)).distanceTo(a.hands[front].getWorldPosition(new T.Vector3())));
   }
   state.swing=0;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:'R'},'#cf7756','bat',state);
   state.pitcherWind=.55;Live3D.prototype.updatePlayer.call(driver,'fP',{x:.65,y:0},'#427c83','pitch',state);
   a.root.rotation.y=.3;b.root.rotation.y=-.3;renderer.render(scene,camera);
   return {maxGripGap};
  });
- assert.ok(poses.maxGripGap<.085,'both hands stay together through right- and left-handed swings');
+ assert.ok(poses.maxGripGap<.01,'both hands stay together through right- and left-handed swings');
  await page.screenshot({path:'/tmp/dugout-player-poses.png'});
  const leather=await page.evaluate(()=>{
   const {a,b,scene,renderer,camera}=preview;a.root.visible=b.root.visible=false;
@@ -68,7 +69,7 @@ try {
  assert.ok(leather,'leather grain and normal maps are embedded in the GLB');
  await page.screenshot({path:'/tmp/dugout-glove-detail.png'});
  await page.goto(url+'/?challenge=b6-0-42');await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
- await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
+ await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').click();await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  await page.screenshot({path:'/tmp/dugout-player-game.png'});
  await page.locator('.pitcher-tag').click();assert.equal(await page.locator('.pitcher-details').isVisible(),true);await page.keyboard.press('Escape');
  await page.locator('.inning-exit').click();assert.equal(await page.locator('.lv-three').count(),0);assert.deepEqual(errors,[]);

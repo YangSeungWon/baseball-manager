@@ -92,3 +92,26 @@ export function reachPlayerGlove(p,worldTarget){
  p.hands[0].quaternion.copy(p.arms[0].quaternion.clone().multiply(p.elbows[0].quaternion).invert());
  p.glove.position.copy(p.gloveRest);
 }
+
+// Use the same skinned arms, hands and bat in first person; omit the head/torso
+// that would otherwise sit between the eye-height camera and the pitch.
+export function setPlayerFirstPerson(p,enabled){
+ p.head.visible=!enabled;
+ p.root.traverse(o=>{
+  if(!o.isSkinnedMesh)return;
+  if(!o.userData.fullBodyGeometry){
+   o.userData.fullBodyGeometry=o.geometry;
+   const g=o.geometry,indices=g.index,skin=g.getAttribute('skinIndex'),weights=g.getAttribute('skinWeight');
+   const arms=new Set(o.skeleton.bones.map((b,i)=>/^(UpperArm|Forearm|Hand)[LR]$/.test(b.name)?i:-1));arms.delete(-1);
+   const onArm=v=>{let w=0;for(let j=0;j<4;j++)if(arms.has(skin.getComponent(v,j)))w+=weights.getComponent(v,j);return w>.5;};
+   const first=g.clone(),out=[];first.clearGroups();
+   for(const group of g.groups.length?g.groups:[{start:0,count:indices.count,materialIndex:0}]){
+    const start=out.length;
+    for(let i=group.start;i<group.start+group.count;i+=3){const a=indices.getX(i),b=indices.getX(i+1),c=indices.getX(i+2);if(onArm(a)&&onArm(b)&&onArm(c))out.push(a,b,c);}
+    first.addGroup(start,out.length-start,group.materialIndex);
+   }
+   first.setIndex(out);o.userData.firstPersonGeometry=first;
+  }
+  o.geometry=enabled?o.userData.firstPersonGeometry:o.userData.fullBodyGeometry;
+ });
+}

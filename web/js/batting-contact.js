@@ -1,3 +1,4 @@
+import { BATTING_ZONE as ZONE } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 
@@ -7,7 +8,7 @@ export function battingContact({aim,pitch,timing,power=.5,batter={}}){
   const C=BATTING.manualContact,W=BATTING.swingWindow;
   const seconds=(timing-(W.from+W.to)/2)*BATTING.playerInput.timingTolerance*2/(W.to-W.from);
   const dx=aim.x-pitch.x,dz=aim.z-pitch.z;
-  const distance=Math.hypot(dx*.216,dz*.26),spatial=distance/(C.batRadius+C.ballRadius),temporal=Math.abs(seconds)/C.contactSeconds;
+  const distance=Math.hypot(dx*ZONE.halfWidth,dz*ZONE.halfHeight),spatial=distance/(C.batRadius+C.ballRadius),temporal=Math.abs(seconds)/C.contactSeconds;
   const overlap=Math.hypot(spatial,temporal),quality=clamp(1-overlap*overlap,0,1);
   const angle=clamp(seconds/C.contactSeconds*C.timingSpray+dx*C.aimSpray+pitch.x*C.pitchSpray,-100,100);
   const launch=clamp(C.launchBase+power*C.launchPower-dz*C.verticalLaunch-pitch.z*C.pitchLift,-12,65);

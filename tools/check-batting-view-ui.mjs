@@ -24,13 +24,27 @@ try {
  await page.locator('.is-reading').waitFor();await page.evaluate(()=>{lv.paused=true;});
  await page.waitForTimeout(100);await page.screenshot({path:`/tmp/batting-read-ball-${width}.png`});
  const view=await page.evaluate(async()=>{
- const T=await import('/vendor/three/three.module.min.js');const camera=lv.three.camera,rect=lv.three.canvas.getBoundingClientRect();let error=0;
+ const T=await import('/vendor/three/three.module.min.js');const {BATTING_ZONE:ZONE}=await import('/js/batting-space.js');const camera=lv.three.camera,rect=lv.three.canvas.getBoundingClientRect();let error=0;
  for(const x of [-1,0,1])for(const z of [-1,0,1]){
- const p=new T.Vector3(x*.216,.76+z*.26,0).project(camera);
+ const p=new T.Vector3(x*ZONE.halfWidth,ZONE.center+z*ZONE.halfHeight,0).project(camera);
  const a=lv.three.battingAimAt(rect.left+(p.x+1)*rect.width/2,rect.top+(1-p.y)*rect.height/2);
  if(!a)throw Error('visible plate cannot be aimed');error=Math.max(error,Math.abs(x-a.x),Math.abs(z-a.z));
  }
- const p=new T.Vector3(0,.76,0).project(camera);
+ const model=lv.three.players.get('bat'),eye=camera.position.clone(),rotation=camera.quaternion.clone();
+ const zone=Array.from(lv.three.battingZone.geometry.attributes.position.array);
+ const originalSwing=lv.S.swing;model.head.rotation.y+=1;lv.S.swing=.62;lv.three.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);
+ if(camera.position.distanceTo(eye)>1e-10||camera.quaternion.angleTo(rotation)>1e-7)throw Error('head or swing moved the camera');
+ if(JSON.stringify(zone)!==JSON.stringify(Array.from(lv.three.battingZone.geometry.attributes.position.array)))throw Error('swing moved the zone');
+ lv.S.swing=originalSwing;
+ if(model.head.visible)throw Error('own head blocks first-person view');
+ if(!model.bat.visible)throw Error('real bat must remain visible');
+ const release=new T.Vector3(-.55,1.85,-16.8).project(camera);
+ if(Math.abs(release.x)>.9||Math.abs(release.y)>.9)throw Error('pitch release leaves the frame');
+ lv.S.batter.hand='L';lv.three.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);
+ const left=new T.Vector3(0,ZONE.center,0).project(camera);
+ if(Math.abs(left.x)>.8||Math.abs(left.y)>.8)throw Error('left-handed plate leaves the frame');
+ lv.S.batter.hand='R';lv.three.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);
+ const p=new T.Vector3(0,ZONE.center,0).project(camera);
  return {plate:{x:(p.x+1)/2,y:(1-p.y)/2},error,aimVisible:lv.three.battingAim.visible,catcherVisible:!!lv.three.players.get('fC')?.root.visible};
  });assert.ok(view.plate.x>.1&&view.plate.x<.9&&view.plate.y>.15&&view.plate.y<.8,'plate stays inside the playable view');assert.ok(view.error<1e-6,'screen aim matches pitch coordinates');assert.equal(view.aimVisible,true);assert.equal(view.catcherVisible,false);
  assert.equal(await page.locator('.inning-picks').isVisible(),false,'preparation panel does not cover the pitch');

@@ -1,5 +1,6 @@
+import { BATTING_ZONE as ZONE, BATTING_EYE_HEIGHT } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
-import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace} from './player-model.js';
+import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
@@ -470,20 +471,22 @@ export class Live3D {
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
     if(S.batter)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
-    // The shoulder camera stands where the umpire would: leave him out of the batter's own view.
-    const shoulderView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
-    if(!shoulderView)this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
+    // Keep the batter view clear of the catcher and umpire.
+    const batterView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
+    const batterModel=this.players.get('bat');
+    if(batterModel)setPlayerFirstPerson(batterModel,batterView&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind));
+    if(!batterView)this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
     else{const u=this.players.get('ump');if(u){u.root.visible=false;if(u.shadow)u.shadow.visible=false;}}
     if(this.opts.playerRole==='batter'){
       if(!this.battingAim){
         this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
         this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
-        const points=[[-.216,.50],[.216,.50],[.216,1.02],[-.216,1.02],[-.216,.50]].map(([x,y])=>new T.Vector3(x,y,0));
+        const points=[[-ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.bottom]].map(([x,y])=>new T.Vector3(x,y,0));
         this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#fff1d0',transparent:true,opacity:.25,depthTest:false}));
         this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
       }
-      this.battingAim.visible=this.battingZone.visible=!!S.aim&&shoulderView&&!S.swing;
-      if(S.aim)this.battingAim.position.set(S.aim.x*.216,.76+S.aim.z*.26,.01);
+      this.battingAim.visible=this.battingZone.visible=!!S.aim&&batterView&&!S.swing;
+      if(S.aim)this.battingAim.position.set(S.aim.x*ZONE.halfWidth,ZONE.center+S.aim.z*ZONE.halfHeight,.01);
     }
     const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
@@ -558,7 +561,7 @@ export class Live3D {
     const rect=this.canvas.getBoundingClientRect(),ray=new T.Raycaster();
     ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
     const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
-    if(!hit)return null;const x=hit.x/.216,z=(hit.y-.76)/.26;
+    if(!hit)return null;const x=hit.x/ZONE.halfWidth,z=(hit.y-ZONE.center)/ZONE.halfHeight;
     if(Math.abs(x)>2.2||Math.abs(z)>2.2)return null;
     return {x:clamp(x,-1.3,1.3),z:clamp(z,-1.3,1.3)};
   }
@@ -581,15 +584,15 @@ export class Live3D {
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
     if(kind==='batting') {
-      // Over the shoulder: a step behind the batter and above the helmet, offset toward the plate so
-      // the mound sits centre-right (or centre-left for a lefty) and the batter's own bat stays in frame.
+      // Eye-height, independently anchored: the head and swing never steer the camera.
+      // A small retreat toward the catcher keeps the nearby plate in the forward view.
       this.batterHand=S.batter?.hand||'R';const m=this.batterHand==='L'?-1:1;
-      const portrait=this.camera.aspect<1,side=portrait?1.05:1.55;   // portrait keeps more of the batter in frame
-      eye=point(-.85*m+side*m,-3.6,2.8);
+      const portrait=this.camera.aspect<1;
+      eye=point(-.42*m,-1.3,BATTING_EYE_HEIGHT);
       if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
-      const yaw=(-.045*m)+this.look.yaw,pitch=-.28+this.look.pitch;
+      const yaw=.12*m+this.look.yaw,pitch=-.30+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      fov=52;
+      fov=portrait?100:80;
     }
     else if(kind==='mound') {
       // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.
@@ -683,7 +686,7 @@ export class Live3D {
     this.lookInput?.abort();
     this.canvas.removeEventListener('webglcontextlost',this.onLost);
     const geometries=new Set(),materials=new Set(),skeletons=new Set();
-    this.scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.add(o.skeleton);if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});
+    this.scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.add(o.skeleton);if(o.geometry)geometries.add(o.geometry);for(const g of [o.userData.fullBodyGeometry,o.userData.firstPersonGeometry])if(g)geometries.add(g);if(o.material)materials.add(o.material);});
     for(const skeleton of skeletons)skeleton.dispose();
     for(const g of new Set([this.box,this.sphere,this.cylinder,...geometries]))g.dispose();
     for(const m of new Set([...this.materials.values(),...materials]))m.dispose();

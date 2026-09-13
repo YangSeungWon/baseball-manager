@@ -1,3 +1,4 @@
+import { BATTING_ZONE as ZONE } from './batting-space.js';
 import { BAT_CONTACT_SECONDS, battingFlightSeconds, PITCH_RELEASE_DISTANCE, CATCHER_DEPTH } from './batting-input.js';
 // 경기를 본다. 공 하나하나가 날아가고, 야수가 그 공을 향해 뛰고, 주자가 돈다.
 //
@@ -663,7 +664,7 @@ export class LiveView {
     const T = q.flightSeconds ?? battingFlightSeconds(v);
     const rel = [(rec.th === 'L' ? 0.55 : -0.55), PITCH_RELEASE_DISTANCE, 1.85];
     const zh = rec.zh || 1;
-    const end = [clamp(q.x, -2.4, 2.4) * 0.216, 0, clamp(0.76 + q.z * 0.26 * zh, 0.05, 1.9)];
+    const end = [clamp(q.x, -2.4, 2.4) * ZONE.halfWidth, 0, clamp(ZONE.center + q.z * ZONE.halfHeight * zh, 0.05, 2.8)];
     const bend = { SL: [0.16, 0], CU: [0.05, 0.45], CH: [0, 0.18], FS: [0, 0.28], KN: [0.2, 0.25], SI: [-0.1, 0.08], FC: [0.08, 0.02] }[q.t] || [0, 0];
     const side = rec.th === 'L' ? -1 : 1;
     tl.at(t0, () => { S.broadcast = { kind: 'pitch' }; this._hold(S.fielders.P); });
