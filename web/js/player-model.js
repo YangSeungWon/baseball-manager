@@ -1,3 +1,4 @@
+import {PLAYER_SCALE,BAT_SCALE} from './batting-space.js';
 import * as T from '../vendor/three/three.module.min.js';
 import {GLTFLoader} from '../vendor/three/loaders/GLTFLoader.js';
 import {clone} from '../vendor/three/utils/SkeletonUtils.js';
@@ -31,7 +32,7 @@ export function createPlayerFactory(){
   const meshes=[];body.traverse(o=>{if(o.isMesh){o.castShadow=true;o.frustumCulled=false;meshes.push({o,source:o.material});}});
   let currentColor;
   const setColor=c=>{if(c===currentColor)return;currentColor=c;for(const {o,source} of meshes)o.material=material(source,c,skin);};setColor(color);
-  root.scale.setScalar(1.35);
+  root.scale.setScalar(PLAYER_SCALE);bat.scale.set(BAT_SCALE*.72,BAT_SCALE,BAT_SCALE*.72);
   const faceNodes={eyes:['L','R'].map(s=>face.getObjectByName('Eye'+s)),irises:['L','R'].map(s=>face.getObjectByName('Iris'+s)),pupils:['L','R'].map(s=>face.getObjectByName('Pupil'+s)),brows:['L','R'].map(s=>face.getObjectByName('Brow'+s)),mouths:['L','R'].map(s=>face.getObjectByName('Mouth'+s))};
   for(const o of [...faceNodes.eyes,...faceNodes.irises,...faceNodes.pupils,...faceNodes.brows,...faceNodes.mouths])o.userData.rest={position:o.position.clone(),scale:o.scale.clone(),rotation:o.rotation.clone()};
   return {root,body,head,face,faceNodes,hips:bone('Root'),spine:bone('Spine'),hands:['L','R'].map(s=>bone('Hand'+s)),arms,legs,elbows:['L','R'].map(s=>bone('Forearm'+s)),knees:['L','R'].map(s=>bone('Shin'+s)),feet:['L','R'].map(s=>bone('Foot'+s)),cap,helmet,glove,gloveRest:glove.position.clone(),bat,setColor,idleSeed,labelHeight:.45,phase:0,last:null};

@@ -68,7 +68,7 @@ try {
    state.swing=swing;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:handed},'#cf7756','bat',state);
    a.root.updateMatrixWorld(true);
    const rear=handed==='R'?0:1,front=1-rear;
-   maxGripGap=Math.max(maxGripGap,a.hands[rear].localToWorld(new T.Vector3(0,.075,0)).distanceTo(a.hands[front].getWorldPosition(new T.Vector3())));
+   maxGripGap=Math.max(maxGripGap,a.hands[rear].localToWorld(new T.Vector3(0,-.075,0)).distanceTo(a.hands[front].getWorldPosition(new T.Vector3())));
   }
   state.swing=0;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:'R'},'#cf7756','bat',state);
   state.pitcherWind=.55;Live3D.prototype.updatePlayer.call(driver,'fP',{x:.65,y:0},'#427c83','pitch',state);

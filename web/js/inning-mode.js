@@ -1,5 +1,5 @@
 import { mountBattingPointer } from './batting-pointer.js';
-import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT } from './batting-space.js';
+import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT, BATTING_STANCE } from './batting-space.js';
 import { FRANCHISES } from './core/names.js';
 import { flippedBat, celebrationPlayers, CELEBRATION_DURATION } from './celebration.js';
 import { STAGES, getStage, clearStage, clearedStages } from './inning-stages.js';
@@ -297,7 +297,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     tl.add(0,3,k=>{pitcher.x=5*(1-k);pitcher.y=14+4.44*k;});
     tl.at(3,()=>{lv.sfx.setChant(game.batter.name,game.order+1);pitcher.pose='pitch';S.broadcast={kind:'change'};batterEntry('change0',game.batter);});
     const batter={name:game.batter.name,x:-6.5,y:-4,pose:'walk',wait:true};S.changePlayers=[batter];
-    tl.at(3,()=>{batter.wait=false;});tl.add(3,2.8,k=>{batter.x=-6.5+5.65*k;batter.y=-4+4.1*k;});
+    tl.at(3,()=>{batter.wait=false;});tl.add(3,2.8,k=>{batter.x=-6.5+(6.5-BATTING_STANCE.offset)*k;batter.y=-4+(4+BATTING_STANCE.depth)*k;});
     tl.at(5.8,()=>{batter.pose='bat';});tl.add(5.8,.5,null);
     await runTimeline(tl);if(dead)return;
     S.changePlayers=[];sync(game.snapshot());S.broadcast={kind:'pitch'};hideEntry();root.classList.remove('is-intro');busy=false;$('.inning-picks').disabled=false;$('.inning-throw').disabled=false;if(batting){dock();scheduleNext(1600);}
@@ -311,9 +311,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     S.broadcast={kind:'change'};S.changePlayers=[];
     root.classList.add('is-changing');
     if(out){
-      const departing={name:e.before.batter.name,x:-.85,y:.1,pose:e.result==='K'?'dejected':'walk'};
+      const departing={name:e.before.batter.name,x:-BATTING_STANCE.offset,y:BATTING_STANCE.depth,pose:e.result==='K'?'dejected':'walk'};
       S.changePlayers.push(departing);
-      tl.add(0,2.8,k=>{departing.x=-.85-5.65*k;departing.y=.1-3.1*k;departing.gone=k===1;});
+      tl.add(0,2.8,k=>{departing.x=-BATTING_STANCE.offset-(6.5-BATTING_STANCE.offset)*k;departing.y=BATTING_STANCE.depth-(3+BATTING_STANCE.depth)*k;departing.gone=k===1;});
     }
     if(next){
       const enter=out?1.6:.3,arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:true};
@@ -323,7 +323,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
         sync(e.after);S.batter=null;events=[];shown=null;zone();history();paint();
         arriving.wait=false;batterEntry('change'+S.changePlayers.indexOf(arriving),e.after.batter);
       });
-      tl.add(enter,2.8,k=>{arriving.x=-6.5+5.65*k;arriving.y=-4+4.1*k;});
+      tl.add(enter,2.8,k=>{arriving.x=-6.5+(6.5-BATTING_STANCE.offset)*k;arriving.y=-4+(4+BATTING_STANCE.depth)*k;});
       tl.at(enter+2.8,()=>{arriving.pose='bat';});
       tl.add(enter+2.8,.7,null);
     }
@@ -334,9 +334,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const S=lv.S,final=e.after.done,duration=final?5.2:1.8,tl=new Timeline();
     root.classList.add('is-third-out');S.ball=null;S.hold=null;S.trail=[];S.fieldPlay=null;S.outs=e.after.outs;S.b=e.after.balls;S.s=e.after.strikes;
     if(e.after.full){S.inning=e.after.inning;lv.line.top=[...e.after.awayLine];lv.line.bottom=[...e.after.homeLine];paint();}
-    const leaving={name:e.before.batter.name,x:-.85,y:.1,pose:'dejected',wait:false};
+    const leaving={name:e.before.batter.name,x:-BATTING_STANCE.offset,y:BATTING_STANCE.depth,pose:'dejected',wait:false};
     S.batter=null;S.changePlayers=[leaving];
-    if(S.changePlayers.length)tl.add(0,Math.min(3,duration),k=>{leaving.x=-.85-6.4*k;leaving.y=.1-4*k;});
+    if(S.changePlayers.length)tl.add(0,Math.min(3,duration),k=>{leaving.x=-BATTING_STANCE.offset-6.4*k;leaving.y=BATTING_STANCE.depth-4*k;});
     for(const r of S.runners){r.pose='dejected';const x=r.x,y=r.y;tl.add(0,Math.min(3,duration),k=>{r.x=x+(-7-x)*k;r.y=y+(-4-y)*k;});}
     if(final&&!e.after.tie&&(e.after.half==='top'?e.after.won:!e.after.won)){
       atmosphere(e.after.won?'cheer':'groan',1);S.broadcast={kind:'mound-celebration'};
@@ -360,7 +360,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     panel.innerHTML=`<b>${e.after.done?'경기 종료':e.after.inning+'회 말'}</b><span>${stage.away.short} ${e.after.awayScore} : ${e.after.homeScore} ${stage.home.short}</span><small>${clock} · ${light}</small>`;panel.hidden=false;
     const from=e.before.timeProgress||0,to=e.after.timeProgress||from;tl.add(0,2.2,k=>lv.three?.setGameTime(from+(to-from)*k));
     await runTimeline(tl);if(dead)return;panel.hidden=true;
-    if(next){sync(e.after);S.batter=null;S.broadcast={kind:'change'};const arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:false};S.changePlayers=[arriving];lv.sfx.setChant(e.after.batter.name,game.order+1);batterEntry('change0',e.after.batter);const enter=new Timeline();enter.add(0,2.8,k=>{arriving.x=-6.5+5.65*k;arriving.y=-4+4.1*k;});enter.at(2.8,()=>{arriving.pose='bat';});enter.add(2.8,.5,null);await runTimeline(enter);if(dead)return;S.changePlayers=[];sync(e.after);S.broadcast={kind:'pitch'};hideEntry();events=[];shown=null;zone();history();paint();}
+    if(next){sync(e.after);S.batter=null;S.broadcast={kind:'change'};const arriving={name:e.after.batter.name,x:-6.5,y:-4,pose:'walk',wait:false};S.changePlayers=[arriving];lv.sfx.setChant(e.after.batter.name,game.order+1);batterEntry('change0',e.after.batter);const enter=new Timeline();enter.add(0,2.8,k=>{arriving.x=-6.5+(6.5-BATTING_STANCE.offset)*k;arriving.y=-4+(4+BATTING_STANCE.depth)*k;});enter.at(2.8,()=>{arriving.pose='bat';});enter.add(2.8,.5,null);await runTimeline(enter);if(dead)return;S.changePlayers=[];sync(e.after);S.broadcast={kind:'pitch'};hideEntry();events=[];shown=null;zone();history();paint();}
     root.classList.remove('is-changing');
   }
   async function celebrate(e){

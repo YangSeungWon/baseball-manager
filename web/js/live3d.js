@@ -1,4 +1,4 @@
-import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT } from './batting-space.js';
+import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT, HOME_PLATE, BATTERS_BOX, battingPosition } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
 import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson,playerEyeMidpoint} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
@@ -202,12 +202,14 @@ export class Live3D {
     for (const [x,y] of [[19.4,19.4],[0,38.8],[-19.4,19.4]]) {
       const b = this.mesh(this.box,'#fff5dc',this.scene,[.65,.12,.65],[x,.12,-y]); b.rotation.y=Math.PI/4;
     }
-    this.slab([[-.3,.3],[.3,.3],[.3,0],[0,-.3],[-.3,0]],'#fff5dc',.07);
+    const h=HOME_PLATE;
+    this.slab([[-h.halfWidth,h.front],[h.halfWidth,h.front],[h.halfWidth,h.corner],[0,h.back],[-h.halfWidth,h.corner]],'#fff5dc',.07);
     for(const side of [-1,1]) {
       const r=fence(side*45,dims), d=r/Math.sqrt(2);
-      this.line([[0,0],[side*d,d]],'#eee9ce',.14);
+      this.line([[0,h.back],[side*d,d]],'#eee9ce',.14);
       this.mesh(this.cylinder,'#f2c74f',this.scene,[.12,17,.12],[side*d,8.5,-d]);
-      this.line([[side*.65,-.5],[side*1.7,-.5],[side*1.7,1.6],[side*.65,1.6],[side*.65,-.5]],'#f2e7cb',.07);
+      const b=BATTERS_BOX;
+      this.line([[side*b.inner,b.back],[side*b.outer,b.back],[side*b.outer,b.front],[side*b.inner,b.front],[side*b.inner,b.back]],'#f2e7cb',.04);
     }
     // Outfield wall: one padded ribbon. Panel seams every 2.4 m, a yellow home-run line along the top,
     // and the distance to each part of the fence painted on it.
@@ -315,10 +317,10 @@ export class Live3D {
     const walking=['walk','dejected'].includes(pose);
     p.last={x,y};p.phase+=dist*(walking?4.8:2.9);
     const moving=dist>.0001;
-    if(moving) root.rotation.y=Math.atan2(dx,-dy);
+    if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
+    else if(moving) root.rotation.y=Math.atan2(dx,-dy);
     else if(pose==='pitch'||pose==='field'||pose==='crouch')root.rotation.y=Math.atan2(-x,y);
     else if(['watch','admire','batFlip','celebrate','clap'].includes(pose)&&data.watch)root.rotation.y=Math.atan2(data.watch.x-x,y-data.watch.y);
-    else if(pose==='bat')root.rotation.y=data.hand==='L'?-Math.PI/2:Math.PI/2;
     root.position.set(x,Math.max(0,data.jump||0),-y);
     if(p.shadow){p.shadow.visible=true;p.shadow.position.set(x,.09,-y);p.shadow.scale.setScalar(1.25);p.shadow.material.opacity=.32*(data.alpha??1);}
     p.setColor(color);
@@ -330,7 +332,9 @@ export class Live3D {
     p.glove.position.copy(p.gloveRest);p.hips.rotation.set(0,0,0);p.spine.rotation.set(0,0,0);
     for(const hand of p.hands)hand.rotation.set(0,0,0);
     if(moving){body.rotation.x=running?.16:.04;body.position.y-=Math.abs(Math.sin(p.phase))*(running?.025:.012);body.rotation.y=Math.sin(p.phase)*.06;}
+    p.legRest??=legs.map(leg=>leg.position.clone());
     for(let i=0;i<2;i++){
+      legs[i].position.copy(p.legRest[i]);if(pose==='bat')legs[i].position.x*=1.5;
       p.elbows[i].rotation.set(moving?(running?-1.25:-.45):-.12,0,0);
       p.knees[i].rotation.set(moving?Math.max(0,Math.sin(p.phase+(i?0:Math.PI)))*(walking?.38:1.0):0,0,0);
       p.feet[i].rotation.set(walking?-(legs[i].rotation.x+p.knees[i].rotation.x):-p.knees[i].rotation.x*.25,0,0);
@@ -388,7 +392,7 @@ export class Live3D {
       // A shared grip path keeps the hands between the shoulders, within both arms' reach.
       const g=q.grip,grip=new T.Vector3(g[0]*handed+planeX*handed,g[1]+planeY*2,g[2]);
       const parent=p.arms[rear].parent,parentWorld=parent.getWorldQuaternion(new T.Quaternion());
-      const offset=new T.Vector3(0,.075,0).applyQuaternion(parentWorld.clone().invert().multiply(worldAngle));
+      const offset=new T.Vector3(0,-.075,0).applyQuaternion(parentWorld.clone().invert().multiply(worldAngle));
       // Project into the intersection of both arm reach spheres without stretching bones.
       for(let pass=0;pass<12;pass++)for(const index of [rear,front]){
         const center=p.arms[index].position.clone();if(index===front)center.sub(offset);
@@ -480,12 +484,12 @@ export class Live3D {
     S.runners.forEach((r,i)=>this.updatePlayer('r'+i,r,offense,r.pose||'run',S));
     (S.celebrants||[]).forEach((p,i)=>this.updatePlayer('celebrant'+i,p,offense,p.pose,S));
     if(S.looseBat){
-      this.looseBat??=this.mesh(this.cylinder,'#d4ad73',this.scene,[.054,1.42,.054]);
+      this.looseBat??=this.mesh(this.cylinder,'#d4ad73',this.scene,[.032,.86,.032]);
       this.looseBat.visible=true;this.looseBat.position.copy(point(S.looseBat.x,S.looseBat.y,S.looseBat.z));
       this.looseBat.rotation.set(this.reducedMotion?Math.PI/2:S.looseBat.spin,0,-.3);
     }else if(this.looseBat)this.looseBat.visible=false;
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
-    if(S.batter)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
+    if(S.batter)this.updatePlayer('bat',{...S.batter,...battingPosition(S.batter.hand)},offense,'bat',S);
     const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
     // First-person hides only the hitter mesh; the catcher and umpire stay in the scene.
     const batterView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);

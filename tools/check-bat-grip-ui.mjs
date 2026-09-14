@@ -19,11 +19,12 @@ try {
  await page.goto(url+'/motions.html');await page.locator('#play:not([disabled])').waitFor();
  const result=await page.evaluate(async()=>{
  const T=await import('/vendor/three/three.module.min.js');const {createPlayerFactory}=await import('/js/player-model.js');const {Live3D}=await import('/js/live3d.js');const {sample,SWING}=await import('/js/motion-clips.js');
+ const {battingPosition,BATTERS_BOX,BATTING_ZONE}=await import('/js/batting-space.js');
  const p=createPlayerFactory()('bat','#cf7756'),driver={player:()=>p,reducedMotion:true,animationTime:1};let maxGrip=0,maxDirection=0;let continuity=0;
  for(const hand of ['R','L'])for(const approach of ['contact','power'])for(const z of [-1.3,0,1.3])for(const x of [-1.3,0,1.3])for(let step=0;step<=40;step++){const t=.25+.75*step/40;
  p.last=null;Live3D.prototype.updatePlayer.call(driver,'bat',{hand},'#cf7756','bat',{swing:t,batSwingFrom:0,batStyle:{pitchZ:z,pitchX:x,approach}});p.root.updateMatrixWorld(true);
  const rear=hand==='R'?0:1,front=1-rear;
- const a=p.hands[rear].localToWorld(new T.Vector3(0,.075,0)),b=p.hands[front].getWorldPosition(new T.Vector3());
+ const a=p.hands[rear].localToWorld(new T.Vector3(0,-.075,0)),b=p.hands[front].getWorldPosition(new T.Vector3());
  const dir=p.bat.getWorldQuaternion(new T.Quaternion());const actual=new T.Vector3(0,-1,0).applyQuaternion(dir).applyQuaternion(p.root.getWorldQuaternion(new T.Quaternion()).invert());const q=sample(SWING,t).bat;const expected=new T.Vector3(q[0]*(hand==='R'?1:-1),q[1]+z*.075*.6,q[2]).normalize();
  maxGrip=Math.max(maxGrip,a.distanceTo(b));maxDirection=Math.max(maxDirection,actual.distanceTo(expected));
  }
@@ -31,7 +32,7 @@ try {
   let previous=null,turn=0;
   for(let step=0;step<=60;step++){
    const t=.25+.75*step/60;p.last=null;
-   Live3D.prototype.updatePlayer.call(driver,'bat',{x:hand==='R'?-.85:.85,y:.1,hand},'#cf7756','bat',{swing:step?t:0,batSwingFrom:.25});p.root.updateMatrixWorld(true);
+   Live3D.prototype.updatePlayer.call(driver,'bat',{...battingPosition(hand),hand},'#cf7756','bat',{swing:step?t:0,batSwingFrom:.25});p.root.updateMatrixWorld(true);
    const direction=new T.Vector3(0,-1,0).applyQuaternion(p.bat.getWorldQuaternion(new T.Quaternion()));
    const angle=Math.atan2(-direction.z,direction.x);
    if(previous!==null){const delta=Math.atan2(Math.sin(angle-previous),Math.cos(angle-previous));if(delta*(hand==='R'?1:-1)<-1e-7)throw Error('bat reversed its overhead sweep');turn+=delta;}
@@ -51,6 +52,31 @@ try {
  p.last=null;Live3D.prototype.updatePlayer.call(driver,'bat',{hand:'R'},'#cf7756','bat',{swing:.25,batSwingFrom:.25,batStyle:{pitchX:.4,pitchZ:.6}});p.root.updateMatrixWorld(true);
  continuity=Math.max(continuity,...p.hands.map((h,i)=>h.getWorldPosition(new T.Vector3()).distanceTo(before[i])));
  }
+ const anatomy=[];
+ for(const hand of ['R','L']){
+  const data={...battingPosition(hand),hand};p.last={x:-6.5,y:-4};
+  Live3D.prototype.updatePlayer.call(driver,'bat',data,'#cf7756','bat',{swing:0});p.root.updateMatrixWorld(true);
+  const eye=p.battingEye.clone();if(eye.y<1.55||eye.y>1.85)throw Error('prepared eye is not adult height');
+  const box=BATTERS_BOX;
+  for(const foot of p.feet){const f=foot.getWorldPosition(new T.Vector3());
+   if(Math.abs(f.x)-.13<box.inner||Math.abs(f.x)+.13>box.outer||-f.z-.15<box.back||-f.z+.15>box.front)throw Error('prepared shoe leaves the box');
+  }
+  const feet=p.feet.map(f=>f.getWorldPosition(new T.Vector3()));
+  if(feet[0].distanceTo(feet[1])<.38)throw Error('stance too narrow');
+  const tip=p.bat.localToWorld(new T.Vector3(0,-.775,0)),knob=p.bat.localToWorld(new T.Vector3(0,.038,0));
+  if(Math.abs(tip.distanceTo(knob)-.86)>1e-6)throw Error('bat is not 86 cm');
+  const batBounds=new T.Box3(),inverse=p.bat.matrixWorld.clone().invert();
+  p.bat.traverse(mesh=>{if(!mesh.geometry)return;mesh.geometry.computeBoundingBox();batBounds.union(mesh.geometry.boundingBox.clone().applyMatrix4(inverse.clone().multiply(mesh.matrixWorld)));});
+  const batSize=batBounds.getSize(new T.Vector3()).multiply(p.bat.scale).multiply(p.root.scale);
+  if(Math.abs(batSize.y-.86)>.001||Math.max(batSize.x,batSize.z)>.067)throw Error('actual bat mesh dimensions are wrong');
+  Live3D.prototype.updatePlayer.call(driver,'bat',data,'#cf7756','bat',{swing:0});p.root.updateMatrixWorld(true);
+  const {playerEyeMidpoint}=await import('/js/player-model.js');
+  if(playerEyeMidpoint(p).distanceTo(eye)>1e-6)throw Error('entry movement polluted eye anchor');
+  Live3D.prototype.updatePlayer.call(driver,'bat',data,'#cf7756','bat',{swing:.62,batSwingFrom:.25});p.root.updateMatrixWorld(true);
+  const sweet=p.bat.localToWorld(new T.Vector3(0,-.62,0));
+  if(Math.abs(sweet.x)>.08||Math.abs(sweet.z)>.08||Math.abs(sweet.y-BATTING_ZONE.center)>.08)throw Error('neutral barrel misses the center pitch: '+sweet.toArray());
+  anatomy.push({hand,eye:eye.toArray(),sweet:sweet.toArray(),stanceWidth:feet[0].distanceTo(feet[1])});
+ }
  const {LiveView,Timeline}=await import('/js/live.js');
  for(const from of [.25]){
  const S={batSwingFrom:from},tl=new Timeline();
@@ -60,7 +86,7 @@ try {
  tl.step(1.94+.28);if(S.swing!==1)throw Error('follow-through skipped');
  tl.step(1.94+.54);if(S.swing!==0||S.batRecover!==0)throw Error('recovery did not complete');
  }
- return {maxGrip,maxDirection,continuity};
+ return {maxGrip,maxDirection,continuity,anatomy};
  });console.log(JSON.stringify(result));
  await page.selectOption('#motion','bat');for(const [label,t] of [['ready',250],['contact',497],['finish',1000]]){await page.locator('#scrub').fill(String(t));await page.screenshot({path:'/tmp/bat-'+label+'.png'});}
  assert.ok(result.maxDirection<1e-6,'bat follows root-space direction for either hand');assert.ok(result.maxGrip<.001,'both hands stay on grip');assert.ok(result.continuity<1e-6,'press preserves the ready pose and aim');console.log('PASS: both-handed grip, aim extremes, ready/press continuity, contact and recovery');
