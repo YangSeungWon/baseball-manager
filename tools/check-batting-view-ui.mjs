@@ -19,7 +19,14 @@ try {
  await page.addInitScript(()=>localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}'));
  const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
  await page.evaluate(async()=>{const {LiveView}=await import('/js/live.js');const pitch=LiveView.prototype._pitch;LiveView.prototype._pitch=function(...args){window.lv=this;if(args[1].flightSeconds!=null&&args[1].r==='B')this.paused=true;return pitch.apply(this,args);};});
- await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').click();
+ let releaseEntry;const entryGate=new Promise(resolve=>releaseEntry=resolve);
+ await page.route('**/js/inning-mode.js',async route=>{await entryGate;await route.continue();});
+ await page.locator('#btnBatting').click();
+ assert.equal(await page.locator('#btnBatting').getAttribute('aria-busy'),'true','entry reacts while module is still loading');
+ assert.equal(await page.locator('#btnBatting').isDisabled(),true,'duplicate entry blocked');
+ releaseEntry();await page.locator('.match-enter:not([disabled])').click();
+ assert.equal(await page.locator('.inning-mode.is-intro').count(),0,'batting starts without the entry cinematic');
+ assert.equal(await page.locator('.inning-look').count(),0,'no plate-look button');
  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
  await page.locator('.is-reading').waitFor();await page.evaluate(()=>{lv.paused=true;});
  await page.waitForTimeout(100);await page.screenshot({path:`/tmp/batting-read-ball-${width}.png`});
@@ -62,8 +69,8 @@ try {
  let projections=0;const project=camera.updateProjectionMatrix;camera.updateProjectionMatrix=function(){projections++;return project.call(this);};
  for(let i=0;i<120;i++)view.direct(lv.S,performance.now()/1000);
  camera.updateProjectionMatrix=project;if(projections!==0)throw Error('fixed camera recalculated projection');
- return {eye:camera.position.toArray(),eyeError,error,aimVisible:view.battingAim.visible,catcherVisible:!!view.players.get('fC')?.root.visible};
- });assert.ok(view.eyeError<1e-8,'camera matches actual eyes for both handed stances');assert.ok(view.error<1e-6,'home glance aim matches pitch coordinates');assert.equal(view.aimVisible,true);assert.equal(view.catcherVisible,false);
+ return {eye:camera.position.toArray(),eyeError,error,aimVisible:view.battingAim.visible,catcherVisible:!!view.players.get('fC')?.root.visible,umpireVisible:!!view.players.get('ump')?.root.visible};
+ });assert.ok(view.eyeError<1e-8,'camera matches actual eyes for both handed stances');assert.ok(view.error<1e-6,'home glance aim matches pitch coordinates');assert.equal(view.aimVisible,true);assert.equal(view.catcherVisible,true);assert.equal(view.umpireVisible,true);
  assert.equal(await page.locator('.inning-picks').isVisible(),false,'preparation panel does not cover the pitch');
  assert.deepEqual(errors,[]);console.log('PASS:',width,height,view);await page.close();}
 

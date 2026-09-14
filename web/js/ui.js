@@ -375,9 +375,26 @@ async function boot() {
   const {STAGES,clearedStages}=await import('./inning-stages.js');
   const nextStage=()=>{const cleared=clearedStages();return STAGES.find(s=>!cleared.includes(s.id))?.id??STAGES.length-1;};
   if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
-  $('#btnBatting').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('batter',challenge?seed:null,challenge?.stageId??nextStage()); };
-  $('#btnFullGame').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode('full'); };
-  $('#btnInning').onclick = async () => { const { openInningMode } = await import('./inning-mode.js'); openInningMode(); };
+  // Warm the module on intent; keep the heavy 3D scene lazy until entry.
+  let inningModule=null,entering=false;
+  const loadInning=()=>inningModule??=(import('./inning-mode.js').catch(error=>{inningModule=null;throw error;}));
+  const bindEntry=(selector,args)=>{
+    const button=$(selector);
+    for(const event of ['pointerenter','focus'])button.addEventListener(event,()=>{loadInning().catch(()=>{});},{once:true});
+    button.onclick=async()=>{
+      if(entering)return;entering=true;
+      const label=button.textContent;button.disabled=true;button.textContent='타석 준비 중…';button.setAttribute('aria-busy','true');
+      try{
+        // Give the pressed/loading state a paint before module evaluation and setup.
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+        const {openInningMode}=await loadInning();openInningMode(...args());
+      }catch(error){console.error('경기 입장 실패',error);button.textContent='입장 다시 시도 →';}
+      finally{entering=false;button.disabled=false;button.removeAttribute('aria-busy');if(button.textContent==='타석 준비 중…')button.textContent=label;}
+    };
+  };
+  bindEntry('#btnBatting',()=>['batter',challenge?seed:null,challenge?.stageId??nextStage()]);
+  bindEntry('#btnFullGame',()=>['full']);
+  bindEntry('#btnInning',()=>['pitcher']);
   $('#btnLoad').onclick = () => pickSaveFile(() => start());
   $('#btnInfo').onclick = modalInfo;
   resumePanel();

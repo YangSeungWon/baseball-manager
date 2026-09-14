@@ -473,7 +473,7 @@ export class Live3D {
     for(const p of this.players.values()){p.root.visible=false;if(p.shadow)p.shadow.visible=false;}
     const defense=S.half==='top'?colors.home:colors.away,offense=S.half==='top'?colors.away:colors.home;
     for(const [pos,f] of Object.entries(S.fielders)) {
-      if(pos==='C'&&(!S.catcher||this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind)))continue;
+      if(pos==='C'&&!S.catcher)continue;
       this.updatePlayer('f'+pos,f,defense,f.pose||(pos==='P'?'pitch':pos==='C'?'crouch':'field'),S);
     }
     (S.exiting||[]).forEach((f,i)=>this.updatePlayer('exit'+i,f,f.color||defense,'run',S));
@@ -487,12 +487,11 @@ export class Live3D {
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
     if(S.batter)this.updatePlayer('bat',{...S.batter,x:S.batter.hand==='L'?.85:-.85,y:.1},offense,'bat',S);
     const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
-    // Keep the batter view clear of the catcher and umpire.
+    // First-person hides only the hitter mesh; the catcher and umpire stay in the scene.
     const batterView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
     const batterModel=this.players.get('bat');
     if(batterModel)setPlayerFirstPerson(batterModel,batterView&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind));
-    if(!batterView)this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
-    else{const u=this.players.get('ump');if(u){u.root.visible=false;if(u.shadow)u.shadow.visible=false;}}
+    this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
     if(this.opts.playerRole==='batter'){
       if(!this.battingAim){
         this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));

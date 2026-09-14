@@ -20,7 +20,7 @@ import { layoutPitchMarkers } from './pitch-zone.js';
 const BASE=[[0,0],[19.4,19.4],[0,38.8],[-19.4,19.4],[0,0]];
 const pitchIcon=type=>`<svg class="inning-pitch-icon" viewBox="0 0 24 28" aria-hidden="true"><path d="${type==='FF'?'M12 3v19':type==='SL'?'M18 3c0 11-1 14-12 19':'M7 3c0 6 10 7 10 19'}" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="${type==='FF'?12:type==='SL'?6:17}" cy="22" r="3" fill="currentColor"/></svg>`;
 let opened=false;
-const KEYCAPS={'.inning-look':'H','.inning-sound':'M','.inning-exit':'Esc'};
+const KEYCAPS={'.inning-sound':'M','.inning-exit':'Esc'};
 export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,continuedGame=null) {
   const full=role==='full',batting=full?continuedGame?.half==='bottom':role!=='pitcher';
   let stage=full?FULL_STAGE:getStage(batting?initialStage:0);
@@ -65,8 +65,6 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     $('.inning-presentation').append($('.inning-opponent'));
     // 키캡. 터치 기기에서는 CSS 가 숨긴다. 단축키는 key() 가 같은 표를 읽는다.
     for(const [selector,cap] of Object.entries(KEYCAPS))for(const b of root.querySelectorAll(selector))b.insertAdjacentHTML('beforeend','<kbd class="key">'+cap+'</kbd>');
-    root.insertAdjacentHTML('beforeend','<button class="inning-look" aria-label="홈플레이트 보기 / 정면으로" title="홈플레이트 보기 / 정면으로"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7h12v7l-6 5-6-5zM4 3h16"/></svg></button>');
-    $('.inning-look').onclick=()=>lv?.three?.lookAtPlate();
   }
   const plan=open=>{root.classList.toggle('is-planning',open);$('.inning-plan-toggle')?.setAttribute('aria-expanded',String(open));};
   if(!batting)$('.inning-plan-toggle').onclick=()=>{if(!busy)plan(!root.classList.contains('is-planning'));};
@@ -289,6 +287,11 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     if(!continuedGame)await new Promise(resolve=>{enter.onclick=()=>{enter.disabled=true;resolve();};});
     if(dead||lv!==loadingView)return;
     card.remove();root.classList.remove('is-match-intro');
+    if(batting){
+      sync(game.snapshot());lv.S.broadcast={kind:'pitch'};lv.sfx.setChant(game.batter.name,game.order+1);
+      hideEntry();root.classList.remove('is-intro');busy=false;$('.inning-picks').disabled=false;$('.inning-throw').disabled=false;
+      dock();scheduleNext(1600);return;
+    }
     const S=lv.S,tl=new Timeline(),pitcher=S.fielders.P;S.batter=null;pitcher.x=5;pitcher.y=14;pitcher.pose='walkField';S.broadcast={kind:'entry'};
     showEntry('fP',pitcher.name,batting?pitcherTrait(game.pitcher):'직구 · 슬라이더 · 체인지업');
     tl.add(0,3,k=>{pitcher.x=5*(1-k);pitcher.y=14+4.44*k;});
@@ -409,7 +412,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     if(batting&&!e.repeat&&!e.altKey&&!e.ctrlKey&&!e.metaKey&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName||'')){
       const k=e.key.toLowerCase();
       const tap=sel=>{const b=root.querySelector(sel);if(b&&!b.disabled&&b.getClientRects().length){e.preventDefault();b.click();}};
-      if(k==='t'&&!busy&&!root.classList.contains('is-intro')){e.preventDefault();callTime(!paused);}else if(k==='h')tap('.inning-look');else if(k==='m')tap('.inning-sound');
+      if(k==='t'&&!busy&&!root.classList.contains('is-intro')){e.preventDefault();callTime(!paused);}else if(k==='m')tap('.inning-sound');
       if(k===' '&&paused&&!busy){e.preventDefault();callTime(false);}
     }if(e.key==='Tab'){const buttons=[...root.querySelectorAll('button:not(:disabled)')].filter(e=>e.getClientRects().length);const first=buttons[0],last=buttons.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}}
   function visibility(){if(dead)return;lv.sfx.mute(document.hidden||lv.speed>2);if(!document.hidden&&lv.sfx.on)lv.sfx.stadium(busy?ambience:'idle',intensity);}
