@@ -619,7 +619,8 @@ export class Live3D {
       const pitcher=point(0,16.8,1.85),direction=pitcher.sub(eye).normalize();
       const yaw=Math.atan2(direction.x,-direction.z)+this.look.yaw,pitch=Math.asin(direction.y)-.10+this.look.pitch;
       aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      fov=this.camera.aspect<1?88:76;
+      // Keep the pitch readable at the actual eye position on either screen orientation.
+      fov=64;
     }
     else if(kind==='mound') {
       // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.
