@@ -67,7 +67,7 @@ try {
   for(const handed of ['R','L'])for(const swing of [0,.25,.5,.75,1]){
    state.swing=swing;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:handed},'#cf7756','bat',state);
    a.root.updateMatrixWorld(true);
-   const rear=handed==='R'?1:0,front=1-rear;
+   const rear=handed==='R'?0:1,front=1-rear;
    maxGripGap=Math.max(maxGripGap,a.hands[rear].localToWorld(new T.Vector3(0,.075,0)).distanceTo(a.hands[front].getWorldPosition(new T.Vector3())));
   }
   state.swing=0;Live3D.prototype.updatePlayer.call(driver,'bat',{x:-.65,y:0,hand:'R'},'#cf7756','bat',state);

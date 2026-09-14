@@ -370,8 +370,10 @@ export class Live3D {
       if(power){const turn=clamp((t-.25)/.57,0,1)*(1-(S.batRecover||0));q.hips[1]+=.14*turn;q.spine[1]+=.10*turn;}
       if(handed<0){const swap=(a,b)=>{const x=q[a];q[a]=q[b];q[b]=x;};swap('legL','legR');swap('kneeL','kneeR');swap('footL','footR');swap('armL','armR');swap('elbowL','elbowR');}
       applyPose(p,q,handed);
-      const rear=handed===1?1:0,front=1-rear;
-      p.head.rotation.y=-p.spine.rotation.y*.65;
+      // In the loaded stance, the negative-x shoulder is catcher-side for a righty.
+      const rear=handed===1?0:1,front=1-rear;
+      // Keep the face toward the pitcher while the torso coils and opens.
+      p.head.rotation.y=handed*Math.PI/2-p.hips.rotation.y-p.spine.rotation.y-p.body.rotation.y;
       // Bat: absolute angle in root space, driven by the clip and nudged by where the pitch is.
       // The bat hangs along the hand's −y axis at rest; aim that axis along the clip's bat direction (mirrored for lefties).
       const bat=q.bat||[.35,.9,-.3];
