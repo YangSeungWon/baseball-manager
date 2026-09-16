@@ -26,7 +26,7 @@ try {
   assert.equal(await page.locator('.batting-pointer').isVisible(),true);assert.equal(await page.locator('.batting-cancel-area').isVisible(),true);
   const ring=await page.locator('.batting-pointer').boundingBox();assert.ok(Math.abs(ring.y+ring.height/2-(height*.55-64))<1);
   await page.screenshot({path:`/tmp/batting-touch-aim-${width}.png`});
-  await page.evaluate(()=>touch('pointermove',innerHeight-10));assert.equal(await page.locator('.batting-cancel-area').textContent(),'놓으면 취소');assert.equal(await page.locator('.batting-pointer.is-cancel').count(),1);
+  await page.evaluate(()=>touch('pointermove',innerHeight-10));assert.equal(await page.locator('.batting-cancel-area').textContent(),'놓으면 참기');assert.equal(await page.locator('.batting-pointer.is-cancel').count(),1);
   await page.screenshot({path:`/tmp/batting-touch-cancel-${width}.png`});
   await page.evaluate(()=>touch('pointerup',innerHeight-10));assert.equal(await page.locator('.batting-pointer').isVisible(),false);assert.equal(await page.locator('.batting-cancel-area').isVisible(),false);
   await page.locator('.inning-exit').click();assert.deepEqual(errors,[]);await page.close();console.log(`PASS: ${width}×${height} touch aim and cancel UI`);

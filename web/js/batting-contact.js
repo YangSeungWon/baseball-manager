@@ -8,7 +8,9 @@ export function battingContact({aim,pitch,timing,power=.5,batter={}}){
   const C=BATTING.manualContact,W=BATTING.swingWindow;
   const seconds=(timing-(W.from+W.to)/2)*BATTING.playerInput.timingTolerance*2/(W.to-W.from);
   const dx=aim.x-pitch.x,dz=aim.z-pitch.z;
-  const distance=Math.hypot(dx*ZONE.halfWidth,dz*ZONE.halfHeight),spatial=distance/(C.batRadius+C.ballRadius),temporal=Math.abs(seconds)/C.contactSeconds;
+  // A contact swing brings a larger barrel and forgives more time; a power swing narrows both.
+  const drive=clamp(power,0,1),mix=(a,b)=>a+(b-a)*drive,barrel=mix(C.swing.contact.barrel,C.swing.power.barrel),window=mix(C.swing.contact.window,C.swing.power.window);
+  const distance=Math.hypot(dx*ZONE.halfWidth,dz*ZONE.halfHeight),spatial=distance/((C.batRadius+C.ballRadius)*barrel),temporal=Math.abs(seconds)/(C.contactSeconds*window);
   const overlap=Math.hypot(spatial,temporal),quality=clamp(1-overlap*overlap,0,1);
   const angle=clamp(seconds/C.contactSeconds*C.timingSpray+dx*C.aimSpray+pitch.x*C.pitchSpray,-100,100);
   const launch=clamp(C.launchBase+power*C.launchPower-dz*C.verticalLaunch-pitch.z*C.pitchLift,-12,65);

@@ -672,7 +672,8 @@ export class LiveView {
     tl.at(t0 + 0.9, () => { S.hold = null; });
     const plateAt=t0+.9+T;
     const catchSeconds=T*CATCHER_DEPTH/PITCH_RELEASE_DISTANCE;
-    const tArr=q.swingStart!=null&&['X','F'].includes(q.r)?q.swingStart+BAT_CONTACT_SECONDS:plateAt;
+    const batSeconds=q.batSeconds??BAT_CONTACT_SECONDS;
+    const tArr=q.swingStart!=null&&['X','F'].includes(q.r)?q.swingStart+batSeconds:plateAt;
     tl.add(t0 + 0.9, tArr-(t0+.9), (progress) => {
       const k=progress*(tArr-(t0+.9))/T;
       S.pitcherWind = Math.max(0,1-k);
@@ -688,17 +689,22 @@ export class LiveView {
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.
     // q.swingLead (window fraction, + = pressed early) nudges the bat so a mistimed swing looks mistimed.
     const swingAt = tArr - 0.16 - (q.swingLead || 0) * 0.3;
-    if (q.r === 'W' || q.r === 'F' || q.r === 'X') {
+    if(q.checkAt!=null){
+      // 체크 스윙: 배트가 반쯤 나왔다가 되돌아온다. 판정이 스윙이어도 헛스윙 동작은 하지 않는다.
+      const from=S.batSwingFrom??.25,peak=Math.max(from,q.checkPeak??.4);
+      tl.add(q.checkAt,.08,k=>{S.swing=from+(peak-from)*k;S.batRecover=0;});
+      tl.add(q.checkAt+.08,.3,k=>{S.swing=peak+(.25-peak)*k;},()=>{S.swing=0;});
+    } else if (q.r === 'W' || q.r === 'F' || q.r === 'X') {
       if(q.swingStart!=null){
         // The bat takes the same time to reach contact for every player press.
         const start=q.swingStart,from=S.batSwingFrom??0;
-        const contact=start+BAT_CONTACT_SECONDS,drive=BAT_CONTACT_SECONDS;
+        const contact=start+batSeconds,drive=batSeconds;
         tl.add(start,drive,k=>{S.swing=from+(.62-from)*k;S.batRecover=0;});
         tl.add(contact,.28,k=>{S.swing=.62+.38*k;});
         tl.add(contact+.28,.25,k=>{S.swing=1;S.batRecover=k;},()=>{S.swing=0;S.batRecover=0;});
       }else tl.add(swingAt, 0.34, (k) => { S.swing = k; }, () => { S.swing = 0; });
     }
-    if (q.r === 'W') tl.at((q.swingStart??swingAt) + 0.04, () => this.sfx.whiff());
+    if (q.r === 'W' && q.checkAt==null) tl.at((q.swingStart??swingAt) + 0.04, () => this.sfx.whiff());
     if (q.r !== 'X') tl.at(tArr + 0.7, () => { S.broadcast = { kind: 'between' }; });
     tl.at(tArr, () => {
       if (q.r === 'F') this.sfx.crack(q.contactQuality??0.3, true);

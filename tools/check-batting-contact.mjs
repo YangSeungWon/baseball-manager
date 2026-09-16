@@ -55,3 +55,23 @@ test('contact reaches outside every edge of the strike zone',()=>{
   assert.equal(make().decidePitch('swing',.7,.5,{x:0,z:0}).call,'W');
  }
 });
+test('a held-up swing is ruled by how far the bat came, from the swing-only roll',async()=>{
+ const {checkSwingChance}=await import('../web/js/batting-game.js');
+ assert.equal(checkSwingChance(0),0);assert.equal(checkSwingChance(1),1);
+ for(let seed=1;seed<40;seed++)for(const depth of [0,.6,1]){
+  const g=new BattingGame(seed),d=g.preparePitch({target:'any',approach:'contact'}),roll=g.pending.roll[2];
+  const e=g.decidePitch('take',null,null,null,{depth}),called=roll<checkSwingChance(depth);
+  assert.equal(e.check.called,called);assert.equal(e.call,called?'W':Math.abs(d.x)<=1&&Math.abs(d.z)<=1?'S':'B');
+  if(depth===0)assert.equal(called,false,'an early hold-up is a clean take');
+  if(depth===1)assert.equal(called,true,'a bat held through the pitch is a swing');
+ }
+ const g=new BattingGame(1);g.preparePitch({target:'any',approach:'contact'});
+ assert.throws(()=>g.decidePitch('swing',.7,.5,{x:0,z:0},{depth:.5}),'only a take can carry a check swing');
+});
+test('contact swings forgive a wider miss, power swings drive the ball harder',async()=>{
+ const {BATTING}=await import('../web/js/batting-tuning.js'),{BATTING_ZONE}=await import('../web/js/batting-space.js');
+ const C=BATTING.manualContact,edge={aim:{x:(C.batRadius+C.ballRadius)/BATTING_ZONE.halfWidth*.99,z:0},pitch:{x:0,z:0},timing:.7};
+ assert.notEqual(battingContact({...edge,power:0}).kind,'miss');
+ assert.equal(battingContact({...edge,power:1}).kind,'miss');
+ assert.ok(battingContact({...centered,power:1}).speed>battingContact({...centered,power:0}).speed);
+});

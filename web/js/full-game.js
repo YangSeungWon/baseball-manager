@@ -31,8 +31,8 @@ export class FullGame extends BattingGame{
   const r=applyGrammar(this.pitcher.grammar,this.pitcher,this.grammarContext(),roll,base);
   this.lastMeta={ruleId:r.ruleId,tell:r.tell};return {...r.pitch,tell:r.tell};
  }
- decidePitch(action,timing=null,power=null,aim=null){
-  const e=super.decidePitch(action,timing,power,aim),meta=this.lastMeta||{};
+ decidePitch(action,timing=null,power=null,aim=null,check=null){
+  const e=super.decidePitch(action,timing,power,aim,check),meta=this.lastMeta||{};
   const entry=this.histories.bottom.at(-1);if(entry){entry.ruleId=meta.ruleId||null;entry.tell=meta.tell||null;}
   e.ruleId=meta.ruleId||null;e.tell=meta.tell||null;e.adjusted=null;
   if(meta.ruleId&&['1B','2B','3B','HR'].includes(e.result)){

@@ -372,6 +372,9 @@ export class Live3D {
       const q=sample(SWING,t);
       if(S.batRecover){const rest=sample(SWING,.25);for(const name of Object.keys(q))if(rest[name])q[name]=q[name].map((v,i)=>v+(rest[name][i]-v)*S.batRecover);}
       if(power){const turn=clamp((t-.25)/.57,0,1)*(1-(S.batRecover||0));q.hips[1]+=.14*turn;q.spine[1]+=.10*turn;}
+      // Loading coils the hips and shoulders away from the pitcher; a power load (started before release) coils deeper.
+      S.batLoadShown=(S.batLoadShown||0)+((swing?0:S.batLoad||0)-(S.batLoadShown||0))*.25;
+      const coil=S.batLoadShown;if(coil>.001){q.hips[1]-=.10*coil;q.spine[1]-=.16*coil;q.grip=[q.grip[0]-.03*coil,q.grip[1]+.03*coil,q.grip[2]];}
       if(handed<0){const swap=(a,b)=>{const x=q[a];q[a]=q[b];q[b]=x;};swap('legL','legR');swap('kneeL','kneeR');swap('footL','footR');swap('armL','armR');swap('elbowL','elbowR');}
       applyPose(p,q,handed);
       // In the loaded stance, the negative-x shoulder is catcher-side for a righty.

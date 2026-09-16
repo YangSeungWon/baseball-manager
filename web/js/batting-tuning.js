@@ -6,8 +6,14 @@ import {logit,invLogit} from './core/pa.js';
 export const BATTING={
   manualContact:{batRadius:.125,ballRadius:.12,contactSeconds:.10,solidQuality:.72,
     timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
-    speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4},
-  playerInput:{contactSeconds:.14,timingTolerance:.055},
+    speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4,
+    // 스윙 종류별 배트 중심 크기와 시간 허용 폭 배율. 힘 .5(자동·이전 입력)는 둘 다 1이다.
+    swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.85,window:.8}}},
+  playerInput:{contactSeconds:.14,timingTolerance:.055,
+    // 투수 릴리스 전에 준비(누르기)를 시작하면 장타 스윙, 릴리스 후면 컨택 스윙. seconds 는 떼고 나서 배트가 접촉 지점에 닿는 시간.
+    swings:{contact:{seconds:.11,power:0},power:{seconds:.17,power:1}},
+    // 준비 중 참기: 도착 span 초 전부터 배트가 나오기 시작한다. 나온 정도가 callFrom 을 넘으면 스윙 판정 확률이 1까지 오른다. peak 는 반쯤 나온 배트의 최대 스윙 단계.
+    check:{span:.2,callFrom:.35,peak:.3}},
   // 평균 타자(컨택 .72)가 존 안 공을 자동 스윙으로 칠 때 배트에 맞을 확률(파울 포함)의 기준선.
   baseline:{contactLogit:logit(.78),floor:.10,ceil:.98},
   // 타자 컨택 .05 차이 = 로그오즈 .30.

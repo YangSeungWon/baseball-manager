@@ -36,7 +36,7 @@ test('every inning mode opens without an error in our modules, then closes and r
   const {openInningMode}=await import('../web/js/inning-mode.js');
   const $=s=>w.document.querySelector(s);
   try{
-    for(const [role,seed,stage,expect] of [['batter',7,0,['.batting-hold','.inning-time','[data-group=target]','.batting-clock']],['pitcher',7,0,['.pitch-breathe','.pitch-effort','.pitch-hold','[data-group=type]']],['batter',7,2,['.batting-hold']],['full',null,0,['.pitch-hold','.pitch-breathe']]]){
+    for(const [role,seed,stage,expect] of [['batter',7,0,['.batting-pointer','.batting-cancel-area','.inning-throw']],['pitcher',7,0,['.pitch-breathe','.pitch-effort','.pitch-hold','[data-group=type]']],['batter',7,2,['.batting-pointer']],['full',null,0,['.pitch-hold','.pitch-breathe']]]){
       const before=errors.length;
       openInningMode(role,seed,stage);
       assert.ok($('.inning-mode'),`${role}: mode element exists`);
