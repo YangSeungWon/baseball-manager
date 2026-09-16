@@ -113,7 +113,7 @@ export class Live3D {
       for(const [y,r] of [[.03,.058],[.13,.056]]){const hand=new T.Mesh(new T.SphereGeometry(r,12,10),skin);hand.position.y=y;hand.scale.set(1,1.15,.85);pivot.add(hand);}
       for(const m of [bat,grip,knob])m.userData.noBatch=true;
       fp.traverse(o=>{o.userData.noBatch=true;o.frustumCulled=false;});
-      this.canvas.setAttribute('aria-label','타자 시점 · 마우스로 조준하고 클릭, 터치는 조준 후 손을 떼면 스윙');this.canvas.tabIndex=0;
+      this.canvas.setAttribute('aria-label','타자 시점 · 마우스로 조준하고 왼쪽 버튼을 누르면 준비, 떼면 스윙. 터치는 대고 조준한 뒤 손을 떼면 스윙');this.canvas.tabIndex=0;
       this.canvas.style.touchAction='none';
       this.lookInput=new AbortController();
       const listen=(name,fn)=>this.canvas.addEventListener(name,fn,{signal:this.lookInput.signal});
@@ -506,8 +506,14 @@ export class Live3D {
         const points=[[-ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.bottom]].map(([x,y])=>new T.Vector3(x,y,0));
         this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#ffe0a0',transparent:true,opacity:.8,depthTest:false,depthWrite:false}));
         this.battingZone.renderOrder=2;this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
+        // At eye level home lies outside the forward frame, so the same zone is mirrored on screen where the aim maps.
+        // Screen fraction is linear in NDC, so a camera-parented rectangle matches battingAimAt exactly at any fov.
+        const frame=[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]].map(([x,y])=>new T.Vector3(x,y,-1));
+        this.battingViewZone=new T.Line(new T.BufferGeometry().setFromPoints(frame),new T.LineBasicMaterial({color:'#ffe0a0',transparent:true,opacity:.5,depthTest:false,depthWrite:false}));
+        this.battingViewZone.renderOrder=2;this.battingViewZone.userData.noBatch=true;this.battingViewZone.frustumCulled=false;this.camera.add(this.battingViewZone);
       }
       this.battingZone.visible=!!S.batter&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind);
+      this.battingZoneOn=this.battingZone.visible;
       this.battingAim.visible=!!S.aim&&!S.pointerAiming&&this.battingZone.visible&&!S.swing;
       if(S.aim)this.battingAim.position.set(S.aim.x*ZONE.halfWidth,ZONE.center+S.aim.z*ZONE.halfHeight,.01);
     }
@@ -658,6 +664,13 @@ export class Live3D {
     if(this.camera.fov!==fov){this.camera.fov=fov;this.camera.updateProjectionMatrix();}
     this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
+    // The home glance projects the real zone, so the screen copy only stands in for the forward view.
+    if(this.battingViewZone){
+      const show=kind==='batting'&&!this.look.pinned&&!!this.battingZoneOn;
+      this.battingViewZone.visible=show;
+      if(show){const depth=2,half=depth*Math.tan(this.camera.fov*Math.PI/360)/BATTING_AIM_LIMIT;
+        this.battingViewZone.position.set(0,0,-depth);this.battingViewZone.scale.set(half*this.camera.aspect,half,1);}
+    }
   }
   fadeTo(opacity){
     const o=Math.max(0,Math.min(1,opacity));if(o===this.fadeOpacity)return;this.fadeOpacity=o;
