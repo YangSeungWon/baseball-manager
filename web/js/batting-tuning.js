@@ -9,9 +9,10 @@ export const BATTING={
   // 그 바깥은 배트 끝이나 손잡이에 맞은 파울이다(barrelFoul 도 만큼 그쪽으로 감기거나 밀린다).
   manualContact:{batRadius:.125,ballRadius:.12,batSpan:.36,sweetSpan:.16,barrelFoul:38,contactSeconds:.10,solidQuality:.72,
     timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
-    // 깎여맞음: 배트 중심에서 위아래로 tipFrom(배트+공 반지름 비율) 넘게 벗어났는데 타이밍 각도는 tipTiming 도 안쪽일 때.
+    // 깎여맞음: 배트 굵기의 tipFrom 넘게 위아래로 벗어나 스치듯 맞았는데 타이밍 각도는 tipTiming 도 안쪽일 때.
+    // 이 값이 낮으면 배트 높이를 맞추지 않은 공이 전부 파울이 된다 — 존 안 높은 공·낮은 공은 빗맞은 타구여야 한다.
     // 배트가 공 아래면 백네트로 넘어가고(tipBackAngle · tipBackLaunch), 위면 땅에 꽂힌다(tipDownLaunch). 타구는 힘을 거의 잃는다.
-    tipFrom:.55,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
+    tipFrom:.85,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
     speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4,
     // 스윙 종류별 배트 중심 크기와 시간 허용 폭 배율. 힘 .5(자동·이전 입력)는 둘 다 1이다.
     swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.85,window:.8}}},

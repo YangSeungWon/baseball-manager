@@ -37,14 +37,15 @@ test('foul direction reads back as timing: pull side is early, opposite side is 
 });
 test('good timing with the bat off the ball vertically is a tipped foul, not a spray foul',()=>{
  const hit=a=>battingContact({...centered,...a});
- const under=hit({aim:{x:0,z:-.52}}),over=hit({aim:{x:0,z:.52}});
+ const off=.74;   // 배트 굵기의 .9 — 스치듯 맞는 높이
+ const under=hit({aim:{x:0,z:-off}}),over=hit({aim:{x:0,z:off}});
  for(const f of [under,over]){assert.equal(f.kind,'foul');assert.equal(f.reason,'contact');assert.ok(f.tipped);}
  assert.ok(Math.abs(under.angle)>90,'clipping the bottom of the ball sends it back over the catcher');
  assert.ok(over.launch<0,'covering the top of the ball drives it into the ground');
  assert.ok(under.speed<hit({}).speed,'a tipped ball keeps little of the swing');
  // 타이밍까지 어긋나 있으면 깎여맞음으로 읽지 않는다. 그때 방향이 말해주는 것은 타이밍이다.
- assert.equal(hit({aim:{x:0,z:-.52},timing:.83}).tipped,false);
- assert.equal(hit({aim:{x:0,z:-.3}}).tipped,false,'a small vertical miss still puts the ball in play');
+ assert.equal(hit({aim:{x:0,z:-off},timing:.83}).tipped,false);
+ assert.equal(hit({aim:{x:0,z:-.6}}).tipped,false,'a high or low strike met off-center is a weak batted ball, not a tip');
 });
 const scripted=(dice,offset={x:0,z:0},timing=.7)=>{
  const g=new BattingGame(3),r=[0,0,...dice,.5,.5,.5,.5];let i=0;g.random=()=>r[i++];
