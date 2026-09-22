@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {FullGame} from '../web/js/full-game.js';
-const g=new FullGame(123),out=[0,.1,0,.9,.42,.55,.5,.5,.5,.5],swing={target:'any',approach:'contact',location:'any',action:'swing'};
+// roll[4] 가 타구 질이다. 약하게 맞은 타구라야 수비가 잡아 이닝이 끝난다.
+const g=new FullGame(123),out=[0,.1,0,.9,.02,.55,.5,.5,.5,.5],swing={target:'any',approach:'contact',location:'any',action:'swing'};
 assert.equal(g.half,'top');assert.equal(g.awayRuns,0);
 g.strikes=2;g.outs=2;g.random=()=>.99;
 let e=g.pitch({type:'FF',zone:'out',intent:'attack',release:0});
