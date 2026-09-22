@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {simulateField,sampleField} from '../web/js/field-sim.js';
-import {runningTime,resolveRunning} from '../web/js/base-running.js';
+import {runningTime,resolveRunning,RUN_BASES} from '../web/js/base-running.js';
 import {BattingGame} from '../web/js/batting-game.js';
 test('same ground ball: batter speed changes an out into a single',()=>{
  const input={speed:32,launch:25,angle:20};
@@ -17,10 +17,34 @@ test('same outfield hit: speed changes the safe base without a time cutoff',()=>
  const fast=simulateField({...input,batter:{speed:9}});assert.equal(fast.result,'2B');assert.equal(fast.running.contest.base,2);assert.equal(fast.running.contest.out,false);
 });
 test('existing runner from second scores only when travel beats the throw',()=>{
- const input={speed:40,launch:12,angle:20,batter:{speed:7}};
+ // 좌중간 안타. 중계를 거친 홈 송구와 2루 주자의 주력이 겨루는 타구다.
+ const input={speed:42,launch:18,angle:-20,batter:{speed:7}};
  const slow=simulateField({...input,bases:[null,{id:'r',speed:5.5},null]}),fast=simulateField({...input,bases:[null,{id:'r',speed:9},null]});
  assert.equal(slow.running.scored,0);assert.equal(slow.running.bases[2].id,'r');
- assert.equal(fast.running.scored,1);assert.equal(fast.running.contest.base,4);
+ assert.equal(fast.running.scored,1);
+ // 홈에서 승부가 안 되면 홈으로 던지지 않는다. 뒤 주자를 묶는 쪽으로 간다.
+ assert.ok(fast.running.contest.base<4,'a hopeless throw home is not made');
+});
+test('a long throw goes through a relay, so the outfield cannot beat a runner by magic',()=>{
+ // 우익수 깊은 곳에서 3루까지. 잡고 던지는 시간 + 중계 + 공기저항이 모두 붙는다.
+ const deep={speed:44,launch:22,angle:33,batter:{speed:8.2},bases:[{id:'r',speed:8.2},null,null]};
+ const p=simulateField(deep);
+ const grab=p.events.find(e=>e.type==='pickup'||e.type==='catch'),thrown=p.events.find(e=>e.type==='throw');
+ assert.ok(['LF','CF','RF'].includes(p.handler),'this ball is fielded in the outfield: '+p.handler);
+ assert.ok(thrown.t-grab.t>=.6,'an outfielder needs a step before releasing');
+ const [tx,ty]=RUN_BASES[p.running.contest.base],distance=Math.hypot(thrown.x-tx,thrown.y-ty);
+ const flight=p.running.contest.ballArrival-thrown.t;
+ if(distance>55)assert.ok(flight>distance/38,`a ${distance.toFixed(0)}m relay cannot travel at full arm speed (${flight.toFixed(2)}s)`);
+ assert.ok(flight<distance/12,'the throw is still a throw, not a lob');
+});
+test('with two outs the defense takes the surest out instead of chasing the lead runner',()=>{
+ const bases=[{id:'first',speed:8.2},{id:'second',speed:4.2},null];
+ const input={speed:26,launch:4,angle:-12,batter:{speed:8.2},bases};
+ const one=simulateField({...input,outs:1}),two=simulateField({...input,outs:2});
+ for(const p of [one,two])assert.ok(p.running.contest,'a fielded ground ball produces a throw');
+ const margin=p=>p.running.contest.runnerArrival-p.running.contest.ballArrival;
+ assert.ok(two.running.contest.out,'the two-out throw is an out');
+ assert.ok(margin(two)>=margin(one)-1e-9,'with two outs it never takes the riskier base');
 });
 test('runner and receiver traces respect speeds and match render samples',()=>{
  const p=simulateField({speed:40,launch:12,angle:20,batter:{id:'b',speed:9},bases:[{id:'r',speed:7},null,null]});

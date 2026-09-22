@@ -2,6 +2,11 @@ import {commitOnFlight} from './runner-read.js';
 import {RUN_BASES,RUN_ACCELERATION,runningTime,runningRoute,leadDistance,runnerArrival,runnerPosition} from './runner-motion.js';
 export {RUN_BASES,runningTime} from './runner-motion.js';
 const LEG=Math.hypot(19.4,19.4),STEP=1/30;
+// 송구. 단장 모드 엔진(core/run.js)과 같은 모델을 쓴다 — 잡고 던지기까지의 시간(내야 .45s · 외야 .75s),
+// 거리/어깨, 그리고 55m 를 넘는 외야 송구는 중계를 한 번 거친다(+.60s). 외야는 높게 던지느라 실효 속도가 낮다.
+// 예전에는 잡자마자 .35초 뒤 직선 등속으로 날아가서, 우익수가 3루 주자를 말도 안 되게 잡았다.
+const THROW={releaseIF:.45,releaseOF:.75,relay:.60,cutoff:55,arcOF:.85,receive:.1,sure:.15,close:.4};
+const OUTFIELD=new Set(['LF','CF','RF']);
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const runnerAt=runnerPosition;
 // Adjudicates one defensive throw. Running and throwing use the same replay trace.
@@ -16,10 +21,13 @@ export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',
  const defensePlan=(base,estimate=false)=>{
   if(!pickup&&!caught)return {time:Infinity,receiver:null,carry:false};
   const receiver=receiverFor(base),carrier=live.find(f=>f.pos===play.handler),target=RUN_BASES[base];
-  const distance=Math.hypot(last.x-target[0],last.y-target[1]);
-  const effort=.72+.28*Math.min(1,distance/45),velocity=(defense?.[play.handler]?.arm??armSpeed)*effort*(estimate?.9:1);
-  const flight=distance/velocity,ready=receiver?last.t+Math.hypot(receiver.x-cover(base)[0],receiver.y-cover(base)[1])/fSpeed(receiver):Infinity;
-  const release=Math.max(last.t+(estimate?.5:.35),ready-flight),thrown=release+flight;
+  const distance=Math.hypot(last.x-target[0],last.y-target[1]),of=OUTFIELD.has(play.handler);
+  const velocity=(defense?.[play.handler]?.arm??armSpeed)*(of?THROW.arcOF:1)*(estimate?.9:1);
+  // 한 번에 닿지 않는 외야 송구는 중계를 거친다. 커트맨이 받고 다시 던지는 시간이 그대로 붙는다.
+  const flight=distance/velocity+(of&&distance>THROW.cutoff?THROW.relay:0)+THROW.receive;
+  const ready=receiver?last.t+Math.hypot(receiver.x-cover(base)[0],receiver.y-cover(base)[1])/fSpeed(receiver):Infinity;
+  const settle=of?THROW.releaseOF:THROW.releaseIF;
+  const release=Math.max(last.t+settle+(estimate?.15:0),ready-flight),thrown=release+flight;
   const carryRelease=last.t+.2,carried=carrier?carryRelease+Math.hypot(carrier.x-target[0],carrier.y-target[1])/fSpeed(carrier):Infinity;
   return carried<thrown?{time:carried,receiver:carrier,carry:true,release:carryRelease,velocity:fSpeed(carrier)}:{time:thrown,receiver,carry:false,release,velocity,receiverReady:ready};
  };
@@ -34,8 +42,9 @@ export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',
  // A following runner cannot pass a slower runner or reach an occupied bag first.
  for(const r of [...runners].reverse()){
   const ahead=runners.filter(x=>x.from>r.from).sort((a,b)=>a.from-b.from)[0];if(!ahead||caught&&r.from===0)continue;
-  r.speed=Math.min(r.speed,ahead.speed);
   const gap=ahead.from-r.from;
+  // 발이 묶이는 것은 바로 앞 베이스의 주자뿐이다. 두 베이스 앞의 느린 주자가 내 주루까지 늦추지는 않는다.
+  if(gap===1)r.speed=Math.min(r.speed,ahead.speed);
   r.start=Math.max(r.start,ahead.start+ahead.speed/RUN_ACCELERATION+.25-runningTime(gap*LEG,r.speed)-Math.max(0,gap-1)*.18);
  }
  for(const r of runners)if(r.returnAt!=null){r.returnEnd=r.returnAt+runningTime(r.lead,r.speed);r.start=Math.max(r.start,r.returnEnd);}
@@ -52,7 +61,19 @@ export function resolveRunning(play,{bases=[null,null,null],batter={id:'batter',
  let contest=null;
  if(!award&&(pickup||caught)&&!(caught&&outs===2)){
   const choices=runners.filter(r=>r.outAt==null&&r.to>r.from).map(r=>{const ball=throwETA(r.to),force=!caught&&forced.has(r.from)&&r.to===r.from+1;return {r,ball,force,out:ball+(force?0:.18)<r.arrival};}).filter(c=>Number.isFinite(c.ball));
-  choices.sort((a,b)=>Number(b.out)-Number(a.out)||b.r.to-a.r.to||a.ball-b.ball);contest=choices[0]||null;
+  // 어디로 던지나. 아웃이 되는 쪽이 먼저고, 그중에서 2아웃이면 가장 확실한 아웃을 잡는다(아웃 하나면 이닝이 끝난다).
+  // 여유가 있을 때만 선행 주자를 노리고, 아무 데서도 아웃이 안 되면 뒤 주자 쪽(보통 1루)으로 던져 진루를 묶는다.
+  const margin=c=>c.r.arrival-(c.ball+(c.force?0:.18)),sure=c=>c.out&&margin(c)>=THROW.sure;
+  const close=c=>margin(c)>-THROW.close;   // 아웃은 아니지만 승부가 되는 거리
+  choices.sort((a,b)=>{
+   if(a.out!==b.out)return Number(b.out)-Number(a.out);
+   if(!a.out){
+    if(close(a)!==close(b))return Number(close(b))-Number(close(a));
+    return close(a)?b.r.to-a.r.to||margin(b)-margin(a):a.r.to-b.r.to||a.ball-b.ball;
+   }
+   if(outs===2||sure(a)!==sure(b))return margin(b)-margin(a);
+   return b.r.to-a.r.to||margin(b)-margin(a);
+  });contest=choices[0]||null;
   if(contest){const {r,ball,force,out}=contest;if(out)r.outAt=force?ball:r.arrival;Object.assign(contest,defensePlan(r.to));contest.end=Math.max(ball,out&&!force?r.arrival:ball);}
  }
  const outEvents=runners.filter(r=>r.outAt!=null).sort((a,b)=>a.outAt-b.outAt),third=outEvents[2-outs],thirdTime=third?.outAt??Infinity,forceThird=third&&(third.from===0&&third.to===1||contest?.r===third&&contest.force);
