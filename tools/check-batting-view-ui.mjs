@@ -40,11 +40,13 @@ try {
   lv.S.batter.hand=hand;lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);camera.updateMatrixWorld(true);
   // 포수 뒤 고정 시점: 좌우타가 달라도 같은 자리에서 존을 정면으로 본다.
   if(camera.position.x!==0)throw Error('batting camera left the center line');
-  const eye=camera.position.clone(),rotation=camera.quaternion.clone(),zone=Array.from(view.battingZone.geometry.attributes.position.array);
+  view.battingZone.updateMatrixWorld(true);
+  const eye=camera.position.clone(),rotation=camera.quaternion.clone(),zone=view.battingZone.matrixWorld.toArray().join();
   for(const swing of [.25,.62,1]){
    lv.S.aim=null;lv.S.swing=swing;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
    if(camera.position.distanceTo(eye)>1e-8||camera.quaternion.angleTo(rotation)>1e-7)throw Error('swing moved the camera');
-   if(!view.battingZone.visible||JSON.stringify(zone)!==JSON.stringify(Array.from(view.battingZone.geometry.attributes.position.array)))throw Error('swing moved or hid the zone');
+   view.battingZone.updateMatrixWorld(true);
+   if(!view.battingZone.visible||view.battingZone.matrixWorld.toArray().join()!==zone)throw Error('swing moved or hid the zone');
   }
   lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);camera.updateMatrixWorld(true);
   // 존과 투수 릴리스가 한 화면에 함께 들어온다. 존은 아래쪽, 릴리스는 위쪽이다.
@@ -69,13 +71,17 @@ try {
  for(let i=0;i<120;i++)view.direct(lv.S,performance.now()/1000);
  camera.updateProjectionMatrix=project;if(projections!==0)throw Error('fixed camera recalculated projection');
  return {eye:camera.position.toArray(),error,squareError,aimVisible:view.battingAim.visible,
-  zoneWhite:view.battingZone.material.color.getHexString(),
+  zoneWhite:view.battingZoneBorder.color.getHexString(),
+  // 테두리는 1px 선이 아니라 두께가 있는 면이라 배경이 바뀌어도 같은 굵기로 읽힌다.
+  zoneBorderPx:(()=>{const bar=view.battingZone.children.find(o=>o.material===view.battingZoneBorder);
+    const box=new T.Box3().setFromObject(bar);return +((box.max.y-box.min.y)*1000).toFixed(1);})(),
   catcherVisible:!!view.players.get('fC')?.root.visible,umpireVisible:!!view.players.get('ump')?.root.visible,
   batterVisible:!!view.players.get('bat')?.root.visible};
  });
  assert.ok(view.error<1e-6,'aim matches the pitch coordinates on screen');
  assert.ok(view.squareError<1e-6,'the zone is square to the screen');
  assert.equal(view.zoneWhite,'ffffff','the zone is the white broadcast box');
+ assert.ok(view.zoneBorderPx>=10,`the border has real thickness (${view.zoneBorderPx} mm)`);
  assert.equal(view.aimVisible,true);
  assert.equal(view.catcherVisible,false,'the catcher does not stand in front of the zone');
  assert.equal(view.umpireVisible,false,'the umpire does not stand in front of the zone');

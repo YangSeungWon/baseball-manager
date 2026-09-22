@@ -32,7 +32,7 @@ const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#a
 // 포수 뒤 타격 시점. 홈에서 뒤로 back m, 높이 height m 에서 존을 거의 정면으로 본다.
 // 시선(aimDepth·aimHeight)은 존과 투수 릴리스 사이를 겨눠 존은 화면 아래, 투수는 위에 함께 들어온다.
 // 이 높이에서는 포수와 심판이 존을 가리므로 타격 중에는 둘을 그리지 않는다.
-const BATTING_VIEW={back:4.6,height:1.6,aimDepth:6,aimHeight:.71,fov:28};
+const BATTING_VIEW={back:5.2,height:1.25,aimDepth:6,aimHeight:.96,fov:24};
 const BATTING_SHOTS=['pitch','between','batter','pitcher'];
 // 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
 const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};
@@ -455,12 +455,23 @@ export class Live3D {
       if(!this.battingAim){
         this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
         this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
-        // 중계 화면의 K존처럼 흰 테두리에 아주 옅은 면을 채운다.
-        const points=[[-ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.bottom]].map(([x,y])=>new T.Vector3(x,y,0));
-        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#ffffff',transparent:true,opacity:.92,depthTest:false,depthWrite:false}));
-        this.battingZone.renderOrder=3;this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
-        const pane=new T.Mesh(new T.PlaneGeometry(ZONE.halfWidth*2,ZONE.top-ZONE.bottom),new T.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.10,depthTest:false,depthWrite:false,side:T.DoubleSide}));
-        pane.position.set(0,(ZONE.top+ZONE.bottom)/2,0);pane.renderOrder=2;pane.userData.noBatch=true;this.battingZone.add(pane);
+        // 중계 화면의 K존처럼 두께 있는 흰 테두리에 아주 옅은 면을 채운다.
+        // 1px 선은 잔디·흙 경계가 지날 때 조각조각 끊겨 보여 박스 모양이 읽히지 않는다.
+        // 어두운 테두리를 한 겹 깔아 밝은 흙 위에서도 같은 굵기로 보이게 한다.
+        const w=ZONE.halfWidth*2,h=ZONE.top-ZONE.bottom,T0=.014;
+        this.battingZone=new T.Group();this.battingZone.position.set(0,(ZONE.top+ZONE.bottom)/2,0);
+        this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
+        const pane=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.10,depthTest:false,depthWrite:false,side:T.DoubleSide}));
+        pane.renderOrder=2;pane.userData.noBatch=true;this.battingZone.add(pane);
+        const frame=(t,color,opacity,order)=>{
+          const material=new T.MeshBasicMaterial({color,transparent:true,opacity,depthTest:false,depthWrite:false,side:T.DoubleSide});
+          for(const [sx,sy,px,py] of [[w+t,t,0,h/2],[w+t,t,0,-h/2],[t,h-t,-w/2,0],[t,h-t,w/2,0]]){
+            const bar=new T.Mesh(new T.PlaneGeometry(sx,sy),material);
+            bar.position.set(px,py,0);bar.renderOrder=order;bar.userData.noBatch=true;this.battingZone.add(bar);
+          }
+          return material;
+        };
+        frame(T0*2.4,'#0d1a1f',.45,3);this.battingZoneBorder=frame(T0,'#ffffff',.96,4);
       }
       this.battingZone.visible=!!S.batter&&battingShot;
       this.battingAim.visible=!!S.aim&&!S.pointerAiming&&this.battingZone.visible&&!S.swing;
