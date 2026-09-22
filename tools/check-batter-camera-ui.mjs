@@ -23,38 +23,26 @@ try {
       localStorage.setItem('dugout.sfx','0');const {Live3D}=await import('/js/live3d.js');
       const direct=Live3D.prototype.direct;Live3D.prototype.direct=function(S,t){window.scene3d=this;return direct.call(this,S,t);};
     });
-    await page.locator('#btnBatting').click();await page.waitForFunction(()=>window.scene3d?.cameraKind==='batting');
-    const pose=()=>page.evaluate(()=>({eye:scene3d.camera.position.toArray(),look:{...scene3d.look},kind:scene3d.cameraKind}));
+    await page.locator('#btnBatting').click();
+    await page.locator('.match-enter:not([disabled])').click();
+    await page.waitForFunction(()=>window.scene3d?.cameraKind==='batting');
+    const pose=()=>page.evaluate(()=>({eye:scene3d.camera.position.toArray(),quaternion:scene3d.camera.quaternion.toArray(),kind:scene3d.cameraKind}));
     await page.locator('.pitcher-tag').waitFor({state:'visible'});
     const anchored=await page.evaluate(()=>{const a=scene3d.pitcherAnchor(),r=document.querySelector('.pitcher-tag').getBoundingClientRect();return Math.abs(r.x+r.width/2-a.x*innerWidth)<3&&Math.abs(r.bottom-(a.y*innerHeight-8))<3;});assert.ok(anchored,'name tracks projected pitcher head');
-    const initial=await pose();assert.deepEqual(initial.eye.map(v=>+v.toFixed(2)),[.7,3.15,3.6],'over-the-shoulder eye: past the plate, above the helmet, behind the batter');
+    // 포수 뒤 고정 시점. 홈 뒤 중앙에 서서 화면이 어떻게 바뀌든 자리를 지킨다.
+    const initial=await pose();
+    assert.equal(initial.eye[0],0,'the batting camera sits on the center line behind home');
+    assert.ok(initial.eye[2]>0&&initial.eye[1]>0,'behind home plate and above the ground');
     await page.screenshot({path:`/tmp/dugout-eyes-${width}.png`});
-    await page.locator('.inning-look').click();await page.waitForFunction(()=>scene3d.look.pitch<-1);
-    await page.screenshot({path:`/tmp/dugout-plate-${width}.png`});
-    assert.equal(await page.locator('.pitcher-tag').isVisible(),false,'pitcher out of view hides label');
-    assert.deepEqual((await pose()).eye,initial.eye,'looking rotates without moving out of batter box');
-    await page.locator('.inning-look').click();assert.equal((await pose()).look.pitch,0);
-    await page.mouse.move(width*.5,height*.45);await page.mouse.down();await page.mouse.move(width*.7,height*.65,{steps:8});
-    const held=await pose();assert.ok(held.look.pitch>.1,'dragging down tilts the view up (grab-the-world)');assert.ok(held.look.pitch<=Math.PI/6+.01&&Math.abs(held.look.yaw)<=Math.PI/3+.01,'glance stays within its narrow range');
-    await page.mouse.up();await page.waitForFunction(()=>Math.abs(scene3d.look.pitch)<.01&&Math.abs(scene3d.look.yaw)<.01,{},{timeout:5000});
-    if(width===390){
-      const input=await page.context().newCDPSession(page);
-      const beforeTouch=(await pose()).look.yaw;
-      await input.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:160,y:240}]});
-      await input.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:220,y:300}]});
-      await input.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
-      assert.notEqual((await pose()).look.yaw,beforeTouch,'native touch changes view');
-      assert.equal(await page.evaluate(()=>scene3d.drag),null,'touch cancel releases drag');
-      await input.detach();
-    }
+    await page.mouse.move(width*.5,height*.45);await page.mouse.down();await page.mouse.move(width*.7,height*.65,{steps:8});await page.mouse.up();
+    assert.deepEqual(await pose(),initial,'dragging aims the bat and never moves the camera');
     await page.locator('.is-deciding').waitFor({timeout:60000});
-    await page.waitForFunction(()=>scene3d.look.yaw===0&&scene3d.look.pitch===0);
-    assert.equal((await pose()).kind,'batting');
-    await page.locator('.batting-take').click();
-    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
-    assert.equal((await pose()).kind,'batting','between pitches stays in the batter box');
+    assert.deepEqual((await pose()).eye,initial.eye,'the pitch does not move the camera');
+    // 아무것도 누르지 않으면 지켜본 것이 된다. 판정이 끝나고 다음 선택이 열릴 때까지 기다린다.
+    await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:60000});
+    assert.equal((await pose()).kind,'batting','between pitches stays behind the plate');
     await page.locator('.inning-exit').click();assert.equal(await page.locator('.lv-three').count(),0);
     await page.close();
   }
-  assert.deepEqual(errors,[]);console.log('PASS: batter eye position, plate glance, drag rotation, pitch reset, between-pitch POV, close; mobile/landscape/desktop');
+  assert.deepEqual(errors,[]);console.log('PASS: fixed catcher-side camera, pitcher tag anchoring, aim drag, between-pitch POV, close; mobile/landscape/desktop');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

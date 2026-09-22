@@ -6,6 +6,9 @@ import {logit,invLogit} from './core/pa.js';
 export const BATTING={
   manualContact:{batRadius:.125,ballRadius:.12,contactSeconds:.10,solidQuality:.72,
     timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
+    // 깎여맞음: 배트 중심에서 위아래로 tipFrom(배트+공 반지름 비율) 넘게 벗어났는데 타이밍 각도는 tipTiming 도 안쪽일 때.
+    // 배트가 공 아래면 백네트로 넘어가고(tipBackAngle · tipBackLaunch), 위면 땅에 꽂힌다(tipDownLaunch). 타구는 힘을 거의 잃는다.
+    tipFrom:.55,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
     speedBase:18,speedRange:34,powerSwing:.12,powerAbility:.55,chaseReach:.4,
     // 스윙 종류별 배트 중심 크기와 시간 허용 폭 배율. 힘 .5(자동·이전 입력)는 둘 다 1이다.
     swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.85,window:.8}}},

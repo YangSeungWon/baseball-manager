@@ -738,14 +738,17 @@ export class LiveView {
       const bx = rec.bh === 'L' ? 0.85 : -0.85;
       tl.add(tArr, 0.5, (k) => { S.ball = { x: bx + (bx > 0 ? 1 : -1) * k * 1.2, y: 0.1 - k * 0.8, z: Math.max(0.05, 1.0 - k * 1.1), vis: true }; }, () => { S.ball = null; });
     } else if (q.r === 'F') {
-      // 파울. 기록에 방향이 없으니 공 번호로 정한다. 뒤로 가는 타구도 있다.
+      // 파울. 기록에 방향이 없으니 공 번호로 정한다. 뒤로 가는 타구도, 땅에 꽂히는 타구도 있다.
       const h = (i * 7 + Math.round(q.x * 10)) % 5;
       const back = q.foulAngle!=null?Math.abs(q.foulAngle)>90:h===0;
+      // 배트 윗면에 덮여 깎인 공은 앞으로 뻗지 못하고 홈 앞에서 튄다.
+      const chop = !back && q.foulLaunch!=null && q.foulLaunch < 0;
       const ang = q.foulAngle ?? (back ? (q.x > 0 ? 150 : -150) : (rec.bh === 'L' ? 1 : -1) * (h < 3 ? 52 + h * 9 : -60 - h * 6));
-      const dep = back ? 9 + i : 18 + h * 12;
-      const L = W2(ang, dep), Tf = back ? 0.9 : 1.3 + h * 0.15;
+      const dep = back ? 9 + i : chop ? 7 : 18 + h * 12;
+      const L = W2(ang, dep), Tf = back ? 0.9 : chop ? 0.8 : 1.3 + h * 0.15;
       tl.add(tArr, Tf, (k) => {
-        S.ball = { x: L[0] * k, y: L[1] * k, z: back ? 6 * Math.sin(Math.PI * k) : 1 + 14 * k * (1 - k) * (Tf), vis: true };
+        const z = back ? 6 * Math.sin(Math.PI * k) : chop ? Math.abs(Math.sin(Math.PI * 2.5 * k)) * 1.2 * (1 - k) : 1 + 14 * k * (1 - k) * (Tf);
+        S.ball = { x: L[0] * k, y: L[1] * k, z, vis: true };
         this._trail();
       }, () => { S.ball = null; S.trail = []; });
     }

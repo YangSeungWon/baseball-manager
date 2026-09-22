@@ -23,6 +23,28 @@ test('timing changes spray, vertical aim changes launch, and center contact is s
  const chase=hit({pitch:{x:1.6,z:-1.5},aim:{x:1.6,z:-1.5}});
  assert.ok(chase.speed<solid.speed,'stretching for a ball outside the zone reduces power');
 });
+test('foul direction reads back as timing: pull side is early, opposite side is late',()=>{
+ const hit=a=>battingContact({...centered,...a});
+ const early=hit({timing:battingPressTiming(1-.14-.08,1)}),late=hit({timing:battingPressTiming(1-.14+.08,1)});
+ assert.equal(early.kind,'foul');assert.equal(late.kind,'foul');
+ assert.ok(early.angle<0&&late.angle>0,'a right-handed batter pulls early fouls to the left side');
+ assert.ok(early.pull&&!late.pull);
+ // 좌타는 좌우가 뒤집힌다. 타이밍이 같으면 각도의 크기는 같고 부호만 바뀐다.
+ const L={bats:'L'},lEarly=hit({timing:battingPressTiming(1-.14-.08,1),batter:L}),lLate=hit({timing:battingPressTiming(1-.14+.08,1),batter:L});
+ assert.equal(lEarly.angle,-early.angle);assert.equal(lLate.angle,-late.angle);
+ assert.ok(lEarly.pull&&!lLate.pull,'pulling is toward the batter box on both sides');
+});
+test('good timing with the bat off the ball vertically is a tipped foul, not a spray foul',()=>{
+ const hit=a=>battingContact({...centered,...a});
+ const under=hit({aim:{x:0,z:-.52}}),over=hit({aim:{x:0,z:.52}});
+ for(const f of [under,over]){assert.equal(f.kind,'foul');assert.equal(f.reason,'contact');assert.ok(f.tipped);}
+ assert.ok(Math.abs(under.angle)>90,'clipping the bottom of the ball sends it back over the catcher');
+ assert.ok(over.launch<0,'covering the top of the ball drives it into the ground');
+ assert.ok(under.speed<hit({}).speed,'a tipped ball keeps little of the swing');
+ // 타이밍까지 어긋나 있으면 깎여맞음으로 읽지 않는다. 그때 방향이 말해주는 것은 타이밍이다.
+ assert.equal(hit({aim:{x:0,z:-.52},timing:.83}).tipped,false);
+ assert.equal(hit({aim:{x:0,z:-.3}}).tipped,false,'a small vertical miss still puts the ball in play');
+});
 const scripted=(dice,offset={x:0,z:0},timing=.7)=>{
  const g=new BattingGame(3),r=[0,0,...dice,.5,.5,.5,.5];let i=0;g.random=()=>r[i++];
  const d=g.preparePitch({target:'any',approach:'contact'});

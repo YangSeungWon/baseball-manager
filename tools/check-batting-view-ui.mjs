@@ -32,46 +32,55 @@ try {
  await page.waitForTimeout(100);await page.screenshot({path:`/tmp/batting-read-ball-${width}.png`});
  const view=await page.evaluate(async()=>{
  const T=await import('/vendor/three/three.module.min.js');const {BATTING_ZONE:ZONE}=await import('/js/batting-space.js');
- const view=lv.three,camera=view.camera,model=view.players.get('bat'),rect=view.canvas.getBoundingClientRect();
- const midpoint=()=>{const out=new T.Vector3();for(const eye of model.faceNodes.eyes){eye.geometry.computeBoundingBox();const center=eye.geometry.boundingBox.getCenter(new T.Vector3()),rest=eye.userData.rest;out.add(eye.parent.localToWorld(center.multiply(rest.scale).applyEuler(rest.rotation).add(rest.position)));}return out.multiplyScalar(.5);};
- let eyeError=camera.position.distanceTo(midpoint()),error=0;
- if(eyeError>1e-8)throw Error('camera is not at the actual prepared eye midpoint');
- const centerAim=view.battingAimAt(rect.left+rect.width/2,rect.top+rect.height/2);
- if(centerAim.x!==0||centerAim.z!==0)throw Error('forward view cannot aim at center');
- const outsideAim=view.battingAimAt(rect.left+rect.width*.95,rect.top+rect.height*.05);
- if(outsideAim.x<1.7||outsideAim.z<1.7)throw Error('forward view cannot aim outside zone');
+ const view=lv.three,camera=view.camera,rect=view.canvas.getBoundingClientRect();
+ const screen=p=>{const q=p.clone().project(camera);return {x:(q.x+1)/2,y:(1-q.y)/2};};
+ let error=0,squareError=0;
  const originalHand=lv.S.batter.hand,heldAim=lv.S.aim;
  for(const hand of ['R','L']){
-  lv.S.batter.hand=hand;lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
-  eyeError=Math.max(eyeError,camera.position.distanceTo(midpoint()));
+  lv.S.batter.hand=hand;lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);camera.updateMatrixWorld(true);
+  // 포수 뒤 고정 시점: 좌우타가 달라도 같은 자리에서 존을 정면으로 본다.
+  if(camera.position.x!==0)throw Error('batting camera left the center line');
   const eye=camera.position.clone(),rotation=camera.quaternion.clone(),zone=Array.from(view.battingZone.geometry.attributes.position.array);
   for(const swing of [.25,.62,1]){
    lv.S.aim=null;lv.S.swing=swing;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
    if(camera.position.distanceTo(eye)>1e-8||camera.quaternion.angleTo(rotation)>1e-7)throw Error('swing moved the camera');
    if(!view.battingZone.visible||JSON.stringify(zone)!==JSON.stringify(Array.from(view.battingZone.geometry.attributes.position.array)))throw Error('swing moved or hid the zone');
   }
-  lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
-  const release=new T.Vector3(-.55,1.85,-16.8).project(camera);
-  if(Math.abs(release.x)>.9||Math.abs(release.y)>.9)throw Error('pitch release leaves the frame');
-  // Home need not fit in the forward eye view. The explicit glance must look at it.
-  const canLook=view.opts.canLook;view.opts.canLook=()=>true;view.lookAtPlate();view.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);
-  const home=new T.Vector3(0,ZONE.center,0).project(camera);
-  if(Math.abs(home.x)>1e-6||Math.abs(home.y)>1e-6)throw Error('home glance does not face home');
-  if(camera.position.distanceTo(eye)>1e-8)throw Error('home glance translated the eye');
+  lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);camera.updateMatrixWorld(true);
+  // 존과 투수 릴리스가 한 화면에 함께 들어온다. 존은 아래쪽, 릴리스는 위쪽이다.
+  const corners=[[-1,ZONE.bottom],[1,ZONE.bottom],[1,ZONE.top],[-1,ZONE.top]].map(([sx,y])=>screen(new T.Vector3(sx*ZONE.halfWidth,y,0)));
+  for(const c of corners)if(c.x<=0||c.x>=1||c.y<=0||c.y>=1)throw Error('the strike zone leaves the frame');
+  const release=screen(new T.Vector3(-.55,1.85,-16.8));
+  if(Math.abs(release.x-.5)>.45||release.y<=0||release.y>=1)throw Error('pitch release leaves the frame');
+  if(release.y>=Math.min(...corners.map(c=>c.y)))throw Error('release is not above the zone');
+  // 정면이라 가로 변은 화면과 수평하고 세로 변은 화면 중앙을 기준으로 대칭이다.
+  // 시선이 살짝 아래를 보므로 윗변이 아랫변보다 좁은 원근만 남는다.
+  squareError=Math.max(squareError,Math.abs(corners[0].y-corners[1].y),Math.abs(corners[2].y-corners[3].y),
+   Math.abs((corners[0].x+corners[1].x)/2-.5),Math.abs((corners[2].x+corners[3].x)/2-.5));
+  // 화면에서 본 자리가 그대로 조준점이다.
   for(const x of [-1.8,-1,0,1,1.8])for(const z of [-1.8,-1,0,1,1.8]){
-   const p=new T.Vector3(x*ZONE.halfWidth,ZONE.center+z*ZONE.halfHeight,0).project(camera);
-   const a=view.battingAimAt(rect.left+(p.x+1)*rect.width/2,rect.top+(1-p.y)*rect.height/2);
-   if(!a)throw Error('home glance cannot aim');error=Math.max(error,Math.abs(x-a.x),Math.abs(z-a.z));
+   const p=screen(new T.Vector3(x*ZONE.halfWidth,ZONE.center+z*ZONE.halfHeight,0));
+   const a=view.battingAimAt(rect.left+p.x*rect.width,rect.top+p.y*rect.height);
+   if(!a)throw Error('cannot aim at the zone');error=Math.max(error,Math.abs(x-a.x),Math.abs(z-a.z));
   }
-  view.lookAtPlate();view.opts.canLook=canLook;view.direct(lv.S,performance.now()/1000);camera.updateMatrixWorld(true);
  }
  lv.S.batter.hand=originalHand;lv.S.aim=heldAim;lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
  let projections=0;const project=camera.updateProjectionMatrix;camera.updateProjectionMatrix=function(){projections++;return project.call(this);};
  for(let i=0;i<120;i++)view.direct(lv.S,performance.now()/1000);
  camera.updateProjectionMatrix=project;if(projections!==0)throw Error('fixed camera recalculated projection');
- return {eye:camera.position.toArray(),eyeError,error,aimVisible:view.battingAim.visible,catcherVisible:!!view.players.get('fC')?.root.visible,umpireVisible:!!view.players.get('ump')?.root.visible};
- });assert.ok(view.eyeError<1e-8,'camera matches actual eyes for both handed stances');assert.ok(view.error<1e-6,'home glance aim matches pitch coordinates');assert.equal(view.aimVisible,true);assert.equal(view.catcherVisible,true);assert.equal(view.umpireVisible,true);
- assert.equal(await page.locator('.inning-picks').isVisible(),false,'preparation panel does not cover the pitch');
+ return {eye:camera.position.toArray(),error,squareError,aimVisible:view.battingAim.visible,
+  zoneWhite:view.battingZone.material.color.getHexString(),
+  catcherVisible:!!view.players.get('fC')?.root.visible,umpireVisible:!!view.players.get('ump')?.root.visible,
+  batterVisible:!!view.players.get('bat')?.root.visible};
+ });
+ assert.ok(view.error<1e-6,'aim matches the pitch coordinates on screen');
+ assert.ok(view.squareError<1e-6,'the zone is square to the screen');
+ assert.equal(view.zoneWhite,'ffffff','the zone is the white broadcast box');
+ assert.equal(view.aimVisible,true);
+ assert.equal(view.catcherVisible,false,'the catcher does not stand in front of the zone');
+ assert.equal(view.umpireVisible,false,'the umpire does not stand in front of the zone');
+ assert.equal(view.batterVisible,true,'the hitter is a whole body again');
+  assert.equal(await page.locator('.inning-picks').isVisible(),false,'preparation panel does not cover the pitch');
  assert.deepEqual(errors,[]);console.log('PASS:',width,height,view);await page.close();}
 
 } finally {await browser.close();await new Promise(r=>server.close(r));}

@@ -29,23 +29,6 @@ try {
   return {skins,bones,helmet:a.helmet.visible,cap:b.cap.visible,independent:a.arms[0]!==b.arms[0]};
  });
  assert.ok(model.skins>=1&&model.bones>=15&&model.helmet&&model.cap&&model.independent);
- const cache=await page.evaluate(async()=>{
-  const {setPlayerFirstPerson}=await import('/js/player-model.js'),p=preview.a;
-  setPlayerFirstPerson(p,false);if(p.firstPersonMeshes)throw Error('full-body view eagerly built first-person geometry');
-  setPlayerFirstPerson(p,true);let sharedBytes=0;
-  const geometries=p.firstPersonMeshes.map(o=>{
-   const full=o.userData.fullBodyGeometry,first=o.geometry;
-   if(first.index.count>=full.index.count)throw Error('first-person mesh includes full body');
-   for(const [key,attribute] of Object.entries(full.attributes)){if(first.attributes[key]!==attribute)throw Error('vertex buffer was duplicated');sharedBytes+=attribute.array.byteLength;}
-   return first;
-  });
-  let walks=0;const traverse=p.root.traverse;p.root.traverse=function(...args){walks++;return traverse.apply(this,args);};
-  for(let i=0;i<600;i++)setPlayerFirstPerson(p,true);
-  setPlayerFirstPerson(p,false);if(!p.head.visible||p.firstPersonMeshes.some(o=>o.geometry!==o.userData.fullBodyGeometry))throw Error('full-body restoration failed');
-  setPlayerFirstPerson(p,true);if(p.firstPersonMeshes.some((o,i)=>o.geometry!==geometries[i]))throw Error('view switch rebuilt geometry');
-  p.root.traverse=traverse;setPlayerFirstPerson(p,false);
-  return {sharedBytes,repeatedHierarchyWalks:walks};
- });assert.equal(cache.repeatedHierarchyWalks,0);assert.ok(cache.sharedBytes>0);console.log('First-person cache:',cache);
  await page.screenshot({path:'/tmp/dugout-player-model.png'});
  const face=await page.evaluate(async()=>{
   const {posePlayerFace}=await import('/js/player-model.js');const {a,b,scene,renderer,camera}=preview;b.root.visible=false;a.root.position.set(0,0,0);a.root.rotation.set(0,0,0);

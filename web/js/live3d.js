@@ -1,6 +1,6 @@
 import { BATTING_ZONE as ZONE, BATTING_AIM_LIMIT, HOME_PLATE, BATTERS_BOX, battingPosition } from './batting-space.js';
 import { BATTING } from './batting-tuning.js';
-import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,setPlayerFirstPerson,playerEyeMidpoint} from './player-model.js';
+import {createPlayerFactory,reachPlayerHand,reachPlayerGlove,posePlayerFace,playerEyeMidpoint} from './player-model.js';
 import {PITCH,SWING,sample,applyPose} from './motion-clips.js';
 export {loadPlayerModel} from './player-model.js';
 import { renderPixelRatio } from './render-quality.js';
@@ -12,7 +12,6 @@ import { buildSurroundings, canvasTexture, paddingTexture, numberTexture } from 
 import { createTeamMascot, updateTeamMascot } from './mascot3d.js';
 const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
 const point = (x, y, z = 0) => new T.Vector3(x, z, -y);
-const LOOK_YAW=Math.PI/3,LOOK_PITCH=Math.PI/6;   // 좌우 60°, 상하 30°: 둘러보기가 아니라 곁눈질
 const HARD_CUTS=new Set(['field','catch','base']);   // 살아 있는 타구로 가는 컷은 암전 없이 즉시
 // 야구공: 흰 가죽에 붉은 실밥 두 줄(등장방형 투영). 회전하면 구종에 따라 실밥이 다르게 흐른다.
 const seamTexture=()=>canvasTexture(256,128,(g,w,h)=>{
@@ -30,6 +29,11 @@ const grainTexture=(variation,seed)=>canvasTexture(128,128,(g,w,h)=>{
   g.putImageData(img,0,0);
 },{repeat:1.4});
 const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#af8056','#b48a63','#bd946a']);
+// 포수 뒤 타격 시점. 홈에서 뒤로 back m, 높이 height m 에서 존을 거의 정면으로 본다.
+// 시선(aimDepth·aimHeight)은 존과 투수 릴리스 사이를 겨눠 존은 화면 아래, 투수는 위에 함께 들어온다.
+// 이 높이에서는 포수와 심판이 존을 가리므로 타격 중에는 둘을 그리지 않는다.
+const BATTING_VIEW={back:4.6,height:1.6,aimDepth:6,aimHeight:.71,fov:28};
+const BATTING_SHOTS=['pitch','between','batter','pitcher'];
 // 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
 const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};
 for(const spin of Object.values(SPIN))spin.axis=new T.Vector3(...spin.axis).normalize();
@@ -100,61 +104,10 @@ export class Live3D {
     host.prepend(this.canvas);
     // 컷 사이의 짧은 암전. 라이브 타구로 가는 컷은 즉시, 나머지는 0.09초 어둡게 → 전환 → 0.16초 밝게.
     this.fade=document.createElement('div');this.fade.className='lv-fade';this.fade.hidden=true;this.canvas.after(this.fade);this.cut=null;
-    this.look={yaw:0,pitch:0};
     if(opts.playerRole==='batter') {
-      // First-person bat and hands, parented to the camera. Load pulls it back, release sweeps it across the view.
-      this.scene.add(this.camera);
-      const fp=this.fpBat=new T.Group();fp.visible=false;this.camera.add(fp);
-      const pivot=this.fpPivot=new T.Group();fp.add(pivot);
-      const bat=new T.Mesh(new T.CylinderGeometry(.034,.024,.86,14),new T.MeshStandardMaterial({color:'#d4ad73',roughness:.55}));bat.position.y=.43+.09;pivot.add(bat);
-      const grip=new T.Mesh(new T.CylinderGeometry(.026,.03,.22,12),new T.MeshStandardMaterial({color:'#2a2a2a',roughness:.8}));grip.position.y=.0;pivot.add(grip);
-      const knob=new T.Mesh(new T.CylinderGeometry(.036,.036,.02,12),grip.material);knob.position.y=-.11;pivot.add(knob);
-      const skin=new T.MeshStandardMaterial({color:'#c98b62',roughness:.6});
-      for(const [y,r] of [[.03,.058],[.13,.056]]){const hand=new T.Mesh(new T.SphereGeometry(r,12,10),skin);hand.position.y=y;hand.scale.set(1,1.15,.85);pivot.add(hand);}
-      for(const m of [bat,grip,knob])m.userData.noBatch=true;
-      fp.traverse(o=>{o.userData.noBatch=true;o.frustumCulled=false;});
-      this.canvas.setAttribute('aria-label','타자 시점 · 마우스로 조준하고 왼쪽 버튼을 누르면 준비, 떼면 스윙. 터치는 대고 조준한 뒤 손을 떼면 스윙');this.canvas.tabIndex=0;
+      this.canvas.setAttribute('aria-label','포수 뒤 타격 시점 · 마우스로 조준하고 왼쪽 버튼을 누르면 준비, 떼면 스윙. 터치는 대고 조준한 뒤 손을 떼면 스윙');this.canvas.tabIndex=0;
       this.canvas.style.touchAction='none';
-      this.lookInput=new AbortController();
-      const listen=(name,fn)=>this.canvas.addEventListener(name,fn,{signal:this.lookInput.signal});
-      // A glance, not a free look: a narrow range that eases back to the pitcher once the finger lifts.
-      listen('pointerdown',e=>{
-        if(e.button!==0||!this.opts.canLook?.()||this.drag)return;
-        if(this.look.pinned)this.resetLook();
-        this.drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false};this.canvas.setPointerCapture(e.pointerId);
-      });
-      listen('pointermove',e=>{
-        if(this.drag?.id!==e.pointerId)return;
-        if(!this.opts.canLook?.()){this.resetLook();return;}
-        if(!this.drag.moved&&Math.hypot(e.clientX-this.drag.x,e.clientY-this.drag.y)<4)return;
-        this.drag.moved=true;
-        // "Grab the world": dragging right turns the view left, dragging down tilts the view up.
-        this.look.yaw=clamp(this.look.yaw-(e.clientX-this.drag.x)*.005,-LOOK_YAW,LOOK_YAW);
-        this.look.pitch=clamp(this.look.pitch+(e.clientY-this.drag.y)*.005,-LOOK_PITCH,LOOK_PITCH);
-        this.drag.x=e.clientX;this.drag.y=e.clientY;
-      });
-      const end=e=>{if(this.drag?.id===e.pointerId)this.drag=null;};
-      listen('pointerup',end);listen('pointercancel',end);listen('lostpointercapture',end);
     }
-  }
-  resetLook() {
-    if(this.drag&&this.canvas.hasPointerCapture(this.drag.id))this.canvas.releasePointerCapture(this.drag.id);
-    this.drag=null;this.look.yaw=0;this.look.pitch=0;this.look.pinned=false;
-  }
-  // The plate glance is a toggle and stays put; a dragged glance eases home on its own.
-  lookAtPlate() {
-    if(!this.opts.canLook?.())return;
-    const centered=Math.abs(this.look.yaw)<.01&&Math.abs(this.look.pitch)<.01;
-    this.resetLook();
-    if(centered){const eye=this.players.get('bat')?.battingEye;if(!eye)return;
-      const toPlate=point(0,0,ZONE.center).sub(eye).normalize(),toPitcher=point(0,16.8,1.85).sub(eye).normalize();
-      this.look.yaw=Math.atan2(toPlate.x,-toPlate.z)-Math.atan2(toPitcher.x,-toPitcher.z);
-      this.look.pitch=Math.asin(toPlate.y)-Math.asin(toPitcher.y)+.10;this.look.pinned=true;}
-  }
-  settleLook(dt) {
-    if(this.drag||this.look.pinned)return;
-    const k=Math.exp(-dt*7);this.look.yaw*=k;this.look.pitch*=k;
-    if(Math.abs(this.look.yaw)<.002)this.look.yaw=0;if(Math.abs(this.look.pitch)<.002)this.look.pitch=0;
   }
   material(color) {
     if (!this.materials.has(color)) {
@@ -494,30 +447,26 @@ export class Live3D {
     (S.changePlayers||[]).forEach((p,i)=>this.updatePlayer('change'+i,p,offense,p.pose,S));
     if(S.batter)this.updatePlayer('bat',{...S.batter,...battingPosition(S.batter.hand)},offense,'bat',S);
     const clearing=S.celebrants?.length?Math.min(1,(S.celebrationTime||0)/2):0;
-    // First-person hides only the hitter mesh; the catcher and umpire stay in the scene.
-    const batterView=this.opts.playerRole==='batter'&&!['field','base','beauty'].includes(S.broadcast?.kind);
-    const batterModel=this.players.get('bat');
-    if(batterModel)setPlayerFirstPerson(batterModel,batterView&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind));
     this.updatePlayer('ump',{x:clearing*4,y:-3.2-clearing*1.8},'#27343f',clearing?'walkField':'crouch',S);
+    // 타자 시점에서는 포수와 심판이 나와 존 사이에 선다. 승부가 걸린 동안에는 그리지 않는다.
+    const battingShot=this.opts.playerRole==='batter'&&BATTING_SHOTS.includes(S.broadcast?.kind);
+    if(this.opts.playerRole==='batter')for(const key of ['fC','ump']){const p=this.players.get(key);if(p&&battingShot)p.root.visible=false;}
     if(this.opts.playerRole==='batter'){
       if(!this.battingAim){
         this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
         this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
+        // 중계 화면의 K존처럼 흰 테두리에 아주 옅은 면을 채운다.
         const points=[[-ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.bottom],[ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.top],[-ZONE.halfWidth,ZONE.bottom]].map(([x,y])=>new T.Vector3(x,y,0));
-        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#ffe0a0',transparent:true,opacity:.8,depthTest:false,depthWrite:false}));
-        this.battingZone.renderOrder=2;this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
-        // At eye level home lies outside the forward frame, so the same zone is mirrored on screen where the aim maps.
-        // Screen fraction is linear in NDC, so a camera-parented rectangle matches battingAimAt exactly at any fov.
-        const frame=[[-1,-1],[1,-1],[1,1],[-1,1],[-1,-1]].map(([x,y])=>new T.Vector3(x,y,-1));
-        this.battingViewZone=new T.Line(new T.BufferGeometry().setFromPoints(frame),new T.LineBasicMaterial({color:'#ffe0a0',transparent:true,opacity:.5,depthTest:false,depthWrite:false}));
-        this.battingViewZone.renderOrder=2;this.battingViewZone.userData.noBatch=true;this.battingViewZone.frustumCulled=false;this.camera.add(this.battingViewZone);
+        this.battingZone=new T.Line(new T.BufferGeometry().setFromPoints(points),new T.LineBasicMaterial({color:'#ffffff',transparent:true,opacity:.92,depthTest:false,depthWrite:false}));
+        this.battingZone.renderOrder=3;this.battingZone.userData.noBatch=true;this.scene.add(this.battingZone);
+        const pane=new T.Mesh(new T.PlaneGeometry(ZONE.halfWidth*2,ZONE.top-ZONE.bottom),new T.MeshBasicMaterial({color:'#ffffff',transparent:true,opacity:.10,depthTest:false,depthWrite:false,side:T.DoubleSide}));
+        pane.position.set(0,(ZONE.top+ZONE.bottom)/2,0);pane.renderOrder=2;pane.userData.noBatch=true;this.battingZone.add(pane);
       }
-      this.battingZone.visible=!!S.batter&&['pitch','between','batter','pitcher'].includes(S.broadcast?.kind);
-      this.battingZoneOn=this.battingZone.visible;
+      this.battingZone.visible=!!S.batter&&battingShot;
       this.battingAim.visible=!!S.aim&&!S.pointerAiming&&this.battingZone.visible&&!S.swing;
       if(S.aim)this.battingAim.position.set(S.aim.x*ZONE.halfWidth,ZONE.center+S.aim.z*ZONE.halfHeight,.01);
     }
-    const b=S.ball?.vis?S.ball:S.hold?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
+    const b=S.ball?.vis?S.ball:S.hold&&!(battingShot&&S.hold.pos==='C')?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
       const f=this.players.get('f'+S.fieldPlay.fielder);if(f){f.root.updateMatrixWorld(true);const hand=new T.Vector3();f.glove.getWorldPosition(hand);const k=(S.fieldPlay.progress-.8)/.2;b.x+=(hand.x-b.x)*k;b.y+=(-hand.z-b.y)*k;b.z+=(hand.y-b.z)*k;}
     }
@@ -552,7 +501,6 @@ export class Live3D {
     updateTeamMascot(this.mascot,time,this.crowdEnergy?.value||0);
     this.direct(S,time);
     this.scoreboard(S,line);
-    this.poseFirstPersonBat(S,time);
     this.renderer.render(this.scene,this.camera);
     if(this.opts.onFlightRead){
       let read=null;
@@ -565,35 +513,10 @@ export class Live3D {
     this.opts.onPitcherAnchor?.(this.pitcherAnchor());
     this.opts.onEntryAnchor?.(this.playerAnchor(this.opts.entryPlayerKey?.()));
   }
-  // 1인칭 배트. 대기: 오른 어깨 위. 로드: 뒤로 더 당김. 스윙: 0.34초에 화면을 가로질러 왼쪽으로 빠져나감.
-  poseFirstPersonBat(S,time){
-    const fp=this.fpBat;if(!fp)return;
-    const show=this.opts.eyeLevelBat===true&&this.cameraKind==='batting'&&!!S.batter&&!(S.broadcast&&['field','base','beauty'].includes(S.broadcast.kind));
-    fp.visible=show;if(!show)return;
-    const m=this.batterHand==='L'?-1:1,lerp=(a,b,t)=>a+(b-a)*t,ease=t=>t*t*(3-2*t);
-    const load=1;
-    const swing=S.fpSwingAt!=null?Math.max(0,(time-S.fpSwingAt)/.34):null;
-    let px=.34,py=-.30,pz=-.72,rx=.55,ry=-.35,rz=-.62;                           // rest: bat up over the rear shoulder
-    px=lerp(px,.40,load);py=lerp(py,-.26,load);rx=lerp(rx,.72,load);ry=lerp(ry,-.55,load);rz=lerp(rz,-.85,load);   // load: further back and up
-    if(swing!==null){
-      const k=Math.min(1.35,swing),s=ease(Math.min(1,k));
-      px=lerp(px,-.55,s);py=lerp(py,-.22,s);pz=lerp(pz,-.62,s);
-      rx=lerp(rx,1.78,s);ry=lerp(ry,.55,s);rz=lerp(rz,1.95,s);                        // sweep level across the view and out to the left
-      if(k>=1.35)fp.visible=false;
-    }
-    fp.position.set(px*m,py,pz);fp.rotation.set(rx,ry*m,rz*m);
-    this.fpPivot.rotation.y=Math.sin(time*1.3)*.03;                                      // idle waggle
-  }
   battingAimAt(clientX,clientY){
     if(this.cameraKind!=='batting')return null;
     const rect=this.canvas.getBoundingClientRect();
-    // At the real eye position home can lie outside the forward view. Keep
-    // forward-view aiming usable in screen coordinates; the home glance uses
-    // the visible plate's world-space projection as before.
-    if(!this.look.pinned)return {
-      x:clamp(((clientX-rect.left)/rect.width-.5)*2*BATTING_AIM_LIMIT,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT),
-      z:clamp((.5-(clientY-rect.top)/rect.height)*2*BATTING_AIM_LIMIT,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)
-    };
+    // 화면의 한 점을 홈플레이트 평면으로 쏜다. 그린 존과 조준이 같은 좌표계라 눈으로 본 곳이 곧 조준점이다.
     const ray=new T.Raycaster();
     ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
     const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
@@ -619,17 +542,10 @@ export class Live3D {
     const ball=S.ball?.vis?S.ball:null;
     let eye,aim,fov;
     if(kind==='batting') {
-      // Anchor to the actual eye midpoint in the loaded stance, not behind the hitter.
-      // The saved world position does not follow the head or torso during the swing.
-      this.batterHand=S.batter?.hand||'R';
-      const model=this.players.get('bat');
-      eye=model?.battingEye||this.camera.position;
-      if(!this.opts.canLook?.())this.resetLook();else this.settleLook(this.lastTime==null?0:clamp(time-this.lastTime,0,.1));
-      const pitcher=point(0,16.8,1.85),direction=pitcher.sub(eye).normalize();
-      const yaw=Math.atan2(direction.x,-direction.z)+this.look.yaw,pitch=Math.asin(direction.y)-.10+this.look.pitch;
-      aim=eye.clone().add(new T.Vector3(Math.sin(yaw)*Math.cos(pitch),Math.sin(pitch),-Math.cos(yaw)*Math.cos(pitch)).multiplyScalar(20));
-      // Keep the pitch readable at the actual eye position on either screen orientation.
-      fov=64;
+      // 포수 뒤에서 홈을 정면으로 본다. 존이 화면과 나란해 코스가 그대로 읽히고,
+      // 조준은 화면 좌표를 그대로 홈플레이트 평면에 쏘면 된다.
+      // 시선은 존과 투수 사이를 겨눠 존은 아래쪽, 릴리스는 위쪽에 함께 들어온다. 좌우타 모두 같은 자리다.
+      eye=point(0,-BATTING_VIEW.back,BATTING_VIEW.height);aim=point(0,BATTING_VIEW.aimDepth,BATTING_VIEW.aimHeight);fov=BATTING_VIEW.fov;
     }
     else if(kind==='mound') {
       // The pitcher's own view: over the throwing shoulder, looking down at the catcher's mitt.
@@ -664,13 +580,6 @@ export class Live3D {
     if(this.camera.fov!==fov){this.camera.fov=fov;this.camera.updateProjectionMatrix();}
     this.camera.lookAt(this.aim);
     this.cameraKind=kind;this.fieldShot=kind==='field';
-    // The home glance projects the real zone, so the screen copy only stands in for the forward view.
-    if(this.battingViewZone){
-      const show=kind==='batting'&&!this.look.pinned&&!!this.battingZoneOn;
-      this.battingViewZone.visible=show;
-      if(show){const depth=2,half=depth*Math.tan(this.camera.fov*Math.PI/360)/BATTING_AIM_LIMIT;
-        this.battingViewZone.position.set(0,0,-depth);this.battingViewZone.scale.set(half*this.camera.aspect,half,1);}
-    }
   }
   fadeTo(opacity){
     const o=Math.max(0,Math.min(1,opacity));if(o===this.fadeOpacity)return;this.fadeOpacity=o;
@@ -728,10 +637,9 @@ export class Live3D {
     this.boardTexture.needsUpdate=true;
   }
   dispose() {
-    this.lookInput?.abort();
     this.canvas.removeEventListener('webglcontextlost',this.onLost);
     const geometries=new Set(),materials=new Set(),skeletons=new Set();
-    this.scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.add(o.skeleton);if(o.geometry)geometries.add(o.geometry);for(const g of [o.userData.fullBodyGeometry,o.userData.firstPersonGeometry])if(g)geometries.add(g);if(o.material)materials.add(o.material);});
+    this.scene.traverse(o=>{if(o.isSkinnedMesh)skeletons.add(o.skeleton);if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);});
     for(const skeleton of skeletons)skeleton.dispose();
     for(const g of new Set([this.box,this.sphere,this.cylinder,...geometries]))g.dispose();
     for(const m of new Set([...this.materials.values(),...materials]))m.dispose();

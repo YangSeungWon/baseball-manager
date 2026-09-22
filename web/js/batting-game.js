@@ -60,6 +60,17 @@ export function swingTiming(p,window=T.swingWindow){
   if(q>window.to){const severity=(q-window.to)/(1-window.to);return {kind:'late',severity,whiff:severity>=E.timing.whiffBeyond,label:severity>=E.timing.whiffBeyond?'너무 늦음':'타이밍 늦음',contact:E.timing.lateMax*severity,quality:E.quality.lateMax*severity,foul:E.foul.lateMax*severity,angleShift:E.angle.lateMax*severity};}
   return {kind:'sweet',severity:0,label:'타이밍 적중',contact:E.timing.sweet,quality:E.quality.sweet,foul:E.foul.sweet,angleShift:0};
 }
+// 파울 방향으로 타이밍을 읽는다. 타석 쪽으로 감기면 앞에서 당겨 친 것(빠름), 반대쪽으로 흐르면 뒤에서 밀린 것(늦음).
+// 앞으로 뻗지 못하고 뒤로 넘어가거나 땅에 꽂히면 타이밍이 아니라 컨택 포인트가 위아래로 어긋난 것이다.
+export function foulReading(impact){
+  if(impact.tipped)return impact.launch<0
+    ?'타이밍은 맞았지만 배트 윗면으로 덮어 공이 땅에 꽂혔습니다. 컨택 포인트가 높았습니다.'
+    :'타이밍은 맞았지만 배트 아랫면에 스쳐 공이 뒤로 넘어갔습니다. 컨택 포인트가 낮았습니다.';
+  if(Math.abs(impact.timingAngle)<=T.manualContact.tipTiming)return '타이밍은 나쁘지 않았지만 공의 코스에 밀려 파울이 됐습니다.';
+  return impact.pull
+    ?'타석 쪽으로 감긴 파울입니다. 공 앞에서 당겨 쳤으니 타이밍이 빨랐습니다.'
+    :'타석 반대쪽으로 흘러 나간 파울입니다. 공 뒤에서 밀려 맞았으니 타이밍이 늦었습니다.';
+}
 export class BattingGame extends InningGame {
   constructor(seed=1,stageId=0){
     super(seed);this.stage=getStage(stageId);const s=this.stage;
@@ -136,7 +147,9 @@ export class BattingGame extends InningGame {
       const locationReadBonus=aim?A.quality*(aimClose*2-1):location==='any'?0:locationMatched?B.bonus.locationRead:-B.bonus.locationRead;
       // 안팎 조준이 공보다 바깥이면 밀어 치고, 안쪽이면 당겨 친다.
       const aimSpray=aim?clamp(aim.x-x,-1,1)*A.spray:0;
-      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:swing.angleShift+aimSpray,park:this.stage.park,bonus:(B.bonus.base||0)+(fullGame?fullGame.bipBase:0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
+      // 타이밍이 만드는 스프레이만 타석 방향을 따른다. 코스·조준 항은 좌우 대칭이라 그대로 둔다.
+      const hand=(before.batter.bats||before.batter.hand)==='L'?-1:1;
+      fieldPlay=contactFlight(roll,{power:drive,qualityScale,angleShift:hand*swing.angleShift+aimSpray,park:this.stage.park,bonus:(B.bonus.base||0)+(fullGame?fullGame.bipBase:0)+(before.batter.power||0)+locationReadBonus*.5+(matched?B.bonus.typeMatch:0)+swing.quality+(inZone?0:B.bonus.outOfZone),bases:before.baseRunners,batter:before.batter,outs:before.outs,defense:before.defense});result=fieldPlay.result;
     }
     const call=result;let terminal=['OUT','HR','3B','2B','1B','FC'].includes(result);this.count++;
     if(result==='B'&&++this.balls===4){result='BB';terminal=true;}
@@ -169,7 +182,7 @@ export class BattingGame extends InningGame {
     else if(action==='swing'&&location!=='any')explanation+=(locationMatched?' 예상한 코스로 왔습니다.':' 예상한 코스와 달라 대응이 늦었습니다.');
     if(swing&&!swing.whiff){if(swing.kind==='early')explanation+=' 배트가 일찍 나가 당겨 쳤습니다.';else if(swing.kind==='late')explanation+=' 배트가 늦게 나가 밀렸습니다.';else if(swing.kind==='sweet')explanation+=' 타이밍이 정확했습니다.';}
     if(impact){
-      explanation=impact.kind==='miss'?(impact.reason==='timing'?(impact.seconds<0?'배트가 공보다 먼저 지나갔습니다.':'공이 지나간 뒤에 배트가 나왔습니다.'):impact.reason==='aim'?'배트가 공의 코스를 벗어났습니다.':'타이밍과 조준이 함께 빗나가 배트 끝에 닿지 않았습니다.'):impact.kind==='solid'?'배트 중심에 정확히 맞았습니다.':impact.kind==='foul'?'배트에 비껴 맞아 파울 방향으로 나갔습니다.':'배트 중심을 벗어나 타구의 힘이 줄었습니다.';
+      explanation=impact.kind==='miss'?(impact.reason==='timing'?(impact.seconds<0?'배트가 공보다 먼저 지나갔습니다.':'공이 지나간 뒤에 배트가 나왔습니다.'):impact.reason==='aim'?'배트가 공의 코스를 벗어났습니다.':'타이밍과 조준이 함께 빗나가 배트 끝에 닿지 않았습니다.'):impact.kind==='solid'?'배트 중심에 정확히 맞았습니다.':impact.kind==='foul'?foulReading(impact):'배트 중심을 벗어나 타구의 힘이 줄었습니다.';
       if(impact.kind!=='miss')explanation+=` 타구 속도 ${Math.round(impact.speed*3.6)} km/h.`;
     }
     return {before,after:this.snapshot(),fieldPlay,impact,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':'')+(checkChance===null?'':checkCalled?' · 체크 스윙 → 스윙':' · 노 스윙'),check:checkChance===null?null:{depth:check.depth,chance:checkChance,called:checkCalled},explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,...(impact?{whiff:impact.kind==='miss'}:{}),p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
