@@ -4,7 +4,10 @@
 import {logit,invLogit} from './core/pa.js';
 
 export const BATTING={
-  manualContact:{batRadius:.125,ballRadius:.12,contactSeconds:.10,solidQuality:.72,
+  // 배트는 점이 아니라 수평 막대다. 위아래(batRadius+ballRadius)로 벗어나면 헛스윙이지만,
+  // 길이 방향으로는 batSpan 안이면 배트 어디엔가 닿는다. sweetSpan 안이 정타가 나오는 구간이고
+  // 그 바깥은 배트 끝이나 손잡이에 맞은 파울이다(barrelFoul 도 만큼 그쪽으로 감기거나 밀린다).
+  manualContact:{batRadius:.125,ballRadius:.12,batSpan:.36,sweetSpan:.16,barrelFoul:38,contactSeconds:.10,solidQuality:.72,
     timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
     // 깎여맞음: 배트 중심에서 위아래로 tipFrom(배트+공 반지름 비율) 넘게 벗어났는데 타이밍 각도는 tipTiming 도 안쪽일 때.
     // 배트가 공 아래면 백네트로 넘어가고(tipBackAngle · tipBackLaunch), 위면 땅에 꽂힌다(tipDownLaunch). 타구는 힘을 거의 잃는다.

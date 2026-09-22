@@ -8,6 +8,8 @@ export const BAT_SCALE=.86/(.813*PLAYER_SCALE); // 86 cm from knob to tip
 // A fixed neutral stance, fitted to this rig's reach (not an MLB population average).
 export const BATTING_STANCE=Object.freeze({offset:.80,depth:-.27});
 export const battingPosition=(hand='R')=>({x:hand==='L'?BATTING_STANCE.offset:-BATTING_STANCE.offset,y:BATTING_STANCE.depth});
-// Prepared knees and shoulder/waist midpoint of this shared rig; fixed during a swing.
-export const BATTING_ZONE=Object.freeze({halfWidth:HOME_PLATE.halfWidth,bottom:.44,top:1.20,center:.82,halfHeight:.38});
+// The zone as it is actually called, not as the rulebook defines it: umpires squeeze the
+// rulebook's knee-to-shoulder/waist band (this rig: .44~1.20 m) to about 58 cm, and broadcast
+// zone graphics follow the called zone. Fixed during a swing.
+export const BATTING_ZONE=Object.freeze({halfWidth:HOME_PLATE.halfWidth,bottom:.50,top:1.08,center:.79,halfHeight:.29});
 export const BATTING_AIM_LIMIT=2;

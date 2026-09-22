@@ -453,8 +453,13 @@ export class Live3D {
     if(this.opts.playerRole==='batter')for(const key of ['fC','ump']){const p=this.players.get(key);if(p&&battingShot)p.root.visible=false;}
     if(this.opts.playerRole==='batter'){
       if(!this.battingAim){
-        this.battingAim=new T.Mesh(new T.RingGeometry(BATTING.manualContact.batRadius-.015,BATTING.manualContact.batRadius,32),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.8,depthTest:false,side:T.DoubleSide}));
-        this.battingAim.userData.noBatch=true;this.battingAim.renderOrder=3;this.scene.add(this.battingAim);
+        // 조준 표시는 배트 그대로다: 길이 방향으로는 닿는 범위 전체를, 가운데에는 정타가 나오는 구간을 그린다.
+        // 크기는 힘 .5 기준이며 컨택/장타 스윙에서 실제 범위는 조금 넓거나 좁다.
+        const C=BATTING.manualContact;
+        this.battingAim=new T.Group();this.battingAim.userData.noBatch=true;this.scene.add(this.battingAim);
+        const reach=new T.Mesh(new T.PlaneGeometry(C.batSpan*2,(C.batRadius+C.ballRadius)*2),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.22,depthTest:false,side:T.DoubleSide}));
+        const barrel=new T.Mesh(new T.PlaneGeometry(C.sweetSpan*2,(C.batRadius+C.ballRadius)*2),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.62,depthTest:false,side:T.DoubleSide}));
+        for(const part of [reach,barrel]){part.userData.noBatch=true;part.renderOrder=3;this.battingAim.add(part);}
         // 중계 화면의 K존처럼 두께 있는 흰 테두리에 아주 옅은 면을 채운다.
         // 1px 선은 잔디·흙 경계가 지날 때 조각조각 끊겨 보여 박스 모양이 읽히지 않는다.
         // 어두운 테두리를 한 겹 깔아 밝은 흙 위에서도 같은 굵기로 보이게 한다.

@@ -8,14 +8,15 @@ const centered={aim:{x:0,z:0},pitch:{x:0,z:0},timing:.7,power:.5};
 
 test('manual misses come from spatial and timing errors, and combined edge errors',()=>{
  assert.equal(battingContact(centered).kind,'solid');
- assert.equal(battingContact({...centered,aim:{x:1.4,z:0}}).reason,'aim');
+ assert.equal(battingContact({...centered,aim:{x:1.9,z:0}}).reason,'aim');   // 배트 길이 밖
  assert.equal(battingContact({...centered,timing:0}).reason,'timing');
  assert.equal(battingContact({...centered,timing:1}).reason,'timing');
- const edge=battingContact({...centered,aim:{x:.85,z:0},timing:battingPressTiming(1-.14+.07,1)});
+ // 위아래로도 조금, 타이밍도 조금 어긋나면 둘 다 한계 안이어도 배트에 닿지 않는다.
+ const edge=battingContact({...centered,aim:{x:0,z:.587},timing:.9});
  assert.equal(edge.kind,'miss');assert.equal(edge.reason,'edge');
 });
 test('timing changes spray, vertical aim changes launch, and center contact is stronger',()=>{
- const hit=a=>battingContact({...centered,...a}),solid=hit({}),weak=hit({aim:{x:.8,z:0}});
+ const hit=a=>battingContact({...centered,...a}),solid=hit({}),weak=hit({aim:{x:.5,z:0}});
  assert.equal(weak.kind,'weak');assert.ok(solid.speed>weak.speed+10);
  assert.ok(hit({timing:.6}).angle<solid.angle&&hit({timing:.8}).angle>solid.angle);
  assert.ok(hit({aim:{x:0,z:-.3}}).launch>solid.launch&&hit({aim:{x:0,z:.3}}).launch<solid.launch);
@@ -92,8 +93,23 @@ test('a held-up swing is ruled by how far the bat came, from the swing-only roll
 });
 test('contact swings forgive a wider miss, power swings drive the ball harder',async()=>{
  const {BATTING}=await import('../web/js/batting-tuning.js'),{BATTING_ZONE}=await import('../web/js/batting-space.js');
- const C=BATTING.manualContact,edge={aim:{x:(C.batRadius+C.ballRadius)/BATTING_ZONE.halfWidth*.99,z:0},pitch:{x:0,z:0},timing:.7};
- assert.notEqual(battingContact({...edge,power:0}).kind,'miss');
+ const C=BATTING.manualContact,edge={aim:{x:C.batSpan/BATTING_ZONE.halfWidth*.99,z:0},pitch:{x:0,z:0},timing:.7};
+ assert.notEqual(battingContact({...edge,power:0}).kind,'miss','a short swing still reaches it with the end of the bat');
  assert.equal(battingContact({...edge,power:1}).kind,'miss');
  assert.ok(battingContact({...centered,power:1}).speed>battingContact({...centered,power:0}).speed);
+});
+test('the bat is a horizontal bar: along it the ball is fouled off, off it the bat misses',async()=>{
+ const {BATTING}=await import('../web/js/batting-tuning.js'),{BATTING_ZONE:Z}=await import('../web/js/batting-space.js');
+ const C=BATTING.manualContact,hit=a=>battingContact({...centered,...a}),unit=x=>x/Z.halfWidth;
+ // 중심 바깥이지만 배트 위: 깡 소리만 나는 파울이다. 끝이면 밀리고 손잡이면 감긴다.
+ const end=hit({aim:{x:unit(C.sweetSpan*1.4),z:0}}),handle=hit({aim:{x:-unit(C.sweetSpan*1.4),z:0}});
+ for(const f of [end,handle]){assert.equal(f.kind,'foul');assert.equal(f.reason,'barrel');}
+ assert.ok(end.angle>handle.angle,'the end of the bat pushes, the handle pulls');
+ assert.match(end.label,/배트 끝/);assert.match(handle.label,/손잡이/);
+ // 배트 길이 밖은 헛스윙, 배트 굵기 밖(위아래)도 헛스윙이다.
+ assert.equal(hit({aim:{x:unit(C.batSpan*1.1),z:0}}).kind,'miss');
+ assert.equal(hit({aim:{x:0,z:(C.batRadius+C.ballRadius)*1.2/Z.halfHeight}}).kind,'miss');
+ // 좌타는 배트가 반대 방향으로 뻗는다.
+ const left=hit({aim:{x:-unit(C.sweetSpan*1.4),z:0},batter:{bats:'L'}});
+ assert.match(left.label,/배트 끝/);
 });
