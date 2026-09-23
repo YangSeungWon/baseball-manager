@@ -70,7 +70,7 @@ try {
   const first=await run();assert.match(first,/재도전/);assert.doesNotMatch(first,/다시 시작/);
   await replay.locator('[data-retry]').click();assert.match(await replay.locator('.inning-score').textContent(),/0구/);
   assert.match(await run(),/재도전/,'retry accepts another release sequence');
-  await replay.locator('[data-new]').click();assert.match(await replay.locator('.inning-score').textContent(),/0구/);
+  assert.equal(await replay.locator('[data-new]').count(),0,'retry is the only replay button');
   await replay.locator('.inning-exit').click();await replay.close();
   assert.deepEqual(errors,[]);console.log('PASS: inning entry, 320/390/desktop, touch targets, one pitch, duplicate lock, close during pitch, reopen, save isolation');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

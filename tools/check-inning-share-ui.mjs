@@ -47,7 +47,7 @@ try {
   assert.match(await page.locator('.inning-feedback').textContent(),/홈런/);
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]){
     await page.setViewportSize({width,height});
-    for(const selector of ['[data-retry]','[data-new]','[data-share]','[data-copy]','[data-card]']){
+    for(const selector of ['[data-retry]','[data-share]','[data-copy]','[data-card]']){
       const b=await page.locator(selector).boundingBox();assert.ok(b&&b.height>=44&&b.x>=0&&b.y>=0&&b.x+b.width<=width&&b.y+b.height<=height,`${selector} within ${width}x${height}`);
       assert.ok(await page.locator(selector).evaluate(el=>{const r=el.getBoundingClientRect();return el.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));}),'action not covered');
     }

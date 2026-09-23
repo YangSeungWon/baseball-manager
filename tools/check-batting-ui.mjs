@@ -50,8 +50,9 @@ try {
     return p.locator('.inning-result').textContent();
   };
   const first=await run();assert.match(first,/재도전/);
-  await p.locator('[data-retry]').click();assert.equal(await run(),first);
-  await p.locator('[data-new]').click();assert.match(await p.locator('.inning-score').textContent(),/0구/);
+  // 재도전은 같은 상황으로 돌아가되 공은 새로 뽑는다.
+  await p.locator('[data-retry]').click();assert.match(await p.locator('.inning-score').textContent(),/0구/);
+  assert.equal(await p.locator('[data-new]').count(),0,'retry is the only replay button');
   await p.locator('.inning-exit').click();await p.close();
   assert.deepEqual(errors,[]);console.log('PASS: batting mobile/desktop, take and swing, pitch reveal, completion/retry, save isolation, return to pitcher mode');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

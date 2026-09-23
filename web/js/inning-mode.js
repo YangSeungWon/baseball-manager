@@ -400,15 +400,17 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     if(batting&&!full&&game.won)clearStage(stage.id);
     const nextStage=batting&&!full&&game.won&&stage.id<STAGES.length-1,s=game.snapshot();
     const icon=path=>`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg>`;
+    // 재도전은 같은 상황(구장·점수·주자)으로 돌아갈 뿐, 공은 새로 뽑는다.
+    // 같은 공을 그대로 다시 받는 것은 연습으로도 현실적이지 않다 — 같은 공은 공유 링크로만 재현한다.
     const replayLabel=full?'다시 경기':'같은 상황 재도전';
-    const replay=`<button class="${nextStage?'quiet':'go'}" data-retry>${icon('M4 10a8 8 0 1 1 0 5M4 4v6h6')}<span>${nextStage?'다시 도전':replayLabel}</span></button><button class="quiet" data-new>${icon('M4 12h16m-6-6 6 6-6 6')}<span>${full?'새 경기':'새 상대 도전'}</span></button>`;
+    const replay=`<button class="${nextStage?'quiet':'go'}" data-retry>${icon('M4 10a8 8 0 1 1 0 5M4 4v6h6')}<span>${nextStage?'다시 도전':replayLabel}</span></button>`;
     const title=full?(s.tie?'무승부':game.won?'경기 승리!':'경기 패배'):(batting?(game.won?(stage.id===STAGES.length-1&&clearedStages().length===STAGES.length?'세 경기 클리어!':'끝내기 승리!'):(stage.homeScore+game.runs===stage.awayScore?'동점에서 이닝 종료':'뒤집지 못했다')):(game.won?'막아냈다!':'리드를 지키지 못했다'));
     const homeScore=full?s.homeScore:stage.homeScore+game.runs,awayScore=full?s.awayScore:stage.awayScore;
     const meta=full?`${s.inning}회 · ${game.count}구 · ${game.runs}득점`:`${game.count}구 · ${game.runs}${batting?'득점':'실점'} · ${batting?game.outs+'아웃':(game.outs-1)+'아웃을 잡았습니다.'}`;
     // 단판 결과에는 세 경기의 표가 붙는다. 첫 승부를 끝낸 사람이 여기서 다음 구장을 고른다.
     const board=batting&&!full?(()=>{const cleared=clearedStages();return `<div class="stage-select result-stages" role="group" aria-label="승부 선택">${STAGES.map(st=>`<button data-stage="${st.id}" aria-pressed="${st.id===stage.id}" class="${cleared.includes(st.id)?'is-cleared':''}"><b>${cleared.includes(st.id)?'✓':st.id+1} ${st.title}</b><span>${st.situation}${st.skillLabel?` · <em class="stage-skill">${st.skillLabel}</em>`:''}</span></button>`).join('')}</div>`;})():'';
     box.innerHTML=`<section class="result-overview">${batting?`<small class="result-stage">${full?'9이닝 경기 · '+stage.title:stage.id+1+' / '+STAGES.length+' · '+stage.title}</small>`:''}<h2>${title}</h2><div class="result-final-score"><span>${stage.home.short}</span><strong>${homeScore} : ${awayScore}</strong><span>${stage.away.short}</span></div><p>${meta}</p></section><div class="result-replay">${nextStage?`<button class="go" data-next>다음 경기 ${icon('M4 12h16m-6-6 6 6-6 6')}</button><div class="result-other-games">${replay}</div>`:replay}</div>${board}`;
-    box.querySelectorAll('.result-stages button').forEach(b=>b.onclick=()=>{const id=Number(b.dataset.stage);if(id===stage.id)return start(true);stage=getStage(id);start(false);});
+    box.querySelectorAll('.result-stages button').forEach(b=>b.onclick=()=>{const id=Number(b.dataset.stage);if(id!==stage.id)stage=getStage(id);start(false);});
     if(batting&&!full){
       const result=battingResult(game.snapshot(),seed,runEvents);
       box.insertAdjacentHTML('beforeend',`<section class="inning-sharing"><button class="quiet" data-share>${icon('M12 15V3m-4 4 4-4 4 4M5 12v8h14v-8')}<span>결과 공유</span></button><div class="result-share-tools"><button class="quiet" data-copy>${icon('M9 8V4h11v13h-4M4 8h11v13H4z')}<span>링크 복사</span></button><button class="quiet" data-card>${icon('M12 3v12m-4-4 4 4 4-4M4 17v4h16v-4')}<span>카드 저장</span></button></div><p class="inning-share-status" role="status"></p><textarea class="inning-share-fallback" aria-label="복사할 결과와 도전 링크" readonly hidden></textarea></section>`);
@@ -422,7 +424,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       box.querySelector('[data-card]').onclick=async()=>{try{const blob=await resultCard(result);if(dead)return;const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dugout-b7-'+result.stageId+'-'+result.seed+'.png';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);status.textContent='결과 카드를 저장했습니다. 도전 링크도 함께 보내보세요.';}catch{status.textContent='카드를 만들지 못했습니다. 도전 링크를 복사해 주세요.';}};
     }
     if(nextStage)box.querySelector('[data-next]').onclick=()=>{stage=getStage(stage.id+1);start(false);};
-    box.querySelector('[data-retry]').onclick=()=>start(true);box.querySelector('[data-new]').onclick=()=>start(false);box.querySelector('button').focus({preventScroll:true});box.scrollIntoView({block:'nearest',behavior:'smooth'});
+    box.querySelector('[data-retry]').onclick=()=>start(false);box.querySelector('button').focus({preventScroll:true});box.scrollIntoView({block:'nearest',behavior:'smooth'});
   }
   function close(){if(dead)return;dead=true;holdClock();cancelDecision?.();lv?.skip();lv?.destroy();root.remove();backgrounds.forEach((e,i)=>e.inert=inert[i]);document.body.style.overflow=previousOverflow;document.removeEventListener('keydown',key);document.removeEventListener('visibilitychange',visibility);opened=false;origin?.focus();}
   function key(e){if(e.key==='Escape'){e.preventDefault();close();}
@@ -522,7 +524,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       sync(e.after);lv.S.broadcast={kind:game.done?'beauty':'between'};
       if(coaching)coachAfter(e);
       $('.inning-feedback').innerHTML=`<div class="inning-verdict"><strong>${e.label}</strong><span>${PITCHES[e.pitch.t].name} · ${e.pitch.v} km/h${e.control?' · '+e.control.label:''}${e.effort==='max'?' · 전력':e.effort==='calm'?' · 안정':''}${e.impact?` · ${e.choice.approach==='power'?'장타 스윙':'컨택 스윙'} · <em class="inning-timing is-${e.impact.kind}">${e.impact.label}</em>${e.fieldPlay?` · 타구 ${Math.round(e.fieldPlay.speed*3.6)} km/h`:''}`:e.timing?` · <em class="inning-timing is-${e.timing.kind}">${e.timing.label}</em> · ${e.timing.power>=.66?'장타 스윙':e.timing.power<=.33?'컨택 스윙':'중간 스윙'}`:''}${!e.impact&&e.aim&&e.timing&&!e.timing.whiff?` · 조준 ${e.aim.close>.7?'정확':e.aim.close>.35?'근접':'빗나감'}`:''}</span></div>${e.adjusted?`<p class="inning-adjust">투수가 배합을 바꿨습니다.</p>`:''}`;paint();if(game.done)finish();
-    } catch(error){if(!dead){root.classList.add('is-finished');$('.inning-feedback').textContent='화면을 다시 준비합니다. 같은 상황에서 재시작하세요.';$('.inning-result').hidden=false;$('.inning-result').innerHTML='<button class="go">같은 상황 다시 시작</button>';$('.inning-result button').onclick=()=>start(true);}console.error(error);}
+    } catch(error){if(!dead){root.classList.add('is-finished');$('.inning-feedback').textContent='화면을 다시 준비합니다. 같은 상황에서 재시작하세요.';$('.inning-result').hidden=false;$('.inning-result').innerHTML='<button class="go">같은 상황 다시 시작</button>';$('.inning-result button').onclick=()=>start(false);}console.error(error);}
     finally{busy=false;root.classList.remove('is-playing');if(!dead){lv._size();if(game.done)requestAnimationFrame(()=>{if(!dead)$('.inning-result').scrollIntoView({block:'nearest'});});else root.scrollTop=scrollBefore;}if(!dead&&!game.done){$('.inning-throw').disabled=false;if(!batting){$('.inning-throw').querySelector('span').textContent='투구';$('.pitch-effort').disabled=false;$('.pitch-breathe').disabled=calm;$('.pitch-breathe').textContent=calm?'호흡 안정':'숨 고르기';}dock();$('.inning-picks').disabled=false;if(batting){lv.S.batSwingFrom=null;lv.S.batRecover=0;lv.S.batLoad=0;scheduleNext();}else{presentMitt();$('.inning-throw').focus({preventScroll:true});}}}
   };
   if(batting)root.addEventListener('pointerdown',e=>{if(e.button===0&&paused&&!busy&&e.target===lv?.three?.canvas){e.preventDefault();callTime(false);}});

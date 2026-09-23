@@ -82,14 +82,23 @@ export function learning(n=100){
 if(process.argv[1]&&process.argv[1].endsWith('measure-batting.mjs')){
   const n=parseInt(process.argv[2]||'2000'),games=parseInt(process.argv[3]||'200');
   const row=(l,v,t,d=1)=>console.log(`${l.padEnd(26)}${v.toFixed(d).padStart(8)}   ${t}`);
-  const target={random:'8 ~ 14',zone:'20 ~ 30',timer:'38 ~ 48',oracle:'50 ~ 60'};
-  console.log(`스테이지 ${n}회 × 정책 4 × 스테이지 3`);
+  // 목표 구간은 직접 타격(배트=수평 막대, 콜 존) 모델에서 1000회씩 잰 값이다. 스테이지별로 따로 둔다 —
+  // 1 항구는 3점이 필요하고, 2 산성은 1점이면 끝나며, 3 돔은 안타 둘이 필요해 요구 기술이 다르다.
+  const target={
+    random: ['0 ~ 5','0 ~ 6','0 ~ 5'],
+    zone:   ['0 ~ 6','14 ~ 28','0 ~ 6'],
+    timer:  ['4 ~ 15','95 ~ 100','0 ~ 8'],
+    aimer:  ['72 ~ 88','85 ~ 97','70 ~ 86'],
+    slugger:['94 ~ 100','12 ~ 28','42 ~ 60'],
+    oracle: ['72 ~ 88','85 ~ 97','70 ~ 86'],
+  };
+  console.log(`스테이지 ${n}회 × 정책 ${Object.keys(POLICIES).length} × 스테이지 3`);
   const L=ladder(n);
   for(const [key,policy] of Object.entries(POLICIES)){
     const s=L[key];
     console.log(`\n[${policy.label}]`);
     row('컨택률 (%)',s[0].contact,'');row('헛스윙률 (%)',s[0].whiff,'');row('파울률 (%)',s[0].foul,'');row('타구 안타율 (%)',s[0].hit,'');row('존 밖 스윙률 (%)',s[0].chase,'');
-    row('스테이지1 클리어 (%)',s[0].clear,target[key]);row('스테이지2 클리어 (%)',s[1].clear,'');row('스테이지3 클리어 (%)',s[2].clear,'');
+    for(let i=0;i<3;i++)row(`스테이지${i+1} 클리어 (%)`,s[i].clear,target[key]?.[i]??'');
   }
   console.log(`\n9이닝 ${games}경기 · 말 공격 정책 비교`);
   const G=learning(games);
