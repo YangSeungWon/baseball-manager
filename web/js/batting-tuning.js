@@ -17,7 +17,9 @@ export const BATTING={
     tipFrom:.85,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
     speedBase:18,speedRange:30,powerSwing:.12,powerAbility:.55,chaseReach:.4,
     // 스윙 종류별 배트 중심 크기와 시간 허용 폭 배율. 힘 .5(자동·이전 입력)는 둘 다 1이다.
-    swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.85,window:.8}}},
+    // 장타 스윙의 위험은 헛스윙이어야 한다. barrel 이 .85 면 존 위아래 공이 배트 굵기 안에 아슬아슬하게 걸려
+    // 전부 깎여맞은 파울이 되고, 가운데 공만 골라 담는 지배 전략이 된다. .75 면 그 공들은 배트를 지나간다.
+    swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.75,window:.8}}},
   playerInput:{contactSeconds:.14,timingTolerance:.055,
     // 투수 릴리스 전에 준비(누르기)를 시작하면 장타 스윙, 릴리스 후면 컨택 스윙. seconds 는 떼고 나서 배트가 접촉 지점에 닿는 시간.
     swings:{contact:{seconds:.11,power:0},power:{seconds:.17,power:1}},

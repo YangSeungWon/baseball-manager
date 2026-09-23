@@ -87,9 +87,9 @@ if(process.argv[1]&&process.argv[1].endsWith('measure-batting.mjs')){
   const target={
     random: ['0 ~ 5','0 ~ 6','0 ~ 5'],
     zone:   ['0 ~ 6','14 ~ 28','0 ~ 6'],
-    timer:  ['4 ~ 15','95 ~ 100','0 ~ 8'],
+    timer:  ['8 ~ 22','20 ~ 36','2 ~ 13'],
     aimer:  ['72 ~ 88','85 ~ 97','70 ~ 86'],
-    slugger:['94 ~ 100','12 ~ 28','42 ~ 60'],
+    slugger:['54 ~ 72','12 ~ 28','25 ~ 42'],
     oracle: ['72 ~ 88','85 ~ 97','70 ~ 86'],
   };
   console.log(`스테이지 ${n}회 × 정책 ${Object.keys(POLICIES).length} × 스테이지 3`);
