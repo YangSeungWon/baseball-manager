@@ -18,36 +18,32 @@ const peek=g=>{const rng=g.rng,roll=Array.from({length:10},()=>g.random());g.rng
 
 // 정책: choose(game) → 사전 선택, decide(game, delivery) → {action, timing}
 export const POLICIES={
-  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:randomTiming(g),aim:{x:0,z:0}})},
-  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:randomTiming(g),aim:{x:0,z:0}})},
-  timer:{label:'존 판독 + 타이밍',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:0,z:0}})},
-  aimer:{label:'존 판독 + 타이밍 + 조준',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:d.x,z:d.z}})},
-  slugger:{label:'존 판독 + 타이밍 + 장타(힘 1)',choose:()=>({target:'any',approach:'power',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),power:1,aim:{x:0,z:0}})},
-  oracle:{label:'+ 예측 적중(예지) + 조준',choose:g=>{const p=deliverPitch(g.pitcher,g,peek(g));return {target:p.t,approach:'contact',location:'any'};},decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),aim:{x:d.x,z:d.z}})},
+  random:{label:'무작위',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:g=>({action:(g.rng>>>8)&1?'swing':'take',timing:randomTiming(g)})},
+  zone:{label:'존 판독',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:randomTiming(g)})},
+  timer:{label:'존 판독 + 타이밍',choose:()=>({target:'any',approach:'contact',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet()})},
+  guesser:{label:'존 판독 + 타이밍 + 구종 노림',choose:g=>{const p=deliverPitch(g.pitcher,g,peek(g));return {target:p.t,approach:'contact',location:'any'};},decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet()})},
+  slugger:{label:'존 판독 + 타이밍 + 장타(힘 1)',choose:()=>({target:'any',approach:'power',location:'any'}),decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet(),power:1})},
+  oracle:{label:'+ 구종·코스 모두 적중(예지)',choose:g=>{const p=deliverPitch(g.pitcher,g,peek(g));return {target:p.t,approach:'contact',location:locationOf(p)};},decide:(g,d)=>({action:inStrikeZone(d.x,d.z)?'swing':'take',timing:sweet()})},
 };
 
 // 사람 손. 위 정책들은 타이밍 오차 0 이거나 조준이 완벽해서, 전부 목표 안이어도 손으로는 못 치는 상태가 가능하다.
 // 사람은 (1) 배트를 남겨둔 자리에서 출발해 공 쪽으로 일부만 따라가고 (2) 조준과 타이밍에 오차가 있으며
 // (3) 존 판정도 흔들린다. 그래서 이 정책만이 "지금 이 게임을 손으로 칠 수 있는가"를 잰다.
 export const HANDS={
-  rookie:{label:'사람 · 초보',track:.50,aimSd:.80,timeSd:.30,chase:.32},
-  regular:{label:'사람 · 중급',track:.70,aimSd:.45,timeSd:.18,chase:.18},
-  veteran:{label:'사람 · 숙련',track:.85,aimSd:.25,timeSd:.10,chase:.08},
+  rookie:{label:'사람 · 초보',timeSd:.30,chase:.32,missZone:.22},
+  regular:{label:'사람 · 중급',timeSd:.18,chase:.18,missZone:.12},
+  veteran:{label:'사람 · 숙련',timeSd:.10,chase:.08,missZone:.05},
 };
 export const handPolicy=(key,seedOffset=0)=>{
-  const H=HANDS[key];let last={x:0,z:0},rnd=lcg(1);
+  const H=HANDS[key];let rnd=lcg(1);
   return {label:H.label,hand:true,
-    reset(seed){rnd=lcg((seed>>>0)+seedOffset+7919);last={x:0,z:0};},
+    reset(seed){rnd=lcg((seed>>>0)+seedOffset+7919);},
     choose:()=>({target:'any',approach:'contact',location:'any'}),
     decide(g,d){
-      // 존 판정: 경계에서 흔들린다. 벗어난 공도 가끔 쫓아간다.
+      // 존 판정은 경계에서 흔들리고, 벗어난 공도 가끔 쫓아간다. 그리고 타이밍에 오차가 있다.
       const edge=Math.max(Math.abs(d.x),Math.abs(d.z));
-      const swing=edge<=1?rnd()>H.chase*.35:rnd()<H.chase*Math.max(0,2-edge);
-      // 남겨둔 배트에서 공 쪽으로 track 만큼 따라가고, 거기에 조준 오차가 얹힌다.
-      const aim={x:clampTo(last.x+(d.x-last.x)*H.track+gauss(rnd)*H.aimSd,-2,2),
-                 z:clampTo(last.z+(d.z-last.z)*H.track+gauss(rnd)*H.aimSd,-2,2)};
-      last=aim;
-      return {action:swing?'swing':'take',timing:clampTo(sweet()+gauss(rnd)*H.timeSd,0,1),aim};
+      const swing=edge<=1?rnd()>H.missZone:rnd()<H.chase*Math.max(0,2-edge);
+      return {action:swing?'swing':'take',timing:clampTo(sweet()+gauss(rnd)*H.timeSd,0,1)};
     }};
 };
 // 9이닝용. naive 는 timer 와 같고, learner 는 카운트별로 본 구종을 기억해 최빈값을 노린다.
@@ -71,7 +67,7 @@ const record=(t,e)=>{
 };
 export function playStage(policy,stageId,seed){
   const g=new BattingGame(seed,stageId),t=tally();policy.reset?.(seed);
-  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing,power=.5,aim=null}=policy.decide(g,d);record(t,g.decidePitch(action,timing,power,aim));}
+  while(!g.done){const d=g.preparePitch(policy.choose(g));const {action,timing,power=0}=policy.decide(g,d);record(t,g.decidePitch(action,timing,power));}
   t.games=1;t.cleared=g.won?1:0;return t;
 }
 // 초 공격은 숙련된 손(σ .05)으로 구종을 섞어 던지는 투수 정책이 맡는다. 말 공격이 policy.
@@ -84,8 +80,8 @@ export function playFullGame(policy,seed,{sigma=.05}={}){
       const release=releaseMarker(.5+gauss(r)*sigma,pitchPressure(g.snapshot()),'normal');
       g.pitch({type,zone,intent,release,effort:'normal'});
     }
-    else{const d=g.preparePitch(policy.choose(g));const {action,timing,power=.5,aim=null}=policy.decide(g,d);
-      record(t,policy.hand?g.decidePitch(action,timing,power,aim):g.decidePitch(action,timing));}
+    else{const d=g.preparePitch(policy.choose(g));const {action,timing,power=0}=policy.decide(g,d);
+      record(t,g.decidePitch(action,timing,power));}
     if(!g.done&&g.outs>=3)g.advanceHalf();
   }
   t.games=1;t.cleared=g.won?1:0;t.runs=g.homeRuns;t.allowed=g.awayRuns;t.pitchesThrown=g.histories.top.length;return t;
@@ -98,7 +94,7 @@ export function measure(policy,play,n,stage){
     runsPerGame:sum.runs/sum.games,allowedPerGame:sum.allowed/sum.games,pitchesThrown:sum.pitchesThrown/sum.games,clear:pct(sum.cleared,sum.games),pitchesPerPa:sum.pa?sum.pitches/sum.pa:0,guessRate:pct(sum.guesses,sum.pitches),accuracy:pct(sum.guessHits,sum.guesses)};
 }
 // 손으로 칠 수 있는가. 값이 아니라 하한이다 — 이 밑으로 내려가면 계수가 어떻든 게임이 아니다.
-export const HAND_FLOOR={rookie:{contact:20},regular:{contact:55,hit:20},veteran:{contact:90,hit:32}};
+export const HAND_FLOOR={rookie:{contact:45},regular:{contact:68,hit:32},veteran:{contact:82,hit:35}};
 export function hands(n=400,stage=0){
   return Object.fromEntries(Object.keys(HANDS).map(k=>[k,measure(handPolicy(k),(p,st,seed)=>playStage(p,st,seed),n,stage)]));
 }
@@ -117,12 +113,12 @@ if(process.argv[1]&&process.argv[1].endsWith('measure-batting.mjs')){
   // 목표 구간은 직접 타격(배트=수평 막대, 콜 존) 모델에서 1000회씩 잰 값이다. 스테이지별로 따로 둔다 —
   // 1 항구는 3점이 필요하고, 2 산성은 1점이면 끝나며, 3 돔은 안타 둘이 필요해 요구 기술이 다르다.
   const target={
-    random: ['0 ~ 5','0 ~ 5','0 ~ 5'],
-    zone:   ['0 ~ 10','13 ~ 28','0 ~ 6'],
-    timer:  ['16 ~ 32','95 ~ 100','0 ~ 8'],
-    aimer:  ['44 ~ 62','90 ~ 100','60 ~ 78'],
-    slugger:['62 ~ 80','12 ~ 28','9 ~ 24'],
-    oracle: ['44 ~ 62','90 ~ 100','60 ~ 78'],
+    random: ['8 ~ 18','40 ~ 58','2 ~ 10'],
+    zone:   ['20 ~ 32','66 ~ 82','8 ~ 18'],
+    timer:  ['34 ~ 47','75 ~ 90','17 ~ 29'],
+    guesser:['45 ~ 58','81 ~ 94','26 ~ 38'],
+    slugger:['62 ~ 76','88 ~ 99','38 ~ 52'],
+    oracle: ['50 ~ 62','84 ~ 96','30 ~ 42'],
   };
   console.log(`스테이지 ${n}회 × 정책 ${Object.keys(POLICIES).length} × 스테이지 3`);
   const L=ladder(n);

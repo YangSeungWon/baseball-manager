@@ -32,7 +32,7 @@ try {
  await page.waitForTimeout(100);await page.screenshot({path:`/tmp/batting-read-ball-${width}.png`});
  const view=await page.evaluate(async()=>{
  const T=await import('/vendor/three/three.module.min.js');const {BATTING_ZONE:ZONE}=await import('/js/batting-space.js');
- const view=lv.three,camera=view.camera,rect=view.canvas.getBoundingClientRect();
+ const view=lv.three,camera=view.camera;
  const screen=p=>{const q=p.clone().project(camera);return {x:(q.x+1)/2,y:(1-q.y)/2};};
  let error=0,squareError=0;
  const originalHand=lv.S.batter.hand,heldAim=lv.S.aim;
@@ -59,18 +59,14 @@ try {
   // 시선이 살짝 아래를 보므로 윗변이 아랫변보다 좁은 원근만 남는다.
   squareError=Math.max(squareError,Math.abs(corners[0].y-corners[1].y),Math.abs(corners[2].y-corners[3].y),
    Math.abs((corners[0].x+corners[1].x)/2-.5),Math.abs((corners[2].x+corners[3].x)/2-.5));
-  // 화면에서 본 자리가 그대로 조준점이다.
-  for(const x of [-1.8,-1,0,1,1.8])for(const z of [-1.8,-1,0,1,1.8]){
-   const p=screen(new T.Vector3(x*ZONE.halfWidth,ZONE.center+z*ZONE.halfHeight,0));
-   const a=view.battingAimAt(rect.left+p.x*rect.width,rect.top+p.y*rect.height);
-   if(!a)throw Error('cannot aim at the zone');error=Math.max(error,Math.abs(x-a.x),Math.abs(z-a.z));
-  }
+  // 존의 네 귀퉁이가 화면 안에 있으면 선구안 판단이 가능하다. 조준은 없다.
+  error=0;
  }
  lv.S.batter.hand=originalHand;lv.S.aim=heldAim;lv.S.swing=0;view.render(lv.S,lv.o.colors,lv.line,performance.now()/1000);
  let projections=0;const project=camera.updateProjectionMatrix;camera.updateProjectionMatrix=function(){projections++;return project.call(this);};
  for(let i=0;i<120;i++)view.direct(lv.S,performance.now()/1000);
  camera.updateProjectionMatrix=project;if(projections!==0)throw Error('fixed camera recalculated projection');
- return {eye:camera.position.toArray(),error,squareError,aimVisible:view.battingAim.visible,
+ return {eye:camera.position.toArray(),error,squareError,aimGone:!view.battingAim,
   zoneWhite:view.battingZoneBorder.color.getHexString(),
   // 테두리는 1px 선이 아니라 두께가 있는 면이라 배경이 바뀌어도 같은 굵기로 읽힌다.
   zoneBorderPx:(()=>{const bar=view.battingZone.children.find(o=>o.material===view.battingZoneBorder);
@@ -78,11 +74,10 @@ try {
   catcherVisible:!!view.players.get('fC')?.root.visible,umpireVisible:!!view.players.get('ump')?.root.visible,
   batterVisible:!!view.players.get('bat')?.root.visible};
  });
- assert.ok(view.error<1e-6,'aim matches the pitch coordinates on screen');
  assert.ok(view.squareError<1e-6,'the zone is square to the screen');
  assert.equal(view.zoneWhite,'ffffff','the zone is the white broadcast box');
  assert.ok(view.zoneBorderPx>=10,`the border has real thickness (${view.zoneBorderPx} mm)`);
- assert.equal(view.aimVisible,true);
+ assert.equal(view.aimGone,true,'조준 표시는 선구안 게임에 없다');
  assert.equal(view.catcherVisible,false,'the catcher does not stand in front of the zone');
  assert.equal(view.umpireVisible,false,'the umpire does not stand in front of the zone');
  assert.equal(view.batterVisible,true,'the hitter is a whole body again');

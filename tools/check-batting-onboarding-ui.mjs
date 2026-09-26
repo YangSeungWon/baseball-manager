@@ -25,7 +25,7 @@ try {
   });
   await page.locator('#btnBatting').click();
   await page.locator('.match-enter:not([disabled])').waitFor();
-  assert.match(await page.locator('.match-batting-help').textContent(),/조준.*스윙 패드.*참습니다/s);
+  assert.match(await page.locator('.match-batting-help').textContent(),/칠까 참을까.*스윙.*참습니다/s);
   assert.equal(await page.locator('.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);
   // 타격 전략 띠는 공 사이에만 나온다. 입장 카드 위에는 아무 조작판도 없다.
   assert.equal(await page.locator('.batting-plan').isVisible(),false);
@@ -40,9 +40,8 @@ try {
     observer.disconnect();
     firstPitch={coachVisible:!!root.querySelector('.coach-tip:not([hidden])'),helpVisible:!!root.querySelector('.match-batting-help')};
     // React within the real pitch window, without test-driver network round trips.
-    // 터치는 아래 스윙 패드에서만 스윙이 된다. 마우스는 어디서든 왼쪽 버튼이 스윙이다.
-    const canvas=root.querySelector('canvas'),r=canvas.getBoundingClientRect(),touch=innerWidth<900;
-    const e={button:0,bubbles:true,pointerId:1,pointerType:touch?'touch':'mouse',clientX:r.left+r.width/2,clientY:touch?r.bottom-30:r.top+r.height/2};
+    const canvas=root.querySelector('canvas'),r=canvas.getBoundingClientRect();
+    const e={button:0,bubbles:true,pointerId:1,pointerType:innerWidth<900?'touch':'mouse',clientX:r.left+r.width/2,clientY:r.top+r.height/2};
     document.dispatchEvent(new KeyboardEvent('keydown',{key:' ',bubbles:true}));if(decisions.length)throw Error('Space must not swing');
     canvas.dispatchEvent(new PointerEvent('pointerdown',e));
     if(e.pointerType==='touch'&&decisions.length)throw Error('touchdown must not swing');

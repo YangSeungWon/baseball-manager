@@ -58,7 +58,9 @@ export const BATTING={
     qualityScale:{contactApproach:.92,locationMiss:.78,typeMiss:.90,outOfZone:.72},
     // 구종 적중 보상. 타구 질을 전체적으로 내리면 예측이 벌어준 컨택이 약한 타구로 흡수되어
     // "기억이 이득"이 뒤집힌다. 타구 질을 내릴 때는 이 값을 함께 올려야 한다.
-    bonus:{base:-.12,locationRead:.06,typeMatch:.09,outOfZone:-.12},
+    // base 는 타자 편 타구 질의 기준선이다. 주루·송구가 실제 시간 모델로 바뀌며 인플레이 타구가 더 살아남아
+    // 사다리가 쉬워졌고, −.18 에서 문서의 사다리 목표(무작위 8~14 · 존판독 20~30 · 타이밍 38~48 · 예지 50~60)에 다시 맞았다.
+    bonus:{base:-.18,locationRead:.06,typeMatch:.09,outOfZone:-.12},
     flight:{qualityRoll:.85,powerQuality:.15,speedBase:26,speedRange:28,launchBase:6,launchRange:43,launchPower:7,angleRange:80,angleClamp:45},
   },
   // 상대 투수의 투구 생성. 플레이어의 선택은 절대 읽지 않는다.
@@ -71,7 +73,8 @@ export const BATTING={
   // 타자(나): 컨택 로그오즈와 타구 질을 내린다. 투수(나): 피로가 55 부터 완만하게 쌓이고, AI 타자는 조금 덜 맞힌다.
   // 주루·송구가 실제 시간으로 바뀌면서(중계 송구, 추월 규칙) 인플레이 타구가 더 살아남는다.
   // 양 팀 득점이 함께 올라 타구 질을 양쪽 모두 내렸다. 이 구간은 가파르다 — .03 이 득점 1점이다.
-  fullGame:{contactLogit:-.85,bipBase:-.22,fatigueFrom:55,fatiguePerPitch:.004,aiContact:-.19,aiQuality:-.29},
+  // bipBase 는 bip.bonus.base 에 더해진다. base 를 .06 내렸으므로 9이닝 합계를 지키려면 같은 만큼 올린다.
+  fullGame:{contactLogit:-.85,bipBase:-.16,fatigueFrom:55,fatiguePerPitch:.004,aiContact:-.19,aiQuality:-.29},
   // 9이닝 상대 투수의 문법. 규칙 수, 불펜 교체 이닝, 규칙을 바꾸게 만드는 피안타 수.
   grammar:{rulesPerArm:4,bullpenInning:7,hitsToAdjust:2},
   // 반사실 비교의 가치 함수(타자 관점).

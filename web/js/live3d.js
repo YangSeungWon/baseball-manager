@@ -453,14 +453,7 @@ export class Live3D {
     const battingShot=this.opts.playerRole==='batter'&&BATTING_SHOTS.includes(S.broadcast?.kind);
     if(this.opts.playerRole==='batter')for(const key of ['fC','ump']){const p=this.players.get(key);if(p&&battingShot)p.root.visible=false;}
     if(this.opts.playerRole==='batter'){
-      if(!this.battingAim){
-        // 조준 표시는 배트 그대로다: 길이 방향으로는 닿는 범위 전체를, 가운데에는 정타가 나오는 구간을 그린다.
-        // 크기는 힘 .5 기준이며 컨택/장타 스윙에서 실제 범위는 조금 넓거나 좁다.
-        const C=BATTING.manualContact;
-        this.battingAim=new T.Group();this.battingAim.userData.noBatch=true;this.scene.add(this.battingAim);
-        const reach=new T.Mesh(new T.PlaneGeometry(C.batSpan*2,(C.batRadius+C.ballRadius)*2),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.22,depthTest:false,side:T.DoubleSide}));
-        const barrel=new T.Mesh(new T.PlaneGeometry(C.sweetSpan*2,(C.batRadius+C.ballRadius)*2),new T.MeshBasicMaterial({color:'#f4d491',transparent:true,opacity:.62,depthTest:false,side:T.DoubleSide}));
-        for(const part of [reach,barrel]){part.userData.noBatch=true;part.renderOrder=3;this.battingAim.add(part);}
+      if(!this.battingZone){
         // 중계 화면의 K존처럼 두께 있는 흰 테두리에 아주 옅은 면을 채운다.
         // 1px 선은 잔디·흙 경계가 지날 때 조각조각 끊겨 보여 박스 모양이 읽히지 않는다.
         // 어두운 테두리를 한 겹 깔아 밝은 흙 위에서도 같은 굵기로 보이게 한다.
@@ -480,8 +473,7 @@ export class Live3D {
         frame(T0*2.4,'#0d1a1f',.45,3);this.battingZoneBorder=frame(T0,'#ffffff',.96,4);
       }
       this.battingZone.visible=!!S.batter&&battingShot;
-      this.battingAim.visible=!!S.aim&&!S.pointerAiming&&this.battingZone.visible&&!S.swing;
-      if(S.aim)this.battingAim.position.set(S.aim.x*ZONE.halfWidth,ZONE.center+S.aim.z*ZONE.halfHeight,.01);
+
     }
     const b=S.ball?.vis?S.ball:S.hold&&!(battingShot&&S.hold.pos==='C')?{x:S.hold.x,y:S.hold.y,z:1.15}:null;
     if(b&&!S.fieldPlay?.physical&&S.fieldPlay?.phase==='flight'&&S.fieldPlay.progress>.8&&S.fielders[S.fieldPlay.fielder]?.pose==='catch'){
@@ -529,16 +521,6 @@ export class Live3D {
     }
     this.opts.onPitcherAnchor?.(this.pitcherAnchor());
     this.opts.onEntryAnchor?.(this.playerAnchor(this.opts.entryPlayerKey?.()));
-  }
-  battingAimAt(clientX,clientY){
-    if(this.cameraKind!=='batting')return null;
-    const rect=this.canvas.getBoundingClientRect();
-    // 화면의 한 점을 홈플레이트 평면으로 쏜다. 그린 존과 조준이 같은 좌표계라 눈으로 본 곳이 곧 조준점이다.
-    const ray=new T.Raycaster();
-    ray.setFromCamera(new T.Vector2((clientX-rect.left)/rect.width*2-1,1-(clientY-rect.top)/rect.height*2),this.camera);
-    const hit=ray.ray.intersectPlane(new T.Plane(new T.Vector3(0,0,1),0),new T.Vector3());
-    if(!hit)return null;const x=hit.x/ZONE.halfWidth,z=(hit.y-ZONE.center)/ZONE.halfHeight;
-    return {x:clamp(x,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT),z:clamp(z,-BATTING_AIM_LIMIT,BATTING_AIM_LIMIT)};
   }
   pitcherAnchor(){
     return this.playerAnchor('fP');

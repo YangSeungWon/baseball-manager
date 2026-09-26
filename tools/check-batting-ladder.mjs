@@ -9,13 +9,15 @@ const cache=new Map();
 const stage=policy=>{if(!cache.has(policy))cache.set(policy,measure(policy,(p,st,seed)=>playStage(p,st,seed),N,0));return cache.get(policy);};
 
 test('reading avoids chases, timing reduces misses, and complete execution improves scoring',()=>{
-  const r=Object.fromEntries(['random','zone','timer','aimer','oracle'].map(k=>[k,stage(POLICIES[k])]));
+  const r=Object.fromEntries(['random','zone','timer','guesser','oracle'].map(k=>[k,stage(POLICIES[k])]));
   assert.ok(r.zone.chase===0&&r.random.chase>20,'reading the zone avoids chasing balls');
   assert.ok(r.timer.contact>=r.zone.contact+20,'timing skill increases contact');
-  assert.ok(r.aimer.hit>=r.timer.hit+10,'accurate aim improves the batted ball');
-  assert.ok(r.aimer.clear>=r.timer.clear+8&&r.aimer.clear>=r.random.clear+10,'complete execution wins more games');
-  assert.equal(r.oracle.clear,r.aimer.clear,'a hidden preparation bonus cannot change the same manual contact');
-  assert.ok(r.random.clear<20&&r.aimer.clear<100,'wild swings struggle and even centered contact can be fielded');
+  // 선구안 게임의 사다리: 존 판단 → 타이밍 → 노림. 준비는 실행을 도울 뿐 대신하지 못한다.
+  assert.ok(r.guesser.hit>=r.timer.hit+3,'sitting on a pitch improves the batted ball');
+  assert.ok(r.guesser.clear>=r.timer.clear+5,'sitting on a pitch wins more games');
+  assert.ok(r.oracle.clear>=r.guesser.clear,'reading the course on top of the type cannot hurt');
+  assert.ok(r.oracle.clear-r.timer.clear<r.timer.clear-r.random.clear,'preparation gains less than execution');
+  assert.ok(r.random.clear<20&&r.oracle.clear<100,'wild swings struggle and perfect reading still gets fielded');
   console.log('Direct-play skill sample (400 games):',Object.fromEntries(Object.entries(r).map(([k,v])=>[k,{clear:v.clear,contact:v.contact,hit:v.hit}])));
 });
 
