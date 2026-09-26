@@ -7,19 +7,27 @@ export const BATTING={
   // 배트는 점이 아니라 수평 막대다. 위아래(batRadius+ballRadius)로 벗어나면 헛스윙이지만,
   // 길이 방향으로는 batSpan 안이면 배트 어디엔가 닿는다. sweetSpan 안이 정타가 나오는 구간이고
   // 그 바깥은 배트 끝이나 손잡이에 맞은 파울이다(barrelFoul 도 만큼 그쪽으로 감기거나 밀린다).
-  manualContact:{batRadius:.125,ballRadius:.12,batSpan:.36,sweetSpan:.16,barrelFoul:38,contactSeconds:.10,solidQuality:.72,
+  // batRadius 는 배트 굵기가 아니라 스윙 면의 두께다. 사람은 배트를 한 높이에 고정하는 게 아니라
+  // 그 언저리를 훑고 지나가므로, 공이 그 안에 들어오면 배트에 맞는다. 이 값이 작으면 손으로는 칠 수 없다.
+  manualContact:{batRadius:.18,ballRadius:.12,batSpan:.36,sweetSpan:.16,barrelFoul:38,contactSeconds:.10,solidQuality:.72,
     // 공 정중앙을 때리면 낮은 라인드라이브다. 띄우려면 공 밑을 노려야 하고, 그만큼 배트 중심에서 벗어나 품질을 내준다.
     // launchBase 가 높으면 정확한 조준 하나로 최적 발사각이 공짜로 나와 모든 정타가 안타가 된다.
-    timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:7,launchPower:6,verticalLaunch:30,pitchLift:6,
+    // 공 정중앙을 때리면 라인드라이브다. 배트를 공에 정확히 댄 사람이 손해를 보면 배울 수가 없다.
+    timingSpray:68,aimSpray:14,pitchSpray:30,launchBase:12,launchPower:6,verticalLaunch:30,pitchLift:6,
     // 깎여맞음: 배트 굵기의 tipFrom 넘게 위아래로 벗어나 스치듯 맞았는데 타이밍 각도는 tipTiming 도 안쪽일 때.
     // 이 값이 낮으면 배트 높이를 맞추지 않은 공이 전부 파울이 된다 — 존 안 높은 공·낮은 공은 빗맞은 타구여야 한다.
     // 배트가 공 아래면 백네트로 넘어가고(tipBackAngle · tipBackLaunch), 위면 땅에 꽂힌다(tipDownLaunch). 타구는 힘을 거의 잃는다.
-    tipFrom:.85,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
+    tipFrom:.92,tipTiming:26,tipBackAngle:150,tipBackLaunch:62,tipDownLaunch:-18,tipSpeed:.45,
     speedBase:18,speedRange:30,powerSwing:.12,powerAbility:.55,chaseReach:.4,
-    // 스윙 종류별 배트 중심 크기와 시간 허용 폭 배율. 힘 .5(자동·이전 입력)는 둘 다 1이다.
+    // 스윙 종류별 스윙 면 두께와 시간 허용 폭 배율. 힘 .5 는 두 값의 중간이다(두께 .885, 시간 1.0).
     // 장타 스윙의 위험은 헛스윙이어야 한다. barrel 이 .85 면 존 위아래 공이 배트 굵기 안에 아슬아슬하게 걸려
     // 전부 깎여맞은 파울이 되고, 가운데 공만 골라 담는 지배 전략이 된다. .75 면 그 공들은 배트를 지나간다.
-    swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.75,window:.8}}},
+    swing:{contact:{barrel:1.15,window:1.2},power:{barrel:.62,window:.8},cut:{barrel:1.5,window:1.0}},
+    // 커트: 짧게 갖다 대 걷어낸다. 배트 면은 넓지만 타이밍 여유는 보통 스윙과 같아서, 어긋나면 헛스윙이다.
+    // 맞으면 무조건 파울이다 — 삼진은 면하고 투구 수는 늘리지만 안타는 포기한다.
+    cutSpeed:.6,
+    // 노린 구종이 왔을 때 넓어지는 타이밍 여유. 빗나갔으면 반대로 좁아진다 — 준비의 보상은 손이 쓸 수 있어야 한다.
+    guessWindow:1.3,guessMissWindow:.82},
   playerInput:{contactSeconds:.14,timingTolerance:.055,
     // 투수 릴리스 전에 준비(누르기)를 시작하면 장타 스윙, 릴리스 후면 컨택 스윙. seconds 는 떼고 나서 배트가 접촉 지점에 닿는 시간.
     swings:{contact:{seconds:.11,power:0},power:{seconds:.17,power:1}},

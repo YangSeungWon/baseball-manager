@@ -41,7 +41,10 @@ try {
     if(played||!root.classList.contains('is-deciding'))return;
     played=true;observer.disconnect();
     inputCheck={noButtons:!root.querySelector('.batting-decision,.batting-hold,.inning-time'),noResult:decisions.length===0,noLanding:!root.querySelector('.zone-pitch')};
-    if(innerWidth<900){const r=canvas.getBoundingClientRect();canvas.dispatchEvent(new PointerEvent('pointerdown',{button:0,bubbles:true,pointerType:'touch',clientX:r.left+r.width/2,clientY:r.top+r.height/2}));canvas.dispatchEvent(new PointerEvent('pointerup',{button:0,bubbles:true,pointerType:'touch'}));}
+    // 터치는 아래 스윙 패드를 눌렀다 떼야 스윙이다. 화면 가운데를 짚는 것은 조준일 뿐이다.
+    if(innerWidth<900){const r=canvas.getBoundingClientRect(),pad=r.bottom-30;
+     const send=(type,y)=>canvas.dispatchEvent(new PointerEvent(type,{button:0,bubbles:true,pointerType:'touch',pointerId:9,clientX:r.left+r.width/2,clientY:y}));
+     send('pointerdown',pad);send('pointerup',pad);}
    });observer.observe(root,{attributes:true,attributeFilter:['class']});
   });
   await page.locator('.match-enter:not([disabled])').click();

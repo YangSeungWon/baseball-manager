@@ -92,7 +92,8 @@ export class BattingGame extends InningGame {
   // `timing` is where in the read window the swing started (0..1), `power` how hard it was driven (0..1, from hold length).
   // `aim` is where the bat was brought to, in zone units ({x,z}); with it the location guess is ignored.
   // `check` is a held-up swing ({depth} 0..1); only a take can carry one, and the umpire rules on it.
-  decidePitch(action,timing=null,power=null,aim=null,check=null) {
+  // `cut` 은 2스트라이크에서 걷어내는 스윙이다. 맞으면 파울이고, 삼진을 미루는 대신 안타를 포기한다.
+  decidePitch(action,timing=null,power=null,aim=null,check=null,cut=false) {
     if(!this.pending||!['swing','take'].includes(action))throw new Error('Invalid batting decision');
     if(timing!==null&&(!Number.isFinite(timing)||timing<0||timing>1))throw new Error('Invalid swing timing');
     if(power!==null&&(!Number.isFinite(power)||power<0||power>1))throw new Error('Invalid swing power');
@@ -100,7 +101,7 @@ export class BattingGame extends InningGame {
     if(aim!==null&&(typeof aim!=='object'||!Number.isFinite(aim.x)||!Number.isFinite(aim.z)||Math.abs(aim.x)>BATTING_AIM_LIMIT||Math.abs(aim.z)>BATTING_AIM_LIMIT))throw new Error('Invalid swing aim');
     const {choice,roll}=this.pending;
     const alternative=this.alternativeOf({...choice,action},roll);
-    const event=this.resolvePitch({...choice,action,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'&&aim?{x:aim.x,z:aim.z}:null,check},roll);this.pending=null;
+    const event=this.resolvePitch({...choice,action,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'&&aim?{x:aim.x,z:aim.z}:null,check,cut:action==='swing'&&!!cut},roll);this.pending=null;
     event.alternative={...alternative,verdict:compareOutcomes(alternative,outcomeOf(event))};return event;
   }
   // Same delivery, same dice, the other decision. Runs on a throwaway copy so nothing here touches the real state.
@@ -114,7 +115,7 @@ export class BattingGame extends InningGame {
     if(!['swing','take'].includes(choice.action))throw new Error('Invalid batting decision');
     this.preparePitch(choice);return this.decidePitch(choice.action);
   }
-  resolvePitch({target,approach,action,location='any',timing=null,power=null,aim=null,check=null},roll) {
+  resolvePitch({target,approach,action,location='any',timing=null,power=null,aim=null,check=null,cut=false},roll) {
     if(this.done)throw new Error('Challenge already finished');
     if(!['any','in','out','low','high'].includes(location)||!['any','FF','SL','CH'].includes(target)||!['contact','power'].includes(approach)||!['swing','take'].includes(action))throw new Error('Invalid batting selection');
     const before=this.snapshot();
@@ -126,7 +127,9 @@ export class BattingGame extends InningGame {
     // 힘은 선수/타격 성향으로 정한다. 직접 입력의 스윙 시간과 컨택 판정은 일정하다.
     const drive=clamp(power??(approach==='power'?1:0),0,1),powerful=drive>=.5;
     const swing=action==='swing'?swingTiming(timing,this.sweetWindow(before.batter,{target,location},{t:type,x,z})):null;
-    const impact=action==='swing'&&aim&&timing!==null?battingContact({aim,pitch:{x,z},timing,power:drive,batter:before.batter}):null;
+    // 노림은 준비 층의 가산이 아니라 손이 쓸 수 있는 보상으로 간다 — 적중하면 타이밍 여유가 넓어진다.
+    const guess=target==='any'?null:matched?'hit':'miss';
+    const impact=action==='swing'&&aim&&timing!==null?battingContact({aim,pitch:{x,z},timing,power:drive,batter:before.batter,cut,guess}):null;
     const fullGame=this.stage?.id==='full'?T.fullGame:null;
     const contact=contactProbability([T.baseline.contactLogit,fullGame?fullGame.contactLogit:0,(before.batter.contact-T.ability.referenceContact)*T.ability.contactPerPoint,
       target==='any'?0:matched?P.typeHit:P.typeMiss, aim?A.contactMiss+(A.contactHit-A.contactMiss)*aimClose:location==='any'?0:locationMatched?P.locationHit:P.locationMiss,
@@ -185,6 +188,6 @@ export class BattingGame extends InningGame {
       explanation=impact.kind==='miss'?(impact.reason==='timing'?(impact.seconds<0?'배트가 공보다 먼저 지나갔습니다.':'공이 지나간 뒤에 배트가 나왔습니다.'):impact.reason==='aim'?'배트가 공의 코스를 벗어났습니다.':'타이밍과 조준이 함께 빗나가 배트 끝에 닿지 않았습니다.'):impact.kind==='solid'?'배트 중심에 정확히 맞았습니다.':impact.kind==='foul'?foulReading(impact):'배트 중심을 벗어나 타구의 힘이 줄었습니다.';
       if(impact.kind!=='miss')explanation+=` 타구 속도 ${Math.round(impact.speed*3.6)} km/h.`;
     }
-    return {before,after:this.snapshot(),fieldPlay,impact,call,result,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':'')+(checkChance===null?'':checkCalled?' · 체크 스윙 → 스윙':' · 노 스윙'),check:checkChance===null?null:{depth:check.depth,chance:checkChance,called:checkCalled},explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,...(impact?{whiff:impact.kind==='miss'}:{}),p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
+    return {before,after:this.snapshot(),fieldPlay,impact,call,result,cut:!!cut,guess,label:(result==='OUT'&&scored>0&&fieldPlay?.events.some(e=>e.type==='catch')?'희생플라이!':names[result])+(fieldPlay?.running.outs&&['1B','2B','3B'].includes(result)?' · 주루 아웃':'')+(checkChance===null?'':checkCalled?' · 체크 스윙 → 스윙':' · 노 스윙'),check:checkChance===null?null:{depth:check.depth,chance:checkChance,called:checkCalled},explanation,terminal,movements,scored,choice:{target,approach:powerful?'power':'contact',action,location},aim:aim?{x:aim.x,z:aim.z,gap:aimGap,close:aimClose}:null,timing:swing?{...swing,...(impact?{whiff:impact.kind==='miss'}:{}),p:timing,power:drive,window:this.sweetWindow(before.batter,{target,location},{t:type,x,z})}:null,pitch:{t:type,v:PITCHES[type].speed+(this.pitcher.speedOffset||0)+Math.round(roll[6]*4-2),x,z},angle:(roll[7]-.5)*75};
   }
 }

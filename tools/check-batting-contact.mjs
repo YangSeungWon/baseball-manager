@@ -6,13 +6,22 @@ import {FullGame} from '../web/js/full-game.js';
 import {battingPressTiming} from '../web/js/batting-input.js';
 const centered={aim:{x:0,z:0},pitch:{x:0,z:0},timing:.7,power:.5};
 
+// 계수에서 값을 유도한다. 스윙 면 두께나 존 높이를 조정해도 시험의 뜻이 유지되도록.
+const {BATTING:T}=await import('../web/js/batting-tuning.js');
+const {BATTING_ZONE:Z}=await import('../web/js/batting-space.js');
+const C=T.manualContact;
+// 스윙 면 두께는 힘에 따라 달라진다. 시험은 기본값(힘 .5)의 두께를 기준으로 한다.
+const plane=(power=.5)=>(C.batRadius+C.ballRadius)*(C.swing.contact.barrel+(C.swing.power.barrel-C.swing.contact.barrel)*power);
+const PLANE=plane();
+const zoneUnits=metres=>metres/Z.halfHeight;
+const timingFor=seconds=>(T.swingWindow.from+T.swingWindow.to)/2+seconds*(T.swingWindow.to-T.swingWindow.from)/(T.playerInput.timingTolerance*2);
 test('manual misses come from spatial and timing errors, and combined edge errors',()=>{
  assert.equal(battingContact(centered).kind,'solid');
  assert.equal(battingContact({...centered,aim:{x:1.9,z:0}}).reason,'aim');   // 배트 길이 밖
  assert.equal(battingContact({...centered,timing:0}).reason,'timing');
  assert.equal(battingContact({...centered,timing:1}).reason,'timing');
  // 위아래로도 조금, 타이밍도 조금 어긋나면 둘 다 한계 안이어도 배트에 닿지 않는다.
- const edge=battingContact({...centered,aim:{x:0,z:.587},timing:.9});
+ const edge=battingContact({...centered,aim:{x:0,z:zoneUnits(PLANE*.8)},timing:timingFor(C.contactSeconds*.7)});
  assert.equal(edge.kind,'miss');assert.equal(edge.reason,'edge');
 });
 test('timing changes spray, vertical aim changes launch, and center contact is stronger',()=>{
@@ -37,15 +46,15 @@ test('foul direction reads back as timing: pull side is early, opposite side is 
 });
 test('good timing with the bat off the ball vertically is a tipped foul, not a spray foul',()=>{
  const hit=a=>battingContact({...centered,...a});
- const off=.74;   // 배트 굵기의 .9 — 스치듯 맞는 높이
+ const off=zoneUnits(PLANE*(C.tipFrom+1)/2);   // 스치는 구간 한가운데 높이
  const under=hit({aim:{x:0,z:-off}}),over=hit({aim:{x:0,z:off}});
  for(const f of [under,over]){assert.equal(f.kind,'foul');assert.equal(f.reason,'contact');assert.ok(f.tipped);}
  assert.ok(Math.abs(under.angle)>90,'clipping the bottom of the ball sends it back over the catcher');
  assert.ok(over.launch<0,'covering the top of the ball drives it into the ground');
  assert.ok(under.speed<hit({}).speed,'a tipped ball keeps little of the swing');
  // 타이밍까지 어긋나 있으면 깎여맞음으로 읽지 않는다. 그때 방향이 말해주는 것은 타이밍이다.
- assert.equal(hit({aim:{x:0,z:-off},timing:.83}).tipped,false);
- assert.equal(hit({aim:{x:0,z:-.6}}).tipped,false,'a high or low strike met off-center is a weak batted ball, not a tip');
+ assert.equal(hit({aim:{x:0,z:-off},timing:timingFor(C.contactSeconds*.5)}).tipped,false);
+ assert.equal(hit({aim:{x:0,z:-zoneUnits(PLANE*.7)}}).tipped,false,'a high or low strike met off-center is a weak batted ball, not a tip');
 });
 const scripted=(dice,offset={x:0,z:0},timing=.7)=>{
  const g=new BattingGame(3),r=[0,0,...dice,.5,.5,.5,.5];let i=0;g.random=()=>r[i++];
@@ -113,4 +122,20 @@ test('the bat is a horizontal bar: along it the ball is fouled off, off it the b
  // 좌타는 배트가 반대 방향으로 뻗는다.
  const left=hit({aim:{x:-unit(C.sweetSpan*1.4),z:0},batter:{bats:'L'}});
  assert.match(left.label,/배트 끝/);
+});
+
+test('two-strike cut trades the hit for a foul, and sitting on a pitch buys timing',async()=>{
+ const {BATTING:T}=await import('../web/js/batting-tuning.js');
+ const late=timingFor(T.manualContact.contactSeconds*.45);
+ const swing=o=>battingContact({...centered,timing:late,...o});
+ // 커트는 맞으면 파울이다. 삼진은 미루지만 안타는 없다.
+ const cut=swing({cut:true});assert.equal(cut.kind,'foul');assert.equal(cut.reason,'cut');assert.match(cut.label,/걷어낸/);
+ assert.ok(cut.speed<swing({}).speed,'걷어낸 공은 힘이 실리지 않는다');
+ // 배트 면이 넓어 어지간해서는 놓치지 않지만, 타이밍 여유까지 늘지는 않는다.
+ const wide=(C=>C.swing.cut.barrel>C.swing.contact.barrel&&C.swing.cut.window<=C.swing.contact.window)(T.manualContact);
+ assert.ok(wide,'커트는 면은 넓고 시간 여유는 늘지 않는다');
+ assert.equal(swing({cut:true,timing:0}).kind,'miss','타이밍이 크게 어긋나면 커트도 헛스윙이다');
+ // 노린 구종이 오면 같은 타이밍이 더 좋은 타구가 된다. 빗나가면 반대다.
+ assert.ok(swing({guess:'hit'}).quality>swing({}).quality);
+ assert.ok(swing({guess:'miss'}).quality<swing({}).quality);
 });

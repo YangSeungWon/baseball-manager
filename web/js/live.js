@@ -665,6 +665,8 @@ export class LiveView {
     const rel = [(rec.th === 'L' ? 0.55 : -0.55), PITCH_RELEASE_DISTANCE, 1.85];
     const zh = rec.zh || 1;
     const end = [clamp(q.x, -2.4, 2.4) * ZONE.halfWidth, 0, clamp(ZONE.center + q.z * ZONE.halfHeight * zh, 0.05, 2.8)];
+    // 구종별 변화량(m). 공은 도착점에서 이만큼 벗어난 곳을 향해 출발해, 일정하게 가속하듯 휘어 들어온다.
+    // 예전에는 sin 곡선으로 중간에 불룩했다가 제자리로 돌아와서, 휘는 것이 도착점에 대해 아무 정보도 주지 않았다.
     const bend = { SL: [0.16, 0], CU: [0.05, 0.45], CH: [0, 0.18], FS: [0, 0.28], KN: [0.2, 0.25], SI: [-0.1, 0.08], FC: [0.08, 0.02] }[q.t] || [0, 0];
     const side = rec.th === 'L' ? -1 : 1;
     tl.at(t0, () => { S.broadcast = { kind: 'pitch' }; this._hold(S.fielders.P); });
@@ -681,9 +683,12 @@ export class LiveView {
         const passed=clamp((k-1)*T/catchSeconds,0,1);
         S.ball={x:end[0]*(1-.4*passed),y:-CATCHER_DEPTH*passed,z:end[2]+(.6-end[2])*passed,vis:true};S.trail=[];return;
       }
-      const x = lerp(rel[0], end[0], k) + side * bend[0] * Math.sin(Math.PI * k) * k;
+      // 휘어짐은 k² 로 자란다(옆으로 일정 가속). 도착점은 그대로 두고 출발선을 그만큼 반대로 당겨,
+      // 초반에는 다른 곳을 향하다가 마지막에 꺾여 들어오게 한다 — 타자가 궤적에서 읽을 거리가 생긴다.
+      const driftX = side * bend[0], driftZ = -bend[1];
+      const x = lerp(rel[0], end[0] - driftX, k) + driftX * k * k;
       const y = lerp(rel[1], end[1], k);
-      const z = lerp(rel[2], end[2], k) + (0.25 + bend[1]) * Math.sin(Math.PI * k);
+      const z = lerp(rel[2], end[2] - driftZ, k) + driftZ * k * k + 0.25 * Math.sin(Math.PI * k);
       S.ball = { x, y, z, vis: true }; S.trail = [];
     });
     // 스윙. 헛스윙·파울·타격이면 방망이가 돈다.

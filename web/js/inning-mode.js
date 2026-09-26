@@ -59,6 +59,11 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   const batterEntry=(key,b)=>showEntry(key,b.name,batting?`${visionLabel(b)} · ${disciplineLabel(b)}`:`${b.style} · ${paceLabel(b.speed)}`);
   const pitcherTag=batting?mountPitcherTag(root,$('.inning-opponent'),()=>{scouting.close();if(!busy&&!paused){paused=true;holdClock();dock();}}):null;
   if(batting)root.insertAdjacentHTML('beforeend','<div class="pitch-tell" aria-label="투구 단서" hidden></div>');
+  // 공 사이에만 보이는 전략 띠. 노릴 구종과, 2스트라이크에서 걷어낼지를 고른다.
+  if(batting)root.insertAdjacentHTML('beforeend','<div class="batting-plan" role="group" aria-label="타격 전략">'
+    +'<div class="plan-guess" data-group="target">'+[['any','노림 없음'],['FF','직구'],['SL','슬라이더'],['CH','체인지업']]
+      .map(([v,l],i)=>`<button type="button" data-value="${v}" aria-pressed="${i===0}">${l}</button>`).join('')+'</div>'
+    +'<button type="button" class="plan-cut" aria-pressed="false" disabled>커트<small>2스트라이크</small></button></div>');
   if(!batting)root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ '투구 선택'+'</span></button>');
   if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));action.insertAdjacentHTML('afterbegin','<button class="pitch-breathe">숨 고르기</button><button class="pitch-effort" aria-pressed="false" title="이번 공을 전력으로: 구속이 오르고 타자가 치기 어렵지만 릴리스가 더 흔들리고 피로가 빨리 쌓입니다">전력</button><div class="pitch-release" hidden><div class="pitch-release-label">릴리스 <span></span></div><div class="pitch-meter"><i class="pitch-perfect"></i><i class="pitch-needle"></i></div></div>');root.append(action);
     $('.inning-throw').innerHTML='<span>투구</span><small>누르고 있으면 와인드업 · 놓으면 릴리스<kbd>Space</kbd></small>';$('.inning-throw').classList.add('pitch-hold');}
@@ -73,6 +78,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   $('.inning-zone-slot').innerHTML=`<div class="inning-zone-row"><div class="inning-zone-map" ${batting?'':'data-group="zone"'}>${zoneSvg}${batting?'':'<button data-value="in" aria-pressed="false" class="zone-target zone-in">몸쪽</button><button data-value="out" aria-pressed="true" class="zone-target zone-out">바깥쪽</button><button data-value="low" aria-pressed="false" class="zone-target zone-low">낮게</button><button data-value="high" aria-pressed="false" class="zone-target zone-high">높게</button>'}</div></div>`;
   $('.inning-live-zone').innerHTML=zoneSvg+'<span class="sr-only">투구 위치</span>';$('.inning-live-zone').hidden=false;
 
+  // 배트는 공 사이에도 마지막 자리에 남는다. 매 투구를 존 한가운데에서 시작하면 441ms 가 '이동' 시간이 되어버린다.
+  let batAim={x:0,z:0},cutNext=false;
   let seed=Number.isInteger(initialSeed)&&initialSeed>=0&&initialSeed<=0xffffffff?initialSeed:crypto.getRandomValues(new Uint32Array(1))[0],game,lv,busy=false,dead=false,events=[],runEvents=[],shown=null,scrollBefore=0,choice=batting?{target:'any',approach:'contact',location:'any',action:'swing'}:{type:'FF',zone:'out',intent:'attack'};   // approach/action stay for the zone overlay; the swing starts on press
   let sound=true;try{sound=localStorage.getItem('dugout.sfx')!=='0';}catch{}
   let ambience='idle',intensity=.5,cancelDecision=null,releaseNow=null,calm=false,maxEffort=false;
@@ -113,7 +120,14 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   const timeBanner=document.createElement('div');timeBanner.className='time-banner';timeBanner.innerHTML='<b>TIME</b><span>화면을 누르거나 Space를 누르면 계속합니다</span>';root.append(timeBanner);
   if(!batting){$('.pitch-breathe').onclick=()=>breathe();$('.pitch-effort').onclick=()=>{if(busy||calm||game.done)return;maxEffort=!maxEffort;$('.pitch-effort').setAttribute('aria-pressed',String(maxEffort));root.classList.toggle('is-max-effort',maxEffort);selection();};}
   function dock(){
-    if(batting){root.classList.toggle('is-paused',paused);root.classList.toggle('is-timeout',paused);}
+    if(batting){root.classList.toggle('is-paused',paused);root.classList.toggle('is-timeout',paused);plan2();}
+  }
+  // 커트는 2스트라이크에서만 고를 수 있다. 카운트가 풀리면 선택도 풀린다.
+  function plan2(){
+    const cut=$('.plan-cut');if(!cut||!game)return;
+    const allowed=game.strikes>=2;if(!allowed)cutNext=false;
+    cut.disabled=!allowed;cut.setAttribute('aria-pressed',String(cutNext));
+    $('.batting-plan')?.classList.toggle('is-cutting',cutNext);
   }
   const runTimeline=tl=>new Promise(resolve=>{lv.tl=tl;lv.resolve=resolve;});
   async function breathe(){
@@ -157,9 +171,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const picked=await new Promise(resolve=>{
       const input=new AbortController();let raf,timer,settled=false,timing=null,begin=null,end=null,open=false,loadedAt=null;
       const pitchTime=now=>from+Math.max(0,(now-begin)/1000);
-      const finish=(action,{expired=false,power=null,aim:aimed=null,check=null}={})=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);input.abort();cancelDecision=null;setLoad(null);root.classList.remove('is-deciding','is-reading','is-swinging','is-loaded');readZone.classList.remove('is-reading-pitch');if($('.pitch-tell'))$('.pitch-tell').hidden=true;lv.S.battingDecision=false;lv.S.pitchRead=null;flightRead.hidden=true;zone();readZone.hidden=events.length===0;lv.S.aim=null;resolve(action?{action,expired,time:preview.t,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'?aimed:null,check:action==='take'?check:null}:null);};
+      const finish=(action,{expired=false,power=null,aim:aimed=null,check=null}={})=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);input.abort();cancelDecision=null;setLoad(null);root.classList.remove('is-deciding','is-reading','is-swinging','is-loaded');readZone.classList.remove('is-reading-pitch');if($('.pitch-tell'))$('.pitch-tell').hidden=true;cancelArea.hidden=true;cancelArea.classList.remove('is-active');lv.S.battingDecision=false;lv.S.pitchRead=null;flightRead.hidden=true;zone();readZone.hidden=events.length===0;lv.S.aim=batAim;resolve(action?{action,expired,time:preview.t,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'?aimed:null,check:action==='take'?check:null}:null);};
       cancelDecision=()=>finish(null);
-      let aim={x:0,z:0};
+      let aim={...batAim};
       const nowTime=()=>open?pitchTime(performance.now()):(warm.t??0);
       const swingKind=()=>loadedAt!==null&&loadedAt<release?'power':'contact';
       function setLoad(kind){lv.S.batLoad=kind==='power'?1:kind?.5:0;pointer.classList.toggle('is-loaded',!!kind);pointer.classList.toggle('is-power',kind==='power');}
@@ -175,7 +189,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
         lv.S.batSwingFrom=.25;lv.S.swing=.25+BATTING.playerInput.check.peak*depth;
         finish('take',{check:{depth}});};
       const paintAim=()=>{const dot=$('.zone-aim');if(dot){dot.setAttribute('cx',100+aim.x*38);dot.setAttribute('cy',96-aim.z*40);dot.classList.add('is-live');}};
-      const setAim=(x,z)=>{aim={x:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,x)),z:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,z))};lv.S.aim=aim;paintAim();};
+      const setAim=(x,z)=>{aim={x:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,x)),z:Math.max(-BATTING_AIM_LIMIT,Math.min(BATTING_AIM_LIMIT,z))};batAim=aim;lv.S.aim=aim;paintAim();};
       const press=()=>{if(settled||loadedAt===null)return;
         if(!open){unload();return;}   // 공을 놓기 전에 뗐다면 준비만 푼다
         const now=performance.now();if(now>=end){expire();return;}
@@ -184,19 +198,26 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
         finish('swing',{power:swing.power,aim:{...aim}});};
       const surface=lv.three?.canvas||null;
       if(surface)mountBattingPointer(surface,{signal:input.signal,aimAt:(x,y)=>lv.three.battingAimAt(x,y),onAim:setAim,onLoad:load,onSwing:press,onCheck:hold,onDrop:unload,onPreview:p=>{
-        lv.S.pointerAiming=!!p;pointer.hidden=!p;cancelArea.hidden=!p?.touch;
+        lv.S.pointerAiming=!!p;pointer.hidden=!p;if(p?.touch)cancelArea.hidden=false;
         if(!p)return;
         pointer.style.left=p.x+'px';pointer.style.top=p.y+'px';pointer.classList.toggle('is-cancel',p.cancel);
         cancelArea.style.height=p.cancelHeight+'px';cancelArea.classList.toggle('is-active',p.cancel);
-        const label=p.cancel?'놓으면 참기':'아래에서 놓으면 참기';if(cancelArea.textContent!==label)cancelArea.textContent=label;
+        const label=p.cancel?'놓으면 참기':'여기서 떼면 스윙';if(cancelArea.textContent!==label)cancelArea.textContent=label;
       }});
-      setAim(0,0);
+      setAim(batAim.x,batAim.z);
       (async()=>{
         await runTimeline(warm);if(dead||settled)return;
         lv.S.battingDecision=true;root.classList.add('is-deciding');dock('read');
         readZone.hidden=true;readZone.classList.add('is-reading-pitch');paintRead(0);
         $('.inning-feedback').textContent='';
         begin=performance.now();end=begin+readMs;open=true;
+        // 터치에서는 스윙 패드가 어디인지 손을 대기 전에 보여야 한다.
+        if(matchMedia('(pointer:coarse)').matches){
+          // 보이는 띠와 실제로 눌리는 영역의 높이를 맞춘다(batting-pointer 의 padOf 와 같은 식).
+          const r=lv.three?.canvas?.getBoundingClientRect();
+          if(r)cancelArea.style.height=Math.min(120,Math.max(72,r.height*.18))+'px';
+          cancelArea.textContent='여기서 떼면 스윙';cancelArea.hidden=false;
+        }
         const tick=()=>{const now=performance.now(),left=Math.max(0,end-now);preview.step(Math.min(to,pitchTime(now)));paintRead(Math.max(0,Math.min(1,(preview.t-release)/flight)));
           if(!left)expire();else raf=requestAnimationFrame(tick);};
         timer=setTimeout(expire,readMs);tick();surface?.focus({preventScroll:true});
@@ -295,7 +316,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const loadingView=lv,card=document.createElement('div');card.className='match-intro';
     const team=(side)=>{const t=stage[side],f=FRANCHISES.find(f=>f.city+' '+f.nick===t.name);return `<div class="match-club" style="--club:${stage.colors[side]}"><small>${side==='home'?'HOME':'AWAY'}</small><div class="match-crest" aria-hidden="true">${f?.mark||t.short.slice(0,1)}</div><strong>${t.name}</strong>${side===(batting||full?'home':'away')?'<span class="match-own">MY TEAM</span>':''}</div>`;};
     card.innerHTML=`<p class="match-venue">${stage.park.name}</p><div class="match-pair">${team('away')}<span class="match-vs">VS</span>${team('home')}</div><p class="match-format">${full?'9이닝 경기':stage.situation}</p>${!full&&!batting&&stage.lesson?`<p class="match-lesson"><b>${stage.skillLabel}</b> ${stage.lesson}</p>`:''}<div class="match-starter"><small>${batting?'상대 투수':'마운드'}</small><b>${batting?game.pitcher.name:'나의 마무리'}</b><span>${batting?game.pitcher.style:'두 점의 리드'}</span></div>`;
-    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><div class="batting-help-mouse"><p><b>조준</b> 마우스 이동</p><p>왼쪽 버튼을 누르면 준비, 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>누른 채 오른쪽 클릭하면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div><div class="batting-help-touch"><p>손가락을 대면 준비, 움직여 <b>조준</b></p><p>손을 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>아래 취소 영역에서 떼면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div></div>');
+    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><div class="batting-help-mouse"><p><b>조준</b> 마우스 이동 — 배트는 마지막 자리에 남습니다</p><p>왼쪽 버튼을 누르면 준비, 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>누른 채 오른쪽 클릭하면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div><div class="batting-help-touch"><p>화면 위쪽을 끌어 <b>조준</b> — 손을 떼도 배트는 그 자리에 남습니다</p><p>아래 <b>스윙 패드</b>를 누르면 준비, 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>패드 밖으로 밀어 올린 뒤 떼면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div></div>');
     if(!continuedGame){root.append(card);root.classList.add('is-match-intro');}
     const enter=document.createElement('button');enter.className='go match-enter';enter.textContent='구장 준비 중…';enter.disabled=true;card.append(enter);
     const ready=await loadingView.ready;
@@ -438,12 +459,13 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   document.addEventListener('visibilitychange',visibility);
   $('.inning-sound').onclick=()=>{sound=!lv.sfx.on;lv.setSound(sound);visibility();if(sound)lv.sfx.stadium(ambience,intensity);soundLabel();};
   document.addEventListener('keydown',key);$('.inning-exit').onclick=close;
+  root.querySelector('.plan-cut')?.addEventListener('click',()=>{if(busy||game.strikes<2)return;cutNext=!cutNext;plan2();});
   root.querySelectorAll('[data-group] button').forEach(b=>b.onclick=()=>{if(busy)return;const group=b.parentElement;choice[group.dataset.group]=b.dataset.value;group.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));selection();if(autoTimer)scheduleNext(Math.max(1400,AUTO_DELAY*.6));});
   const play=async(action='swing',{pressAt=null}={})=>{
     if(busy||dead||game.done)return;scouting.close();pitcherTag?.close();plan(false);atmosphere('pitch');busy=true;scrollBefore=root.scrollTop;root.classList.add('is-playing');$('.inning-live-zone').hidden=events.length===0;$('.inning-live-zone span').textContent='현재 타석 · '+events.length+'구 기록';lv._size();$('.inning-throw').disabled=true;$('.inning-picks').disabled=true;$('.inning-feedback').textContent='';
     try {
       let e,resumeAt=0;
-      if(batting){const pitch=game.preparePitch(choice),picked=await readPitch(pitch);if(dead||!picked?.action)return;resumeAt=picked.time;e=game.decidePitch(picked.action,picked.timing,picked.power,picked.aim,picked.check);}
+      if(batting){const pitch=game.preparePitch(choice),cut=cutNext&&game.strikes>=2,picked=await readPitch(pitch);if(dead||!picked?.action)return;resumeAt=picked.time;e=game.decidePitch(picked.action,picked.timing,picked.power,picked.aim,picked.check,cut);}
       else {const release=await releasePitch(pressAt??performance.now());if(dead||release===null)return;e=game.pitch({...choice,release,effort:effortMode()});resumeAt=1.55;calm=false;maxEffort=false;$('.pitch-effort').setAttribute('aria-pressed','false');root.classList.remove('is-max-effort');}
       const tl=new Timeline(),S=lv.S;
       S.pitchStyle={type:e.pitch.t,zone:e.choice.zone,intent:e.choice.intent};

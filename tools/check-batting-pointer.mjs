@@ -23,23 +23,38 @@ test('mouse right button while loaded holds up, as a pointerdown or a chorded mo
   s.fire('pointerup',{pointerType:'mouse'});assert.deepEqual(s.calls,['load','check']);
  }
 });
-test('touch loads on press, drags above the finger and swings on release',()=>{
- const s=setup();s.fire('pointerdown');assert.deepEqual(s.calls,['load']);assert.deepEqual(s.aims.at(-1),{x:200,z:336});
+test('touch aims with one finger and swings with the pad, never the same one',()=>{
+ const s=setup();
+ s.fire('pointerdown',{clientY:400});                 // 위쪽을 짚으면 조준만 — 스윙 준비가 아니다
+ assert.deepEqual(s.calls,[]);assert.deepEqual(s.aims.at(-1),{x:200,z:336});
  s.fire('pointermove',{clientX:250,clientY:450});assert.deepEqual(s.aims.at(-1),{x:250,z:386});
- s.fire('pointerup',{clientX:250,clientY:450});assert.deepEqual(s.calls,['load','swing']);assert.equal(s.previews.at(-1),null);
- s.fire('pointerup');assert.deepEqual(s.calls,['load','swing']);
+ s.fire('pointerdown',{pointerId:2,clientY:760});     // 아래 패드가 스윙을 준비한다
+ assert.deepEqual(s.calls,['load']);
+ s.fire('pointermove',{pointerId:2,clientX:40,clientY:770});
+ assert.deepEqual(s.aims.at(-1),{x:250,z:386},'스윙 손가락은 조준을 옮기지 않는다');
+ s.fire('pointerup',{pointerId:2,clientX:40,clientY:770});
+ assert.deepEqual(s.calls,['load','swing']);
+ s.fire('pointermove',{clientX:260,clientY:455});assert.deepEqual(s.aims.at(-1),{x:260,z:391},'조준 손가락은 그대로 살아 있다');
 });
-test('releasing in the cancel area holds up; moving back out restores the swing',()=>{
- const s=setup();s.fire('pointerdown');s.fire('pointermove',{clientY:760});assert.equal(s.previews.at(-1).cancel,true);
- s.fire('pointerup',{clientY:760});assert.deepEqual(s.calls,['load','check']);
- s.fire('pointerdown',{clientY:760});s.fire('pointermove',{clientY:400});assert.equal(s.previews.at(-1).cancel,false);
- s.fire('pointerup');assert.deepEqual(s.calls,['load','check','load','swing']);
+test('the aim finger keeps its place inside the pad, and the swing finger holds up outside it',()=>{
+ const s=setup();
+ s.fire('pointerdown',{clientY:400});s.fire('pointermove',{clientY:760});
+ assert.deepEqual(s.aims.at(-1),{x:200,z:336},'패드 위로 끌어도 배트는 따라 내려가지 않는다');
+ s.fire('pointerdown',{pointerId:2,clientY:770});assert.deepEqual(s.calls,['load']);
+ s.fire('pointermove',{pointerId:2,clientY:500});assert.equal(s.previews.at(-1).cancel,true);
+ s.fire('pointerup',{pointerId:2,clientY:500});assert.deepEqual(s.calls,['load','check']);
+ const t=setup();
+ t.fire('pointerdown',{pointerId:2,clientY:760});t.fire('pointermove',{pointerId:2,clientY:500});
+ t.fire('pointermove',{pointerId:2,clientY:770});assert.equal(t.previews.at(-1).cancel,false);
+ t.fire('pointerup',{pointerId:2,clientY:770});assert.deepEqual(t.calls,['load','swing']);
 });
 test('other fingers, OS cancellation, lost capture and expired pitches never swing or check',()=>{
  for(const cancel of ['pointercancel','lostpointercapture','abort']){
-  const s=setup();s.fire('pointerdown');s.fire('pointerdown',{pointerId:2});s.fire('pointerup',{pointerId:2});assert.deepEqual(s.calls,['load']);
-  if(cancel==='abort')s.input.abort();else s.fire(cancel);
-  assert.equal(s.previews.at(-1),null);assert.deepEqual(s.calls,cancel==='abort'?['load']:['load','drop']);
-  s.fire('pointerup');assert.equal(s.calls.includes('swing')||s.calls.includes('check'),false);
+  const s=setup();s.fire('pointerdown',{clientY:400});s.fire('pointerdown',{pointerId:2,clientY:760});
+  s.fire('pointerdown',{pointerId:3,clientY:770});assert.deepEqual(s.calls,['load'],'세 번째 손가락은 아무것도 하지 않는다');
+  if(cancel==='abort')s.input.abort();else s.fire(cancel,{pointerId:2});
+  assert.deepEqual(s.calls,cancel==='abort'?['load']:['load','drop']);
+  s.fire('pointerup',{pointerId:2,clientY:760});
+  assert.equal(s.calls.includes('swing')||s.calls.includes('check'),false);
  }
 });

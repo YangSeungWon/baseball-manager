@@ -30,9 +30,10 @@ const grainTexture=(variation,seed)=>canvasTexture(128,128,(g,w,h)=>{
 },{repeat:1.4});
 const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#af8056','#b48a63','#bd946a']);
 // 포수 뒤 타격 시점. 홈에서 뒤로 back m, 높이 height m 에서 존을 거의 정면으로 본다.
-// 시선(aimDepth·aimHeight)은 존과 투수 릴리스 사이를 겨눠 존은 화면 아래, 투수는 위에 함께 들어온다.
+// 시선(aimDepth·aimHeight)은 존 한가운데를 겨눈다. 조준은 화면 좌표를 그대로 쓰므로,
+// 존이 화면 아래로 내려가면 화면 위쪽이 통째로 조준 한계에 붙어 손가락을 끌어도 배트가 안 움직인다.
 // 이 높이에서는 포수와 심판이 존을 가리므로 타격 중에는 둘을 그리지 않는다.
-const BATTING_VIEW={back:5.2,height:1.25,aimDepth:6,aimHeight:.96,fov:24};
+const BATTING_VIEW={back:5.2,height:1.25,aimDepth:6,aimHeight:.26,fov:24};
 const BATTING_SHOTS=['pitch','between','batter','pitcher'];
 // 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
 const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};

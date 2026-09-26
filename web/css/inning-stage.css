@@ -367,3 +367,13 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-pointer[hidden],.inning-mode .batting-cancel-area[hidden]{display:none}
 .inning-mode .batting-help-touch{display:none}
 @media(pointer:coarse){.inning-mode .batting-help-touch{display:block}.inning-mode .batting-help-mouse{display:none}}
+/* 전략 띠 — 공 사이에만 보인다. 노릴 구종과 2스트라이크 커트. */
+.inning-mode .batting-plan{position:fixed;z-index:26;left:12px;right:12px;bottom:calc(134px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:stretch;justify-content:center;flex-wrap:wrap}
+.inning-mode .batting-plan .plan-guess{display:flex;gap:4px;background:#102732c2;border:1px solid #86a59d66;border-radius:12px;padding:4px}
+.inning-mode .batting-plan button{min-height:40px;padding:6px 10px;border-radius:9px;border:1px solid transparent;background:transparent;color:#cfe0dd;font-size:13px;font-weight:600;line-height:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.inning-mode .batting-plan button small{font-size:10px;font-weight:500;color:#9fb6b2}
+.inning-mode .batting-plan .plan-guess button[aria-pressed="true"]{background:#2f6a55;border-color:#8bc6aa;color:#f2f5ee}
+.inning-mode .batting-plan .plan-cut{background:#102732c2;border:1px solid #86a59d66;border-radius:12px;padding:4px 14px}
+.inning-mode .batting-plan .plan-cut:disabled{opacity:.4}
+.inning-mode .batting-plan .plan-cut[aria-pressed="true"]{background:#4a3a2c;border-color:#f4b98a;color:#ffe6cf}
+.inning-mode.is-playing .batting-plan,.inning-mode.is-finished .batting-plan,.inning-mode.is-intro .batting-plan,.inning-mode.is-changing .batting-plan{display:none}
