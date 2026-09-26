@@ -154,12 +154,20 @@ for name,(p,parent) in bones.items():
 bpy.ops.object.mode_set(mode='OBJECT');body.parent=rig;mod=body.modifiers.new('Skin','ARMATURE');mod.object=rig
 # Modular equipment, exported at its socket's origin.
 def dome(name,helmet=False):
- n=20;verts=[];faces=[]
+ n=20;verts=[];faces=[];rings=7
  for j in range(7):
   a=j*math.pi/12
   for i in range(n):
    t=i*2*math.pi/n;verts.append(xyz((.204*math.sin(a)*math.cos(t),.24+.155*math.cos(a),.005+.194*math.sin(a)*math.sin(t))))
- for j in range(6):
+ if helmet:
+  # 헬멧은 적도에서 끝나지 않는다. 뒤통수를 덮고 목덜미까지 내려온다 — 앞(얼굴 쪽)은 얕고 뒤가 깊다.
+  # 모자(Cap)는 반구 그대로 둔다.
+  for step in (1,2):
+   for i in range(n):
+    t=i*2*math.pi/n;drop=.09*step*(.25+.75*max(0.,-math.sin(t)))
+    verts.append(xyz((.204*math.cos(t),.24-drop,.005+.194*math.sin(t))))
+  rings=9
+ for j in range(rings-1):
   for i in range(n):k=j*n+i;l=j*n+(i+1)%n;faces.append((k,l,l+n,k+n))
  me=bpy.data.meshes.new(name);me.from_pydata(verts,[],faces);me.update();o=bpy.data.objects.new(name,me);bpy.context.collection.objects.link(o);bpy.context.view_layer.objects.active=o;o.select_set(True);finish(o,name,'Team')
  ell('Bill',(0,.239,.20),(.202,.019,.15),'Team')
