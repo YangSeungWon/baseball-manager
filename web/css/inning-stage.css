@@ -377,3 +377,5 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-plan .plan-cut:disabled{opacity:.4}
 .inning-mode .batting-plan .plan-cut[aria-pressed="true"]{background:#4a3a2c;border-color:#f4b98a;color:#ffe6cf}
 .inning-mode.is-playing .batting-plan,.inning-mode.is-finished .batting-plan,.inning-mode.is-intro .batting-plan,.inning-mode.is-changing .batting-plan{display:none}
+/* 입장 카드가 떠 있는 동안에도 감춘다 — 경기 전 화면은 비워 둔다. */
+.inning-mode:has(.match-intro) .batting-plan{display:none}

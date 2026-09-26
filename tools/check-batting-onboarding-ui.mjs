@@ -26,7 +26,9 @@ try {
   await page.locator('#btnBatting').click();
   await page.locator('.match-enter:not([disabled])').waitFor();
   assert.match(await page.locator('.match-batting-help').textContent(),/조준.*스윙 패드.*참습니다/s);
-  assert.equal(await page.locator('[data-group="target"],.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);
+  assert.equal(await page.locator('.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);
+  // 타격 전략 띠는 공 사이에만 나온다. 입장 카드 위에는 아무 조작판도 없다.
+  assert.equal(await page.locator('.batting-plan').isVisible(),false);
   await page.locator('.match-enter').scrollIntoViewIfNeeded();
   const bounds=await page.locator('.match-enter').boundingBox();
   assert.ok(bounds.height>=44&&bounds.x>=0&&bounds.x+bounds.width<=width&&bounds.y>=0&&bounds.y+bounds.height<=height);
