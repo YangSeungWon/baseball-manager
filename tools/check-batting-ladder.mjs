@@ -32,3 +32,16 @@ test('remembering the pitcher pays: confident guesses beat the base rate clearly
   assert.ok(g.learner.accuracy>=50,`accuracy ${g.learner.accuracy.toFixed(1)}% vs base rate ≈ 37%`);
   assert.ok(g.learner.runsPerGame>=g.naive.runsPerGame-1,`learner ${g.learner.runsPerGame.toFixed(2)} vs naive ${g.naive.runsPerGame.toFixed(2)}`);
 });
+
+// 손으로 칠 수 있는가. 로봇 사다리가 전부 초록불이어도 이 시험이 빨간불이면 게임이 아니다.
+test('a hand with human error can still make contact and get hits',async()=>{
+  const {hands,HAND_FLOOR,HANDS}=await import('./measure-batting.mjs');
+  const H=hands(300);
+  for(const [k,floor] of Object.entries(HAND_FLOOR)){
+    const m=H[k];
+    if(floor.contact!=null)assert.ok(m.contact>=floor.contact,`${HANDS[k].label} 컨택 ${m.contact.toFixed(1)}% < ${floor.contact}%`);
+    if(floor.hit!=null)assert.ok(m.hit>=floor.hit,`${HANDS[k].label} 타구 안타율 ${m.hit.toFixed(1)}% < ${floor.hit}%`);
+  }
+  assert.ok(H.veteran.clear>H.regular.clear&&H.regular.clear>=H.rookie.clear,'손이 좋을수록 더 이긴다');
+  console.log('Hands:',Object.fromEntries(Object.entries(H).map(([k,m])=>[k,{contact:+m.contact.toFixed(1),hit:+m.hit.toFixed(1),clear:+m.clear.toFixed(1)}])));
+});
