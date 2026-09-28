@@ -100,7 +100,8 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode.has-batting-dock .inning-plan-toggle{display:none}
 .inning-mode.has-batting-dock:not(.is-finished) .inning-controls{display:block;visibility:visible;pointer-events:auto;left:50%;transform:translateX(-50%);bottom:calc(94px + env(safe-area-inset-bottom));width:min(440px,calc(100% - 24px));max-width:none;max-height:none;padding:8px!important;border-radius:10px;background:#102732e8;overflow:visible}
 .inning-mode.has-batting-dock .inning-picks{margin:0;padding:0;border:0;min-width:0}
-.inning-mode.has-batting-dock .inning-picks>.inning-label,.inning-mode.has-batting-dock .inning-zone-slot{display:none}
+/* 타격 계획 패널은 존 그림(구역별 정확도)이 핵심이라 함께 보여 준다. */
+.inning-mode.has-batting-dock .inning-zone-map{width:150px;height:150px}
 .inning-mode.has-batting-dock .inning-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin:0 0 5px}
 .inning-mode.has-batting-dock .inning-options[data-group=approach]{grid-template-columns:1fr 1fr;margin:0}
 .inning-mode.has-batting-dock .inning-options button{min-width:0;min-height:44px;padding:5px 2px;font-size:14px;white-space:nowrap}
@@ -367,15 +368,8 @@ body .inning-mode{padding:0;overflow:hidden;background:#10232c}
 .inning-mode .batting-pointer[hidden],.inning-mode .batting-cancel-area[hidden]{display:none}
 .inning-mode .batting-help-touch{display:none}
 @media(pointer:coarse){.inning-mode .batting-help-touch{display:block}.inning-mode .batting-help-mouse{display:none}}
-/* 전략 띠 — 공 사이에만 보인다. 노릴 구종과 2스트라이크 커트. */
-.inning-mode .batting-plan{position:fixed;z-index:26;left:12px;right:12px;bottom:calc(134px + env(safe-area-inset-bottom));display:flex;gap:8px;align-items:stretch;justify-content:center;flex-wrap:wrap}
-.inning-mode .batting-plan .plan-guess{display:flex;gap:4px;background:#102732c2;border:1px solid #86a59d66;border-radius:12px;padding:4px}
-.inning-mode .batting-plan button{min-height:40px;padding:6px 10px;border-radius:9px;border:1px solid transparent;background:transparent;color:#cfe0dd;font-size:13px;font-weight:600;line-height:1.15;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
-.inning-mode .batting-plan button small{font-size:10px;font-weight:500;color:#9fb6b2}
-.inning-mode .batting-plan .plan-guess button[aria-pressed="true"]{background:#2f6a55;border-color:#8bc6aa;color:#f2f5ee}
-.inning-mode .batting-plan .plan-cut{background:#102732c2;border:1px solid #86a59d66;border-radius:12px;padding:4px 14px}
-.inning-mode .batting-plan .plan-cut:disabled{opacity:.4}
-.inning-mode .batting-plan .plan-cut[aria-pressed="true"]{background:#4a3a2c;border-color:#f4b98a;color:#ffe6cf}
-.inning-mode.is-playing .batting-plan,.inning-mode.is-finished .batting-plan,.inning-mode.is-intro .batting-plan,.inning-mode.is-changing .batting-plan{display:none}
-/* 입장 카드가 떠 있는 동안에도 감춘다 — 경기 전 화면은 비워 둔다. */
-.inning-mode:has(.match-intro) .batting-plan{display:none}
+
+
+/* 타격 계획 패널 — 공 사이에만 보인다. 투구가 시작되면 화면을 비운다. */
+.inning-mode.is-playing .inning-picks,.inning-mode.is-intro .inning-picks,.inning-mode.is-changing .inning-picks{visibility:hidden}
+.inning-mode .inning-options .plan-cut[aria-pressed="true"]{background:#4a3a2c;border-color:#f4b98a;color:#ffe6cf}

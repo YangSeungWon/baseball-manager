@@ -35,8 +35,10 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   <div class="inning-batter-entry" role="status" hidden></div><div class="inning-transition" role="status" hidden></div><div class="inning-live-zone" hidden></div><div class="inning-feedback" role="status" aria-live="polite"></div>
   <div class="inning-history sr-only" aria-label="현재 타석 투구 기록"></div></div>
   <div class="inning-controls" id="inningPlan"><div class="inning-opponent"></div>
-  ${batting?`<fieldset class="inning-picks" hidden><legend class="sr-only">타격 기록</legend><button class="inning-throw" type="button" hidden tabindex="-1"></button>
+  ${batting?`<fieldset class="inning-picks"><legend class="sr-only">타격 계획</legend><button class="inning-throw" type="button" hidden tabindex="-1"></button>
+  <div class="inning-label">노릴 구종</div><div class="inning-options" data-group="target"><button data-value="any" aria-pressed="true">전체</button>${Object.entries(PITCHES).map(([k,p])=>`<button data-value="${k}" aria-pressed="false">${pitchIcon(k)}${p.name}</button>`).join('')}</div>
   <div class="inning-zone-slot"></div>
+  <div class="inning-label">타격 방식</div><div class="inning-options" data-group="approach"><button data-value="contact" aria-pressed="true">컨택<small>맞히기</small></button><button data-value="power" aria-pressed="false">장타<small>크게</small></button><button class="plan-cut" type="button" aria-pressed="false" disabled>커트<small>2스트라이크</small></button></div>
   </fieldset>`:`<fieldset class="inning-picks"><legend class="sr-only">다음 투구 선택</legend>
   <div class="inning-label">구종</div><div class="inning-options" data-group="type">${Object.entries(PITCHES).map(([k,p])=>`<button data-value="${k}" aria-pressed="${k==='FF'}">${pitchIcon(k)}${p.name}<small>${p.speed} km/h</small></button>`).join('')}</div>
   <div class="inning-zone-slot"></div>
@@ -59,13 +61,6 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   const batterEntry=(key,b)=>showEntry(key,b.name,batting?`${visionLabel(b)} · ${disciplineLabel(b)}`:`${b.style} · ${paceLabel(b.speed)}`);
   const pitcherTag=batting?mountPitcherTag(root,$('.inning-opponent'),()=>{scouting.close();if(!busy&&!paused){paused=true;holdClock();dock();}}):null;
   if(batting)root.insertAdjacentHTML('beforeend','<div class="pitch-tell" aria-label="투구 단서" hidden></div>');
-  // 공 사이에만 보이는 전략 띠. 노릴 구종과, 2스트라이크에서 걷어낼지를 고른다.
-  if(batting)root.insertAdjacentHTML('beforeend','<div class="batting-plan" role="group" aria-label="타격 전략">'
-    +'<div class="plan-guess" data-group="target">'+[['any','구종 전체'],['FF','직구'],['SL','슬라이더'],['CH','체인지업']]
-      .map(([v,l],i)=>`<button type="button" data-value="${v}" aria-pressed="${i===0}">${l}</button>`).join('')+'</div>'
-    +'<div class="plan-guess" data-group="location">'+[['any','코스 전체'],['in','몸쪽'],['out','바깥쪽'],['high','높은 공'],['low','낮은 공']]
-      .map(([v,l],i)=>`<button type="button" data-value="${v}" aria-pressed="${i===0}">${l}</button>`).join('')+'</div>'
-    +'<button type="button" class="plan-cut" aria-pressed="false" disabled>커트<small>2스트라이크</small></button></div>');
   if(!batting)root.insertAdjacentHTML('beforeend','<button class="inning-plan-toggle" aria-controls="inningPlan" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6M16 9v6M10 15v6"/></svg><span>'+ '투구 선택'+'</span></button>');
   if(!batting){const action=document.createElement('div');action.className='pitching-action';action.append($('.inning-throw'));action.insertAdjacentHTML('afterbegin','<button class="pitch-breathe">숨 고르기</button><button class="pitch-effort" aria-pressed="false" title="이번 공을 전력으로: 구속이 오르고 타자가 치기 어렵지만 릴리스가 더 흔들리고 피로가 빨리 쌓입니다">전력</button><div class="pitch-release" hidden><div class="pitch-release-label">릴리스 <span></span></div><div class="pitch-meter"><i class="pitch-perfect"></i><i class="pitch-needle"></i></div></div>');root.append(action);
     $('.inning-throw').innerHTML='<span>투구</span><small>누르고 있으면 와인드업 · 놓으면 릴리스<kbd>Space</kbd></small>';$('.inning-throw').classList.add('pitch-hold');}
@@ -77,7 +72,9 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   const plan=open=>{root.classList.toggle('is-planning',open);$('.inning-plan-toggle')?.setAttribute('aria-expanded',String(open));};
   if(!batting)$('.inning-plan-toggle').onclick=()=>{if(!busy)plan(!root.classList.contains('is-planning'));};
   const zoneSvg=`<svg viewBox="0 0 200 200" aria-hidden="true"><path d="M80 184h40v7l-20 8-20-8z" fill="#a5b9b6"/><rect x="62" y="56" width="76" height="80" rx="2" fill="#29444d" stroke="#e1e9d9" stroke-width="2"/><path d="M87.3 56v80M112.7 56v80M62 82.7h76M62 109.3h76" stroke="#819b9f" stroke-dasharray="3 3" opacity=".6"/><g class="zone-markers"></g></svg>`;
-  $('.inning-zone-slot').innerHTML=`<div class="inning-zone-row"><div class="inning-zone-map" ${batting?'':'data-group="zone"'}>${zoneSvg}${batting?'':'<button data-value="in" aria-pressed="false" class="zone-target zone-in">몸쪽</button><button data-value="out" aria-pressed="true" class="zone-target zone-out">바깥쪽</button><button data-value="low" aria-pressed="false" class="zone-target zone-low">낮게</button><button data-value="high" aria-pressed="false" class="zone-target zone-high">높게</button>'}</div></div>`;
+  const zoneTargets=(batting?[['in','몸쪽'],['out','바깥쪽'],['low','낮은 공'],['high','높은 공']]:[['in','몸쪽'],['out','바깥쪽'],['low','낮게'],['high','높게']])
+    .map(([v,l])=>`<button data-value="${v}" aria-pressed="${!batting&&v==='out'}" class="zone-target zone-${v}">${l}</button>`).join('');
+  $('.inning-zone-slot').innerHTML=`<div class="inning-zone-row"><div class="inning-zone-map" data-group="${batting?'location':'zone'}">${zoneSvg}${zoneTargets}</div></div>`;
   $('.inning-live-zone').innerHTML=zoneSvg+'<span class="sr-only">투구 위치</span>';$('.inning-live-zone').hidden=false;
 
   // 배트는 공 사이에도 마지막 자리에 남는다. 매 투구를 존 한가운데에서 시작하면 441ms 가 '이동' 시간이 되어버린다.
@@ -129,7 +126,6 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const cut=$('.plan-cut');if(!cut||!game)return;
     const allowed=game.strikes>=2;if(!allowed)cutNext=false;
     cut.disabled=!allowed;cut.setAttribute('aria-pressed',String(cutNext));
-    $('.batting-plan')?.classList.toggle('is-cutting',cutNext);
   }
   const runTimeline=tl=>new Promise(resolve=>{lv.tl=tl;lv.resolve=resolve;});
   async function breathe(){
@@ -176,7 +172,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
       const finish=(action,{expired=false,power=null,aim:aimed=null,check=null}={})=>{if(settled)return;settled=true;cancelAnimationFrame(raf);clearTimeout(timer);input.abort();cancelDecision=null;setLoad(null);root.classList.remove('is-deciding','is-reading','is-swinging','is-loaded');readZone.classList.remove('is-reading-pitch');if($('.pitch-tell'))$('.pitch-tell').hidden=true;cancelArea.hidden=true;cancelArea.classList.remove('is-active');lv.S.battingDecision=false;lv.S.pitchRead=null;flightRead.hidden=true;zone();readZone.hidden=events.length===0;lv.S.aim=null;resolve(action?{action,expired,time:preview.t,timing:action==='swing'?timing:null,power:action==='swing'?power:null,aim:action==='swing'?aimed:null,check:action==='take'?check:null}:null);};
       cancelDecision=()=>finish(null);
       const nowTime=()=>open?pitchTime(performance.now()):(warm.t??0);
-      const swingKind=()=>loadedAt!==null&&loadedAt<release?'power':'contact';
+      // 힘은 투구 전에 고른 타격 방식이다. 커버리지 그림이 그 선택을 미리 보여 주므로, 누른 시점으로 몰래 정하지 않는다.
+      const swingKind=()=>choice.approach==='power'?'power':'contact';
       function setLoad(kind){lv.S.batLoad=kind==='power'?1:kind?.5:0;pointer.classList.toggle('is-loaded',!!kind);pointer.classList.toggle('is-power',kind==='power');}
       const unload=()=>{loadedAt=null;setLoad(null);};
       const load=()=>{if(settled)return;loadedAt=nowTime();setLoad(swingKind());};
@@ -262,7 +259,8 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const target=batting?(area?`<rect class="zone-prediction" x="${area[0]}" y="${area[1]}" width="${area[2]}" height="${area[3]}" fill="none" stroke="#d9f0c4" stroke-width="2"/>`:''):`<circle cx="${100+aimX*38}" cy="${96-aimZ*40}" r="7" fill="#d9f0c4" fill-opacity=".35" stroke="#d9f0c4" stroke-width="2"/>`;
     const q=event?.pitch,inside=q&&Math.abs(q.x)<=1&&Math.abs(q.z)<=1;
     const pitches=event&&!events.some(e=>e.after.count===event.after.count)?[...events,event]:events;
-    root.classList.toggle('has-zone',pitches.length>0||!batting||selected.location!=='any');
+    // 타자 편에서 존 그림은 '구역별 정확도 미리보기'다. 고르기 전부터 보여야 고를 수 있다.
+    root.classList.toggle('has-zone',true);
     const leaders=[];
     if(event?.control){const t=event.control.target;leaders.push(`<path class="zone-release-error" d="M${100+t.x*38} ${96-t.z*40}L${100+event.pitch.x*38} ${96-event.pitch.z*40}" stroke="#f39d78" stroke-width="2"/>`);}
     const marks=layoutPitchMarkers(pitches).map(({event:e,x,y,labelX,labelY},i)=>{
@@ -302,7 +300,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const positions=FIELD_POSITIONS;
     for(const [pos,[x,y]] of Object.entries(positions))lv.S.fielders[pos]={pos,name:pos==='P'?(batting?game.pitcher.name:'나의 마무리'):game.defense[pos].name,x,y,home:[x,y],alpha:1};
     sync(initial);lv.S.broadcast={kind:'pitch'};
-    $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=batting;$('.inning-result').hidden=true;
+    $('.inning-throw').disabled=false;$('.inning-picks').disabled=false;$('.inning-picks').hidden=false;$('.inning-result').hidden=true;
     $('.inning-feedback').textContent='';if(!batting){calm=false;maxEffort=false;$('.pitch-effort').disabled=false;$('.pitch-effort').setAttribute('aria-pressed','false');root.classList.remove('is-max-effort');$('.pitch-breathe').disabled=false;$('.pitch-breathe').textContent='숨 고르기';$('.inning-throw').querySelector('span').textContent='투구';}paint();selection();history();dock();root.scrollTop=0;if(!batting)$('.inning-throw').focus({preventScroll:true});intro();
   }
   async function intro(){
@@ -311,7 +309,7 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
     const loadingView=lv,card=document.createElement('div');card.className='match-intro';
     const team=(side)=>{const t=stage[side],f=FRANCHISES.find(f=>f.city+' '+f.nick===t.name);return `<div class="match-club" style="--club:${stage.colors[side]}"><small>${side==='home'?'HOME':'AWAY'}</small><div class="match-crest" aria-hidden="true">${f?.mark||t.short.slice(0,1)}</div><strong>${t.name}</strong>${side===(batting||full?'home':'away')?'<span class="match-own">MY TEAM</span>':''}</div>`;};
     card.innerHTML=`<p class="match-venue">${stage.park.name}</p><div class="match-pair">${team('away')}<span class="match-vs">VS</span>${team('home')}</div><p class="match-format">${full?'9이닝 경기':stage.situation}</p>${!full&&!batting&&stage.lesson?`<p class="match-lesson"><b>${stage.skillLabel}</b> ${stage.lesson}</p>`:''}<div class="match-starter"><small>${batting?'상대 투수':'마운드'}</small><b>${batting?game.pitcher.name:'나의 마무리'}</b><span>${batting?game.pitcher.style:'두 점의 리드'}</span></div>`;
-    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><div class="batting-help-mouse"><p>공을 읽고 <b>칠까 참을까</b>를 정합니다. 배트는 공 높이를 따라갑니다</p><p>왼쪽 버튼을 누르면 준비, 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>누른 채 오른쪽 클릭하면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div><div class="batting-help-touch"><p>공을 읽고 <b>칠까 참을까</b>를 정합니다. 배트는 공 높이를 따라갑니다</p><p>화면을 누르면 준비, 떼면 <b>스윙</b></p><p>투수가 공을 놓기 전부터 누르고 있으면 <b>장타</b>, 공을 보고 누르면 <b>컨택</b></p><p>아래 취소 영역에서 떼면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div></div>');
+    if(batting||full)card.insertAdjacentHTML('beforeend','<div class="match-batting-help" aria-label="타격 조작"><div class="batting-help-mouse"><p>공을 읽고 <b>칠까 참을까</b>를 정합니다. 배트는 공 높이를 따라갑니다</p><p>왼쪽 버튼을 누르면 준비, 떼면 <b>스윙</b></p><p>투구 전에 <b>노릴 구종·코스</b>와 <b>타격 방식</b>을 고릅니다. 존 그림이 구역별 정확도를 미리 보여 줍니다</p><p>누른 채 오른쪽 클릭하면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div><div class="batting-help-touch"><p>공을 읽고 <b>칠까 참을까</b>를 정합니다. 배트는 공 높이를 따라갑니다</p><p>화면을 누르면 준비, 떼면 <b>스윙</b></p><p>투구 전에 <b>노릴 구종·코스</b>와 <b>타격 방식</b>을 고릅니다. 존 그림이 구역별 정확도를 미리 보여 줍니다</p><p>아래 취소 영역에서 떼면 참습니다. 늦게 참으면 심판이 체크 스윙을 판정합니다.</p></div></div>');
     if(!continuedGame){root.append(card);root.classList.add('is-match-intro');}
     const enter=document.createElement('button');enter.className='go match-enter';enter.textContent='구장 준비 중…';enter.disabled=true;card.append(enter);
     const ready=await loadingView.ready;
@@ -455,7 +453,14 @@ export function openInningMode(role='pitcher',initialSeed=null,initialStage=0,co
   $('.inning-sound').onclick=()=>{sound=!lv.sfx.on;lv.setSound(sound);visibility();if(sound)lv.sfx.stadium(ambience,intensity);soundLabel();};
   document.addEventListener('keydown',key);$('.inning-exit').onclick=close;
   root.querySelector('.plan-cut')?.addEventListener('click',()=>{if(busy||game.strikes<2)return;cutNext=!cutNext;plan2();});
-  root.querySelectorAll('[data-group] button').forEach(b=>b.onclick=()=>{if(busy)return;const group=b.parentElement;choice[group.dataset.group]=b.dataset.value;group.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));selection();if(autoTimer)scheduleNext(Math.max(1400,AUTO_DELAY*.6));});
+  root.querySelectorAll('[data-group] button').forEach(b=>b.onclick=()=>{
+    if(busy||!b.dataset.value)return;   // 커트처럼 값이 없는 버튼은 제 핸들러가 있다
+    const group=b.closest('[data-group]'),key=group.dataset.group;
+    // 코스는 한 번 더 누르면 '전체'로 돌아간다. 노림을 접을 수 있어야 고르는 의미가 산다.
+    const undo=key==='location'&&choice[key]===b.dataset.value;
+    choice[key]=undo?'any':b.dataset.value;
+    group.querySelectorAll('button[data-value]').forEach(x=>x.setAttribute('aria-pressed',String(!undo&&x===b)));
+    selection();if(autoTimer)scheduleNext(Math.max(1400,AUTO_DELAY*.6));});
   const play=async(action='swing',{pressAt=null}={})=>{
     if(busy||dead||game.done)return;scouting.close();pitcherTag?.close();plan(false);atmosphere('pitch');busy=true;scrollBefore=root.scrollTop;root.classList.add('is-playing');$('.inning-live-zone').hidden=events.length===0;$('.inning-live-zone span').textContent='현재 타석 · '+events.length+'구 기록';lv._size();$('.inning-throw').disabled=true;$('.inning-picks').disabled=true;$('.inning-feedback').textContent='';
     try {
