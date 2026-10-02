@@ -12,11 +12,22 @@ export function createPlayerFactory(){
  // One geometry copy per ballpark, shared by its independently posed players.
  const template=clone(asset),geometries=new Map(),materials=new Map();
  template.traverse(o=>{if(o.isMesh){if(!geometries.has(o.geometry))geometries.set(o.geometry,o.geometry.clone());o.geometry=geometries.get(o.geometry);}});
+ // 카툰 음영. 선수는 코드로 만든 단순한 형상이라 PBR 로 부드럽게 번지면 '거의 사실적인데 어긋난' 쪽에 떨어진다.
+ // 단계식 음영은 형상을 또렷하게 만들고, 멀리 있는 투수의 실루엣과 공의 가독성에도 유리하다.
+ const toonSteps=(()=>{
+  const data=new Uint8Array([90,150,210,255]);
+  const tex=new T.DataTexture(data,data.length,1,T.RedFormat);
+  tex.minFilter=tex.magFilter=T.NearestFilter;tex.needsUpdate=true;return tex;
+ })();
  const material=(source,color,skin)=>{
   const tint=source.name==='Team'?color:source.name==='Skin'?skin:null,key=source.name+':'+(tint||'');
-  if(!materials.has(key)){const m=source.clone();if(tint)m.color.set(tint);
-   // 소재별 반사. 천은 거칠고 피부·헬멧·가죽은 빛을 조금 받아야 입체가 산다.
-   const rough={Team:.80,Cream:.84,Skin:.52,Dark:.42,Leather:.88,Pocket:.95,Stitch:.7}[source.name];if(rough!==undefined&&'roughness' in m)m.roughness=rough;
+  if(!materials.has(key)){
+   // 색은 단계로 끊되 질감(가죽결·실밥 노멀맵)은 그대로 들고 온다 — 카툰은 음영을 줄이는 것이지 재질을 지우는 것이 아니다.
+   const m=new T.MeshToonMaterial({color:tint??source.color?.clone()??0xffffff,gradientMap:toonSteps,
+    map:source.map??null,normalMap:source.normalMap??null,alphaMap:source.alphaMap??null,
+    vertexColors:!!source.vertexColors,transparent:source.transparent,opacity:source.opacity,side:source.side});
+   m.name=source.name;
+   if(source.normalScale&&m.normalScale)m.normalScale.copy(source.normalScale);
    materials.set(key,m);}return materials.get(key);
  };
  return (key,color)=>{

@@ -250,11 +250,12 @@ taper('Handle',(0,-.115,0),.25,.019,.026,1,'Dark',None)
 ell('Knob',(0,.02,0),(.031,.018,.031),'Dark')
 bat=join('Bat')
 # Refine the silhouette consistently across weighted vertices and bone sockets.
-# Athletic proportions: about seven heads tall. Longer legs, a smaller head and
-# cap, a longer neck and wider shoulders. Bones and sockets follow the same maps.
-LEG=1.24;HEAD=.82;SHOULDER=1.07;NECK=.03
+# 카툰 비율: 머리를 키우고 다리를 줄여 3~4등신으로 간다. 형상이 코드로 만든 단순 도형이라
+# 사실적인 비율로는 '거의 비슷한데 어긋난' 쪽에 떨어진다 — 과장하면 형상과 표현이 일치한다.
+LEG=1.24;HEAD=1.18;SHOULDER=1.04;NECK=0;HIP=1.5
 def height(y):return y*LEG if y<.85 else y+.85*(LEG-1)+(NECK if y>1.40 else 0)
-def width(x,y):return x*SHOULDER if y>.85 else x
+# 다리는 짧아진 만큼 벌어져야 한다. 몸통 폭(SHOULDER)과 따로, 골반 아래를 HIP 으로 넓힌다.
+def width(x,y):return x*SHOULDER if y>.85 else x*HIP
 for v in body.data.vertices:
  old=v.co.z
  if any(g.group==body.vertex_groups['Head'].index and g.weight>.5 for g in v.groups):

@@ -35,6 +35,8 @@ const GRASS=new Set(['#39744d','#417d52','#3b784e']),DIRT=new Set(['#a58662','#a
 // 이 높이에서는 포수와 심판이 존을 가리므로 타격 중에는 둘을 그리지 않는다.
 const BATTING_VIEW={back:5.2,height:1.25,aimDepth:6,aimHeight:.26,fov:24};
 const BATTING_SHOTS=['pitch','between','batter','pitcher'];
+// 타격 준비 자세에서 다리 뼈를 바깥으로 벌리는 배율. 카툰 비율은 다리가 짧아 그만큼 더 벌려야 선 자세가 선다.
+const BAT_STANCE_SPREAD=2.0;
 // 구종별 회전. 실제 회전수(rpm)에 슬로모션에서 실밥이 보이도록 감속 계수를 곱한다.
 const SPIN={FF:{axis:[1,0,.15],rpm:2200},SL:{axis:[.45,.75,.5],rpm:2400},CH:{axis:[1,0,.35],rpm:1600}};
 for(const spin of Object.values(SPIN))spin.axis=new T.Vector3(...spin.axis).normalize();
@@ -288,7 +290,7 @@ export class Live3D {
     if(moving){body.rotation.x=running?.16:.04;body.position.y-=Math.abs(Math.sin(p.phase))*(running?.025:.012);body.rotation.y=Math.sin(p.phase)*.06;}
     p.legRest??=legs.map(leg=>leg.position.clone());
     for(let i=0;i<2;i++){
-      legs[i].position.copy(p.legRest[i]);if(pose==='bat')legs[i].position.x*=1.5;
+      legs[i].position.copy(p.legRest[i]);if(pose==='bat')legs[i].position.x*=BAT_STANCE_SPREAD;
       p.elbows[i].rotation.set(moving?(running?-1.25:-.45):-.12,0,0);
       p.knees[i].rotation.set(moving?Math.max(0,Math.sin(p.phase+(i?0:Math.PI)))*(walking?.38:1.0):0,0,0);
       p.feet[i].rotation.set(walking?-(legs[i].rotation.x+p.knees[i].rotation.x):-p.knees[i].rotation.x*.25,0,0);
