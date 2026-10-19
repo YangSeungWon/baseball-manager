@@ -54,6 +54,7 @@ try {
     if(touch) await page.touchscreen.tap(width/2, height*.6); else await page.keyboard.press('Space');
     assert.equal(await page.evaluate(()=>quickResults.length),1,'one action must resolve exactly one pitch');
     assert.equal(await page.evaluate(()=>quickResults[0].kind),'perfect','timing is judged at input time');
+    assert.match(await page.locator('.quick-message').textContent(),/포심.*km\/h/s,'pitch identity and speed are revealed after the decision');
     await page.keyboard.press('Space');
     assert.equal(await page.evaluate(()=>quickResults.length),1,'feedback must ignore another swing');
     await advanceToPitch();
@@ -75,7 +76,8 @@ try {
     }
     await page.clock.runFor(1100);
     await page.locator('.quick-retry').waitFor();
-    assert.equal(await page.locator('.quick-points').textContent(),'2,450');
+    const maximum = 1750 + pitches.filter(p=>p.strike).length*100;
+    assert.equal(await page.locator('.quick-points').textContent(),maximum.toLocaleString('en-US'));
     await fits();
     await page.screenshot({path:`/tmp/dugout-quick-result-${width}.png`});
     await activate('.quick-retry');
@@ -87,7 +89,7 @@ try {
     assert.equal(await page.locator('.quick-mode').count(),0);
     assert.equal(await page.locator('#boot').evaluate(e=>e.inert),false);
     await activate('#btnQuick');
-    assert.equal(await page.locator('.quick-best').textContent(),'최고 2,450');
+    assert.equal(await page.locator('.quick-best').textContent(),'최고 '+maximum.toLocaleString('en-US'));
     await page.keyboard.press('Escape');
     await page.screenshot({path:`/tmp/dugout-quick-home-${width}.png`,fullPage:true});
     assert.deepEqual(errors,[]);

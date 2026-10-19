@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {QuickGame, makePitches, judgePitch, PERFECT_MS, HIT_MS, pitchLocation, inQuickZone} from '../web/js/quick-game.js';
 
-test('every replay has exactly seven strikes and three balls, with two introductory strikes', () => {
+test('every replay preserves ten pitches, five pitch types and two introductory strikes', () => {
   for (let seed = 0; seed < 1000; seed++) {
     const pitches = makePitches(seed);
     assert.deepEqual(pitches, makePitches(seed));
     assert.equal(pitches.length, 10);
-    assert.equal(pitches.filter(p => p.strike).length, 7);
+    assert.equal(new Set(pitches.map(p => p.type)).size, 5);
     assert.ok(pitches.slice(0, 2).every(p => p.strike && p.flight === 1250));
   }
   assert.notDeepEqual(makePitches(0), makePitches(1));
@@ -25,11 +25,11 @@ test('timing has symmetric, inclusive boundaries and chasing a ball never scores
   assert.equal(judgePitch(ball, null).base, 100);
   assert.throws(() => judgePitch(strike, NaN));
 });
-test('a perfect round has the same maximum regardless of pitch order', () => {
+test('a perfect round scores every actual strike and ball, with capped combo bonus', () => {
   for (let seed = 0; seed < 100; seed++) {
     const game = new QuickGame(seed);
     while (!game.done) game.resolve(game.pitch.strike ? 0 : null);
-    assert.equal(game.score, 2450);
+    assert.equal(game.score, 1750 + game.pitches.filter(p => p.strike).length * 100);
     assert.equal(game.bestCombo, 10);
     assert.throws(() => game.resolve(0));
     assert.equal(game.results.length, 10);
@@ -68,20 +68,20 @@ test('the visible landing point determines the call, including each zone edge', 
       else {
         const edge = Math.abs(pitch.x) > 1 ? pitch.x > 0 ? 'right' : 'left' : pitch.z > 0 ? 'high' : 'low';
         directions.add(edge); roundEdges.add(edge);
-        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) >= 1.3);
+        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) > 1);
         assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) <= 1.9);
       }
     }
-    assert.equal(roundEdges.size, 3, 'each round mixes three different ball locations');
+    assert.ok(pitches.every(p => Math.abs(p.x) <= 1.9 && Math.abs(p.z) <= 1.9));
   }
   assert.equal(directions.size, 4);
   assert.equal(strikeCells.size, 9, 'strikes cover the whole zone, not just the center');
 });
 
-test('strikes and balls share their early path, then reveal different landing points', () => {
-  const strike = {x: .7, z: .2, breakAt: .45, bend: .3, drop: -.2};
+test('perspective keeps early location differences small and preserves final calls', () => {
+  const strike = {x: .7, z: .2, movement:{x:.4,z:-.1},movePower:2.3};
   const ball = {...strike, x: 1.35};
-  assert.deepEqual(pitchLocation(strike, .4), pitchLocation(ball, .4));
+  assert.ok(pitchLocation(ball, .4).x - pitchLocation(strike, .4).x < .15);
   assert.ok(pitchLocation(ball, .75).x - pitchLocation(strike, .75).x > .3);
   assert.ok(inQuickZone(pitchLocation(strike, 1)));
   assert.equal(inQuickZone(pitchLocation(ball, 1)), false);

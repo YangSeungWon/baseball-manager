@@ -1,4 +1,5 @@
 import {QuickGame, PITCH_COUNT, WINDUP_MS, FEEDBACK_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
+import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
 
 const RECORD_KEY = 'dugout.quick.v1';
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
@@ -38,6 +39,7 @@ export function openQuickMode() {
   let game, phase = 'ready', elapsed = 0, paused = false, closed = false, raf;
   let lastTime = performance.now(), width = 0, height = 0, outcome = null, best = record().best;
   let displayedPitch = null, swingAt = null;
+  const pitcherLabel = () => `${game.pitcher.hand === 'L' ? '좌완' : '우완'} · 구위 ${game.pitcher.stuff >= .7 ? '날카로움' : '보통'} · 제구 ${game.pitcher.command >= .7 ? '안정' : '흔들림'}`;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function hud() {
@@ -57,7 +59,7 @@ export function openQuickMode() {
   function ready() {
     game = new QuickGame(newSeed()); displayedPitch = game.pitch;
     hud();
-    cover.innerHTML = '<div><small>약 40초 · 10번의 선택</small><h2>칠까, 참을까?</h2><p>공이 <b>스트라이크 존에 도착할 때</b> 스윙.<br>높고 낮은 공, 모서리 공을 끝까지 보세요.<br>존 밖으로 빠지면 누르지 마세요.</p><p class="quick-rule">정타 200점 · 안타 / 참기 100점<br>연속 성공하면 최대 +100점 보너스</p><button class="quick-start">첫 공 받기</button></div>';
+    cover.innerHTML = `<div><small>약 40초 · 10번의 선택</small><h2>칠까, 참을까?</h2><p>공이 <b>스트라이크 존에 도착할 때</b> 스윙.<br>실밥 회전과 궤적을 끝까지 보세요.<br>존 밖으로 빠지면 누르지 마세요.</p><small>${pitcherLabel()}</small><p class="quick-rule">정타 200점 · 안타 / 참기 100점<br>연속 성공하면 최대 +100점 보너스</p><button class="quick-start">첫 공 받기</button></div>`;
     $('.quick-start').onclick = () => start(game.seed);
     $('.quick-start').focus();
     draw();
@@ -77,7 +79,7 @@ export function openQuickMode() {
     delete root.dataset.verdict;
     displayedPitch = game.pitch; outcome = null; swingAt = null;
     swingButton.disabled = true;
-    message(game.results.length === 0 ? '첫 공은 천천히 옵니다' : `${game.results.length + 1}번째 공`, '투수가 준비 중이에요');
+    message(game.results.length === 0 ? '첫 두 공은 천천히 옵니다' : `${game.results.length + 1}번째 공`, pitcherLabel());
     hud();
   }
   function resolve(offset) {
@@ -87,7 +89,7 @@ export function openQuickMode() {
     phase = 'feedback'; elapsed = 0;
     swingButton.disabled = true;
     root.dataset.verdict = outcome.kind;
-    message(outcome.label, `${outcome.points ? '+' + outcome.points + '점 · ' : ''}${outcome.tip}`);
+    message(`${outcome.label} · ${displayedPitch.name}`, `${displayedPitch.speed} km/h · ${outcome.points ? '+' + outcome.points + '점 · ' : ''}${QUICK_PITCH_TYPES[displayedPitch.type].hint}`);
     hud();
   }
   function swing() {
@@ -111,7 +113,8 @@ export function openQuickMode() {
     const late = game.results.filter(r => r.offset !== null && r.offset > 65 && r.kind !== 'chase').length;
     const advice = game.results.some(r => r.kind === 'chase') ? '다음 판엔 존 밖의 공을 보내보세요.' : early > late ? '다음 판엔 반 박자 더 기다려보세요.' : late > early ? '다음 판엔 조금 더 일찍 눌러보세요.' : '이번 감각으로 정타를 하나 더!';
     cover.hidden = false;
-    cover.innerHTML = `<div><small>${game.score > previousBest ? '새 최고 기록!' : '10구 끝!'}</small><h2>${game.score.toLocaleString()}<small>점</small></h2><p>안타 ${hits}/7 · 정타 ${perfect} · 참기 ${takes}/3<br>최대 ${game.bestCombo}연속 성공</p><p>${advice}</p><button class="quick-retry">같은 10구 다시</button><button class="quick-new">새 공으로 한 판</button><small>${saved ? '최고 기록은 이 브라우저에 저장됩니다.' : '이 브라우저에서 기록을 저장하지 못했습니다.'}</small></div>`;
+    const strikes = game.pitches.filter(p => p.strike).length;
+    cover.innerHTML = `<div><small>${game.score > previousBest ? '새 최고 기록!' : '10구 끝!'}</small><h2>${game.score.toLocaleString()}<small>점</small></h2><p>안타 ${hits}/${strikes} · 정타 ${perfect} · 참기 ${takes}/${PITCH_COUNT-strikes}<br>최대 ${game.bestCombo}연속 성공</p><p>${advice}</p><button class="quick-retry">같은 10구 다시</button><button class="quick-new">새 투수와 한 판</button><small>${saved ? '최고 기록은 이 브라우저에 저장됩니다.' : '이 브라우저에서 기록을 저장하지 못했습니다.'}</small></div>`;
     $('.quick-retry').onclick = () => start(game.seed);
     $('.quick-new').onclick = () => start(newSeed());
     $('.quick-retry').focus();
@@ -198,9 +201,10 @@ export function openQuickMode() {
     if (phase === 'flight' || phase === 'feedback') {
       let progress = phase === 'flight' ? elapsed / displayedPitch.flight : 1;
       const location = pitchLocation(displayedPitch, progress);
+      const depth = progress <= 1 ? location.depth : 1 + (progress - 1) * 3;
       let x = cx + location.x * target;
-      let y = h * .27 + (plate - h * .27) * progress - location.z * zoneHeight;
-      let radius = 3 + Math.min(1.2, progress) ** 2 * (target * .22 - 3);
+      let y = h * .27 + (plate - h * .27) * depth - location.z * zoneHeight;
+      let radius = 3 + Math.min(1.2, depth) ** 2 * (target * .26 - 3);
       // Reveal the actual plate-crossing location only after the decision.
       if (phase === 'feedback') {
         const lx = cx + displayedPitch.x * target, ly = plate - displayedPitch.z * zoneHeight;
@@ -215,9 +219,8 @@ export function openQuickMode() {
         y -= h * .8 * p; radius *= 1 - p * .7;
       }
       circle(x + 2, y + 4, radius + 3, '#071b2638');
-      circle(x, y, radius, '#fff7df');
-      ctx.strokeStyle = '#b8453d'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(x - radius * .5, y, radius * .7, -.9, .9); ctx.stroke();
+      const spinTime = phase === 'flight' ? elapsed / 1000 : (displayedPitch.flight + elapsed) / 1000;
+      drawSpinningBall(ctx, x, y, radius, displayedPitch.spin, reduced ? 0 : spinTime);
       if (phase === 'feedback' && swingAt !== null && elapsed < 300 && !reduced) {
         const angle = -.8 + elapsed / 300 * 2;
         ctx.strokeStyle = '#e5b36b'; ctx.lineWidth = 13;

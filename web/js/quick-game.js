@@ -1,3 +1,5 @@
+import {seededRandom, makeQuickPitcher, deliverQuickPitch} from './quick-pitches.js';
+export {pitchLocation} from './quick-pitches.js';
 // Ten pitches, one decision. Rendering never participates in scoring.
 export const PITCH_COUNT = 10;
 export const PERFECT_MS = 65;
@@ -8,53 +10,31 @@ export const WINDUP_MS = 700;
 // Zone half-width/half-height are both 1. The ball's center determines the call.
 export const inQuickZone = ({x, z}) => Math.abs(x) <= 1 && Math.abs(z) <= 1;
 
-// Both strikes and balls share the same family of paths; the final location
-// emerges progressively, rather than balls taking a separate lane at release.
-export function pitchLocation(pitch, progress) {
-  const p = Math.max(0, Math.min(1, progress));
-  const t = Math.max(0, (p - pitch.breakAt) / (1 - pitch.breakAt));
-  const arrival = t * t * (3 - 2 * t);
-  const curve = Math.sin(Math.PI * p);
-  return {x: pitch.x * arrival + pitch.bend * curve, z: pitch.z * arrival + pitch.drop * curve};
-}
-
-export function makePitches(seed) {
-  let state = seed >>> 0;
-  const random = () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let n = Math.imul(state ^ state >>> 15, 1 | state);
-    n ^= n + Math.imul(n ^ n >>> 7, 61 | n);
-    return ((n ^ n >>> 14) >>> 0) / 4294967296;
-  };
-  // Exactly three balls, never on the first two pitches. Everyone gets seven chances to hit.
-  const positions = Array.from({length: 8}, (_, i) => i + 2);
-  for (let i = positions.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [positions[i], positions[j]] = [positions[j], positions[i]];
-  }
-  const balls = new Set(positions.slice(0, 3));
-  const edges = ['left', 'right', 'high', 'low'];
-  for (let i = edges.length - 1; i > 0; i--) {
-    const j = Math.floor(random() * (i + 1));
-    [edges[i], edges[j]] = [edges[j], edges[i]];
-  }
-  let ballIndex = 0;
-  return Array.from({length: PITCH_COUNT}, (_, i) => {
-    const spread = i < 2 ? .2 : .78;
-    let x = (random() * 2 - 1) * spread, z = (random() * 2 - 1) * spread;
-    if (balls.has(i)) {
-      const edge = edges[ballIndex++], miss = 1.3 + random() * .6;
-      if (edge === 'left' || edge === 'right') x = (edge === 'left' ? -1 : 1) * miss;
-      else z = (edge === 'low' ? -1 : 1) * miss;
+export function makePitches(seed, pitcher = makeQuickPitcher(seed)) {
+  const random = seededRandom(seed);
+  const shuffle = values => {
+    for (let i = values.length - 1; i > 0; i--) {
+      const j = Math.floor(random() * (i + 1));
+      [values[i], values[j]] = [values[j], values[i]];
     }
-    return {
-    x, z, strike: inQuickZone({x, z}),
-    // The opening two pitches teach the timing; later pitches mix two readable speeds.
-    flight: i < 2 ? 1250 : random() < .4 ? 1300 : 950,
-    breakAt: .32 + random() * .18,
-    bend: (random() * 2 - 1) * .55,
-    drop: (random() * 2 - 1) * .28,
-  };});
+    return values;
+  };
+  // The first two are easy four-seamers. Then all five pitch families appear.
+  const types = ['FF', 'FF', ...shuffle(['FT','SL','FO','FC','FF','FT','SL','FO'])];
+  const chase = new Set(shuffle(Array.from({length: 8}, (_, i) => i + 2)).slice(0, 3));
+  const edges = shuffle(['left', 'right', 'high', 'low']);
+  let ballIndex = 0;
+  return types.map((type, i) => {
+    const spread = i < 2 ? .12 : .85;
+    const target = {x: (random() * 2 - 1) * spread, z: (random() * 2 - 1) * spread};
+    if (chase.has(i)) {
+      const edge = edges[ballIndex++], outside = 1.15 + random() * .4;
+      if (edge === 'left' || edge === 'right') target.x = (edge === 'left' ? -1 : 1) * outside;
+      else target.z = (edge === 'low' ? -1 : 1) * outside;
+    }
+    const noise = Array.from({length: 8}, () => random() * 2 - 1);
+    return deliverQuickPitch(type, pitcher, target, noise, {intro: i < 2});
+  });
 }
 
 export function judgePitch(pitch, offset) {
@@ -72,7 +52,8 @@ export function judgePitch(pitch, offset) {
 export class QuickGame {
   constructor(seed) {
     this.seed = seed >>> 0;
-    this.pitches = makePitches(this.seed);
+    this.pitcher = makeQuickPitcher(this.seed);
+    this.pitches = makePitches(this.seed, this.pitcher);
     this.results = [];
     this.score = 0;
     this.combo = 0;
