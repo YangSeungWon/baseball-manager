@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {QuickGame, makePitches, judgePitch, PERFECT_MS, HIT_MS} from '../web/js/quick-game.js';
+import {QuickGame, makePitches, judgePitch, PERFECT_MS, HIT_MS, pitchLocation, inQuickZone} from '../web/js/quick-game.js';
 
 test('every replay has exactly seven strikes and three balls, with two introductory strikes', () => {
   for (let seed = 0; seed < 1000; seed++) {
@@ -13,7 +13,7 @@ test('every replay has exactly seven strikes and three balls, with two introduct
   assert.notDeepEqual(makePitches(0), makePitches(1));
 });
 test('timing has symmetric, inclusive boundaries and chasing a ball never scores', () => {
-  const strike = {strike: true}, ball = {strike: false};
+  const strike = {x: 0, z: 0}, ball = {x: 1.5, z: 0};
   for (const sign of [-1, 1]) {
     assert.equal(judgePitch(strike, sign * PERFECT_MS).kind, 'perfect');
     assert.equal(judgePitch(strike, sign * (PERFECT_MS + 1)).kind, 'hit');
@@ -47,4 +47,42 @@ test('mistakes reset the bonus; replay resets all score and preserves the pitche
   assert.deepEqual(replay.pitches, game.pitches);
   assert.equal(replay.score, 0);
   assert.equal(replay.results.length, 0);
+});
+
+test('the visible landing point determines the call, including each zone edge', () => {
+  for (const axis of ['x', 'z']) for (const sign of [-1, 1]) {
+    const edge = {x: 0, z: 0, [axis]: sign};
+    assert.equal(judgePitch(edge, null).label, '스트라이크');
+    assert.equal(judgePitch({...edge, [axis]: sign * 1.01}, null).kind, 'take');
+  }
+  const directions = new Set(), strikeCells = new Set();
+  for (let seed = 0; seed < 100; seed++) {
+    const pitches = makePitches(seed);
+    const roundEdges = new Set();
+    for (const pitch of pitches) {
+      const landing = pitchLocation(pitch, 1);
+      assert.ok(Math.abs(landing.x - pitch.x) < 1e-10);
+      assert.ok(Math.abs(landing.z - pitch.z) < 1e-10);
+      assert.equal(inQuickZone(landing), pitch.strike);
+      if (pitch.strike) strikeCells.add(`${Math.round(pitch.x)},${Math.round(pitch.z)}`);
+      else {
+        const edge = Math.abs(pitch.x) > 1 ? pitch.x > 0 ? 'right' : 'left' : pitch.z > 0 ? 'high' : 'low';
+        directions.add(edge); roundEdges.add(edge);
+        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) >= 1.3);
+        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) <= 1.9);
+      }
+    }
+    assert.equal(roundEdges.size, 3, 'each round mixes three different ball locations');
+  }
+  assert.equal(directions.size, 4);
+  assert.equal(strikeCells.size, 9, 'strikes cover the whole zone, not just the center');
+});
+
+test('strikes and balls share their early path, then reveal different landing points', () => {
+  const strike = {x: .7, z: .2, breakAt: .45, bend: .3, drop: -.2};
+  const ball = {...strike, x: 1.35};
+  assert.deepEqual(pitchLocation(strike, .4), pitchLocation(ball, .4));
+  assert.ok(pitchLocation(ball, .75).x - pitchLocation(strike, .75).x > .3);
+  assert.ok(inQuickZone(pitchLocation(strike, 1)));
+  assert.equal(inQuickZone(pitchLocation(ball, 1)), false);
 });

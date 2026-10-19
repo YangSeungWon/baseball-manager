@@ -1,4 +1,4 @@
-import {QuickGame, PITCH_COUNT, WINDUP_MS, FEEDBACK_MS, HIT_MS} from './quick-game.js';
+import {QuickGame, PITCH_COUNT, WINDUP_MS, FEEDBACK_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
 
 const RECORD_KEY = 'dugout.quick.v1';
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0];
@@ -27,8 +27,8 @@ export function openQuickMode() {
     <header class="quick-head"><b>10구 승부</b><span class="quick-best"></span><button class="quick-pause" aria-label="일시정지" disabled>일시정지</button><button class="quick-exit" aria-label="게임 나가기">나가기</button></header>
     <div class="quick-score"><span><small>점수</small><strong class="quick-points">0</strong></span><span class="quick-combo">한 공씩, 차근차근.</span><span><small>투구</small><strong class="quick-count">1 / 10</strong></span></div>
     <div class="quick-track" aria-label="10구 결과"></div>
-    <div class="quick-field"><canvas aria-label="공이 타격 원에 도착할 때 스윙하세요. 원 밖의 공은 참으세요."></canvas><div class="quick-message" role="status" aria-live="polite"></div><div class="quick-cover"></div></div>
-    <div class="quick-action"><button class="quick-swing" disabled>스윙 <small>터치 · 클릭 · Space</small></button><p>공이 원 한가운데에 올 때 누르세요. 원 밖의 공은 참기.</p></div>`;
+    <div class="quick-field"><canvas aria-label="공이 스트라이크 존에 도착할 때 스윙하세요. 존 밖의 공은 참으세요."></canvas><div class="quick-message" role="status" aria-live="polite"></div><div class="quick-cover"></div></div>
+    <div class="quick-action"><button class="quick-swing" disabled>스윙 <small>터치 · 클릭 · Space</small></button><p>존 안으로 오는 공은 도착할 때 스윙. 존 밖은 참기.</p></div>`;
   document.body.append(root);
   const $ = selector => root.querySelector(selector);
   const canvas = $('canvas'), ctx = canvas.getContext('2d');
@@ -57,7 +57,7 @@ export function openQuickMode() {
   function ready() {
     game = new QuickGame(newSeed()); displayedPitch = game.pitch;
     hud();
-    cover.innerHTML = '<div><small>약 40초 · 10번의 선택</small><h2>칠까, 참을까?</h2><p>공이 <b>타격 원 한가운데에 올 때</b> 누르면 스윙.<br>원 밖으로 빠지면 누르지 마세요.</p><p class="quick-rule">정타 200점 · 안타 / 참기 100점<br>연속 성공하면 최대 +100점 보너스</p><button class="quick-start">첫 공 받기</button></div>';
+    cover.innerHTML = '<div><small>약 40초 · 10번의 선택</small><h2>칠까, 참을까?</h2><p>공이 <b>스트라이크 존에 도착할 때</b> 스윙.<br>높고 낮은 공, 모서리 공을 끝까지 보세요.<br>존 밖으로 빠지면 누르지 마세요.</p><p class="quick-rule">정타 200점 · 안타 / 참기 100점<br>연속 성공하면 최대 +100점 보너스</p><button class="quick-start">첫 공 받기</button></div>';
     $('.quick-start').onclick = () => start(game.seed);
     $('.quick-start').focus();
     draw();
@@ -109,7 +109,7 @@ export function openQuickMode() {
     const takes = game.results.filter(r => r.kind === 'take').length;
     const early = game.results.filter(r => r.offset !== null && r.offset < -65 && r.kind !== 'chase').length;
     const late = game.results.filter(r => r.offset !== null && r.offset > 65 && r.kind !== 'chase').length;
-    const advice = game.results.some(r => r.kind === 'chase') ? '다음 판엔 원 밖의 공을 보내보세요.' : early > late ? '다음 판엔 반 박자 더 기다려보세요.' : late > early ? '다음 판엔 조금 더 일찍 눌러보세요.' : '이번 감각으로 정타를 하나 더!';
+    const advice = game.results.some(r => r.kind === 'chase') ? '다음 판엔 존 밖의 공을 보내보세요.' : early > late ? '다음 판엔 반 박자 더 기다려보세요.' : late > early ? '다음 판엔 조금 더 일찍 눌러보세요.' : '이번 감각으로 정타를 하나 더!';
     cover.hidden = false;
     cover.innerHTML = `<div><small>${game.score > previousBest ? '새 최고 기록!' : '10구 끝!'}</small><h2>${game.score.toLocaleString()}<small>점</small></h2><p>안타 ${hits}/7 · 정타 ${perfect} · 참기 ${takes}/3<br>최대 ${game.bestCombo}연속 성공</p><p>${advice}</p><button class="quick-retry">같은 10구 다시</button><button class="quick-new">새 공으로 한 판</button><small>${saved ? '최고 기록은 이 브라우저에 저장됩니다.' : '이 브라우저에서 기록을 저장하지 못했습니다.'}</small></div>`;
     $('.quick-retry').onclick = () => start(game.seed);
@@ -172,7 +172,7 @@ export function openQuickMode() {
   }
   function draw() {
     if (!ctx || !width || !height) return;
-    const w = width, h = height, cx = w / 2, plate = h * .77, target = Math.min(w * .12, h * .12, 42);
+    const w = width, h = height, cx = w / 2, plate = h * .69, target = Math.min(w * .14, h * .11, 46), zoneHeight = target * 1.25;
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#163f38'; ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#204e42'; ctx.beginPath(); ctx.moveTo(cx, h * .24); ctx.lineTo(w * .98, h); ctx.lineTo(w * .02, h); ctx.fill();
@@ -184,24 +184,36 @@ export function openQuickMode() {
     ctx.strokeStyle = '#f4eee0'; ctx.lineWidth = 9; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(cx, h * .25); ctx.lineTo(cx, h * .29); ctx.moveTo(cx, h * .29); ctx.lineTo(cx - 10, h * .32); ctx.moveTo(cx, h * .29); ctx.lineTo(cx + 10, h * .32); ctx.stroke();
     ctx.strokeStyle = '#f1dca4'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(cx, plate, target, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#f1dca410'; ctx.fill();
+    ctx.strokeRect(cx - target, plate - zoneHeight, target * 2, zoneHeight * 2);
+    ctx.fillStyle = '#f1dca410'; ctx.fillRect(cx - target, plate - zoneHeight, target * 2, zoneHeight * 2);
+    ctx.strokeStyle = '#f1dca44a'; ctx.lineWidth = 1;
+    for (const third of [-1/3, 1/3]) {
+      ctx.beginPath(); ctx.moveTo(cx + target * third, plate - zoneHeight); ctx.lineTo(cx + target * third, plate + zoneHeight);
+      ctx.moveTo(cx - target, plate + zoneHeight * third); ctx.lineTo(cx + target, plate + zoneHeight * third); ctx.stroke();
+    }
     ctx.fillStyle = '#e0e9d8'; ctx.textAlign = 'center'; ctx.font = '12px sans-serif';
-    ctx.fillText('타격 원', cx, plate + target + 22);
+    ctx.textAlign = 'left'; ctx.fillText('스트라이크 존', 12, h - 12); ctx.textAlign = 'center';
     ctx.fillStyle = '#d9d5b8'; ctx.beginPath();
-    ctx.moveTo(cx - 14, plate + target + 34); ctx.lineTo(cx + 14, plate + target + 34); ctx.lineTo(cx + 14, plate + target + 42); ctx.lineTo(cx, plate + target + 50); ctx.lineTo(cx - 14, plate + target + 42); ctx.fill();
+    ctx.moveTo(cx - 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 36); ctx.lineTo(cx, plate + zoneHeight + 44); ctx.lineTo(cx - 14, plate + zoneHeight + 36); ctx.fill();
     if (phase === 'flight' || phase === 'feedback') {
       let progress = phase === 'flight' ? elapsed / displayedPitch.flight : 1;
-      let x = cx + (displayedPitch.strike ? 0 : displayedPitch.side * w * .31) * progress ** 2;
-      let y = h * .27 + (plate - h * .27) * progress;
-      x += Math.sin(Math.min(1, progress) * Math.PI) * w * displayedPitch.bend;
-      let radius = 5 + Math.min(1.2, progress) ** 2 * 9;
+      const location = pitchLocation(displayedPitch, progress);
+      let x = cx + location.x * target;
+      let y = h * .27 + (plate - h * .27) * progress - location.z * zoneHeight;
+      let radius = 3 + Math.min(1.2, progress) ** 2 * (target * .22 - 3);
+      // Reveal the actual plate-crossing location only after the decision.
+      if (phase === 'feedback') {
+        const lx = cx + displayedPitch.x * target, ly = plate - displayedPitch.z * zoneHeight;
+        ctx.strokeStyle = inQuickZone(displayedPitch) ? '#f1dca4' : '#b3dcf0'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(lx, ly, target * .26, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left';
+        ctx.fillText(inQuickZone(displayedPitch) ? '존 안' : '볼', lx + target * .26 + 6, ly + 4); ctx.textAlign = 'center';
+      }
       if (phase === 'feedback' && outcome?.base && outcome.kind !== 'take') {
         const p = reduced ? 1 : Math.min(1, elapsed / 700);
         x += (outcome.offset < 0 ? -1 : 1) * w * .32 * p;
-        y = plate - h * .8 * p; radius *= 1 - p * .7;
+        y -= h * .8 * p; radius *= 1 - p * .7;
       }
-      if (phase === 'feedback' && outcome?.kind === 'take') { x += displayedPitch.side * elapsed * .1; y += elapsed * .15; }
       circle(x + 2, y + 4, radius + 3, '#071b2638');
       circle(x, y, radius, '#fff7df');
       ctx.strokeStyle = '#b8453d'; ctx.lineWidth = 1.5;
@@ -231,7 +243,7 @@ export function openQuickMode() {
         if (phase === 'windup' && elapsed >= WINDUP_MS) {
           phase = 'flight'; elapsed = 0; swingButton.disabled = false;
           root.dataset.phase = phase;
-          message('공을 보세요', '원 한가운데에서 누르기 · 밖으로 빠지면 참기');
+          message('공을 보세요', '존 안이면 도착할 때 스윙 · 밖이면 참기');
         } else if (phase === 'flight' && elapsed > displayedPitch.flight + HIT_MS) resolve(null);
         else if (phase === 'feedback' && elapsed >= FEEDBACK_MS) game.done ? finish() : beginPitch();
       }
