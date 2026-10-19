@@ -374,7 +374,7 @@ async function boot() {
   const challenge=readChallenge(location.search),seed=challenge?.seed??null;
   const {STAGES,clearedStages}=await import('./inning-stages.js');
   const nextStage=()=>{const cleared=clearedStages();return STAGES.find(s=>!cleared.includes(s.id))?.id??STAGES.length-1;};
-  if(seed!==null){$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
+  if(seed!==null){$('.legacy-games').open=true;$('#challengeInvite').hidden=false;$('#btnBatting').textContent='같은 상황에 도전 →';}
   // Warm the module on intent; keep the heavy 3D scene lazy until entry.
   let inningModule=null,entering=false;
   const loadInning=()=>inningModule??=(import('./inning-mode.js').catch(error=>{inningModule=null;throw error;}));
@@ -391,6 +391,12 @@ async function boot() {
       }catch(error){console.error('경기 입장 실패',error);button.textContent='입장 다시 시도 →';}
       finally{entering=false;button.disabled=false;button.removeAttribute('aria-busy');if(button.textContent==='타석 준비 중…')button.textContent=label;}
     };
+  };
+  $('#btnQuick').onclick=async()=>{
+    const button=$('#btnQuick');button.disabled=true;
+    try{const {openQuickMode}=await import('./quick-mode.js');openQuickMode();}
+    catch(error){console.error(error);toast('게임을 열지 못했습니다','다시 시작해 주세요.');}
+    finally{button.disabled=false;}
   };
   bindEntry('#btnBatting',()=>['batter',challenge?seed:null,challenge?.stageId??nextStage()]);
   bindEntry('#btnFullGame',()=>['full']);

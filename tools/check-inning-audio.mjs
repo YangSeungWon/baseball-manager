@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -25,7 +26,7 @@ try {
     Sfx.prototype.stadium=function(cue,k){audioCues.push(cue);return stadium.call(this,cue,k);};
   });
   for(const entry of ['#btnInning','#btnBatting']) {
-    await page.locator(entry).click();
+    await enterLegacy(page,entry);
     assert.equal(await page.locator('.inning-sound').getAttribute('aria-pressed'),'true');
     await page.waitForFunction(()=>audioInstances.at(-1).ctx.state==='running');
     assert.equal(await page.evaluate(()=>audioInstances.at(-1).crowdVoices.length),0,'stadium bed has no sustained pitched oscillators');
@@ -45,7 +46,7 @@ try {
     assert.equal(await page.evaluate(()=>audioInstances.at(-1).ctx),null);
     assert.equal(await page.evaluate(()=>audioInstances.at(-1).stadiumTimer),null);
     assert.equal(await page.evaluate(()=>audioInstances.at(-1).chant),null);
-    await page.locator(entry).click();
+    await enterLegacy(page,entry);
     assert.equal(await page.locator('.inning-sound').getAttribute('aria-pressed'),'false');
     await page.locator('.inning-sound').click();
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});

@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -21,7 +22,7 @@ try {
  await page.evaluate(async()=>{const {LiveView}=await import('/js/live.js');const pitch=LiveView.prototype._pitch;LiveView.prototype._pitch=function(...args){window.lv=this;if(args[1].flightSeconds!=null&&args[1].r==='B')this.paused=true;return pitch.apply(this,args);};});
  let releaseEntry;const entryGate=new Promise(resolve=>releaseEntry=resolve);
  await page.route('**/js/inning-mode.js',async route=>{await entryGate;await route.continue();});
- await page.locator('#btnBatting').click();
+ await enterLegacy(page,'#btnBatting');
  assert.equal(await page.locator('#btnBatting').getAttribute('aria-busy'),'true','entry reacts while module is still loading');
  assert.equal(await page.locator('#btnBatting').isDisabled(),true,'duplicate entry blocked');
  releaseEntry();await page.locator('.match-enter:not([disabled])').click();

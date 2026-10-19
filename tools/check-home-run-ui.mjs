@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -30,7 +31,7 @@ try {
    if(S.celebrants?.length){window.celebrationSeen=true;window.celebrationPlayers=S.celebrants.length;window.earlyResult=!document.querySelector('.inning-result').hidden;}
    return value;};
  });
- await page.locator('#btnBatting').click();await page.locator('.inning-throw').click();
+ await enterLegacy(page,'#btnBatting');await page.locator('.inning-throw').click();
  await page.locator('.is-deciding').waitFor();assert.equal(await page.locator('.inning-controls').isVisible(),false);
  await page.locator('.batting-swing').click();
  await page.waitForFunction(()=>state3d.fieldPlay?.time>.3);

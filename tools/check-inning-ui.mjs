@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -21,7 +22,7 @@ try {
     await page.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(4);return a;};});
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error'&&/Shader Error|TypeError|ReferenceError/.test(m.text()))errors.push(m.text());});
-    await page.goto(url);await page.locator('#btnInning').click();
+    await page.goto(url);await enterLegacy(page,'#btnInning');
     await page.locator('.inning-throw').waitFor();
     await page.evaluate(()=>{localStorage.setItem('dugout.save.v1','existing-gm-save');localStorage.setItem('dugout.save.recovery','existing-backup');});
     const save=await page.evaluate(()=>localStorage.getItem('dugout.save.v1'));
@@ -50,14 +51,14 @@ try {
     assert.equal(await page.locator('.inning-mode').count(),0);
     assert.equal(await page.locator('#boot').evaluate(e=>e.inert),false);
     assert.equal(await page.evaluate(()=>localStorage.getItem('dugout.save.v1')),save);
-    await page.locator('#btnInning').click();await page.locator('.inning-throw').waitFor();
+    await enterLegacy(page,'#btnInning');await page.locator('.inning-throw').waitFor();
     assert.match(await page.locator('.inning-score').textContent(),/0구/);
     await page.keyboard.press('Escape');assert.equal(await page.locator('.inning-mode').count(),0);
     await page.close();
   }
   const replay=await browser.newPage({viewport:{width:390,height:844}});await replay.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});replay.on('pageerror',e=>errors.push(e.message));
   await replay.addInitScript(()=>{crypto.getRandomValues=a=>{a.fill(4);return a;};});
-  await replay.goto(url);await replay.locator('#btnInning').click();await replay.locator('.inning-throw').waitFor();
+  await replay.goto(url);await enterLegacy(replay,'#btnInning');await replay.locator('.inning-throw').waitFor();
   const run=async()=>{
     await replay.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     for(let i=0;i<30;i++){

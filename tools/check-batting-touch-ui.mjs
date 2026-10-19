@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -19,7 +20,7 @@ try {
   const page=await browser.newPage({viewport:{width,height},hasTouch:true,isMobile:true});page.setDefaultTimeout(60000);
   const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url);
   await page.evaluate(async()=>{const {LiveView}=await import('/js/live.js'),pitch=LiveView.prototype._pitch;LiveView.prototype._pitch=function(...args){if(args[1].flightSeconds!=null&&args[1].r==='B')this.paused=true;return pitch.apply(this,args);};});
-  await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').waitFor();
+  await enterLegacy(page,'#btnBatting');await page.locator('.match-enter:not([disabled])').waitFor();
   assert.equal(await page.locator('.batting-help-touch').isVisible(),true);assert.equal(await page.locator('.batting-help-mouse').isVisible(),false);
   await page.locator('.match-enter').click();await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});await page.locator('.is-reading').waitFor();
   await page.evaluate(()=>{const c=document.querySelector('.inning-live canvas'),r=c.getBoundingClientRect();window.touch=(type,y)=>c.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:7,pointerType:'touch',button:0,clientX:r.left+r.width/2,clientY:y}));touch('pointerdown',innerHeight*.55);});

@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
    const {BattingGame}=await import('/js/batting-game.js'),decide=BattingGame.prototype.decidePitch;
    window.decisions=[];BattingGame.prototype.decidePitch=function(...args){decisions.push(args[0]);return decide.apply(this,args);};
   });
-  await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').waitFor();
+  await enterLegacy(page,'#btnBatting');await page.locator('.match-enter:not([disabled])').waitFor();
   await page.evaluate(()=>{
    const root=document.querySelector('.inning-mode');let pausedOnce=false,played=false;
    window.inputCheck=null;

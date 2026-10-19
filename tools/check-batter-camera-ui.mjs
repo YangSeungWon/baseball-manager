@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
       localStorage.setItem('dugout.sfx','0');const {Live3D}=await import('/js/live3d.js');
       const direct=Live3D.prototype.direct;Live3D.prototype.direct=function(S,t){window.scene3d=this;return direct.call(this,S,t);};
     });
-    await page.locator('#btnBatting').click();
+    await enterLegacy(page,'#btnBatting');
     await page.locator('.match-enter:not([disabled])').click();
     await page.waitForFunction(()=>window.scene3d?.cameraKind==='batting');
     const pose=()=>page.evaluate(()=>({eye:scene3d.camera.position.toArray(),quaternion:scene3d.camera.quaternion.toArray(),kind:scene3d.cameraKind}));

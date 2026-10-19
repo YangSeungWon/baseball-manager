@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -19,7 +20,7 @@ try {
   for(const [width,height] of [[320,568],[390,844],[844,390],[1440,1000]]) {
     const page=await browser.newPage({viewport:{width,height}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.setDefaultTimeout(90000);page.on('pageerror',e=>errors.push(e.message));
     await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
-    await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor({state:'visible'});await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
+    await enterLegacy(page,'#btnBatting');await page.locator('.lv-three').waitFor({state:'visible'});await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
     await page.locator('.inning-batter-entry').waitFor({state:'visible'});
     assert.match(await page.locator('.inning-batter-entry').textContent(),/직구/);
     await page.waitForFunction(()=>document.querySelector('.inning-batter-entry').textContent.includes('선구')&&document.querySelector('.inning-batter-entry').textContent.includes('참기'));

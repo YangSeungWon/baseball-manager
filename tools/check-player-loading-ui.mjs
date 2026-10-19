@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ try {
  for(const mode of ['retry','close']){
   const page=await browser.newPage({viewport:{width:390,height:844}});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.setDefaultTimeout(90000);let requests=0,release,seen;const requested=new Promise(r=>seen=r),gate=new Promise(r=>release=r);
   await page.route('**/models/athlete.glb',async route=>{requests++;seen();if(mode==='retry'&&requests===1)await route.fulfill({status:503,body:'test failure'});else if(mode==='close'){await gate;await route.continue();}else await route.continue();});
-  await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));await page.locator('#btnBatting').click();await requested;
+  await page.goto(url);await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));await enterLegacy(page,'#btnBatting');await requested;
   assert.equal(await page.locator('.inning-throw').isDisabled(),true);
   if(mode==='retry'){
    await page.getByRole('button',{name:'다시 불러오기'}).click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);assert.equal(requests,2);assert.equal(await page.locator('.lv-three').count(),1);await page.locator('.inning-exit').click();

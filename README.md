@@ -1,7 +1,26 @@
 # Project Dugout
 
-**공을 보고, 칠까 참을까?** 9회 말 두 점 차에서 공의 궤적을 읽고 스윙하거나 참는 3D 웹 야구 게임.
-짧은 끝내기 승부와 낮부터 야간까지 이어지는 9이닝 경기를 제공합니다. 결과 카드와 같은 초기 상황의 도전 링크를 공유할 수 있으며, 투수 편과 단장 모드도 함께 있습니다.
+**10구만 쳐볼까요?** 약 40초 동안 공이 타격 원 한가운데에 올 때 누르고, 원 밖의 공은 참는 웹 야구 게임입니다.
+첫 화면의 **10구 승부 시작**에서 바로 플레이합니다. 기존 3D 끝내기·투구·9이닝 경기와 단장 모드는 별도 메뉴에서 열 수 있습니다.
+
+### 새 기본 모드: 10구 승부
+
+- 터치·클릭·Space를 **누르는 순간** 스윙합니다. 누르지 않으면 참습니다. 조준·구종 선택·누르고 떼기 조작은 없습니다.
+- 첫 두 공은 느린 스트라이크입니다. 한 판은 스트라이크 7개와 볼 3개로 구성하며, 이후 공은 두 속도를 섞습니다.
+- 정타 200점, 안타·볼 참기 100점. 연속 성공은 25점씩 보너스가 늘어나 최대 +100점입니다. 최대 점수는 2,450점입니다.
+- 판정은 입력 시각으로 결정합니다. 정타 ±65ms, 안타 ±150ms이며, 결과에 추가 확률 판정은 없습니다.
+- 매 공의 빠름·늦음 피드백을 보고, **같은 10구 다시** 또는 **새 공으로 한 판**을 선택합니다. 최고 기록은 이 브라우저에 저장합니다.
+- 일시정지 또는 창을 벗어났다가 돌아오면 현재 미완료 투구를 처음부터 다시 받습니다. 완료된 투구의 점수는 유지합니다.
+- 2D Canvas 고정 시점으로 먼저 핵심 플레이를 검증하는 재설계 버전입니다. 실제 이용자의 재도전율·재미는 아직 검증하지 않았습니다.
+
+```sh
+python3 -m http.server 8000 --directory web
+node --test tools/check-quick-game.mjs
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-quick-ui.mjs
+```
+
+규칙은 `web/js/quick-game.js`, 화면·입력은 `web/js/quick-mode.js`, 스타일은 `web/css/quick-game.css`에 있습니다.
+아래의 시뮬레이션·3D 경기 설명은 기존 모드에 해당합니다.
 
 플레이: **https://baseball.ysw.kr**
 
@@ -88,6 +107,8 @@ node --test tools/check-game.mjs
 node tools/check-ui.mjs
 node tools/check-live-ui.mjs
 node tools/check-live3d.mjs
+node tools/check-ui-layout.mjs  # PC·모바일 세로/가로: 구종·코스·타격 방식·타임 버튼·화면 겹침
+node tools/check-batting-read-ui.mjs  # 실제 투구 프레임의 읽기 표시와 터치 스윙
 python3 tools/package-itch.py /tmp/dugout-itch.zip
 ```
 

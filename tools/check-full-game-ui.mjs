@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-mascots-ui.mjs
 import {createServer} from 'node:http';import {readFile} from 'node:fs/promises';import {resolve,extname} from 'node:path';import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright'),root=resolve('web');
@@ -6,7 +7,7 @@ const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use
 try{
  const page=await browser.newPage({viewport:{width:390,height:844}}),errors=[];await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});page.on('pageerror',e=>errors.push(e.message));await page.goto(`http://127.0.0.1:${server.address().port}/`);
  await page.evaluate(async()=>{localStorage.setItem('dugout.sfx','0');const {FullGame}=await import('/js/full-game.js');const pitch=FullGame.prototype.pitch;FullGame.prototype.pitch=function(c){this.strikes=2;this.outs=2;this.random=()=>.99;return pitch.call(this,c);};const {Live3D}=await import('/js/live3d.js');const render=Live3D.prototype.render;Live3D.prototype.render=function(...a){window.view=this;return render.apply(this,a)};});
- await page.locator('#btnFullGame').click();await page.locator('.match-enter').click();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+ await enterLegacy(page,'#btnFullGame');await page.locator('.match-enter').click();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
  assert.equal(await page.locator('.pitch-breathe').count(),1);assert.equal(await page.locator('.batting-hold').count(),0);assert.equal(await page.evaluate(()=>view.opts.playerRole),'pitcher');
  await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});
  await page.locator('.inning-throw').dispatchEvent('pointerdown',{button:0,pointerId:1});await page.locator('.is-releasing').waitFor();await page.waitForTimeout(900);await page.dispatchEvent('body','pointerup',{pointerId:1});

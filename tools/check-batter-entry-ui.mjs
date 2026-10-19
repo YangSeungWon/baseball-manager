@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -25,7 +26,7 @@ try {
     const {Live3D}=await import('/js/live3d.js');const direct=Live3D.prototype.direct;
     Live3D.prototype.direct=function(S,t){window.scene3d=this;window.state3d=S;return direct.call(this,S,t);};
   });
-  await page.locator('#btnBatting').click();await page.locator('.lv-three').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+  await enterLegacy(page,'#btnBatting');await page.locator('.lv-three').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
   const old=await page.evaluate(()=>state3d.batter.name);
   const strikeout=async()=>{await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();await page.locator('.batting-take').click();await page.locator('.is-changing').waitFor();};
   await strikeout();

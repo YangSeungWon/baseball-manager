@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
    const pitch=InningGame.prototype.pitch;window.pitches=[];
    InningGame.prototype.pitch=function(c){this.random=()=>.99;const e=pitch.call(this,c);pitches.push(e);return e;};
   });
-  await page.locator('#btnInning').click();await page.locator('.lv-three').waitFor();
+  await enterLegacy(page,'#btnInning');await page.locator('.lv-three').waitFor();
   await page.locator('.pitch-breathe').click();assert.equal(await page.locator('.inning-throw').isDisabled(),true);
   await page.waitForFunction(()=>document.querySelector('.pitch-breathe').textContent==='호흡 안정');
   assert.equal(await page.locator('.pitch-breathe').isDisabled(),true);

@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -18,7 +19,7 @@ try {
  const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2});await page.addInitScript(()=>{try{localStorage.setItem('dugout.coach.v1','{"batter":true,"pitcher":true}');}catch{}});
  await page.goto(url);await page.evaluate(()=>{localStorage.setItem('dugout.view','top');localStorage.setItem('dugout.sfx','0');});
  let release;const gate=new Promise(r=>release=r);await page.route('**/js/live3d.js',async route=>{await gate;await route.continue();});
- await page.locator('#btnBatting').click();
+ await enterLegacy(page,'#btnBatting');
  await page.locator('.lv-stage[aria-busy=true]').waitFor();
  assert.equal(await page.locator('.inning-throw').isDisabled(),true);
  assert.equal(await page.locator('.lv-c').isVisible(),false);

@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -31,7 +32,7 @@ try {
     Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.shared=data;}});
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async value=>{window.copied=value;}}});
   });
-  await page.locator('#btnBatting').click();
+  await enterLegacy(page,'#btnBatting');
   assert.equal(await page.locator('.batting-hold').count(),1);
   await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
   assert.match(await page.locator('.inning-score').textContent(),/항구 웨일즈/);

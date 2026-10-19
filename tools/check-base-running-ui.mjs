@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -27,7 +28,7 @@ try {
    window.sampleTrace=(await import('/js/field-sim.js')).sampleField;
    const {Live3D}=await import('/js/live3d.js');const direct=Live3D.prototype.direct;Live3D.prototype.direct=function(S,t){window.state3d=S;return direct.call(this,S,t);};
   },speed);
-  await page.locator('#btnBatting').click();await page.locator('.inning-throw').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
+  await enterLegacy(page,'#btnBatting');await page.locator('.inning-throw').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled);
   assert.ok(await page.evaluate(async()=>{const {leadPosition}=await import('/js/runner-motion.js');return state3d.runners.every(r=>{const p=leadPosition(r.base);return Math.hypot(r.x-p.x,r.y-p.y)<1e-7;});}),'visible runners take the same lead as the model');
   await page.locator('.inning-throw').click();await page.locator('.is-deciding').waitFor();await page.locator('.batting-swing').click();
   await page.waitForFunction(()=>window.state3d?.fieldPlay?.time>2,{},{timeout:20000});

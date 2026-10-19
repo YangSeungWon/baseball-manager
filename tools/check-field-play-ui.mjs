@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
   window.sampleTrace=(await import('/js/field-sim.js')).sampleField;
   const {Live3D}=await import('/js/live3d.js');const direct=Live3D.prototype.direct;Live3D.prototype.direct=function(S,t){window.state3d=S;window.scene3d=this;return direct.call(this,S,t);};
  });
- await page.locator('#btnBatting').click();await page.locator('.is-intro').waitFor();
+ await enterLegacy(page,'#btnBatting');await page.locator('.is-intro').waitFor();
  assert.equal(await page.locator('.inning-throw').isDisabled(),true);
  await page.waitForFunction(()=>window.state3d?.broadcast.kind==='entry');
  assert.equal(await page.evaluate(()=>state3d.batter),null);
@@ -46,7 +47,7 @@ try {
  assert.ok(await page.evaluate(()=>state3d.ball?.vis));
  await page.screenshot({path:'/tmp/dugout-field-hit.png'});
  await page.waitForFunction(()=>!document.querySelector('.inning-picks').disabled,{},{timeout:30000});
- await page.locator('.inning-exit').click();await page.locator('#btnInning').click();await page.locator('.is-intro').waitFor();await page.locator('.inning-exit').click();
+ await page.locator('.inning-exit').click();await enterLegacy(page,'#btnInning');await page.locator('.is-intro').waitFor();await page.locator('.inning-exit').click();
  assert.equal(await page.locator('.inning-mode').count(),0);assert.deepEqual(errors,[]);
  console.log('PASS: pitcher and batter intro, input lock, visible catch/hold, hit bounce/chase, close during intro');
 } finally {await browser.close();await new Promise(r=>server.close(r));}

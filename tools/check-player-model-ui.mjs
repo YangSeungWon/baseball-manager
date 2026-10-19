@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -69,7 +70,7 @@ try {
  assert.ok(leather,'leather grain and normal maps are embedded in the GLB');
  await page.screenshot({path:'/tmp/dugout-glove-detail.png'});
  await page.goto(url+'/?challenge=b6-0-42');await page.evaluate(()=>localStorage.setItem('dugout.sfx','0'));
- await page.locator('#btnBatting').click();await page.locator('.match-enter:not([disabled])').click();await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
+ await enterLegacy(page,'#btnBatting');await page.locator('.match-enter:not([disabled])').click();await page.locator('.lv-mobile-speed select').evaluate(e=>{e.value='8';e.dispatchEvent(new Event('change'));});await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  await page.screenshot({path:'/tmp/dugout-player-game.png'});
  await page.locator('.pitcher-tag').click();assert.equal(await page.locator('.pitcher-details').isVisible(),true);await page.keyboard.press('Escape');
  await page.locator('.inning-exit').click();assert.equal(await page.locator('.lv-three').count(),0);assert.deepEqual(errors,[]);

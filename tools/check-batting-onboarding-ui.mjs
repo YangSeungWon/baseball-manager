@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
    const {BattingGame}=await import('/js/batting-game.js');const decide=BattingGame.prototype.decidePitch;
    window.decisions=[];BattingGame.prototype.decidePitch=function(...args){decisions.push(args[0]);return decide.apply(this,args);};
   });
-  await page.locator('#btnBatting').click();
+  await enterLegacy(page,'#btnBatting');
   await page.locator('.match-enter:not([disabled])').waitFor();
   assert.match(await page.locator('.match-batting-help').textContent(),/칠까 참을까.*스윙.*참습니다/s);
   assert.equal(await page.locator('.inning-compact-plan,.inning-plan-toggle,.batting-decision,.batting-hold,.inning-time').count(),0);

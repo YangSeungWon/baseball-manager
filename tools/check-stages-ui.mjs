@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -29,7 +30,7 @@ try {
   Object.defineProperty(navigator,'share',{configurable:true,value:async data=>{window.shared=data;}});
  });
  assert.equal(await page.locator('.stage-select').count(),0,'the landing page shows no stage list');
- await page.locator('#btnBatting').click();
+ await enterLegacy(page,'#btnBatting');
  for(let id=0;id<3;id++){
   await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
   const state=await page.evaluate(()=>({b:state3d.b,s:state3d.s,o:state3d.outs,runners:state3d.runners.length,mode:scene3d.atmosphere,park:scene3d.opts.park.name}));
@@ -52,7 +53,7 @@ try {
  }
  await page.locator('.inning-exit').click();
  await page.goto(url+'/?challenge=b7-2-42');await page.locator('#challengeInvite:not([hidden])').waitFor();
- await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
+ await enterLegacy(page,'#btnBatting');await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  assert.equal(await page.locator('.inning-counts .strike.lit').count(),2);assert.equal(await page.locator('.inning-counts .ball.lit').count(),3);
  await page.locator('.inning-exit').click();assert.deepEqual(errors,[]);
  console.log('PASS: three playable stages, HR/tag-up/walk wins, distinct environments and opponents, next stage, saved clears and deep-linked full count');

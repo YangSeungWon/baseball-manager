@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -25,7 +26,7 @@ try {
   const {Sfx}=await import('/js/sfx.js'),stadium=Sfx.prototype.stadium;
   Sfx.prototype.stadium=function(...args){window.audioInstance=this;return stadium.apply(this,args);};
  });
- await page.locator('#btnBatting').click();await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
+ await enterLegacy(page,'#btnBatting');await page.waitForFunction(()=>document.querySelector('.inning-picks')?.disabled===false);
  await page.locator('.is-deciding').waitFor({timeout:60000});
  await page.locator('.is-celebrating').waitFor();
  await page.waitForFunction(()=>state3d.celebrants?.[0]?.phase>2.7);

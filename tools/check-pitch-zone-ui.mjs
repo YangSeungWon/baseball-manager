@@ -1,3 +1,4 @@
+import {enterLegacy} from './legacy-entry.mjs';
 // PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tools/check-ui.mjs
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,7 @@ try {
     const {InningGame}=await import('/js/inning-game.js');InningGame.prototype.random=()=>.99;
   });
   for(const entry of ['#btnInning','#btnBatting']) {
-    await page.locator(entry).click();if(entry==='#btnInning'){await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));await page.locator('.inning-plan-toggle').evaluate(e=>e.click());await page.waitForFunction(()=>document.querySelector('.inning-mode').classList.contains('is-planning'));}
+    await enterLegacy(page,entry);if(entry==='#btnInning'){await page.locator('.is-intro').waitFor();await page.waitForFunction(()=>!document.querySelector('.inning-mode').classList.contains('is-intro'));await page.locator('.inning-plan-toggle').evaluate(e=>e.click());await page.waitForFunction(()=>document.querySelector('.inning-mode').classList.contains('is-planning'));}
     if(entry==='#btnInning'){await page.locator('[data-value="chase"]').click();assert.equal(await page.locator('.inning-zone-slot .zone-command.is-chase').count(),1);}
     else {
       // 코스는 예측하지 않고 조준한다: 선택판이 없고, 존 그림에는 조준점 요소만 준비된다.
