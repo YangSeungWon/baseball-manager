@@ -5,6 +5,7 @@ export const QUICK_PITCH_TYPES = Object.freeze({
   FT: {name:'투심', speed:144, rpm:2050, movement:{x:-.65,z:-.32}, axis:[-.85,-.55,.12], grip:Math.PI/2, power:2.1, hint:'팔 쪽으로 흐르며 가라앉는 공'},
   SL: {name:'슬라이더', speed:132, rpm:2450, movement:{x:.95,z:-.55}, axis:[-.25,.8,.85], grip:.35, power:2.5, hint:'글러브 쪽으로 크게 휘는 공'},
   FO: {name:'포크', speed:130, rpm:950, movement:{x:-.08,z:-1.3}, axis:[-.85,-.08,.25], grip:Math.PI/2, power:3, hint:'회전이 적고 아래로 크게 떨어지는 공'},
+  CU: {name:'커브', speed:120, rpm:2600, movement:{x:.35,z:-1.5}, axis:[1,.25,.1], grip:0, power:2, hint:'느리게, 크게 휘어 떨어지는 공'},
   FC: {name:'커터', speed:141, rpm:2400, movement:{x:.38,z:-.12}, axis:[-.85,.3,.35], grip:.15, power:2.35, hint:'빠르게 오다가 짧게 꺾이는 공'},
 });
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));

@@ -53,3 +53,11 @@ test('one spherical seam rotates continuously; grip/axis, not a different textur
   }
   for(let i=0;i<profiles.length;i++)for(let j=i+1;j<profiles.length;j++)assert.notDeepEqual(seamPoints(profiles[i],.12),seamPoints(profiles[j],.12));
 });
+
+test('curve has slower speed, topspin and broader break than the late low-spin fork',()=>{
+  const cu=pitch('CU'),ff=pitch('FF'),sl=pitch('SL'),fo=pitch('FO');
+  assert.ok(cu.speed<sl.speed&&cu.speed<fo.speed);
+  assert.ok(cu.spin.axis[0]>0&&ff.spin.axis[0]<0);
+  assert.ok(cu.movement.z<sl.movement.z);
+  assert.ok(cu.movePower<fo.movePower&&cu.spin.rpm>fo.spin.rpm*2);
+});

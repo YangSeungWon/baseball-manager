@@ -19,8 +19,8 @@ export function makePitches(seed, pitcher = makeQuickPitcher(seed)) {
     }
     return values;
   };
-  // The first two are easy four-seamers. Then all five pitch families appear.
-  const types = ['FF', 'FF', ...shuffle(['FT','SL','FO','FC','FF','FT','SL','FO'])];
+  // The first two are easy four-seamers. Then all six pitch families appear.
+  const types = ['FF', 'FF', ...shuffle(['FT','SL','FO','FC','FF','FT','SL','CU'])];
   const chase = new Set(shuffle(Array.from({length: 8}, (_, i) => i + 2)).slice(0, 3));
   const edges = shuffle(['left', 'right', 'high', 'low']);
   let ballIndex = 0;

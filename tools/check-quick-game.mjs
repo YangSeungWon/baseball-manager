@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {QuickGame, makePitches, judgePitch, PERFECT_MS, HIT_MS, pitchLocation, inQuickZone} from '../web/js/quick-game.js';
 
-test('every replay preserves ten pitches, five pitch types and two introductory strikes', () => {
+test('every replay preserves ten pitches, six pitch types and two introductory strikes', () => {
   for (let seed = 0; seed < 1000; seed++) {
     const pitches = makePitches(seed);
     assert.deepEqual(pitches, makePitches(seed));
     assert.equal(pitches.length, 10);
-    assert.equal(new Set(pitches.map(p => p.type)).size, 5);
+    assert.equal(new Set(pitches.map(p => p.type)).size, 6);
     assert.ok(pitches.slice(0, 2).every(p => p.strike && p.flight === 1250));
   }
   assert.notDeepEqual(makePitches(0), makePitches(1));
