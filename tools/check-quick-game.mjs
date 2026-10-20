@@ -1,88 +1,75 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {QuickGame, makePitches, judgePitch, PERFECT_MS, HIT_MS, pitchLocation, inQuickZone} from '../web/js/quick-game.js';
+import {QuickGame,makePitch,judgePitch,inQuickZone} from '../web/js/quick-game.js';
+import {makeQuickPitcher,pitchFamily} from '../web/js/quick-pitches.js';
+const force=(game,x=0,z=0,type='FF')=>{game.current={...game.pitch,x,z,type};};
+const ball=game=>{force(game,1.4);return game.resolve(null);};
+const strike=game=>{force(game);return game.resolve(null);};
+const hit=(game,distance)=>{force(game,distance===4?0:.6);game.setApproach(distance===1?'contact':'fast');return game.resolve(0);};
 
-test('every replay preserves ten pitches, six pitch types and two introductory strikes', () => {
-  for (let seed = 0; seed < 1000; seed++) {
-    const pitches = makePitches(seed);
-    assert.deepEqual(pitches, makePitches(seed));
-    assert.equal(pitches.length, 10);
-    assert.equal(new Set(pitches.map(p => p.type)).size, 6);
-    assert.ok(pitches.slice(0, 2).every(p => p.strike && p.flight === 1250));
-  }
-  assert.notDeepEqual(makePitches(0), makePitches(1));
-});
-test('timing has symmetric, inclusive boundaries and chasing a ball never scores', () => {
-  const strike = {x: 0, z: 0}, ball = {x: 1.5, z: 0};
-  for (const sign of [-1, 1]) {
-    assert.equal(judgePitch(strike, sign * PERFECT_MS).kind, 'perfect');
-    assert.equal(judgePitch(strike, sign * (PERFECT_MS + 1)).kind, 'hit');
-    assert.equal(judgePitch(strike, sign * HIT_MS).kind, 'hit');
-    assert.equal(judgePitch(strike, sign * (HIT_MS + 1)).base, 0);
-    assert.equal(judgePitch(ball, sign * PERFECT_MS).kind, 'chase');
-  }
-  assert.equal(judgePitch(strike, null).base, 0);
-  assert.equal(judgePitch(ball, null).base, 100);
-  assert.throws(() => judgePitch(strike, NaN));
-});
-test('a perfect round scores every actual strike and ball, with capped combo bonus', () => {
-  for (let seed = 0; seed < 100; seed++) {
-    const game = new QuickGame(seed);
-    while (!game.done) game.resolve(game.pitch.strike ? 0 : null);
-    assert.equal(game.score, 1750 + game.pitches.filter(p => p.strike).length * 100);
-    assert.equal(game.bestCombo, 10);
-    assert.throws(() => game.resolve(0));
-    assert.equal(game.results.length, 10);
-  }
-});
-test('mistakes reset the bonus; replay resets all score and preserves the pitches', () => {
-  const game = new QuickGame(17);
-  game.resolve(0); game.resolve(0);
-  assert.equal(game.score, 425);
-  game.resolve(game.pitch.strike ? null : 0);
-  assert.equal(game.combo, 0);
-  const result = game.resolve(game.pitch.strike ? 0 : null);
-  assert.equal(result.points, result.base);
-  const replay = new QuickGame(game.seed);
-  assert.deepEqual(replay.pitches, game.pitches);
-  assert.equal(replay.score, 0);
-  assert.equal(replay.results.length, 0);
-});
-
-test('the visible landing point determines the call, including each zone edge', () => {
-  for (const axis of ['x', 'z']) for (const sign of [-1, 1]) {
-    const edge = {x: 0, z: 0, [axis]: sign};
-    assert.equal(judgePitch(edge, null).label, '스트라이크');
-    assert.equal(judgePitch({...edge, [axis]: sign * 1.01}, null).kind, 'take');
-  }
-  const directions = new Set(), strikeCells = new Set();
-  for (let seed = 0; seed < 100; seed++) {
-    const pitches = makePitches(seed);
-    const roundEdges = new Set();
-    for (const pitch of pitches) {
-      const landing = pitchLocation(pitch, 1);
-      assert.ok(Math.abs(landing.x - pitch.x) < 1e-10);
-      assert.ok(Math.abs(landing.z - pitch.z) < 1e-10);
-      assert.equal(inQuickZone(landing), pitch.strike);
-      if (pitch.strike) strikeCells.add(`${Math.round(pitch.x)},${Math.round(pitch.z)}`);
-      else {
-        const edge = Math.abs(pitch.x) > 1 ? pitch.x > 0 ? 'right' : 'left' : pitch.z > 0 ? 'high' : 'low';
-        directions.add(edge); roundEdges.add(edge);
-        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) > 1);
-        assert.ok(Math.max(Math.abs(pitch.x), Math.abs(pitch.z)) <= 1.9);
-      }
+test('a pitcher has a stable repertoire, report totals 100%, and retries reproduce the sequence',()=>{
+  const seen=new Set();
+  for(let seed=0;seed<100;seed++){
+    const a=new QuickGame(seed),b=new QuickGame(seed);assert.deepEqual(a.pitcher,b.pitcher);
+    assert.equal(a.pitcher.arsenal.reduce((sum,p)=>sum+p.usage,0),100);
+    for(let i=0;i<30;i++){
+      const p=makePitch(seed,i,a.pitcher,i%4,i%3);
+      assert.deepEqual(p,makePitch(seed,i,b.pitcher,i%4,i%3));
+      assert.ok(a.pitcher.arsenal.some(s=>s.type===p.type));seen.add(p.type);
     }
-    assert.ok(pitches.every(p => Math.abs(p.x) <= 1.9 && Math.abs(p.z) <= 1.9));
   }
-  assert.equal(directions.size, 4);
-  assert.equal(strikeCells.size, 9, 'strikes cover the whole zone, not just the center');
+  assert.equal(seen.size,7);
 });
-
-test('perspective keeps early location differences small and preserves final calls', () => {
-  const strike = {x: .7, z: .2, movement:{x:.4,z:-.1},movePower:2.3};
-  const ball = {...strike, x: 1.35};
-  assert.ok(pitchLocation(ball, .4).x - pitchLocation(strike, .4).x < .15);
-  assert.ok(pitchLocation(ball, .75).x - pitchLocation(strike, .75).x > .3);
-  assert.ok(inQuickZone(pitchLocation(strike, 1)));
-  assert.equal(inQuickZone(pitchLocation(ball, 1)), false);
+test('sampling follows the report and two strikes increase offspeed tendency',()=>{
+  const pitcher=makeQuickPitcher(7),counts={},two={};
+  for(let i=0;i<10000;i++){
+    const a=makePitch(7,i,pitcher).type,b=makePitch(7,i,pitcher,0,2).type;
+    counts[a]=(counts[a]||0)+1;two[b]=(two[b]||0)+1;
+  }
+  for(const {type,usage} of pitcher.arsenal)assert.ok(Math.abs(counts[type]/100-usage)<2);
+  const slow=obj=>Object.entries(obj).filter(([t])=>pitchFamily(t)==='slow').reduce((sum,[,n])=>sum+n,0);
+  assert.ok(slow(two)>slow(counts));
+});
+test('count persists, two-strike fouls do not strike out, and a third strike resets the plate appearance',()=>{
+  const game=new QuickGame(1);strike(game);strike(game);
+  force(game);assert.equal(game.resolve(140).kind,'foul');assert.equal(game.strikes,2);assert.equal(game.outs,0);
+  ball(game);assert.equal(game.balls,1);assert.equal(game.strikes,2);
+  assert.equal(strike(game).kind,'strikeout');assert.equal(game.outs,1);assert.equal(game.strikes,0);assert.equal(game.balls,0);assert.equal(game.plateAppearances,1);
+});
+test('walks force only occupied consecutive bases and score a loaded runner',()=>{
+  const game=new QuickGame(2);game.bases=[false,false,true];
+  for(let i=0;i<4;i++)ball(game);assert.deepEqual(game.bases,[true,false,true]);assert.equal(game.runs,0);
+  for(let i=0;i<4;i++)ball(game);assert.deepEqual(game.bases,[true,true,true]);
+  for(let i=0;i<4;i++)ball(game);assert.deepEqual(game.bases,[true,true,true]);assert.equal(game.runs,1);assert.equal(game.walks,3);assert.equal(game.balls,0);
+});
+test('singles, doubles and homers advance runners without losing or duplicating them',()=>{
+  const game=new QuickGame(3);hit(game,1);assert.deepEqual(game.bases,[true,false,false]);
+  hit(game,2);assert.deepEqual(game.bases,[false,true,true]);assert.equal(game.runs,0);
+  const homer=hit(game,4);assert.equal(homer.runs,3);assert.equal(game.runs,3);assert.deepEqual(game.bases,[false,false,false]);assert.equal(game.hits,3);
+});
+test('three outs end an inning, unused runners do not score, and no fourth out is allowed',()=>{
+  const game=new QuickGame(3);game.bases=[true,true,true];
+  for(let i=0;i<9;i++)strike(game);
+  assert.equal(game.done,true);assert.equal(game.runs,0);assert.equal(game.pitch,null);
+  assert.throws(()=>game.resolve(null));
+});
+test('a weak contacted ball is an out without advancing runners',()=>{
+  const game=new QuickGame(5);game.bases=[false,true,false];force(game);
+  assert.equal(game.resolve(100).kind,'out');assert.equal(game.outs,1);assert.deepEqual(game.bases,[false,true,false]);
+});
+test('anticipation trades coverage for power without making unpredicted pitches impossible',()=>{
+  const pitch={type:'FF',x:0,z:0};
+  assert.equal(judgePitch(pitch,0,'fast').bases,4);
+  assert.equal(judgePitch(pitch,0,'slow').bases,1);
+  assert.equal(judgePitch(pitch,0,'contact').bases,1);
+  assert.equal(judgePitch(pitch,120,'fast').kind,'foul');
+  assert.equal(judgePitch(pitch,120,'slow').kind,'whiff');
+  assert.equal(judgePitch(pitch,160,'contact').kind,'foul');
+  assert.equal(judgePitch({...pitch,x:1.3},0,'fast').kind,'whiff');
+  assert.equal(judgePitch(pitch,null,'fast').kind,'strike');
+  assert.ok(inQuickZone({x:1,z:-1}));assert.ok(!inQuickZone({x:1.001,z:0}));
+});
+test('taking a strike early is a count cost, not an automatic out',()=>{
+  const game=new QuickGame(8);assert.equal(strike(game).kind,'strike');assert.equal(game.outs,0);assert.equal(game.strikes,1);
+  assert.equal(hit(game,1).kind,'hit');assert.equal(game.outs,0);assert.equal(game.strikes,0);
 });

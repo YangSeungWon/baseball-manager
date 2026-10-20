@@ -1,75 +1,91 @@
-import {seededRandom, makeQuickPitcher, deliverQuickPitch} from './quick-pitches.js';
+import {seededRandom, makeQuickPitcher, deliverQuickPitch, pitchFamily} from './quick-pitches.js';
 export {pitchLocation} from './quick-pitches.js';
-// Ten pitches, one decision. Rendering never participates in scoring.
-export const PITCH_COUNT = 10;
-export const PERFECT_MS = 65;
-export const HIT_MS = 150;
-export const FEEDBACK_MS = 1050;
-export const WINDUP_MS = 700;
+export const WINDUP_MS = 650;
+export const FEEDBACK_MS = 1250;
+export const HIT_MS = 165;
+export const APPROACHES = Object.freeze({
+  fast: {label:'빠른 공', hint:'빠른 공을 노려 장타'},
+  slow: {label:'느린 공', hint:'변화구를 기다려 장타'},
+  contact: {label:'맞히기', hint:'넓게 대응 · 장타는 어려움'},
+});
+export const inQuickZone = ({x,z}) => Math.abs(x)<=1 && Math.abs(z)<=1;
 
-// Zone half-width/half-height are both 1. The ball's center determines the call.
-export const inQuickZone = ({x, z}) => Math.abs(x) <= 1 && Math.abs(z) <= 1;
-
-export function makePitches(seed, pitcher = makeQuickPitcher(seed)) {
-  const random = seededRandom(seed);
-  const shuffle = values => {
-    for (let i = values.length - 1; i > 0; i--) {
-      const j = Math.floor(random() * (i + 1));
-      [values[i], values[j]] = [values[j], values[i]];
-    }
-    return values;
-  };
-  // The first two are easy four-seamers. Then all six pitch families appear.
-  const types = ['FF', 'FF', ...shuffle(['FT','SL','FO','FC','FF','FT','SL','CU'])];
-  const chase = new Set(shuffle(Array.from({length: 8}, (_, i) => i + 2)).slice(0, 3));
-  const edges = shuffle(['left', 'right', 'high', 'low']);
-  let ballIndex = 0;
-  return types.map((type, i) => {
-    const spread = i < 2 ? .12 : .85;
-    const target = {x: (random() * 2 - 1) * spread, z: (random() * 2 - 1) * spread};
-    if (chase.has(i)) {
-      const edge = edges[ballIndex++], outside = 1.15 + random() * .4;
-      if (edge === 'left' || edge === 'right') target.x = (edge === 'left' ? -1 : 1) * outside;
-      else target.z = (edge === 'low' ? -1 : 1) * outside;
-    }
-    const noise = Array.from({length: 8}, () => random() * 2 - 1);
-    return deliverQuickPitch(type, pitcher, target, noise, {intro: i < 2});
-  });
+// The report shows a long-run mix, not the exact contents of a pitch bag.
+// Count changes tendencies; it never guarantees the next pitch.
+export function makePitch(seed, index, pitcher, balls=0, strikes=0) {
+  const random=seededRandom((seed ^ Math.imul(index+1,0x9e3779b9))>>>0);
+  const weights=pitcher.arsenal.map(({type,usage})=>({type,weight:usage *
+    (strikes===2 && pitchFamily(type)==='slow' ? 1.45 : balls>=3 && pitchFamily(type)==='fast' ? 1.4 : 1)}));
+  let roll=random()*weights.reduce((sum,p)=>sum+p.weight,0);
+  const type=(weights.find(p=>(roll-=p.weight)<0)||weights.at(-1)).type;
+  const chase=random()<(strikes===2 ? .48 : balls>=3 ? .18 : .29);
+  const target={x:(random()*2-1)*.86,z:(random()*2-1)*.86};
+  if(chase){
+    const edge=Math.floor(random()*4),outside=1.05+random()*.38;
+    if(edge<2)target.x=(edge===0?-1:1)*outside;
+    else target.z=(edge===2?-1:1)*outside;
+  }
+  return deliverQuickPitch(type,pitcher,target,Array.from({length:8},()=>random()*2-1));
 }
 
-export function judgePitch(pitch, offset) {
-  const strike = inQuickZone(pitch);
-  if (offset === null) return strike
-    ? {kind: 'miss', label: '스트라이크', tip: '존 안으로 들어온 공이에요.', base: 0, offset}
-    : {kind: 'take', label: '잘 참았다!', tip: '존 밖으로 빠졌어요. 좋은 판단!', base: 100, offset};
-  if (!Number.isFinite(offset)) throw new Error('Invalid swing timing');
-  if (!strike) return {kind: 'chase', label: '볼에 헛스윙', tip: '존 밖으로 빠지는 공은 그냥 보내세요.', base: 0, offset};
-  if (Math.abs(offset) <= PERFECT_MS) return {kind: 'perfect', label: '정타!', tip: '지금 타이밍을 기억하세요.', base: 200, offset};
-  if (Math.abs(offset) <= HIT_MS) return {kind: 'hit', label: offset < 0 ? '안타 · 조금 빨랐어요' : '안타 · 조금 늦었어요', tip: offset < 0 ? '다음엔 조금 더 기다려보세요.' : '다음엔 조금 더 일찍 눌러보세요.', base: 100, offset};
-  return {kind: 'miss', label: offset < 0 ? '너무 빨랐어요' : '너무 늦었어요', tip: '공이 존에 도착할 때 한 번 누르세요.', base: 0, offset};
+// Aiming is abstracted: the player prepares for a speed family and decides
+// when to swing. There is no random hit roll after input.
+export function judgePitch(pitch,offset,approach='contact') {
+  if(!APPROACHES[approach])throw new Error('Unknown approach');
+  const strike=inQuickZone(pitch);
+  if(offset===null)return {kind:strike?'strike':'ball',label:strike?'스트라이크':'볼',offset};
+  if(!Number.isFinite(offset))throw new Error('Invalid swing timing');
+  const matched=approach===pitchFamily(pitch.type),contact=approach==='contact',timing=Math.abs(offset);
+  const window=contact?165:matched?145:95;
+  if(!strike||timing>window)return {kind:'whiff',label:'헛스윙',offset,matched};
+  if(timing>(contact?115:matched?100:65))return {kind:'foul',label:'파울',offset,matched};
+  const edge=Math.max(Math.abs(pitch.x),Math.abs(pitch.z));
+  if(timing>(contact?85:matched?75:40))return {kind:'out',label:offset<0?'뜬공 아웃':'땅볼 아웃',offset,matched};
+  const bases=matched&&timing<=30&&edge<.5?4:matched&&timing<=60&&edge<.88?2:1;
+  return {kind:'hit',label:bases===4?'홈런!':bases===2?'2루타!':'안타!',bases,offset,matched};
 }
 
 export class QuickGame {
   constructor(seed) {
-    this.seed = seed >>> 0;
-    this.pitcher = makeQuickPitcher(this.seed);
-    this.pitches = makePitches(this.seed, this.pitcher);
-    this.results = [];
-    this.score = 0;
-    this.combo = 0;
-    this.bestCombo = 0;
+    this.seed=seed>>>0;this.pitcher=makeQuickPitcher(this.seed);
+    this.balls=0;this.strikes=0;this.outs=0;this.runs=0;this.hits=0;this.walks=0;
+    this.bases=[false,false,false];this.results=[];this.plateAppearances=0;
+    this.approach='contact';this.current=null;
   }
-  get done() { return this.results.length === PITCH_COUNT; }
-  get pitch() { return this.pitches[this.results.length]; }
-  resolve(offset) {
-    if (this.done) throw new Error('Round already finished');
-    const result = judgePitch(this.pitch, offset);
-    this.combo = result.base ? this.combo + 1 : 0;
-    this.bestCombo = Math.max(this.bestCombo, this.combo);
-    const bonus = result.base ? Math.min(4, this.combo - 1) * 25 : 0;
-    const scored = {...result, points: result.base + bonus, combo: this.combo};
-    this.score += scored.points;
-    this.results.push(scored);
-    return scored;
+  get done(){return this.outs>=3;}
+  get pitch(){
+    if(this.done)return null;
+    return this.current??=makePitch(this.seed,this.results.length,this.pitcher,this.balls,this.strikes);
+  }
+  setApproach(value){if(!APPROACHES[value])throw new Error('Unknown approach');this.approach=value;}
+  advanceHit(distance){
+    const next=[false,false,false];let runs=distance===4?1:0;
+    if(distance<4)next[distance-1]=true;
+    this.bases.forEach((occupied,i)=>{if(occupied){if(i+distance>=3)runs++;else next[i+distance]=true;}});
+    this.bases=next;return runs;
+  }
+  advanceWalk(){
+    const [first,second,third]=this.bases;
+    this.bases=[true,second||first,third||(first&&second)];
+    return Number(first&&second&&third);
+  }
+  resolve(offset){
+    if(this.done)throw new Error('Inning already finished');
+    const pitch=this.pitch, result=judgePitch(pitch,offset,this.approach);
+    let ended=false,runs=0;
+    if(result.kind==='ball'){
+      this.balls++;
+      if(this.balls===4){result.kind='walk';result.label='볼넷';this.walks++;runs=this.advanceWalk();ended=true;}
+    }else if(result.kind==='strike'||result.kind==='whiff'){
+      this.strikes++;
+      if(this.strikes===3){result.kind='strikeout';result.label='삼진';this.outs++;ended=true;}
+    }else if(result.kind==='foul')this.strikes=Math.min(2,this.strikes+1);
+    else if(result.kind==='out'){this.outs++;ended=true;}
+    else if(result.kind==='hit'){this.hits++;runs=this.advanceHit(result.bases);ended=true;}
+    const count={balls:this.balls,strikes:this.strikes};
+    if(ended){this.plateAppearances++;this.balls=0;this.strikes=0;}
+    this.runs+=runs;
+    const scored={...result,pitch,approach:this.approach,count,runs,ended};
+    this.results.push(scored);this.current=null;return scored;
   }
 }

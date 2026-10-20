@@ -5,6 +5,7 @@ export const QUICK_PITCH_TYPES = Object.freeze({
   FT: {name:'투심', speed:144, rpm:2050, movement:{x:-.65,z:-.32}, axis:[-.85,-.55,.12], grip:Math.PI/2, power:2.1, hint:'팔 쪽으로 흐르며 가라앉는 공'},
   SL: {name:'슬라이더', speed:132, rpm:2450, movement:{x:.95,z:-.55}, axis:[-.25,.8,.85], grip:.35, power:2.5, hint:'글러브 쪽으로 크게 휘는 공'},
   FO: {name:'포크', speed:130, rpm:950, movement:{x:-.08,z:-1.3}, axis:[-.85,-.08,.25], grip:Math.PI/2, power:3, hint:'회전이 적고 아래로 크게 떨어지는 공'},
+  CH: {name:'체인지업', speed:127, rpm:1650, movement:{x:-.6,z:-.65}, axis:[-.7,-.65,.2], grip:1.2, power:2.3, hint:'빠른 공처럼 오다가 타이밍을 빼앗는 공'},
   CU: {name:'커브', speed:120, rpm:2600, movement:{x:.35,z:-1.5}, axis:[1,.25,.1], grip:0, power:2, hint:'느리게, 크게 휘어 떨어지는 공'},
   FC: {name:'커터', speed:141, rpm:2400, movement:{x:.38,z:-.12}, axis:[-.85,.3,.35], grip:.15, power:2.35, hint:'빠르게 오다가 짧게 꺾이는 공'},
 });
@@ -19,9 +20,19 @@ export function seededRandom(seed) {
     return ((n^n>>>14)>>>0)/4294967296;
   };
 }
+const ARSENALS = [
+  {name:'강속구형', mix:[['FF',60],['SL',25],['FO',15]]},
+  {name:'땅볼 유도형', mix:[['FT',45],['FC',25],['CH',30]]},
+  {name:'완급 조절형', mix:[['FF',50],['CU',30],['CH',20]]},
+  {name:'슬라이더형', mix:[['FF',40],['SL',40],['CH',20]]},
+  {name:'커터형', mix:[['FC',50],['FF',25],['CU',25]]},
+];
+export const pitchFamily = type => ['FF','FT','FC'].includes(type) ? 'fast' : 'slow';
 export function makeQuickPitcher(seed) {
   const random=seededRandom((seed^0x917c21)>>>0);
-  return {hand:random()<.25?'L':'R',stuff:.4+random()*.5,command:.35+random()*.55};
+  const profile=ARSENALS[Math.floor(random()*ARSENALS.length)];
+  return {hand:random()<.25?'L':'R',stuff:.4+random()*.5,command:.35+random()*.55,
+    name:profile.name,arsenal:profile.mix.map(([type,usage])=>({type,usage}))};
 }
 
 // Command only changes target error. Stuff changes velocity, movement and spin.

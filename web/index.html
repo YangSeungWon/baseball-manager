@@ -2,22 +2,22 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DUGOUT · 10구 승부</title>
-<meta name="description" content="약 40초, 10번의 선택. 공이 스트라이크 존에 도착할 때 누르고 볼은 참으세요. 터치·클릭·Space로 즐기는 무료 웹 야구 게임.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DUGOUT · 한 이닝 승부</title>
+<meta name="description" content="배합을 읽고, 노릴 공을 고르세요. 3아웃 전까지 몇 점을 낼 수 있을까요? 모바일로 즐기는 한 이닝 야구.">
 <link rel="canonical" href="https://baseball.ysw.kr/">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
-<meta property="og:title" content="DUGOUT · 10구 승부">
-<meta property="og:description" content="약 40초, 10번의 선택. 누르면 스윙, 볼은 참기. 내 최고 기록에 도전하세요.">
+<meta property="og:title" content="DUGOUT · 한 이닝 승부">
+<meta property="og:description" content="배합을 읽고, 노릴 공을 고르세요. 3아웃 전까지 도전하는 한 이닝 야구.">
 <meta property="og:url" content="https://baseball.ysw.kr/">
 <meta property="og:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="DUGOUT — 공을 보고, 칠까 참을까? 9회 말 두 점 차의 웹 야구 게임">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="DUGOUT · 10구 승부">
-<meta name="twitter:description" content="약 40초, 10번의 선택. 누르면 스윙, 볼은 참기. 내 최고 기록에 도전하세요.">
+<meta name="twitter:title" content="DUGOUT · 한 이닝 승부">
+<meta name="twitter:description" content="배합을 읽고, 노릴 공을 고르세요. 3아웃 전까지 도전하는 한 이닝 야구.">
 <meta name="twitter:image" content="https://baseball.ysw.kr/media/dugout-preview.png">
 <link rel="stylesheet" href="css/style.css">
 <link rel="stylesheet" href="css/inning-stage.css">
@@ -44,14 +44,28 @@
     <p class="goal">BASEBALL, YOUR CALL.</p><span class="boot-edition">THE DUGOUT CLUB <i>●</i> PLAY BALL</span>
   </div>
   <section class="quick-home" aria-labelledby="heroTitle">
-    <small>한 판 약 40초 · 버튼 하나로</small>
-    <h2 id="heroTitle">10구만 쳐볼까요?</h2>
-    <p>공이 스트라이크 존에 도착할 때 누르고, 볼은 참으세요.<br>한 번 더, 이번엔 내 기록을 넘겨보세요.</p>
-    <button id="btnQuick">10구 승부 시작</button>
-    <span>터치 · 클릭 · Space / 설치·가입 없이 바로 플레이</span>
+    <div class="quick-home-copy">
+      <small>ONE PITCHER. ONE INNING.</small>
+      <h2 id="heroTitle">한 이닝,<br> 어디까지?</h2>
+      <p>배합을 읽고, 노릴 공을 고르세요.<br>3아웃 전까지 몇 점을 낼 수 있을까요?</p>
+      <button id="btnQuick">타석에 서기 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 12h16m-6-6 6 6-6 6"/></svg></button>
+      <small class="home-footnote">터치 또는 Space · 설치 없이 바로</small>
+    </div>
+    <svg class="home-field" viewBox="0 0 460 420" aria-hidden="true">
+      <path d="M230 386 32 188A280 280 0 0 1 428 188Z" fill="#204b39"/>
+      <path d="m230 386-155-155a219 219 0 0 1 310 0Z" fill="#2c5a42"/>
+      <path d="m230 386-112-112a158 158 0 0 1 224 0Z" fill="#35664a"/>
+      <path d="m230 370-90-90 90-90 90 90Z" fill="#ba9169"/>
+      <path d="m230 350-70-70 70-70 70 70Z" fill="#30593e"/>
+      <path d="M230 380 48 198m182 182 182-182" fill="none" stroke="#f4e8c6" stroke-width="2"/>
+      <g fill="#fff3d3"><path d="m230 193 7 7-7 7-7-7Zm-80 80 7 7-7 7-7-7Zm160 0 7 7-7 7-7-7Z"/><path d="M224 365h12v7l-6 5-6-5Z"/></g>
+      <ellipse cx="230" cy="280" rx="16" ry="10" fill="#ba9169"/><path d="M225 280h10" stroke="#fff3d3" stroke-width="3"/>
+      <circle cx="285" cy="100" r="29" fill="#fff3d3"/><path d="M264 80q27 20 0 41m41-41q-27 20 0 41" fill="none" stroke="#b85640" stroke-width="2"/><path d="m266 86 5-3m0 12 6-2m-5 13 5 2m-9 6 5 3m28-31-5-3m0 12-6-2m5 13-5 2m9 6-5 3" stroke="#b85640" stroke-width="2"/>
+      <path d="m277 145-28 61" stroke="#f2d18b" stroke-width="2" stroke-dasharray="3 7" opacity=".65"/>
+    </svg>
   </section>
   <details class="legacy-games">
-    <summary>기존 3D 경기 모드</summary>
+    <summary>다른 경기 모드</summary>
     <p id="challengeInvite" class="challenge-invite" hidden>친구와 같은 상황에 도전하는 링크입니다.</p>
     <div class="other-modes">
       <button id="btnBatting" class="quiet mode-card"><strong>9회 말 끝내기</strong><small>타격 · 3개 구장에 도전</small></button>
@@ -60,7 +74,7 @@
     </div>
   </details>
   <div id="resumePanel" class="resume-panel" hidden></div>
-  <details class="manager-entry"><summary><span><small>03 / FRONT OFFICE</small><strong>우리 구단의 다음 시즌을 만드세요</strong><span>단장 모드 · 선수 영입부터 우승까지</span></span><b aria-hidden="true">＋</b></summary>
+  <details class="manager-entry"><summary><span><small>03 / FRONT OFFICE</small><strong>구단 운영하기</strong><span>단장 모드 · 선수 영입부터 우승까지</span></span><b aria-hidden="true">＋</b></summary>
   <div class="boot-main">
     <div class="bootleft">
       <div class="lab" id="listLabel"></div>
