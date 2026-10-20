@@ -53,6 +53,10 @@ try{
    if(offset===null)await page.clock.runFor(flight+190);
    else{await page.clock.runFor(flight+offset-16);if(touch)await activate('.quick-swing');else await page.keyboard.press('Space');}
    assert.equal(await page.locator('.quick-mode').getAttribute('data-phase'),'feedback');
+   if(offset===0){
+    await page.clock.runFor(80);
+    await page.screenshot({path:`/tmp/dugout-contact-${width}.png`});
+   }
    await page.clock.runFor(1280);
   }
   await begin();await activate('.quick-pause');await page.clock.runFor(5000);

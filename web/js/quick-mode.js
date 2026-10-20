@@ -1,5 +1,6 @@
 import {QuickGame, APPROACHES, WINDUP_MS, FEEDBACK_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
 import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
+import {contactMotion} from './quick-feedback.js';
 
 const RECORD_KEY='dugout.inning.v1';
 const newSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
@@ -94,9 +95,9 @@ export function openQuickMode(){
   }
   function resolve(offset){
     if(phase!=='flight'||paused||closed)return;
-    outcome=game.resolve(offset);swingAt=offset===null?null:elapsed;phase='feedback';elapsed=0;
+    outcome=game.resolve(offset);swingAt=offset===null?null:displayedPitch.flight+offset;phase='feedback';elapsed=0;
     root.dataset.verdict=outcome.kind;
-    const timing=offset===null?'':outcome.kind==='whiff'&&!inQuickZone(displayedPitch)?'볼에 스윙':Math.abs(offset)<=40?'좋은 타이밍':offset<0?'조금 빨랐어요':'조금 늦었어요';
+    const timing=offset===null?'':!inQuickZone(displayedPitch)?'볼에 스윙':outcome.kind==='hit'&&outcome.matched?'노림수 적중':outcome.kind==='hit'?'맞혀냈어요':outcome.kind==='out'?'빗맞았어요':offset<0?'조금 빨랐어요':'조금 늦었어요';
     message(outcome.label,`${displayedPitch.name} · ${displayedPitch.speed} km/h${outcome.runs?' · +'+outcome.runs+'득점':timing?' · '+timing:''}`);
     hud();
   }
@@ -200,33 +201,56 @@ export function openQuickMode(){
     ctx.fillStyle = '#d9d5b8'; ctx.beginPath();
     ctx.moveTo(cx - 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 36); ctx.lineTo(cx, plate + zoneHeight + 44); ctx.lineTo(cx - 14, plate + zoneHeight + 36); ctx.fill();
     if (phase === 'flight' || phase === 'feedback') {
-      let progress = phase === 'flight' ? elapsed / displayedPitch.flight : 1;
-      const location = pitchLocation(displayedPitch, progress);
-      const depth = progress <= 1 ? location.depth : 1 + (progress - 1) * 3;
-      let x = cx + location.x * target;
-      let y = h * .27 + (plate - h * .27) * depth - location.z * zoneHeight;
-      let radius = 3 + Math.min(1.2, depth) ** 2 * (target * .26 - 3);
-      // Reveal the actual plate-crossing location only after the decision.
-      if (phase === 'feedback') {
-        const lx = cx + displayedPitch.x * target, ly = plate - displayedPitch.z * zoneHeight;
-        ctx.strokeStyle = inQuickZone(displayedPitch) ? '#f1dca4' : '#b3dcf0'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(lx, ly, target * .26, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'left';
-        ctx.fillText(inQuickZone(displayedPitch) ? '존 안' : '볼', lx + target * .26 + 6, ly + 4); ctx.textAlign = 'center';
+      const feedback=phase==='feedback';
+      const motion=contactMotion(outcome,elapsed,reduced);
+      // A miss continues from the actual swing instant, rather than snapping to
+      // the plate. Contact departs from the rendered ball at input time.
+      const progress=feedback
+        ? motion.contact ? (swingAt??displayedPitch.flight)/displayedPitch.flight
+          : reduced ? 1 : ((swingAt??displayedPitch.flight+HIT_MS)+elapsed)/displayedPitch.flight
+        : elapsed/displayedPitch.flight;
+      const location=pitchLocation(displayedPitch,progress);
+      const depth=progress<=1?location.depth:1+(progress-1)*3;
+      const contactX=cx+location.x*target;
+      const contactY=h*.27+(plate-h*.27)*depth-location.z*zoneHeight;
+      const radius=3+Math.min(1.2,depth)**2*(target*.26-3);
+      if(feedback&&(motion.contact||progress>=1)&&(!motion.contact||reduced||elapsed>=180)){
+        const lx=cx+displayedPitch.x*target,ly=plate-displayedPitch.z*zoneHeight;
+        ctx.strokeStyle=inQuickZone(displayedPitch)?'#f1dca4':'#b3dcf0';ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(lx,ly,target*.26,0,Math.PI*2);ctx.stroke();
+        ctx.fillStyle=ctx.strokeStyle;ctx.textAlign='left';
+        ctx.fillText(inQuickZone(displayedPitch)?'존 안':'볼',lx+target*.26+6,ly+4);ctx.textAlign='center';
       }
-      if (phase === 'feedback' && outcome?.kind === 'hit') {
-        const p = reduced ? 1 : Math.min(1, elapsed / 700);
-        x += (outcome.offset < 0 ? -1 : 1) * w * .32 * p;
-        y -= h * .8 * p; radius *= 1 - p * .7;
+      if(feedback&&swingAt!==null&&elapsed<180&&!reduced){
+        const t=elapsed/180,angle=-.5+t*1.8;
+        const batX=motion.contact?contactX:cx,batY=motion.contact?contactY:plate;
+        ctx.save();ctx.globalAlpha=1-t;ctx.strokeStyle='#e5b36b';ctx.lineWidth=9;
+        ctx.beginPath();ctx.moveTo(batX+Math.cos(angle)*target*1.8,batY+Math.sin(angle)*target*1.8);
+        ctx.lineTo(batX-Math.cos(angle)*target*.4,batY-Math.sin(angle)*target*.4);ctx.stroke();ctx.restore();
       }
-      circle(x + 2, y + 4, radius + 3, '#071b2638');
-      const spinTime = phase === 'flight' ? elapsed / 1000 : (displayedPitch.flight + elapsed) / 1000;
-      drawSpinningBall(ctx, x, y, radius, displayedPitch.spin, reduced ? 0 : spinTime);
-      if (phase === 'feedback' && swingAt !== null && elapsed < 300 && !reduced) {
-        const angle = -.8 + elapsed / 300 * 2;
-        ctx.strokeStyle = '#e5b36b'; ctx.lineWidth = 13;
-        ctx.beginPath(); ctx.moveTo(cx + Math.cos(angle) * target * 2, plate + Math.sin(angle) * target * 2); ctx.lineTo(cx - Math.cos(angle) * target, plate - Math.sin(angle) * target); ctx.stroke();
+      if(feedback&&motion.impact>0){
+        ctx.save();ctx.globalAlpha=motion.impact;ctx.strokeStyle=outcome.kind==='hit'?'#ffe4a2':'#ece6cf';ctx.lineWidth=2;
+        const ring=radius+4+(1-motion.impact)*16;
+        ctx.beginPath();ctx.arc(contactX,contactY,ring,0,Math.PI*2);ctx.stroke();
+        for(let i=0;i<4;i++){
+          const angle=i*Math.PI/2+.4;
+          ctx.beginPath();ctx.moveTo(contactX+Math.cos(angle)*(ring+4),contactY+Math.sin(angle)*(ring+4));
+          ctx.lineTo(contactX+Math.cos(angle)*(ring+10),contactY+Math.sin(angle)*(ring+10));ctx.stroke();
+        }
+        ctx.restore();
       }
+      if(feedback&&motion.contact&&!reduced&&elapsed>70){
+        for(const lag of [48,24]){
+          const trail=contactMotion(outcome,Math.max(0,elapsed-lag));ctx.save();ctx.globalAlpha=motion.alpha*.15;
+          circle(contactX+trail.x*w,contactY+trail.y*h,radius*trail.scale,'#fff3d0');ctx.restore();
+        }
+      }
+      const x=contactX+(feedback?motion.x*w:0),y=contactY+(feedback?motion.y*h:0);
+      ctx.save();ctx.globalAlpha=feedback?motion.contact?motion.alpha:Math.min(1,Math.max(0,1-(progress-1)*4)):1;
+      circle(x+2,y+4,radius*motion.scale+2,'#071b2638');
+      const spinTime=feedback?((swingAt??displayedPitch.flight)+elapsed)/1000:elapsed/1000;
+      drawSpinningBall(ctx,x,y,radius*(feedback?motion.scale:1),displayedPitch.spin,reduced?0:spinTime);
+      ctx.restore();
     }
   }
   const resize=new ResizeObserver(()=>{

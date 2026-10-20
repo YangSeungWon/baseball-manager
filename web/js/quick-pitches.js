@@ -55,11 +55,13 @@ export function deliverQuickPitch(type,pitcher,target,noise,{intro=false}={}) {
     spin:{rpm,axis,grip:spec.grip*hand,phase:noise[7]*Math.PI},hand:pitcher.hand,intro};
 }
 
-// Perspective compresses early separation. Aiming compensates for the type's
-// movement; at the plate the path lands exactly at the commanded location + error.
+// A shared early corridor delays both course and break cues smoothly.
+// Depth still follows pitch speed; there is no late teleport or change of target.
+// At the plate the path lands exactly at the commanded location + error.
 export function pitchLocation(pitch,progress) {
-  const p=clamp(progress,0,1),u=p/(3-2*p),curve=u**pitch.movePower;
-  return {x:pitch.x*u+pitch.movement.x*(curve-u),z:pitch.z*u+pitch.movement.z*(curve-u),depth:u};
+  const p=clamp(progress,0,1),u=p/(3-2*p),aim=u**1.65;
+  const curve=aim*u**(pitch.movePower-1);
+  return {x:pitch.x*aim+pitch.movement.x*(curve-aim),z:pitch.z*aim+pitch.movement.z*(curve-aim),depth:u};
 }
 
 // A single continuous, stylized baseball seam on a sphere. Every pitch uses the

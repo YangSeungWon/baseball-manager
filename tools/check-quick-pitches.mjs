@@ -61,3 +61,27 @@ test('curve has slower speed, topspin and broader break than the late low-spin f
   assert.ok(cu.movement.z<sl.movement.z);
   assert.ok(cu.movePower<fo.movePower&&cu.spin.rpm>fo.spin.rpm*2);
 });
+
+
+test('early courses share a corridor but reveal readable separation before the plate',()=>{
+  const center=pitch('FF',pitcher,{x:0,z:0},Array(8).fill(0));
+  const outside={...center,x:1.3};
+  const early=pitchLocation(outside,.4).x-pitchLocation(center,.4).x;
+  const late=pitchLocation(outside,.85).x-pitchLocation(center,.85).x;
+  assert.ok(early<.09,'early location should not give away a ball');
+  assert.ok(late>.6,'the player must still get a late location cue');
+  assert.ok(late>early*7);
+  for(const type of Object.keys(QUICK_PITCH_TYPES)){
+    const p=pitch(type),loc=pitchLocation(p,.4),u=.4/(3-.8);
+    const oldX=p.x*u+p.movement.x*(u**p.movePower-u);
+    const oldZ=p.z*u+p.movement.z*(u**p.movePower-u);
+    assert.ok(Math.hypot(loc.x,loc.z)<Math.hypot(oldX,oldZ)*.5);
+    let previous=pitchLocation(p,0);
+    for(let i=1;i<=1000;i++){
+      const next=pitchLocation(p,i/1000);
+      assert.ok(Math.hypot(next.x-previous.x,next.z-previous.z)<.035,'no abrupt late snap');
+      assert.ok(next.depth>previous.depth);previous=next;
+    }
+    assert.ok(Math.abs(previous.x-p.x)<1e-12&&Math.abs(previous.z-p.z)<1e-12);
+  }
+});
