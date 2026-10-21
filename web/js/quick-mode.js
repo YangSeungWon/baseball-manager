@@ -178,7 +178,11 @@ export function openQuickMode(){
     const frames=paths.map(path=>runnerFrame(path,elapsed,reduced));
     const scored=frames.filter(frame=>frame.scored).length;
     $('.quick-points').textContent=outcome.before.runs+scored;
-    if(outcome.runs)$('.quick-message span').textContent=`${displayedPitch.name} · ${displayedPitch.speed} km/h${scored?' · +'+scored+'득점':''}`;
+    if(outcome.runs){
+      const detail=`${displayedPitch.name} · ${displayedPitch.speed} km/h${scored?' · +'+scored+'득점':''}`;
+      const label=$('.quick-message span');
+      if(label.textContent!==detail)label.textContent=detail;
+    }
     $('.quick-runs').classList.toggle('scoring',scored>0);
     if(show){
       $('.runner-dots').innerHTML=frames.filter(frame=>!frame.scored).map(frame=>`<circle cx="${frame.x}" cy="${frame.y}" r="3.7" fill="#f2d18b" stroke="#102a22" stroke-width="1"/>`).join('');
