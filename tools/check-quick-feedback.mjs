@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contactMotion} from '../web/js/quick-feedback.js';
+import {contactMotion,runnerPaths,runnerFrame,feedbackDuration} from '../web/js/quick-feedback.js';
 
 test('a clean hit holds visually then departs, while a miss never produces contact',()=>{
   const result={kind:'hit',bases:4,offset:-10};
@@ -20,4 +20,15 @@ test('reduced motion keeps contact static and suppresses impact animation',()=>{
   const result={kind:'hit',bases:4,offset:0};
   assert.deepEqual(contactMotion(result,0,true),contactMotion(result,500,true));
   assert.deepEqual(contactMotion(result,500,true),{contact:true,x:0,y:0,scale:1,alpha:1,impact:0});
+});
+
+test('runner animation preserves forced walks and sequential homer scoring',()=>{
+  const walk=runnerPaths([false,false,true],{kind:'walk'});
+  assert.deepEqual(walk,[{from:3,to:3},{from:0,to:1}]);
+  const homer=runnerPaths([true,true,true],{kind:'hit',bases:4});
+  assert.equal(homer.filter(p=>runnerFrame(p,620).scored).length,1);
+  assert.equal(homer.filter(p=>runnerFrame(p,1400).scored).length,4);
+  assert.equal(runnerFrame({from:0,to:1},700).x,82);
+  assert.equal(runnerFrame({from:0,to:4},0,true).scored,true);
+  assert.ok(feedbackDuration({ended:true})>1400);
 });

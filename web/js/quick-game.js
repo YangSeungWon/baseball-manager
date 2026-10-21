@@ -71,6 +71,7 @@ export class QuickGame {
   }
   resolve(offset){
     if(this.done)throw new Error('Inning already finished');
+    const before={bases:[...this.bases],runs:this.runs};
     const pitch=this.pitch, result=judgePitch(pitch,offset,this.approach);
     let ended=false,runs=0;
     if(result.kind==='ball'){
@@ -85,7 +86,7 @@ export class QuickGame {
     const count={balls:this.balls,strikes:this.strikes};
     if(ended){this.plateAppearances++;this.balls=0;this.strikes=0;}
     this.runs+=runs;
-    const scored={...result,pitch,approach:this.approach,count,runs,ended};
+    const scored={...result,pitch,approach:this.approach,count,runs,ended,before};
     this.results.push(scored);this.current=null;return scored;
   }
 }

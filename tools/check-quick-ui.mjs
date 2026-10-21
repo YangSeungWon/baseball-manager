@@ -18,6 +18,7 @@ try{
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install({time:new Date('2026-01-01T00:00:00Z')});
   await page.goto(`http://127.0.0.1:${server.address().port}`);
+  assert.equal(await page.locator('#btnBatting,#btnFullGame,#btnInning,.manager-entry').count(),0,'only the one-inning game is offered');
   await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
   await page.screenshot({path:`/tmp/dugout-inning-home-${width}.png`,fullPage:true});
   await page.evaluate(async()=>{
@@ -40,6 +41,7 @@ try{
   };
   await fits();await page.screenshot({path:`/tmp/dugout-inning-report-${width}.png`});
   await activate('.quick-start');await fits();
+  await page.screenshot({path:`/tmp/dugout-choice-${width}.png`});
   await activate('[data-approach="fast"]');assert.equal(await page.locator('[data-approach="fast"]').getAttribute('aria-pressed'),'true');
   await activate('.quick-report');await fits();await activate('.quick-resume');
   await activate('.quick-help');await fits();await activate('.quick-resume');
@@ -54,10 +56,16 @@ try{
    else{await page.clock.runFor(flight+offset-16);if(touch)await activate('.quick-swing');else await page.keyboard.press('Space');}
    assert.equal(await page.locator('.quick-mode').getAttribute('data-phase'),'feedback');
    if(offset===0){
-    await page.clock.runFor(80);
-    await page.screenshot({path:`/tmp/dugout-contact-${width}.png`});
+    await page.clock.runFor(900);
+    assert.equal(await page.locator('.quick-playback').isVisible(),true);
+    await page.screenshot({path:`/tmp/dugout-runners-${width}.png`});
+    assert.equal(await page.locator('.quick-points').textContent(),'0');
+    await page.clock.runFor(300);
+    assert.equal(await page.locator('.quick-points').textContent(),'1','runner scores before the hitter');
+    await page.clock.runFor(250);
+    assert.equal(await page.locator('.quick-points').textContent(),'2','hitter scores on reaching home');
    }
-   await page.clock.runFor(1280);
+   await page.clock.runFor(await page.evaluate(async()=>{const {feedbackDuration}=await import('/js/quick-feedback.js');return feedbackDuration(testGame.results.at(-1))+32;}));
   }
   await begin();await activate('.quick-pause');await page.clock.runFor(5000);
   assert.equal(await page.evaluate(()=>testGame.results.length),0);

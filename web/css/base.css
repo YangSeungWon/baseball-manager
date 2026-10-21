@@ -1,0 +1,9 @@
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:400;font-display:swap;src:url(../fonts/ibm-plex-mono-400.woff2) format('woff2')}
+@font-face{font-family:'IBM Plex Mono';font-style:normal;font-weight:600 800;font-display:swap;src:url(../fonts/ibm-plex-mono-600.woff2) format('woff2')}
+:root{--kr:system-ui,-apple-system,'Noto Sans KR',sans-serif;--mono:'IBM Plex Mono',monospace}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0;font-family:var(--kr);font-size:100%;line-height:1.5;background:#f3f0e7;color:#183a30;word-break:keep-all;overflow-wrap:break-word}
+button{font:inherit;cursor:pointer}button:disabled{cursor:default}button:focus-visible{outline:3px solid #224f3d;outline-offset:4px}
+.boot{padding:24px max(20px,calc((100vw - 1100px)/2));display:flex;flex-direction:column}
+.boot-head{display:flex;align-items:center;gap:18px;border-bottom:1px solid #183a3033;padding-bottom:18px}.boot-head h1{font:700 24px var(--mono);letter-spacing:.08em;margin:0}.boot-head span{font-size:14px;color:#4c6055}
+.boot-footer{padding-top:20px;border-top:1px solid #183a3033;font-size:14px;color:#4c6055}
