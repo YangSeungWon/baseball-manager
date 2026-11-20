@@ -82,3 +82,8 @@
 @media(prefers-reduced-motion:reduce){.quick-runs.scoring strong{transform:none}}
 .quick-mode[data-phase=plan] .quick-field{min-height:15rem}
 @media(max-height:500px) and (min-width:600px){.quick-mode[data-phase=plan] .quick-field{min-height:10rem}}
+.quick-decision .quick-mix{margin:-12px 0 0;text-align:center;font-size:.875rem;color:var(--q-muted);line-height:1.4}
+.quick-decision .quick-auto{display:block;align-self:center;width:min(100%,640px);height:4px;border-radius:2px;background:#f2d18b33;overflow:hidden;position:relative}
+.quick-decision .quick-auto::before{content:'';position:absolute;inset:0;background:#f2d18b;transform-origin:left;transform:scaleX(var(--left,1))}
+.quick-decision .quick-auto[hidden]{display:none}
+@media(max-height:600px){.quick-decision .quick-mix{margin-top:-6px}}

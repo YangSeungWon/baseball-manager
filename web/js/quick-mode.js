@@ -3,11 +3,15 @@ import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
 import {contactMotion, runnerPaths, runnerFrame, feedbackDuration} from './quick-feedback.js';
 
 const RECORD_KEY='dugout.inning.v1';
+// Between pitches the next one comes on its own; tapping a card restarts the wait.
+export const AUTO_PITCH_MS=1400;
 const newSeed=()=>crypto.getRandomValues(new Uint32Array(1))[0];
 let active=false;
 const icons={exit:'<path d="m14 6-6 6 6 6"/>',pause:'<path d="M9 5v14M15 5v14"/>',help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 2-2.5 2-2.5 4m0 3v.1"/>',play:'<path d="m9 5 11 7-11 7Z"/>',arrow:'<path d="M5 12h14m-6-6 6 6-6 6"/>',retry:'<path d="M4 10a8 8 0 1 1 1 7M4 4v6h6"/>'};
 const icon=name=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name]}</svg>`;
 function record(){try{const data=JSON.parse(localStorage.getItem(RECORD_KEY));return Number.isFinite(data?.best)?Math.max(0,data.best):0;}catch{return 0;}}
+// Anyone who has finished an inning has seen the report and rules once.
+export function returningPlayer(){try{return localStorage.getItem(RECORD_KEY)!==null;}catch{return false;}}
 
 export function openQuickMode(){
   if(active)return;active=true;
@@ -24,9 +28,9 @@ export function openQuickMode(){
       <div class="quick-bases" role="img" aria-label="주자 없음"><i data-base="2"></i><i data-base="1"></i><i data-base="0"></i></div>
     </div>
     <div class="quick-field"><canvas aria-label="스트라이크 존에 공이 도착할 때 스윙하세요. 볼은 누르지 않고 보냅니다."></canvas><div class="quick-message" role="status" aria-live="polite" aria-atomic="true"></div>
-      <div class="quick-decision"><h2>어떤 공을 노릴까요?</h2><div class="quick-approaches" role="group" aria-label="노림수">
+      <div class="quick-decision"><h2>어떤 공을 노릴까요?</h2><p class="quick-mix"></p><div class="quick-approaches" role="group" aria-label="노림수">
         ${Object.entries(APPROACHES).map(([key,value])=>`<button data-approach="${key}" aria-pressed="false"><svg viewBox="0 0 100 70" aria-hidden="true"><rect x="66" y="16" width="24" height="40" rx="2" fill="none" stroke="currentColor" opacity=".35"/><path d="${key==='fast'?'M8 35H77':key==='slow'?'M8 18Q58 10 77 45':'M15 48 70 22'}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>${key==='contact'?'<circle cx="70" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="2"/>':''}<circle cx="77" cy="${key==='slow'?45:key==='fast'?35:22}" r="6" fill="currentColor"/></svg><strong>${value.label}</strong><small>${key==='fast'?'빠르게 준비':key==='slow'?'한 박자 기다리기':'넓게 대응'}</small></button>`).join('')}
-      </div></div>
+      </div><i class="quick-auto" hidden></i></div>
       <div class="quick-playback" hidden aria-label="주자 진루"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 84 82 52 50 20 18 52Z" fill="#234f3c" stroke="#9bb59b" stroke-width="1"/><g fill="#fff3d3"><path d="m82 48 4 4-4 4-4-4Zm-32-32 4 4-4 4-4-4Zm-32 32 4 4-4 4-4-4Z"/><path d="M46 81h8v5l-4 3-4-3Z"/></g><g class="runner-dots"></g></svg><span class="quick-run-caption"></span></div>
     </div>
     <div class="quick-action">
@@ -42,7 +46,7 @@ export function openQuickMode(){
   const lifecycle=new AbortController();
   const on=(el,event,fn)=>el.addEventListener(event,fn,{signal:lifecycle.signal});
   let game,phase='ready',elapsed=0,paused=false,closed=false,raf,lastTime=performance.now();
-  let width=0,height=0,outcome=null,best=record(),displayedPitch=null,swingAt=null,overlayReturn=null;
+  let autoPitch=false,width=0,height=0,outcome=null,best=record(),displayedPitch=null,swingAt=null,overlayReturn=null;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pitcherLabel=()=>`${game.pitcher.hand==='L'?'좌완':'우완'} · ${game.pitcher.name}`;
   const dots=(label,count,total)=>`<span>${label}</span>${Array.from({length:total},(_,i)=>`<i class="${i<count?'lit':''}"></i>`).join('')}`;
@@ -56,11 +60,13 @@ export function openQuickMode(){
     }
     $('.quick-bases').setAttribute('aria-label',game.bases.some(Boolean)?game.bases.flatMap((v,i)=>v?[`${i+1}루`]:[]).join(', ')+' 주자':'주자 없음');
     root.querySelectorAll('[data-base]').forEach(el=>el.classList.toggle('occupied',game.bases[Number(el.dataset.base)]));
+    $('.quick-mix').textContent=game.pitcher.arsenal.map(({type,usage})=>`${QUICK_PITCH_TYPES[type].name} ${usage}%`).join(' · ');
+    $('.quick-auto').hidden=!(phase==='plan'&&autoPitch);
     $('.quick-report').innerHTML=`<span>${pitcherLabel()}</span><span>배합 보기 ${icon('arrow')}</span>`;
     root.querySelectorAll('[data-approach]').forEach(el=>{el.setAttribute('aria-pressed',String(game.approach===el.dataset.approach));el.disabled=phase!=='plan'||paused;});
     $('.quick-hint').textContent=phase==='plan'?APPROACHES[game.approach].hint:'노림수 · '+APPROACHES[game.approach].label;
     swingButton.disabled=paused||!['plan','flight'].includes(phase);
-    swingButton.innerHTML=phase==='flight'?'스윙':phase==='windup'?'준비…':phase==='feedback'?'결과 확인':'투구 받기 '+icon('arrow');
+    swingButton.innerHTML=phase==='flight'?'스윙':phase==='windup'?'준비…':phase==='feedback'?'결과 확인':(autoPitch?'바로 던지기 ':'투구 받기 ')+icon('arrow');
     $('.quick-report').disabled=!['plan','ready'].includes(phase)||paused;
   }
   function message(title,detail=''){
@@ -78,15 +84,16 @@ export function openQuickMode(){
       <div class="pitch-mix" aria-label="투수의 기본 구종 비율">${game.pitcher.arsenal.map(({type,usage})=>`<div><b>${QUICK_PITCH_TYPES[type].name}</b><span class="mix-bar"><i style="width:${usage}%"></i></span><span>${usage}%</span></div>`).join('')}</div>
       <p class="sheet-note">기본 배합 · 카운트에 따라 달라집니다.</p>`;
   }
-  function ready(seed=newSeed()){
+  function ready(seed=newSeed(),brief=!returningPlayer()){
     game=new QuickGame(seed);phase='ready';paused=false;displayedPitch=game.pitch;outcome=null;swingAt=null;
     $('.quick-pause').disabled=true;message('');hud();
+    if(!brief){hideCover();start();return;}
     showCover(`${reportHTML()}<p class="intro-rule">3아웃 전까지, 최대한 많은 득점.</p><button class="quick-start sheet-primary">타석 들어가기 ${icon('arrow')}</button><span class="quick-best">내 최고 ${best}득점</span>`);
     $('.quick-start').onclick=start;draw();
   }
-  function start(){hideCover();$('.quick-pause').disabled=false;plan();swingButton.focus({preventScroll:true});}
-  function plan(){
-    phase='plan';elapsed=0;lastTime=performance.now();displayedPitch=game.pitch;swingAt=null;outcome=null;
+  function start(){hideCover();$('.quick-pause').disabled=false;plan(false);swingButton.focus({preventScroll:true});}
+  function plan(auto=true){
+    phase='plan';autoPitch=auto;elapsed=0;lastTime=performance.now();displayedPitch=game.pitch;swingAt=null;outcome=null;
     delete root.dataset.verdict;
     message('');
     $('.quick-decision h2').textContent=game.strikes===2?'2스트라이크, 어떻게 칠까요?':'어떤 공을 노릴까요?';
@@ -117,7 +124,7 @@ export function openQuickMode(){
     try{localStorage.setItem(RECORD_KEY,JSON.stringify({best}));}catch{saved=false;}
     message('');hud();
     showCover(`<small class="sheet-eyebrow">${game.runs>previous?'새 최고 기록':'3 OUT · 이닝 종료'}</small><h2 class="result-runs">${game.runs}<small>득점</small></h2><p class="result-line">${game.hits}안타 · ${game.walks}볼넷 · ${game.results.length}구</p><p class="sheet-note">${game.results.filter(r=>r.kind==='whiff'&&!inQuickZone(r.pitch)).length>2?'다음엔 존 밖의 공을 보내보세요.':game.hits===0?'노릴 공을 정하고 타이밍을 잡아보세요.':'이번 투수, 한 번 더 공략해볼까요?'}</p><button class="quick-retry sheet-primary">${icon('retry')} 같은 투수 다시</button><button class="quick-new sheet-secondary">다른 투수 만나기 ${icon('arrow')}</button><small class="quick-best">${saved?'내 최고 '+best+'득점 · 이 기기에 저장':'기록을 저장하지 못했습니다'}</small>`);
-    $('.quick-retry').onclick=()=>ready(game.seed);$('.quick-new').onclick=()=>ready();
+    $('.quick-retry').onclick=()=>ready(game.seed,false);$('.quick-new').onclick=()=>ready(newSeed(),false);
   }
   function pause(kind='pause'){
     if(paused||phase==='finished')return;
@@ -133,7 +140,7 @@ export function openQuickMode(){
     if(!paused||document.hidden)return;paused=false;hideCover();
     if(phase==='ready'){ready(game.seed);return;}
     if(phase==='flight'||phase==='windup')beginPitch();
-    else{lastTime=performance.now();hud();}
+    else{lastTime=performance.now();if(phase==='plan')elapsed=0;hud();}
     (['flight','windup'].includes(phase)?root:overlayReturn?.isConnected&&!overlayReturn.disabled?overlayReturn:swingButton).focus({preventScroll:true});
   }
   function close(){
@@ -144,7 +151,7 @@ export function openQuickMode(){
   on($('.quick-pause'),'click',()=>paused?resume():pause());
   on($('.quick-help'),'click',()=>{if(!paused)pause('help');});
   on($('.quick-report'),'click',()=>pause('report'));
-  root.querySelectorAll('[data-approach]').forEach(el=>on(el,'click',()=>{if(phase==='plan'&&!paused){game.setApproach(el.dataset.approach);hud();}}));
+  root.querySelectorAll('[data-approach]').forEach(el=>on(el,'click',()=>{if(phase==='plan'&&!paused){game.setApproach(el.dataset.approach);elapsed=0;hud();}}));
   for(const el of [canvas,swingButton])on(el,'pointerdown',e=>{
     if(e.button!==0||!e.isPrimary)return;
     if(el===canvas&&phase!=='flight')return;
@@ -170,6 +177,7 @@ export function openQuickMode(){
     ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
   }
   function drawRunners(){
+    if(phase==='plan'&&autoPitch)$('.quick-auto').style.setProperty('--left',String(Math.max(0,1-elapsed/AUTO_PITCH_MS)));
     const playback=$('.quick-playback');
     const show=phase==='feedback'&&['hit','walk'].includes(outcome?.kind)&&(reduced||elapsed>=350);
     playback.hidden=!show;
@@ -285,11 +293,12 @@ export function openQuickMode(){
   });resize.observe(canvas);
   function frame(now){
     if(closed)return;const delta=now-lastTime;lastTime=now;
-    if(!paused&&['windup','flight','feedback'].includes(phase)){
+    if(!paused&&(['windup','flight','feedback'].includes(phase)||phase==='plan'&&autoPitch)){
       if(delta>400)pause();
       else{
         elapsed+=Math.max(0,delta);
-        if(phase==='windup'&&elapsed>=WINDUP_MS){phase='flight';elapsed=0;hud();}
+        if(phase==='plan'){if(elapsed>=AUTO_PITCH_MS)beginPitch();}
+        else if(phase==='windup'&&elapsed>=WINDUP_MS){phase='flight';elapsed=0;hud();}
         else if(phase==='flight'&&elapsed>displayedPitch.flight+HIT_MS)resolve(null);
         else if(phase==='feedback'&&elapsed>=feedbackDuration(outcome))game.done?finish():plan();
       }

@@ -65,13 +65,19 @@ try{
     await page.clock.runFor(250);
     assert.equal(await page.locator('.quick-points').textContent(),'2','hitter scores on reaching home');
    }
-   await page.clock.runFor(await page.evaluate(async()=>{const {feedbackDuration}=await import('/js/quick-feedback.js');return feedbackDuration(testGame.results.at(-1))+32;}));
+   await page.clock.runFor(await page.evaluate(async()=>{const {feedbackDuration}=await import('/js/quick-feedback.js');return feedbackDuration(testGame.results.at(-1))+32;})-(offset===0?1450:0));
   }
   await begin();await activate('.quick-pause');await page.clock.runFor(5000);
   assert.equal(await page.evaluate(()=>testGame.results.length),0);
   await activate('.quick-resume');await page.clock.runFor(672);await finishPitch();
   assert.equal(await page.evaluate(()=>testGame.balls),1);
-  for(let i=0;i<3;i++){await begin();await finishPitch();}
+  assert.match(await page.locator('.quick-mix').textContent(),/\d+%/,'pitch mix stays visible while choosing');
+  const phase=()=>page.locator('.quick-mode').getAttribute('data-phase');
+  await page.clock.runFor(700);await page.screenshot({path:`/tmp/dugout-auto-${width}.png`});await activate('[data-approach="fast"]');await page.clock.runFor(900);
+  assert.equal(await phase(),'plan','choosing a card restarts the wait');
+  await page.clock.runFor(600);assert.equal(await phase(),'windup','next pitch comes without a button press');
+  await page.clock.runFor(672);await finishPitch();
+  for(let i=0;i<2;i++){await begin();await finishPitch();}
   assert.deepEqual(await page.evaluate(()=>testGame.bases),[true,false,false]);
   await begin();await page.screenshot({path:`/tmp/dugout-inning-play-${width}.png`});await finishPitch(0);
   assert.equal(await page.evaluate(()=>testGame.runs),2,'prepared center fastball is a two-run homer');
@@ -82,8 +88,13 @@ try{
   assert.equal(await page.evaluate(()=>testGame.outs),3);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('dugout.inning.v1')).best),2);
   await page.screenshot({path:`/tmp/dugout-inning-result-${width}.png`});
   const seed=await page.evaluate(()=>testGame.seed);await activate('.quick-retry');assert.equal(await page.evaluate(()=>testGame.seed),seed);
-  await activate('.quick-start');assert.equal(await page.evaluate(()=>testGame.runs),0);
+  assert.equal(await phase(),'plan','replay skips the report sheet');assert.equal(await page.evaluate(()=>testGame.runs),0);
   await activate('.quick-exit');assert.equal(await page.locator('.quick-mode').count(),0);assert.equal(await page.locator('#boot').evaluate(el=>el.inert),false);
-  assert.deepEqual(errors,[]);console.log(`PASS ${width}×${height}: layout, report, approaches, pause, counts, walk, homer, foul, 3 outs, replay, storage`);await page.close();
+  await page.reload();await page.locator('.quick-mode').waitFor();
+  assert.equal(await phase(),'plan','returning players go straight to the plate');assert.equal(await page.locator('.quick-start').count(),0);
+  await page.screenshot({path:`/tmp/dugout-return-${width}.png`});await fits();
+  await page.clock.runFor(3000);assert.equal(await phase(),'plan','first pitch of an inning waits for the player');
+  await activate('.quick-exit');assert.equal(await page.locator('#boot').evaluate(el=>el.inert),false);
+  assert.deepEqual(errors,[]);console.log(`PASS ${width}×${height}: layout, report, approaches, pause, counts, walk, homer, foul, 3 outs, replay, storage, auto pitch, return entry`);await page.close();
  }
 }finally{await browser?.close();await new Promise(r=>server.close(r));}
