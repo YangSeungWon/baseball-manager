@@ -2,6 +2,8 @@ import {PerspectiveCamera, Vector3} from '../vendor/three/three.module.min.js';
 import {FIELD_POSITIONS, simulateField, sampleField} from './field-sim.js';
 import {fence, parkDims} from './core/bip.js';
 
+export const FIELD_REPLAY_START_MS=90;
+
 const bases=[[0,0],[19.4,19.4],[0,38.8],[-19.4,19.4],[0,0]];
 const dims=parkDims();
 const fielders=Object.values(FIELD_POSITIONS);
@@ -28,8 +30,9 @@ export function makeFieldReplay(result){
   return {play,end:Math.min(play.duration,end+(homer?0:.45))};
 }
 
-export function drawFieldReplay(ctx,w,h,replay,runners,elapsed,reduced){
-  const time=replay?replay.end*Math.min(1,Math.max(0,elapsed-90)/1050):0;
+export function drawFieldReplay(ctx,w,h,replay,runners,elapsed,reduced,launchPoint){
+  const replayElapsed=Math.max(0,elapsed-FIELD_REPLAY_START_MS);
+  const time=replay?replay.end*Math.min(1,replayElapsed/1050):0;
   const ball=replay&&!reduced?sampleField(replay.play,time):null;
   const follow=ball?Math.min(1,time/2):0;
   const camera=new PerspectiveCamera(42,w/h,.1,400);
@@ -38,9 +41,23 @@ export function drawFieldReplay(ctx,w,h,replay,runners,elapsed,reduced){
   camera.lookAt((ball?.x??0)*.13*follow,0,-(53+(ball?.y??0)*.1*follow));
   camera.updateMatrixWorld();
   const point=new Vector3();
-  function project(x,y,z=0){
+  function projectField(x,y,z=0){
     point.set(x,z,-y).project(camera);
     return [(point.x+1)*w/2,(1-point.y)*h/2+h*.08];
+  }
+  let offsetX=0,offsetY=0;
+  if(launchPoint&&replayElapsed<420){
+    // Start the wide shot at the outgoing ball, then ease out the framing shift.
+    const launch=sampleField(replay.play,0);
+    const [x,y]=projectField(launch.x,launch.y,launch.z);
+    const progress=replayElapsed/420;
+    const weight=1-progress*progress*(3-2*progress);
+    offsetX=(launchPoint[0]-x)*weight;
+    offsetY=(launchPoint[1]-y)*weight;
+  }
+  function project(x,y,z=0){
+    const [sx,sy]=projectField(x,y,z);
+    return [sx+offsetX,sy+offsetY];
   }
   function shape(vertices,color){
     ctx.beginPath();
@@ -61,7 +78,7 @@ export function drawFieldReplay(ctx,w,h,replay,runners,elapsed,reduced){
   }
   ctx.fillStyle='#203a4c';
   ctx.fillRect(0,0,w,h);
-  shape([[-110,-20],[110,-20],[110,120],[-110,120]],'#294d3a');
+  shape([[-110,-90],[110,-90],[110,120],[-110,120]],'#294d3a');
   shape([[0,0],...wall],'#3b6e50');
   for(let i=1;i<wall.length;i++){
     const a=wall[i-1],b=wall[i];

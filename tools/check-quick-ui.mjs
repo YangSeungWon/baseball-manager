@@ -17,11 +17,32 @@ try{
   const page=await browser.newPage({viewport:{width,height},hasTouch:touch,isMobile:touch});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.clock.install({time:new Date('2026-01-01T00:00:00Z')});
+  await page.addInitScript(()=>{
+   const getRandomValues=Crypto.prototype.getRandomValues;
+   Crypto.prototype.getRandomValues=function(array){
+    if(array instanceof Uint32Array&&array.length===1){array[0]=42;return array;}
+    return getRandomValues.call(this,array);
+   };
+  });
   await page.goto(`http://127.0.0.1:${server.address().port}`);
   assert.equal(await page.locator('#btnBatting,#btnFullGame,#btnInning,.manager-entry').count(),0,'only the one-inning game is offered');
   await page.clock.pauseAt(new Date('2026-01-01T01:00:00Z'));
   await page.screenshot({path:`/tmp/dugout-inning-home-${width}.png`,fullPage:true});
   await page.evaluate(async()=>{
+   const ctx=CanvasRenderingContext2D.prototype,arc=ctx.arc,fill=ctx.fill;
+   ctx.arc=function(x,y,r,...args){
+    const center=this.getTransform().transformPoint({x,y});
+    this.testArc={x:center.x,y:center.y,r};
+    return arc.call(this,x,y,r,...args);
+   };
+   ctx.fill=function(...args){
+    if(this.canvas.matches('.quick-field canvas')&&this.testArc){
+     const plateBall=this.fillStyle instanceof CanvasGradient;
+     const fieldBall=this.fillStyle==='#fff9e9'&&this.testArc.r===4.2;
+     if(plateBall||fieldBall)window.testBall={...this.testArc,field:fieldBall};
+    }
+    return fill.apply(this,args);
+   };
    const {QuickGame}=await import('/js/quick-game.js');const {deliverQuickPitch}=await import('/js/quick-pitches.js');
 
    Object.defineProperty(QuickGame.prototype,'pitch',{get(){
@@ -59,7 +80,29 @@ try{
     assert.equal(await page.locator('[data-base="0"]').getAttribute('class'),'occupied','runner remains on first until the running starts');
     await page.clock.runFor(80);
     await page.screenshot({path:`/tmp/dugout-contact-${width}.png`});
-    await page.clock.runFor(820);
+    const ballFrame=()=>page.evaluate(()=>{
+     const canvas=document.querySelector('.quick-field canvas');
+     const {x,y,r,field}=window.testBall;
+     const rect=canvas.getBoundingClientRect(),scale=canvas.width/rect.width;
+     const pixel=[...canvas.getContext('2d').getImageData(Math.floor(x),Math.floor(y),1,1).data];
+     return {x:x/scale,y:y/scale,r,field,pixel,width:rect.width,height:rect.height};
+    });
+    const before=await ballFrame();
+    assert.equal(before.field,false);
+    await page.clock.runFor(16);
+    const after=await ballFrame();
+    assert.equal(after.field,true);
+    await page.screenshot({path:`/tmp/dugout-field-cut-${width}.png`});
+    const jump=Math.hypot(before.x-after.x,before.y-after.y);
+    console.log(`${width}×${height}: replay cut moves the ball ${jump.toFixed(1)} CSS px`);
+    assert.ok(jump<20,`ball should stay near its outgoing position at the cut (moved ${jump.toFixed(1)}px)`);
+    for(let i=0;i<10;i++){
+     const ball=await ballFrame();
+     assert.ok(ball.x>ball.r&&ball.x<ball.width-ball.r&&ball.y>ball.r&&ball.y<ball.height-ball.r);
+     assert.deepEqual(ball.pixel,[255,249,233,255],'the replay ball is visible on the canvas');
+     await page.clock.runFor(16);
+    }
+    await page.clock.runFor(820-16*11);
     assert.equal(await page.locator('.quick-mode').getAttribute('data-view'),'field');
     assert.equal(await page.locator('.quick-bases').getAttribute('aria-label'),'주자 진루 중');
     await page.screenshot({path:`/tmp/dugout-runners-${width}.png`});

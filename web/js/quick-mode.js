@@ -1,4 +1,4 @@
-import {makeFieldReplay, drawFieldReplay} from './quick-field-replay.js';
+import {makeFieldReplay, drawFieldReplay, FIELD_REPLAY_START_MS} from './quick-field-replay.js';
 import {QuickGame, APPROACHES, WINDUP_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
 import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
 import {contactMotion, runnerPaths, runnerFrame, feedbackDuration, pitcherPose} from './quick-feedback.js';
@@ -203,10 +203,29 @@ export function openQuickMode(){
     if(phase!=='feedback')$('.quick-runs').classList.remove('scoring');
     if (!ctx || !width || !height) return;
     const w = width, h = height, cx = w / 2, plate = h * .69, target = Math.min(w * .14, h * .11, 46), zoneHeight = target * 1.25;
-    const showReplay=phase==='feedback'&&(fieldReplay||runners.length)&&(reduced||elapsed>=90);
+    const projectPitch=(progress)=>{
+      const p=Math.max(0,Math.min(1,progress));
+      // The ball travels steadily in depth. Perspective speeds up its apparent
+      // approach without changing flight duration or the plate-crossing point.
+      const perspective=p/(1.85-.85*p),after=Math.max(0,progress-1);
+      const location=pitchLocation(displayedPitch,p);
+      const courseDepth=Math.max(.001,location.depth);
+      const x=location.x*Math.min(1.8,perspective/courseDepth);
+      const z=location.z*Math.min(1.8,perspective/courseDepth);
+      const releaseY=h*.32-25*Math.max(.6,Math.min(1.15,h/500));
+      const depth=perspective+after*1.85;
+      return {x:cx+x*target,y:releaseY+(plate-releaseY)*depth-z*zoneHeight,depth};
+    };
+    const showReplay=phase==='feedback'&&(fieldReplay||runners.length)&&(reduced||elapsed>=FIELD_REPLAY_START_MS);
     if(showReplay){
       root.dataset.view='field';
-      drawFieldReplay(ctx,w,h,fieldReplay,runners,elapsed,reduced);
+      let launchPoint;
+      if(fieldReplay&&!reduced){
+        const pitch=projectPitch((swingAt??displayedPitch.flight)/displayedPitch.flight);
+        const motion=contactMotion(outcome,FIELD_REPLAY_START_MS);
+        launchPoint=[pitch.x+motion.x*w,pitch.y+motion.y*h];
+      }
+      drawFieldReplay(ctx,w,h,fieldReplay,runners,elapsed,reduced,launchPoint);
       return;
     }
     if(root.dataset.view)delete root.dataset.view;
@@ -246,19 +265,6 @@ export function openQuickMode(){
     }
     ctx.fillStyle='#a37b50';ctx.beginPath();ctx.ellipse(cx,h*.32,
       Math.min(35,w*.09),Math.min(12,h*.025),0,0,Math.PI*2);ctx.fill();
-    const projectPitch=(progress)=>{
-      const p=Math.max(0,Math.min(1,progress));
-      // The ball travels steadily in depth. Perspective speeds up its apparent
-      // approach without changing flight duration or the plate-crossing point.
-      const perspective=p/(1.85-.85*p),after=Math.max(0,progress-1);
-      const location=pitchLocation(displayedPitch,p);
-      const courseDepth=Math.max(.001,location.depth);
-      const x=location.x*Math.min(1.8,perspective/courseDepth);
-      const z=location.z*Math.min(1.8,perspective/courseDepth);
-      const releaseY=h*.32-25*Math.max(.6,Math.min(1.15,h/500));
-      const depth=perspective+after*1.85;
-      return {x:cx+x*target,y:releaseY+(plate-releaseY)*depth-z*zoneHeight,depth};
-    };
     // The same pose timeline is used in every viewport, mirrored for lefties.
     const figureScale=Math.max(.6,Math.min(1.15,h/500)), feet=h*.32;
     const pose=pitcherPose(phase,elapsed,game.pitcher.hand,reduced);
