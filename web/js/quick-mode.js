@@ -207,12 +207,55 @@ export function openQuickMode(){
     if(phase!=='feedback')$('.quick-runs').classList.remove('scoring');
     if (!ctx || !width || !height) return;
     const w = width, h = height, cx = w / 2, plate = h * .69, target = Math.min(w * .14, h * .11, 46), zoneHeight = target * 1.25;
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#163f38'; ctx.fillRect(0, 0, w, h);
-    ctx.fillStyle = '#204e42'; ctx.beginPath(); ctx.moveTo(cx, h * .24); ctx.lineTo(w * .98, h); ctx.lineTo(w * .02, h); ctx.fill();
-    ctx.strokeStyle = '#9bb7a459'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, h); ctx.lineTo(cx, h * .28); ctx.lineTo(w, h); ctx.stroke();
-    ctx.fillStyle = '#98764f'; ctx.beginPath(); ctx.ellipse(cx, h * .32, 35, 12, 0, 0, Math.PI * 2); ctx.fill();
+    const homeY=Math.min(h-14,plate+zoneHeight+35);
+    const baseSpread=w*.34, baseY=h*.41, secondY=h*.21;
+    const polygon=(points,fill)=>{
+      ctx.fillStyle=fill;ctx.beginPath();
+      points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
+      ctx.closePath();ctx.fill();
+    };
+    ctx.fillStyle='#203a4c';ctx.fillRect(0,0,w,h);
+    for(let row=0;row<4;row++){
+      const y=h*(.055+row*.023);
+      ctx.fillStyle=row%2?'#41566a':'#374d60';
+      ctx.fillRect(0,y,w,h*.018);
+    }
+    ctx.fillStyle='#253b40';ctx.fillRect(0,h*.145,w,h*.058);
+    ctx.fillStyle='#bc985a';ctx.fillRect(0,h*.145,w,2);
+    ctx.fillStyle='#35654a';ctx.fillRect(0,h*.203,w,h);
+    for(let stripe=-3;stripe<=3;stripe+=2){
+      polygon([[cx+w*stripe*.12,h*.203],[cx+w*(stripe+1)*.12,h*.203],
+        [cx+w*(stripe+1)*.42,h],[cx+w*stripe*.42,h]],'#3b6e50');
+    }
+    const first=[cx+baseSpread,baseY],third=[cx-baseSpread,baseY];
+    polygon([[cx,h*.174],[cx+baseSpread*1.22,baseY],[cx,homeY+14],
+      [cx-baseSpread*1.22,baseY]],'#936e4a');
+    polygon([[cx,secondY+7],[first[0]-12,baseY],[cx,homeY-15],
+      [third[0]+12,baseY]],'#35654a');
+    ctx.strokeStyle='#e8dfbe';ctx.lineWidth=1.5;
+    for(const side of [-1,1]){
+      const edgeY=homeY+(baseY-homeY)*(.5/.34);
+      ctx.beginPath();ctx.moveTo(cx,homeY);ctx.lineTo(cx+side*w*.5,edgeY);ctx.stroke();
+    }
+    for(const [x,y] of [first,[cx,secondY],third]){
+      const size=Math.max(4,Math.min(8,w*.02));
+      polygon([[x-size,y],[x,y-size*.55],[x+size,y],[x,y+size*.55]],'#efe7cd');
+    }
+    ctx.fillStyle='#a37b50';ctx.beginPath();ctx.ellipse(cx,h*.32,
+      Math.min(35,w*.09),Math.min(12,h*.025),0,0,Math.PI*2);ctx.fill();
+    const projectPitch=(progress)=>{
+      const p=Math.max(0,Math.min(1,progress));
+      // The ball travels steadily in depth. Perspective speeds up its apparent
+      // approach without changing flight duration or the plate-crossing point.
+      const perspective=p/(1.85-.85*p),after=Math.max(0,progress-1);
+      const location=pitchLocation(displayedPitch,p);
+      const courseDepth=Math.max(.001,location.depth);
+      const x=location.x*Math.min(1.8,perspective/courseDepth);
+      const z=location.z*Math.min(1.8,perspective/courseDepth);
+      const releaseY=h*.32-25*Math.max(.6,Math.min(1.15,h/500));
+      const depth=perspective+after*1.85;
+      return {x:cx+x*target,y:releaseY+(plate-releaseY)*depth-z*zoneHeight,depth};
+    };
     // The same pose timeline is used in every viewport, mirrored for lefties.
     const figureScale=Math.max(.6,Math.min(1.15,h/500)), feet=h*.32;
     const pose=pitcherPose(phase,elapsed,game.pitcher.hand,reduced);
@@ -246,8 +289,8 @@ export function openQuickMode(){
     }
     ctx.fillStyle = '#e0e9d8'; ctx.textAlign = 'center'; ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#d9d5b8'; ctx.beginPath();
-    ctx.moveTo(cx - 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 28); ctx.lineTo(cx + 14, plate + zoneHeight + 36); ctx.lineTo(cx, plate + zoneHeight + 44); ctx.lineTo(cx - 14, plate + zoneHeight + 36); ctx.fill();
+    polygon([[cx-14,homeY-7],[cx+14,homeY-7],[cx+14,homeY+1],
+      [cx,homeY+8],[cx-14,homeY+1]],'#eae0bf');
     if (phase === 'flight' || phase === 'feedback') {
       const feedback=phase==='feedback';
       const motion=contactMotion(outcome,elapsed,reduced);
@@ -257,12 +300,32 @@ export function openQuickMode(){
         ? motion.contact ? (swingAt??displayedPitch.flight)/displayedPitch.flight
           : reduced ? 1 : ((swingAt??displayedPitch.flight+HIT_MS)+elapsed)/displayedPitch.flight
         : elapsed/displayedPitch.flight;
-      const location=pitchLocation(displayedPitch,progress);
-      const depth=progress<=1?location.depth:1+(progress-1)*3;
-      const contactX=cx+location.x*target;
-      const contactY=h*.27+(plate-h*.27)*depth-location.z*zoneHeight;
-      const radius=3+Math.min(1.2,depth)**2*(target*.26-3);
-      if(feedback&&(motion.contact||progress>=1)&&(!motion.contact||reduced||elapsed>=180)){
+      const {x:contactX,y:contactY,depth}=projectPitch(progress);
+      const radius=3+Math.min(1.2,depth)*(target*.26-3);
+      const missed=feedback&&swingAt!==null&&!motion.contact;
+      if(missed){
+        // Freeze the swing instant beside the pitch's plate-crossing position.
+        const swingPoint=projectPitch(swingAt/displayedPitch.flight);
+        const sx=swingPoint.x,sy=Math.max(12,Math.min(h-12,swingPoint.y));
+        const px=cx+displayedPitch.x*target,py=plate-displayedPitch.z*zoneHeight;
+        const outside=!inQuickZone(displayedPitch);
+        const markerRadius=Math.max(5,target*.21);
+        ctx.save();
+        ctx.strokeStyle=outside?'#b3dcf0':'#f1dca4';
+        ctx.lineWidth=2;
+        if(Math.hypot(px-sx,py-sy)>markerRadius*2){
+          ctx.setLineDash([4,5]);
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(px,py);ctx.stroke();
+          ctx.setLineDash([]);
+          circle(sx,sy,markerRadius*.65,'#fff3d0');
+        }
+        ctx.beginPath();ctx.arc(px,py,markerRadius,0,Math.PI*2);ctx.stroke();
+        if(outside){
+          ctx.beginPath();ctx.arc(px,py,markerRadius+4,0,Math.PI*2);ctx.stroke();
+        }
+        ctx.restore();
+      }
+      if(feedback&&!missed&&(motion.contact||progress>=1)&&(!motion.contact||reduced||elapsed>=180)){
         const lx=cx+displayedPitch.x*target,ly=plate-displayedPitch.z*zoneHeight;
         ctx.strokeStyle=inQuickZone(displayedPitch)?'#f1dca4':'#b3dcf0';ctx.lineWidth=2;
         ctx.beginPath();ctx.arc(lx,ly,target*.26,0,Math.PI*2);ctx.stroke();
@@ -293,6 +356,7 @@ export function openQuickMode(){
           circle(contactX+trail.x*w,contactY+trail.y*h,radius*trail.scale,'#fff3d0');ctx.restore();
         }
       }
+      if(missed)return;
       const x=contactX+(feedback?motion.x*w:0),y=contactY+(feedback?motion.y*h:0);
       ctx.save();ctx.globalAlpha=feedback?motion.contact?motion.alpha:Math.min(1,Math.max(0,1-(progress-1)*4)):1;
       circle(x+2,y+4,radius*motion.scale+2,'#071b2638');
