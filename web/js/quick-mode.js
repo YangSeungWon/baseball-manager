@@ -1,3 +1,4 @@
+import {makeFieldReplay, drawFieldReplay} from './quick-field-replay.js';
 import {QuickGame, APPROACHES, WINDUP_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
 import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
 import {contactMotion, runnerPaths, runnerFrame, feedbackDuration, pitcherPose} from './quick-feedback.js';
@@ -31,7 +32,7 @@ export function openQuickMode(){
       <div class="quick-decision"><h2>어떤 공을 노릴까요?</h2><p class="quick-mix"></p><div class="quick-approaches" role="group" aria-label="노림수">
         ${Object.entries(APPROACHES).map(([key,value])=>`<button data-approach="${key}" aria-pressed="false"><svg viewBox="0 0 100 70" aria-hidden="true"><rect x="66" y="16" width="24" height="40" rx="2" fill="none" stroke="currentColor" opacity=".35"/><path d="${key==='fast'?'M8 35H77':key==='slow'?'M8 18Q58 10 77 45':'M15 48 70 22'}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>${key==='contact'?'<circle cx="70" cy="22" r="12" fill="none" stroke="currentColor" stroke-width="2"/>':''}<circle cx="77" cy="${key==='slow'?45:key==='fast'?35:22}" r="6" fill="currentColor"/></svg><strong>${value.label}</strong><small>${key==='fast'?'빠르게 준비':key==='slow'?'한 박자 기다리기':'넓게 대응'}</small></button>`).join('')}
       </div><i class="quick-auto" hidden></i></div>
-      <div class="quick-playback" hidden aria-label="주자 진루"><svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 84 82 52 50 20 18 52Z" fill="#234f3c" stroke="#9bb59b" stroke-width="1"/><g fill="#fff3d3"><path d="m82 48 4 4-4 4-4-4Zm-32-32 4 4-4 4-4-4Zm-32 32 4 4-4 4-4-4Z"/><path d="M46 81h8v5l-4 3-4-3Z"/></g><g class="runner-dots"></g></svg><span class="quick-run-caption"></span></div>
+
     </div>
     <div class="quick-action">
       <button class="quick-report">투수 배합</button>
@@ -46,6 +47,7 @@ export function openQuickMode(){
   const lifecycle=new AbortController();
   const on=(el,event,fn)=>el.addEventListener(event,fn,{signal:lifecycle.signal});
   let game,phase='ready',elapsed=0,paused=false,closed=false,raf,lastTime=performance.now();
+  let fieldReplay=null;
   let autoPitch=false,width=0,height=0,outcome=null,best=record(),displayedPitch=null,swingAt=null,overlayReturn=null;
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pitcherLabel=()=>`${game.pitcher.hand==='L'?'좌완':'우완'} · ${game.pitcher.name}`;
@@ -109,7 +111,7 @@ export function openQuickMode(){
   }
   function resolve(offset){
     if(phase!=='flight'||paused||closed)return;
-    outcome=game.resolve(offset);swingAt=offset===null?null:displayedPitch.flight+offset;phase='feedback';elapsed=0;
+    outcome=game.resolve(offset);fieldReplay=makeFieldReplay(outcome);swingAt=offset===null?null:displayedPitch.flight+offset;phase='feedback';elapsed=0;
     root.dataset.verdict=outcome.kind;
     const timing=offset===null?'':!inQuickZone(displayedPitch)?'볼에 스윙':outcome.kind==='hit'&&outcome.matched?'노림수 적중':outcome.kind==='hit'?'맞혀냈어요':outcome.kind==='out'?'빗맞았어요':offset<0?'조금 빨랐어요':'조금 늦었어요';
     message(outcome.label,`${displayedPitch.name} · ${displayedPitch.speed} km/h${outcome.runs?'':timing?' · '+timing:''}`);
@@ -182,10 +184,7 @@ export function openQuickMode(){
   }
   function drawRunners(){
     if(phase==='plan'&&autoPitch)$('.quick-auto').style.setProperty('--left',String(Math.max(0,1-elapsed/AUTO_PITCH_MS)));
-    const playback=$('.quick-playback');
-    const show=phase==='feedback'&&['hit','walk'].includes(outcome?.kind)&&(reduced||elapsed>=350);
-    playback.hidden=!show;
-    if(phase!=='feedback'||!outcome)return;
+    if(phase!=='feedback'||!outcome)return [];
     const paths=runnerPaths(outcome.before.bases,outcome);
     const frames=paths.map(path=>runnerFrame(path,elapsed,reduced));
     if(paths.length)baseDisplay([1,2,3].map(base=>frames.some(frame=>!frame.moving&&frame.base===base)),frames.some(frame=>frame.moving));
@@ -197,16 +196,20 @@ export function openQuickMode(){
       if(label.textContent!==detail)label.textContent=detail;
     }
     $('.quick-runs').classList.toggle('scoring',scored>0);
-    if(show){
-      $('.runner-dots').innerHTML=frames.filter(frame=>!frame.scored).map(frame=>`<circle cx="${frame.x}" cy="${frame.y}" r="3.7" fill="#f2d18b" stroke="#102a22" stroke-width="1"/>`).join('');
-      $('.quick-run-caption').textContent=scored?`+${scored} 득점`:outcome.kind==='walk'?'1루로 출루':outcome.bases===4?'홈으로!':`${outcome.bases}루까지!`;
-    }
+    return frames;
   }
   function draw() {
-    drawRunners();
+    const runners=drawRunners();
     if(phase!=='feedback')$('.quick-runs').classList.remove('scoring');
     if (!ctx || !width || !height) return;
     const w = width, h = height, cx = w / 2, plate = h * .69, target = Math.min(w * .14, h * .11, 46), zoneHeight = target * 1.25;
+    const showReplay=phase==='feedback'&&(fieldReplay||runners.length)&&(reduced||elapsed>=90);
+    if(showReplay){
+      root.dataset.view='field';
+      drawFieldReplay(ctx,w,h,fieldReplay,runners,elapsed,reduced);
+      return;
+    }
+    if(root.dataset.view)delete root.dataset.view;
     const homeY=Math.min(h-14,plate+zoneHeight+35);
     const baseSpread=w*.34, baseY=h*.41, secondY=h*.21;
     const polygon=(points,fill)=>{
@@ -349,12 +352,6 @@ export function openQuickMode(){
           ctx.lineTo(contactX+Math.cos(angle)*(ring+10),contactY+Math.sin(angle)*(ring+10));ctx.stroke();
         }
         ctx.restore();
-      }
-      if(feedback&&motion.contact&&!reduced&&elapsed>70){
-        for(const lag of [48,24]){
-          const trail=contactMotion(outcome,Math.max(0,elapsed-lag));ctx.save();ctx.globalAlpha=motion.alpha*.15;
-          circle(contactX+trail.x*w,contactY+trail.y*h,radius*trail.scale,'#fff3d0');ctx.restore();
-        }
       }
       if(missed)return;
       const x=contactX+(feedback?motion.x*w:0),y=contactY+(feedback?motion.y*h:0);

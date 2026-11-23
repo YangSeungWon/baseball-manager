@@ -60,7 +60,7 @@ try{
     await page.clock.runFor(80);
     await page.screenshot({path:`/tmp/dugout-contact-${width}.png`});
     await page.clock.runFor(820);
-    assert.equal(await page.locator('.quick-playback').isVisible(),true);
+    assert.equal(await page.locator('.quick-mode').getAttribute('data-view'),'field');
     assert.equal(await page.locator('.quick-bases').getAttribute('aria-label'),'주자 진루 중');
     await page.screenshot({path:`/tmp/dugout-runners-${width}.png`});
     assert.equal(await page.locator('.quick-points').textContent(),'0');
