@@ -1,6 +1,6 @@
 import {QuickGame, APPROACHES, WINDUP_MS, HIT_MS, pitchLocation, inQuickZone} from './quick-game.js';
 import {QUICK_PITCH_TYPES, drawSpinningBall} from './quick-pitches.js';
-import {contactMotion, runnerPaths, runnerFrame, feedbackDuration} from './quick-feedback.js';
+import {contactMotion, runnerPaths, runnerFrame, feedbackDuration, pitcherPose} from './quick-feedback.js';
 
 const RECORD_KEY='dugout.inning.v1';
 // Between pitches the next one comes on its own; tapping a card restarts the wait.
@@ -50,6 +50,11 @@ export function openQuickMode(){
   const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
   const pitcherLabel=()=>`${game.pitcher.hand==='L'?'좌완':'우완'} · ${game.pitcher.name}`;
   const dots=(label,count,total)=>`<span>${label}</span>${Array.from({length:total},(_,i)=>`<i class="${i<count?'lit':''}"></i>`).join('')}`;
+  function baseDisplay(bases,moving=false){
+    const label=bases.some(Boolean)?bases.flatMap((v,i)=>v?[`${i+1}루`]:[]).join(', ')+' 주자':'주자 없음';
+    $('.quick-bases').setAttribute('aria-label',moving?'주자 진루 중':label);
+    root.querySelectorAll('[data-base]').forEach(el=>el.classList.toggle('occupied',bases[Number(el.dataset.base)]));
+  }
   function hud(){
     root.dataset.phase=phase;
     $('.quick-help').disabled=phase==='finished';
@@ -58,8 +63,7 @@ export function openQuickMode(){
     for(const [selector,label,value,total] of [['.count-balls','B',game.balls,3],['.count-strikes','S',game.strikes,2],['.count-outs','O',game.outs,3]]){
       const el=$(selector);el.innerHTML=dots(label,value,total);el.setAttribute('role','img');el.setAttribute('aria-label',`${label==='B'?'볼':label==='S'?'스트라이크':'아웃'} ${value}`);
     }
-    $('.quick-bases').setAttribute('aria-label',game.bases.some(Boolean)?game.bases.flatMap((v,i)=>v?[`${i+1}루`]:[]).join(', ')+' 주자':'주자 없음');
-    root.querySelectorAll('[data-base]').forEach(el=>el.classList.toggle('occupied',game.bases[Number(el.dataset.base)]));
+    baseDisplay(phase==='feedback'&&outcome?outcome.before.bases:game.bases);
     $('.quick-mix').textContent=game.pitcher.arsenal.map(({type,usage})=>`${QUICK_PITCH_TYPES[type].name} ${usage}%`).join(' · ');
     $('.quick-auto').hidden=!(phase==='plan'&&autoPitch);
     $('.quick-report').innerHTML=`<span>${pitcherLabel()}</span><span>배합 보기 ${icon('arrow')}</span>`;
@@ -184,6 +188,7 @@ export function openQuickMode(){
     if(phase!=='feedback'||!outcome)return;
     const paths=runnerPaths(outcome.before.bases,outcome);
     const frames=paths.map(path=>runnerFrame(path,elapsed,reduced));
+    if(paths.length)baseDisplay([1,2,3].map(base=>frames.some(frame=>!frame.moving&&frame.base===base)),frames.some(frame=>frame.moving));
     const scored=frames.filter(frame=>frame.scored).length;
     $('.quick-points').textContent=outcome.before.runs+scored;
     if(outcome.runs){
@@ -208,19 +213,29 @@ export function openQuickMode(){
     ctx.strokeStyle = '#9bb7a459'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(0, h); ctx.lineTo(cx, h * .28); ctx.lineTo(w, h); ctx.stroke();
     ctx.fillStyle = '#98764f'; ctx.beginPath(); ctx.ellipse(cx, h * .32, 35, 12, 0, 0, Math.PI * 2); ctx.fill();
-    // A compact pitcher silhouette stays proportional in short mobile fields.
+    // The same pose timeline is used in every viewport, mirrored for lefties.
     const figureScale=Math.max(.6,Math.min(1.15,h/500)), feet=h*.32;
+    const pose=pitcherPose(phase,elapsed,game.pitcher.hand,reduced);
+    const mirror=game.pitcher.hand==='L'?-1:1;
+    const limb=(points,color,lineWidth)=>{
+      ctx.strokeStyle=color;ctx.lineWidth=lineWidth;ctx.beginPath();
+      points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.stroke();
+    };
     ctx.save();ctx.translate(cx,feet);ctx.scale(figureScale,figureScale);
-    ctx.lineCap='round';ctx.strokeStyle='#e7e7d6';ctx.lineWidth=8;
-    ctx.beginPath();ctx.moveTo(-3,-18);ctx.lineTo(-8,-1);ctx.moveTo(3,-18);ctx.lineTo(10,-1);ctx.stroke();
-    ctx.strokeStyle='#172f32';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-11,0);ctx.lineTo(-4,0);ctx.moveTo(7,0);ctx.lineTo(15,0);ctx.stroke();
-    ctx.fillStyle='#eee9d4';ctx.fillRect(-8,-39,16,23);
-    ctx.fillStyle='#244b53';ctx.fillRect(-8,-40,16,7);ctx.fillRect(-2,-33,4,15);
-    circle(0,-48,8,'#e5bf91');
-    ctx.fillStyle='#244b53';ctx.beginPath();ctx.arc(0,-50,8,Math.PI,0);ctx.fill();ctx.fillRect(-8,-51,20,3);
-    ctx.strokeStyle='#eee9d4';ctx.lineWidth=6;
-    ctx.beginPath();ctx.moveTo(-7,-35);ctx.lineTo(-15,-25);ctx.lineTo(-8,-22);ctx.moveTo(7,-35);ctx.lineTo(13,-28);ctx.lineTo(1,-25);ctx.stroke();
-    circle(-9,-24,6,'#a87344');ctx.restore();
+    ctx.lineCap='round';ctx.lineJoin='round';
+    limb([pose.hip,[6*mirror,-9],[10*mirror,0]],'#e7e7d6',8);
+    limb([pose.hip,pose.knee,pose.foot],'#e7e7d6',8);
+    limb([[7*mirror,0],[15*mirror,0]],'#172f32',5);
+    limb([[pose.foot[0]-3,pose.foot[1]], [pose.foot[0]+4,pose.foot[1]]],'#172f32',5);
+    limb([pose.hip,pose.shoulder],'#eee9d4',16);
+    limb([pose.hip,pose.shoulder],'#244b53',3);
+    circle(...pose.head,8,'#e5bf91');
+    ctx.fillStyle='#244b53';ctx.beginPath();ctx.arc(pose.head[0],pose.head[1]-2,8,Math.PI,0);ctx.fill();ctx.fillRect(pose.head[0]-8,pose.head[1]-3,20,3);
+    limb([pose.shoulder,[pose.glove[0]-5,pose.glove[1]-2],pose.glove],'#eee9d4',6);
+    limb([pose.shoulder,pose.elbow,pose.hand],'#eee9d4',6);
+    circle(...pose.hand,3,'#e5bf91');circle(...pose.glove,6,'#a87344');
+    if(phase==='windup')circle(...pose.hand,3,'#fff3d0');
+    ctx.restore();
     ctx.strokeStyle = '#f1dca4'; ctx.lineWidth = 3;
     ctx.strokeRect(cx - target, plate - zoneHeight, target * 2, zoneHeight * 2);
     ctx.fillStyle = '#f1dca410'; ctx.fillRect(cx - target, plate - zoneHeight, target * 2, zoneHeight * 2);

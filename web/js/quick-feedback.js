@@ -1,3 +1,29 @@
+import {WINDUP_MS} from './quick-game.js';
+
+// Joint positions in the pitcher's local space. The release hand meets the
+// existing ball origin; animation never changes the delivery or input clock.
+const PITCHER_POSES=[
+  {head:[0,-48],hip:[0,-18],shoulder:[0,-35],knee:[-5,-9],foot:[-8,0],elbow:[13,-28],hand:[1,-25],glove:[-9,-24]},
+  {head:[-4,-50],hip:[-4,-20],shoulder:[-4,-37],knee:[-17,-24],foot:[-12,-15],elbow:[17,-41],hand:[23,-50],glove:[-15,-33]},
+  {head:[3,-44],hip:[0,-17],shoulder:[3,-31],knee:[-11,-8],foot:[-19,0],elbow:[13,-40],hand:[0,-25],glove:[-14,-23]},
+  {head:[9,-38],hip:[1,-17],shoulder:[8,-25],knee:[-13,-8],foot:[-19,0],elbow:[5,-16],hand:[-9,-10],glove:[-12,-19]},
+];
+export function pitcherPose(phase,elapsed,hand='R',reduced=false){
+  let from=0,to=0,t=0;
+  if(!reduced&&phase==='windup'){
+    const p=Math.max(0,Math.min(1,elapsed/WINDUP_MS));
+    [from,to,t]=p<.55?[0,1,p/.55]:[1,2,(p-.55)/.45];
+  }else if(!reduced&&phase==='flight'){
+    [from,to,t]=elapsed<220?[2,3,Math.max(0,elapsed)/220]:[3,0,Math.min(1,(elapsed-220)/500)];
+  }
+  t=t*t*(3-2*t);
+  const mirror=hand==='L'?-1:1;
+  return Object.fromEntries(Object.keys(PITCHER_POSES[0]).map(key=>{
+    const a=PITCHER_POSES[from][key],b=PITCHER_POSES[to][key];
+    return [key,[(a[0]+(b[0]-a[0])*t)*mirror,a[1]+(b[1]-a[1])*t]];
+  }));
+}
+
 // Visual time only: contact holds never change input timing, counts or scoring.
 export function contactMotion(result, milliseconds, reduced=false) {
   const contact=['hit','foul','out'].includes(result?.kind);
@@ -36,6 +62,7 @@ export function runnerFrame(path, elapsed, reduced=false){
   const travel=reduced?path.to-path.from:Math.max(0,(elapsed-350)/260);
   const base=Math.min(path.to,path.from+travel),index=Math.min(3,Math.floor(base));
   const amount=base-index,a=DIAMOND[index],b=DIAMOND[index+1];
-  return {x:a[0]+(b[0]-a[0])*amount,y:a[1]+(b[1]-a[1])*amount,scored:base>=4};
+  return {x:a[0]+(b[0]-a[0])*amount,y:a[1]+(b[1]-a[1])*amount,scored:base>=4,
+    base,moving:base<path.to&&travel>0};
 }
 export const feedbackDuration=result=>result?.ended?1900:1250;

@@ -1,6 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {contactMotion,runnerPaths,runnerFrame,feedbackDuration} from '../web/js/quick-feedback.js';
+import {contactMotion,runnerPaths,runnerFrame,feedbackDuration,pitcherPose} from '../web/js/quick-feedback.js';
+import {WINDUP_MS} from '../web/js/quick-game.js';
+
+test('pitcher releases continuously, mirrors throwing hands and respects reduced motion',()=>{
+  const release=pitcherPose('windup',WINDUP_MS);
+  assert.deepEqual(release,pitcherPose('flight',0));
+  assert.notDeepEqual(pitcherPose('windup',WINDUP_MS*.55),release);
+  assert.deepEqual(pitcherPose('flight',720),pitcherPose('plan',0));
+  const right=pitcherPose('windup',300),left=pitcherPose('windup',300,'L');
+  for(const key of Object.keys(right)){
+    assert.equal(left[key][0],-right[key][0]);assert.equal(left[key][1],right[key][1]);
+  }
+  assert.deepEqual(pitcherPose('windup',300,'R',true),pitcherPose('flight',80,'R',true));
+});
 
 test('a clean hit holds visually then departs, while a miss never produces contact',()=>{
   const result={kind:'hit',bases:4,offset:-10};
@@ -31,4 +44,15 @@ test('runner animation preserves forced walks and sequential homer scoring',()=>
   assert.equal(runnerFrame({from:0,to:1},700).x,82);
   assert.equal(runnerFrame({from:0,to:4},0,true).scored,true);
   assert.ok(feedbackDuration({ended:true})>1400);
+});
+
+test('base indicators can distinguish runners travelling from runners arriving',()=>{
+  const path={from:1,to:3};
+  assert.equal(runnerFrame(path,0).base,1);
+  assert.equal(runnerFrame(path,0).moving,false);
+  assert.equal(runnerFrame(path,480).moving,true);
+  assert.equal(runnerFrame(path,870).base,3);
+  assert.equal(runnerFrame(path,870).moving,false);
+  assert.equal(runnerFrame(path,0,true).base,3);
+  assert.equal(runnerFrame(path,0,true).moving,false);
 });

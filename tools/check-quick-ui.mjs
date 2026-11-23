@@ -56,14 +56,19 @@ try{
    else{await page.clock.runFor(flight+offset-16);if(touch)await activate('.quick-swing');else await page.keyboard.press('Space');}
    assert.equal(await page.locator('.quick-mode').getAttribute('data-phase'),'feedback');
    if(offset===0){
-    await page.clock.runFor(900);
+    assert.equal(await page.locator('[data-base="0"]').getAttribute('class'),'occupied','runner remains on first until the running starts');
+    await page.clock.runFor(80);
+    await page.screenshot({path:`/tmp/dugout-contact-${width}.png`});
+    await page.clock.runFor(820);
     assert.equal(await page.locator('.quick-playback').isVisible(),true);
+    assert.equal(await page.locator('.quick-bases').getAttribute('aria-label'),'주자 진루 중');
     await page.screenshot({path:`/tmp/dugout-runners-${width}.png`});
     assert.equal(await page.locator('.quick-points').textContent(),'0');
     await page.clock.runFor(300);
     assert.equal(await page.locator('.quick-points').textContent(),'1','runner scores before the hitter');
     await page.clock.runFor(250);
     assert.equal(await page.locator('.quick-points').textContent(),'2','hitter scores on reaching home');
+    assert.equal(await page.locator('.quick-bases').getAttribute('aria-label'),'주자 없음');
    }
    await page.clock.runFor(await page.evaluate(async()=>{const {feedbackDuration}=await import('/js/quick-feedback.js');return feedbackDuration(testGame.results.at(-1))+32;})-(offset===0?1450:0));
   }
@@ -79,7 +84,13 @@ try{
   await page.clock.runFor(672);await finishPitch();
   for(let i=0;i<2;i++){await begin();await finishPitch();}
   assert.deepEqual(await page.evaluate(()=>testGame.bases),[true,false,false]);
-  await begin();await page.screenshot({path:`/tmp/dugout-inning-play-${width}.png`});await finishPitch(0);
+  assert.equal(await page.locator('[data-base="0"]').getAttribute('class'),'occupied');
+  // Check the visible delivery at fixed times rather than only its end state.
+  await activate('.quick-swing');await page.clock.runFor(350);
+  await page.screenshot({path:`/tmp/dugout-windup-${width}.png`});
+  await page.clock.runFor(322);
+  assert.equal(await phase(),'flight');
+  await page.screenshot({path:`/tmp/dugout-inning-play-${width}.png`});await finishPitch(0);
   assert.equal(await page.evaluate(()=>testGame.runs),2,'prepared center fastball is a two-run homer');
   for(let i=0;i<2;i++){await begin();await finishPitch();}
   await begin();await finishPitch(125);assert.equal(await page.evaluate(()=>testGame.strikes),2);assert.equal(await page.evaluate(()=>testGame.outs),0);
