@@ -87,3 +87,6 @@
 .quick-decision .quick-auto::before{content:'';position:absolute;inset:0;background:#f2d18b;transform-origin:left;transform:scaleX(var(--left,1))}
 .quick-decision .quick-auto[hidden]{display:none}
 @media(max-height:600px){.quick-decision .quick-mix{margin-top:-6px}}
+
+.quick-field .quick-three{position:absolute;inset:0;pointer-events:none}
+.quick-mode[data-renderer=three] .quick-field canvas:not(.quick-three){opacity:0}

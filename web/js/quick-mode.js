@@ -44,6 +44,20 @@ export function openQuickMode(){
   document.body.append(root);
   const $=selector=>root.querySelector(selector),canvas=$('canvas'),ctx=canvas.getContext('2d');
   const cover=$('.quick-cover'),swingButton=$('.quick-swing'),action=$('.quick-action');
+  let three=null;
+  const fallback=()=>{
+    three?.dispose();three=null;
+    delete root.dataset.renderer;
+  };
+  if(new URLSearchParams(location.search).get('view')==='3d'){
+    import('./quick-three.js').then(async ({openQuickThree,prepareQuickThree})=>{
+      await prepareQuickThree();
+      if(closed)return;
+      three=openQuickThree($('.quick-field'),fallback);
+      root.dataset.renderer='three';
+      lastTime=performance.now();
+    }).catch(error=>{console.warn('3D preview unavailable',error);fallback();});
+  }
   const lifecycle=new AbortController();
   const on=(el,event,fn)=>el.addEventListener(event,fn,{signal:lifecycle.signal});
   let game,phase='ready',elapsed=0,paused=false,closed=false,raf,lastTime=performance.now();
@@ -150,7 +164,7 @@ export function openQuickMode(){
     (['flight','windup'].includes(phase)?root:overlayReturn?.isConnected&&!overlayReturn.disabled?overlayReturn:swingButton).focus({preventScroll:true});
   }
   function close(){
-    if(closed)return;closed=true;active=false;lifecycle.abort();cancelAnimationFrame(raf);resize.disconnect();root.remove();
+    if(closed)return;closed=true;active=false;lifecycle.abort();cancelAnimationFrame(raf);resize.disconnect();fallback();root.remove();
     backgrounds.forEach((el,i)=>el.inert=priorInert[i]);document.body.style.overflow=overflow;origin?.focus();
   }
   on($('.quick-exit'),'click',close);
@@ -202,6 +216,16 @@ export function openQuickMode(){
     const runners=drawRunners();
     if(phase!=='feedback')$('.quick-runs').classList.remove('scoring');
     if (!ctx || !width || !height) return;
+    if(three){
+      try{
+        three.draw({width,height,elapsed,phase,game,pitch:displayedPitch,runners,
+          replay:fieldReplay,projectCourse:pitchLocation,swingAt,reduced});
+        return;
+      }catch(error){
+        console.warn('3D preview unavailable',error);
+        fallback();
+      }
+    }
     const w = width, h = height, cx = w / 2, plate = h * .69, target = Math.min(w * .14, h * .11, 46), zoneHeight = target * 1.25;
     const projectPitch=(progress)=>{
       const p=Math.max(0,Math.min(1,progress));
